@@ -22,8 +22,7 @@ import { SyncCoordinator } from './sync.js'
 import type { OfflineStore } from './store.js'
 import { identityFromToken } from './identity.js'
 import { OFFLINE_SYNC_LABEL, type OfflineQueueItem } from './types.js'
-import { reportApiReachability, subscribeApiReachability } from '../../lib/apiReachability.js'
-import { createReachabilityMonitor } from './reachabilityMonitor.js'
+import { subscribeApiReachability } from '../../lib/apiReachability.js'
 
 export type OfflineStatus = {
   /** Хранилище доступно и офлайн-работа сохранится. */
@@ -47,14 +46,6 @@ let store: OfflineStore | null = null
 let coordinator: SyncCoordinator | null = null
 let identityKey: string | null = null
 let connectivityWatched = false
-const reachabilityMonitor = createReachabilityMonitor({
-  probe: async () => {
-    const api = await import('../../lib/api')
-    return api.probeApiReachability()
-  },
-  interfaceOnline: () => typeof navigator === 'undefined' || navigator.onLine !== false,
-  onResult: reportApiReachability,
-})
 
 /**
  * SMA-OFFLINE-QUEUE-OWNER-IDENTITY-HARDENING-005.
@@ -149,31 +140,20 @@ function watchConnectivity() {
   subscribeApiReachability((reachable) => {
     // navigator.onLine describes an interface, not whether the API can be
     // reached. A real request result is the stronger signal.
-    const wasOnline = status.online
-    const online = reachable && navigator.onLine !== false
-    emit({ online })
+    emit({ online: reachable && navigator.onLine !== false })
     if (!reachable) cancelRetry()
-    else if (!wasOnline && online) {
-      cancelRetry()
-      void syncNow()
-    }
   })
   window.addEventListener('online', () => {
     // Do not claim "online" until an API request succeeds. The browser event
     // only permits a sync attempt; mobile radios often emit it too early.
     cancelRetry()
-    void reachabilityMonitor.probeNow()
+    void syncNow()
   })
   window.addEventListener('offline', () => {
-    reportApiReachability(false)
+    emit({ online: false })
     // Без сети повторять нечего: следующий круг закажет событие `online`.
     cancelRetry()
   })
-  window.addEventListener('focus', () => { void reachabilityMonitor.probeNow() })
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') void reachabilityMonitor.probeNow()
-  })
-  reachabilityMonitor.start()
 }
 
 export function getOfflineStatus(): OfflineStatus {

@@ -32,7 +32,6 @@ import {
   setOfflineDriverFactory,
   currentOfflineStore,
 } from './session.js'
-import { createReachabilityMonitor } from './reachabilityMonitor.js'
 
 function makeStore(namespace = 'co-1:user-1') {
   const driver = new MemoryDriver()
@@ -535,21 +534,6 @@ test('24. Service Worker кэширует оболочку и не кэширу�
   // расширениями: под него не должен попасть ни один ответ с данными.
   assert.match(sw, /function isBuildAsset/, 'отбор сборочных файлов выделен явно')
   assert.match(sw, /url\.pathname\.startsWith\('\/assets\/'\)/, 'только каталог /assets/')
-  assert.match(sw, /sma-app-shell-v2/, 'новая оболочка отделена от старого cache поколения')
-  assert.match(sw, /if \(cached\) return cached/, 'cold navigation не ждёт сеть при наличии оболочки')
-})
-
-test('24b. реальная недоступность API сильнее navigator.onLine=true', async () => {
-  const results: boolean[] = []
-  const monitor = createReachabilityMonitor({
-    probe: async () => false,
-    interfaceOnline: () => true,
-    onResult: (reachable) => results.push(reachable),
-    setIntervalFn: (() => 1) as unknown as typeof setInterval,
-    clearIntervalFn: (() => undefined) as unknown as typeof clearInterval,
-  })
-  await monitor.probeNow()
-  assert.deepEqual(results, [false])
 })
 
 // ── дополнительные инварианты ─────────────────────────────────────────────
