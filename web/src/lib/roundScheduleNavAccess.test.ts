@@ -96,3 +96,52 @@ describe('025 план обходов доступен из меню', () => {
     expect(today).not.toMatch(/assignedToUserId:/)
   })
 })
+
+/**
+ * SMA-ROUND-TECHNICIAN-ASSIGNMENT-025 — выбор техника.
+ *
+ * Проверяется контракт страницы, а не безопасность: правила доступа живут
+ * на сервере, и тест следит ровно за тем, чтобы интерфейс их не дублировал
+ * и не подменял своим списком.
+ */
+describe('025 выбор исполнителя в плане обходов', () => {
+  const page = () => read('../views/InspectionSchedulesPage.tsx')
+
+  it('8. кандидатов берёт сервер и только для выбранной точки', () => {
+    const source = page()
+    expect(source).toMatch(/api\.getAssignableRoundTechnicians\(locationId\)/)
+    expect(source).toMatch(/enabled: canManage && !!locationId/)
+    // Общий список всех активных сотрудников больше не источник кандидатов.
+    expect(source).not.toMatch(/queryFn: api\.technicians/)
+  })
+
+  it('9. смена точки сбрасывает прежний выбор', () => {
+    const source = page()
+    expect(source).toMatch(/setLocationId\(e\.target\.value\); setAssignedToUserId\(''\)/)
+  })
+
+  it('10. выбор, ставший недействительным, очищается', () => {
+    const source = page()
+    expect(source).toMatch(/executors\.some\(\(candidate\) => candidate\.id === assignedToUserId\)/)
+    expect(source).toMatch(/setAssignedToUserId\(''\)/)
+  })
+
+  it('11. пустое состояние объяснено по-русски, а не молчит', () => {
+    const source = page()
+    expect(source).toContain('Сначала выберите точку')
+    expect(source).toContain('Для этой точки нет доступных исполнителей')
+  })
+
+  it('12. второго резолвера прав на клиенте нет', () => {
+    const source = page()
+    // Никаких проверок договоров, привязок и специализаций в React.
+    for (const forbidden of ['serviceContract', 'locationBinding', 'specializationId', 'isExecutor']) {
+      expect(source).not.toContain(forbidden)
+    }
+  })
+
+  it('13. клиент запрашивает кандидатов канонической ручкой плана', () => {
+    const api = read('./api.ts')
+    expect(api).toMatch(/'\/inspection\/schedules\/assignable-technicians\?'/)
+  })
+})

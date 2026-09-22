@@ -758,6 +758,33 @@ export class TicketsAssignmentService {
     });
   }
 
+  /**
+   * SMA-ROUND-TECHNICIAN-ASSIGNMENT-025.
+   *
+   * Канонические кандидаты на исполнение работы в конкретной точке.
+   *
+   * Ничего нового здесь не решается: метод складывает два уже существующих
+   * шага назначения — отбор исполнителей компании и сужение по договору
+   * и привязкам к точке. Планированию обходов нужен ровно этот список,
+   * и заводить ради него второй резолвер значило бы развести правила
+   * доступа заявок и обходов.
+   *
+   * Специализации не сужают: у шаблона обхода нет категории проблемы,
+   * а значит и требуемых специализаций. Флаг fallbackToAllWhenNoSpecializations
+   * делает это явным — кандидаты помечаются matchReason
+   * 'fallback_no_category_specializations', а не выдают себя за совпавших.
+   */
+  async listLocationAssignableExecutors(params: {
+    employerCompanyId: string;
+    scopeCompanyId: string;
+    locationId: string;
+  }) {
+    const all = await this.listAllTechnicians(params.employerCompanyId, [], {
+      fallbackToAllWhenNoSpecializations: true,
+    });
+    return this.filterTechniciansByLocationBindings(all, params.scopeCompanyId, params.locationId);
+  }
+
   private async filterTechniciansByLocationBindings<T extends { id: string }>(
     technicians: T[],
     scopeCompanyId: string,
