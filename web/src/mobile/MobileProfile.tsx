@@ -4,10 +4,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { BrowserNotificationsCard } from '../components/BrowserNotificationsCard'
 import { SupportContactBlock } from '../components/SupportContactBlock'
 import * as api from '../lib/api'
-import { hasUnsentWork, wipeOfflineOnLogout } from './offline/runtime'
 import { useOfflineStatus } from './offline/useOffline'
-import { identityFromToken } from './offline/identity'
-import { clearLegacyOfflineCaches } from './offlineQueue'
+import { offlineAwareLogout } from '../lib/offlineSessionLogout'
 import { startMobileGuidedTour } from './MobileGuidedTourEvents'
 import { mobilePath } from './mobileRoute'
 
@@ -75,31 +73,21 @@ export function MobileProfile() {
    * после сброса отправить уже нечего и нечем.
    */
   async function logout() {
-    const { unsent, attention } = await hasUnsentWork()
-    if (unsent > 0 || attention > 0) {
-      const parts = [
-        unsent > 0 ? `не отправлено записей: ${unsent}` : '',
-        attention > 0 ? `требует внимания: ${attention}` : '',
-      ].filter(Boolean).join(', ')
-      const proceed = window.confirm(
-        `На устройстве осталась несинхронизированная работа (${parts}).\n\n` +
-        'Выход удалит её безвозвратно. Если есть сеть, сначала дождитесь отправки.\n\n' +
-        'Выйти и удалить?',
-      )
-      if (!proceed) return
-    }
-
-    // Синхронизация останавливается и хранилище этого пользователя стирается.
-    // Личность берётся из токена, если ответа `/auth/me` нет: выход без сети
-    // обязан унести данные так же надёжно, как выход со связью.
+    /*
+     * 005: единая политика уборки офлайна. Предупреждение о неотправленной
+     * работе, удаление базы этого пользователя и очистка прежних кэшей живут
+     * в ней, а не здесь: тот же порядок обязан выполняться на всех пяти
+     * поверхностях закрытия сессии, а не только в профиле `/m`.
+     *
+     * Личность берётся из `/auth/me`, а без сети — из токена внутри политики:
+     * выход в подвале обязан унести данные так же надёжно, как выход со связью.
+     */
     const identity =
       meQ.data?.id && meQ.data?.companyId
         ? { id: meQ.data.id, companyId: meQ.data.companyId }
-        : identityFromToken(api.getToken())
-    await wipeOfflineOnLogout(identity)
-    // Прежние кэши доски и карточек лежат в localStorage без разделения по
-    // пользователю — на общем планшете их обязан унести выход.
-    clearLegacyOfflineCaches()
+        : null
+    const cleanup = await offlineAwareLogout('user_initiated', { identity })
+    if (!cleanup.proceed) return
 
     const params = new URLSearchParams()
     params.set('next', mobilePath(location.pathname, ''))
