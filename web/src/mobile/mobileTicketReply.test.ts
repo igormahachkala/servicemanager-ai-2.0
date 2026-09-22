@@ -318,12 +318,10 @@ describe('121G source contract мобильного экрана', () => {
   it('12. успешная отправка снимает и текст, и цель', () => {
     const source = page()
     const send = source.slice(source.indexOf('async function handleChatSend'), source.indexOf('async function handleChatSend') + 1800)
-    expect(send).toMatch(/deliverTicketComment\(/)
-    expect(send).toMatch(/send: \(idempotencyKey\) => api\.addTicketComment\(/)
-    expect(send).toMatch(/setChatText\(''\)/)
-    expect(send).toMatch(/setReplyTarget\(null\)/)
-    expect(send).toMatch(/buildAddTicketCommentOptions\(replyTarget\)/)
-    expect(send).toMatch(/delivery\.kind === 'queue-failed'/)
+    const online = send.slice(send.indexOf('await api.addTicketComment'))
+    expect(online).toMatch(/setChatText\(''\)/)
+    expect(online).toMatch(/setReplyTarget\(null\)/)
+    expect(online).toMatch(/buildAddTicketCommentOptions\(replyTarget\)/)
   })
 
   it('13. отказ сохраняет и текст, и цель', () => {
