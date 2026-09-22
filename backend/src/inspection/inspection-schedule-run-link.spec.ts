@@ -209,13 +209,50 @@ function makeSuite(
         createdRuns.set(created.id, created)
         return created
       }),
-      findUnique: jest.fn(async ({ where }: any) => createdRuns.get(where.id) ?? null),
+      findUnique: jest.fn(async ({ where }: any) => {
+        const found = createdRuns.get(where.id)
+        if (!found) return null
+        /*
+         * 029: сдвиг плана читает обход вместе со связанным планом. Заглушка
+         * отдаёт связь так же, как настоящий select, иначе сдвиг молча
+         * пропускался бы и проверка ничего бы не значила.
+         */
+        const linked = (found as any).scheduleId === schedule?.id ? schedule : null
+        return {
+          ...found,
+          schedule: linked
+            ? {
+                id: linked.id,
+                isActive: linked.isActive,
+                frequency: (linked as any).frequency ?? 'DAILY',
+                intervalDays: (linked as any).intervalDays ?? null,
+                nextDueAt: linked.nextDueAt,
+                company: { timezone: 'Europe/Moscow' },
+              }
+            : null,
+        }
+      }),
       findFirst: jest.fn(async ({ where }: any) => {
         if (where.scheduleId) return options.activeRun ?? null
         return { ...runRow, ...(options.activeRun ?? {}) }
       }),
       findMany: jest.fn().mockResolvedValue([]),
       update: jest.fn(async ({ data }: any) => ({ ...runRow, ...data })),
+      /**
+       * 029: завершение закрывает обход условным updateMany — признак
+       * «уже завершён» ставит сам переход статуса. Заглушка отвечает как
+       * выигранная гонка: один изменённый ряд.
+       */
+      updateMany: jest.fn(async () => ({ count: 1 })),
+      findUniqueOrThrow: jest.fn(async ({ where }: any) => {
+          const found = createdRuns.get(where.id) ?? runRow
+          // Настоящий запрос идёт с select: runSelect(), где items всегда есть;
+          // сводка обхода по ним и строится.
+          // В созданной записи items лежит входной формой Prisma
+          // ({ create: [...] }), а сводке нужен массив — как в настоящем select.
+          const items = (found as any).items
+          return { ...found, items: Array.isArray(items) ? items : [] }
+        }),
     },
     inspectionRunItem: {
       findFirst: jest.fn().mockResolvedValue({
@@ -557,7 +594,18 @@ describe('119K смежное поведение обходов', () => {
     expect(prisma.inspectionSchedule.findFirst).toHaveBeenCalledTimes(1)
   })
 
-  it('17. завершение обхода плана не переписывает', async () => {
+  /**
+   * SMA-ROUND-SCHEDULE-ADVANCE-029: правило заменено намеренно.
+   *
+   * 119K утверждал, что завершение план не трогает, — и это было верно,
+   * пока арифметики повторения не существовало: двигать было нечем и некуда.
+   * Теперь завершение сдвигает план, иначе периодичность, обещанная
+   * в планировщике, так и осталась бы словом в выпадающем списке.
+   *
+   * Что осталось прежним и проверяется здесь же: сам обход закрывается один
+   * раз, а прошлые обходы никто не переписывает.
+   */
+  it('17. завершение сдвигает план и закрывает обход ровно один раз', async () => {
     const { svc, prisma } = makeSuite()
 
     await svc.startRun(technician, { ...base, scheduleId: 'sch-1' } as any)
@@ -565,9 +613,27 @@ describe('119K смежное поведение обходов', () => {
 
     await svc.completeRun(technician, 'run-1')
 
-    expect(prisma.inspectionRun.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: InspectionRunStatus.COMPLETED }) }),
+    // Закрытие идёт условным переходом статуса: победитель гонки один.
+    expect(prisma.inspectionRun.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: { not: InspectionRunStatus.COMPLETED } }),
+        data: expect.objectContaining({ status: InspectionRunStatus.COMPLETED }),
+      }),
     )
+    // И план получает новую дату ближайшего визита.
+    expect(prisma.inspectionSchedule.update).toHaveBeenCalledTimes(1)
+  })
+
+  it('17b. проигравший гонку завершения план не двигает', async () => {
+    const { svc, prisma } = makeSuite()
+
+    await svc.startRun(technician, { ...base, scheduleId: 'sch-1' } as any)
+    prisma.inspectionSchedule.update.mockClear()
+    // Обход уже закрыт кем-то другим: изменённых рядов нет.
+    prisma.inspectionRun.updateMany.mockResolvedValueOnce({ count: 0 })
+
+    await expect(svc.completeRun(technician, 'run-1')).rejects.toBeTruthy()
+
     expect(prisma.inspectionSchedule.update).not.toHaveBeenCalled()
   })
 

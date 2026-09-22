@@ -182,9 +182,11 @@ export class MaxTechnicianRoundsService {
     });
     const timezone = state.company.timezone;
     const now = state.serverNow instanceof Date ? state.serverNow : new Date(state.serverNow);
-    const { to } = zonedDayRange(now, timezone);
     const [schedules, runs, templates] = await Promise.all([
-      this.schedules.list(user, { to: to.toISOString(), active: 'true' }),
+      // 029: границу «сегодня» считает сервер в поясе компании — то же правило,
+      // что и на /m. Своего окна MAX больше не строит, иначе две поверхности
+      // снова разойдутся в дне.
+      this.schedules.list(user, { dueToday: 'true', active: 'true' }),
       this.inspection.listRuns(user),
       this.inspection.listTemplates(user),
     ]);
