@@ -21,18 +21,12 @@ export function isRetrySafeConnectivityFailure(error: unknown): boolean {
 
   // fetch() rejects with TypeError for network failures in Chromium/Safari.
   if (error instanceof TypeError) return true
-  // Safari may surface a cross-realm TypeError which does not satisfy
-  // instanceof TypeError in the application realm.
-  if (name === 'typeerror' || name === 'networkerror' || name === 'aborterror') return true
+  if (name === 'networkerror' || name === 'aborterror') return true
   return (
     message.includes('failed to fetch') ||
     message.includes('network request failed') ||
     message.includes('networkerror') ||
-    message.includes('load failed') ||
-    message.includes('internet connection appears to be offline') ||
-    message.includes('network connection was lost') ||
-    message.includes('could not connect to the server') ||
-    message.includes('specified hostname could not be found')
+    message.includes('load failed')
   )
 }
 export async function deliverTicketComment(params: {
