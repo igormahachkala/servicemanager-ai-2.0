@@ -105,17 +105,35 @@ git push origin :refs/tags/stage-ok/&lt;ветка&gt;
 </tag_void>
 
 <return>
-Повторное слияние той же ветки в beta содержимое не вернёт: коммиты
-остаются предками beta, git ответит Already up to date либо принесёт
-только новые, а ревёрт останется. Возвращает revert от revert в beta,
-затем слияние новых коммитов ветки. Оба PR готовить заранее, сливать
-подряд, как фаза 4 rollback Production, целевая ветка beta.
-Замок stage-busy ставится заново шагом 7 sma-deploy-stage.
+Содержимое в beta возвращает unrevert, то есть revert коммита ревёрта.
+Повторное слияние той же feat-ветки без unrevert содержимое не возвращает.
+
+<command>
+git fetch origin
+git switch -c unrevert/beta-&lt;тема&gt; origin/beta
+git revert &lt;SHA коммита ревёрта в beta&gt; --no-edit
+git push -u origin unrevert/beta-&lt;тема&gt;
+gh pr create --base beta --head unrevert/beta-&lt;тема&gt; \
+  --title "unrevert: &lt;тема&gt; on beta" \
+  --body "Возврат содержимого в beta после ревёрта. Исходная ветка: &lt;ветка задачи&gt;."
+</command>
+
+После этого PR, если на исходной feat-ветке есть новые коммиты, их PR
+в beta готовится следом. Оба PR сливаются подряд.
+
+<lock>
+Замок stage-busy ставится заново до gh pr merge unrevert-PR.
+В теле поле branch равно исходной feat-ветке, не unrevert/….
+После stage-ok замок не снимается, шаг 12 sma-deploy-stage.
+
+skills/_shared/scripts/lock-acquire.sh --owned stage &lt;ветка задачи&gt; \
+  &amp;&amp; gh pr merge &lt;номер unrevert-PR&gt; --merge --delete-branch=false
+</lock>
 </return>
 
 <forbidden>
 <f>Снимать stage-busy до pull в /opt/sma-beta и проверки, что ревёрт на контуре.</f>
-<f>Сливать ветку задачи в beta повторно без revert от revert.</f>
+<f>Сливать ветку задачи в beta повторно без unrevert.</f>
 <f>Сбрасывать beta = prod, пока стоит stage-busy.</f>
 <f>Оставлять stage-ok после ревёрта из beta.</f>
 </forbidden>
