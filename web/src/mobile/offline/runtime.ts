@@ -20,7 +20,10 @@ import { createHttpSyncTransport } from './transport.js'
 import { openOfflineSession, wipeOfflineSession, currentOfflineStore } from './session.js'
 import { SyncCoordinator } from './sync.js'
 import type { OfflineStore } from './store.js'
+import { identityFromToken } from './identity.js'
 import { OFFLINE_SYNC_LABEL, type OfflineQueueItem } from './types.js'
+import { reportApiReachability, subscribeApiReachability } from '../../lib/apiReachability.js'
+import { createReachabilityMonitor } from './reachabilityMonitor.js'
 
 export type OfflineStatus = {
   /** Хранилище доступно и офлайн-работа сохранится. */
@@ -31,6 +34,11 @@ export type OfflineStatus = {
   syncing: boolean
   /** Русское объяснение, если офлайн-режим недоступен. */
   unavailableReason?: string
+  /**
+   * 005: отправка остановлена до сети — чужая личность или закрытая сессия.
+   * Работа цела, но сама она не уйдёт, и интерфейс обязан это сказать.
+   */
+  blockedReason?: string
 }
 
 type Listener = (status: OfflineStatus) => void
@@ -39,6 +47,44 @@ let store: OfflineStore | null = null
 let coordinator: SyncCoordinator | null = null
 let identityKey: string | null = null
 let connectivityWatched = false
+const reachabilityMonitor = createReachabilityMonitor({
+  probe: async () => {
+    const api = await import('../../lib/api')
+    return api.probeApiReachability()
+  },
+  interfaceOnline: () => typeof navigator === 'undefined' || navigator.onLine !== false,
+  onResult: reportApiReachability,
+})
+
+/**
+ * SMA-OFFLINE-QUEUE-OWNER-IDENTITY-HARDENING-005.
+ *
+ * Поколение сессии. Растёт на каждом stopOffline — то есть при смене
+ * пользователя, выходе и размонтировании оболочки. Координатор, запущенный
+ * в прошлом поколении, сравнивает своё число с этим и останавливается перед
+ * следующей строкой: обнулить его ссылки снаружи нельзя, он держит их сам.
+ */
+let generation = 0
+
+/**
+ * 005: личность, которую предъявит запрос. Берётся из того же токена, каким
+ * уйдёт очередь, — значит расхождения между «чья работа» и «от чьего имени
+ * отправляем» быть не может.
+ *
+ * `lib/api` подключается лениво по той же причине, что и в транспорте: слой
+ * очереди собирается узким tsconfig, и верхнеуровневый импорт сломал бы ту
+ * сборку.
+ */
+async function liveIdentityNamespace(): Promise<string | null> {
+  try {
+    const api = await import('../../lib/api')
+    const identity = identityFromToken(api.getToken())
+    return identity ? `${identity.companyId}:${identity.id}` : null
+  } catch {
+    // Модуль не прочитали — доказать принадлежность нечем, значит не отправляем.
+    return null
+  }
+}
 
 /**
  * Повтор с нарастающей паузой.
@@ -64,8 +110,16 @@ function cancelRetry() {
   retryStep = 0
 }
 
+function canProbeConnectivity(): boolean {
+  if (status.online) return true
+  return typeof navigator !== 'undefined' && navigator.onLine !== false
+}
+
 function scheduleRetry() {
-  if (retryTimer || !coordinator || !status.online) return
+  // A failed API request is stronger evidence than navigator.onLine, but a
+  // still-up interface permits bounded probes so a queued operation is not
+  // stranded when iOS never emits a second online event.
+  if (retryTimer || !coordinator || !canProbeConnectivity()) return
   const delay = RETRY_STEPS_MS[Math.min(retryStep, RETRY_STEPS_MS.length - 1)]
   retryStep += 1
   retryTimer = setTimeout(() => {
@@ -92,17 +146,34 @@ let status: OfflineStatus = {
 function watchConnectivity() {
   if (connectivityWatched || typeof window === 'undefined') return
   connectivityWatched = true
+  subscribeApiReachability((reachable) => {
+    // navigator.onLine describes an interface, not whether the API can be
+    // reached. A real request result is the stronger signal.
+    const wasOnline = status.online
+    const online = reachable && navigator.onLine !== false
+    emit({ online })
+    if (!reachable) cancelRetry()
+    else if (!wasOnline && online) {
+      cancelRetry()
+      void syncNow()
+    }
+  })
   window.addEventListener('online', () => {
-    emit({ online: true })
-    // Счётчик пауз сбрасывается: это новый выход в зону покрытия.
+    // Do not claim "online" until an API request succeeds. The browser event
+    // only permits a sync attempt; mobile radios often emit it too early.
     cancelRetry()
-    void syncNow()
+    void reachabilityMonitor.probeNow()
   })
   window.addEventListener('offline', () => {
-    emit({ online: false })
+    reportApiReachability(false)
     // Без сети повторять нечего: следующий круг закажет событие `online`.
     cancelRetry()
   })
+  window.addEventListener('focus', () => { void reachabilityMonitor.probeNow() })
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void reachabilityMonitor.probeNow()
+  })
+  reachabilityMonitor.start()
 }
 
 export function getOfflineStatus(): OfflineStatus {
@@ -150,7 +221,11 @@ export async function startOffline(identity: { id?: string | null; companyId?: s
 
   if (!opened.available || !store) return { store, status }
 
-  coordinator = new SyncCoordinator(store, createHttpSyncTransport())
+  const startedAt = generation
+  coordinator = new SyncCoordinator(store, createHttpSyncTransport(), {
+    resolveIdentity: liveIdentityNamespace,
+    isCancelled: () => generation !== startedAt,
+  })
 
   await refreshOfflineStatus()
   // Работа могла накопиться в прошлой сессии — разбираем сразу, если связь есть.
@@ -160,6 +235,10 @@ export async function startOffline(identity: { id?: string | null; companyId?: s
 
 export function stopOffline() {
   cancelRetry()
+  // 005: сначала логическая отмена, потом обнуление ссылок. Обратный порядок
+  // оставил бы идущий круг без возможности узнать, что его уже не ждут.
+  generation += 1
+  coordinator?.cancel()
   coordinator = null
   store = null
   identityKey = null
@@ -169,14 +248,30 @@ export function stopOffline() {
 export async function syncNow(): Promise<void> {
   if (!coordinator || !store) return
   emit({ syncing: true })
+  let stoppedReason: string | undefined
   try {
-    await coordinator.run()
+    const report = await coordinator.run()
+    stoppedReason = report.stoppedReason
   } finally {
     await refreshOfflineStatus()
-    emit({ syncing: false })
-    // Осталась неотправленная работа — назначаем следующий круг сами.
-    // Ждать второго события `online` нельзя: его может не быть.
-    if (status.online && status.pending > 0) scheduleRetry()
+    emit({ syncing: false, blockedReason: stoppedReason })
+    /*
+     * Осталась неотправленная работа — назначаем следующий круг сами.
+     * Ждать второго события `online` нельзя: его может не быть.
+     *
+     * 005: круг, оборванный по личности или отмене, автоповтором не лечится —
+     * его разблокирует вход нужным пользователем, а не время. Повторять
+     * каждые четыре секунды значило бы крутить цикл впустую до конца сессии.
+     * Поэтому проверка владельца стоит первой: пока она не пройдена,
+     * планировать повтор нельзя вовсе.
+     *
+     * 001: если по личности всё чисто, условием повтора остаётся достижимость
+     * API, а не navigator.onLine. Событие `online` от радио приходит раньше
+     * связи, и повтор должен назначаться и тогда, когда интерфейс поднят,
+     * а первый запрос ещё падает.
+     */
+    if (stoppedReason) cancelRetry()
+    else if (status.pending > 0 && canProbeConnectivity()) scheduleRetry()
     else cancelRetry()
   }
 }
@@ -200,7 +295,10 @@ export async function queueOffline(input: Parameters<OfflineStore['enqueue']>[0]
   }
   const result = await s.enqueue(input)
   await refreshOfflineStatus()
-  if (result.ok && status.online) void syncNow()
+  if (result.ok) {
+    if (status.online) void syncNow()
+    else scheduleRetry()
+  }
   return result
 }
 

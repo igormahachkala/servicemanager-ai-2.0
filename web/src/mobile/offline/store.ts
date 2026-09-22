@@ -9,8 +9,9 @@
  *    в очередь возвращает результат записи, и если хранилище отказало,
  *    вызывающий код обязан показать ошибку, а не «Сохранено на устройстве».
  *
- * 2. Ключ идемпотентности создаётся один раз, вместе со строкой очереди,
- *    и дальше не меняется никогда: ни при перезагрузке, ни при повторе,
+ * 2. Ключ идемпотентности создаётся один раз: при постановке в очередь либо
+ *    перед online-first попыткой, которая может попасть в очередь после
+ *    обрыва. Дальше он не меняется ни при перезагрузке, ни при повторе,
  *    ни при переподключении. Иначе повтор создаст дубль — ровно то, что 113B
  *    призван исключить.
  *
@@ -30,6 +31,12 @@ export type EnqueueInput = {
   kind: OfflineOperationKind
   target: OfflineQueueItem['target']
   payload?: Record<string, unknown>
+  /**
+   * A key may be reserved before the first online attempt when that attempt
+   * can fall back to the durable queue. The queue still owns key generation;
+   * callers must obtain the value through createOfflineIdempotencyKey().
+   */
+  idempotencyKey?: string
   blob?: Blob
   dependsOnId?: string
   producesTicketId?: boolean
@@ -57,10 +64,11 @@ function randomId(): string {
 }
 
 /**
- * Ключ идемпотентности. Генерируется здесь и только здесь — в момент создания
- * строки очереди. Повторная отправка берёт ключ из строки, а не создаёт новый.
+ * Ключ идемпотентности. Генерируется только этим helper: обычно при создании
+ * строки, а для online-first операции — перед первой попыткой, чтобы возможный
+ * fallback записал тот же ключ. Повторная отправка новый ключ не создаёт.
  */
-function newIdempotencyKey(kind: OfflineOperationKind): string {
+export function createOfflineIdempotencyKey(kind: OfflineOperationKind): string {
   return `${kind}:${randomId()}`
 }
 
@@ -84,13 +92,27 @@ export class OfflineStore {
 
   // ── очередь ─────────────────────────────────────────────────────────────
 
+  /**
+   * 005: владелец проставляется на чтении, если строка записана до этой
+   * задачи. Миграции базы для этого не нужно — владелец известен из самого
+   * факта, что строка лежит в базе этого пространства имён. Отдельная запись
+   * на диск ради поля тоже не нужна: значение выводится однозначно и каждый
+   * раз одинаково.
+   */
+  private withOwner(item: OfflineQueueItem): OfflineQueueItem {
+    return item.owner ? item : { ...item, owner: this.namespace }
+  }
+
   async listQueue(): Promise<OfflineQueueItem[]> {
     const items = await this.driver.getAll<OfflineQueueItem>('queue')
-    return items.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+    return items
+      .map((item) => this.withOwner(item))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
   }
 
   async getQueueItem(id: string): Promise<OfflineQueueItem | null> {
-    return this.driver.get<OfflineQueueItem>('queue', id)
+    const item = await this.driver.get<OfflineQueueItem>('queue', id)
+    return item ? this.withOwner(item) : null
   }
 
   /**
@@ -146,7 +168,9 @@ export class OfflineStore {
     const item: OfflineQueueItem = {
       id,
       kind: input.kind,
-      idempotencyKey: newIdempotencyKey(input.kind),
+      idempotencyKey: input.idempotencyKey || createOfflineIdempotencyKey(input.kind),
+      // 005: владелец фиксируется вместе со строкой и дальше не меняется.
+      owner: this.namespace,
       target: input.target,
       payload: input.payload ?? {},
       blobId,
@@ -167,10 +191,13 @@ export class OfflineStore {
     return { ok: true, item }
   }
 
-  /** Обновление строки. Ключ идемпотентности не перезаписывается никогда. */
+  /**
+   * Обновление строки. Ключ идемпотентности не перезаписывается никогда.
+   * 005: владелец — тоже: у строки один автор, и смена статуса его не меняет.
+   */
   async updateQueueItem(
     id: string,
-    patch: Partial<Omit<OfflineQueueItem, 'id' | 'idempotencyKey' | 'createdAt'>>,
+    patch: Partial<Omit<OfflineQueueItem, 'id' | 'idempotencyKey' | 'createdAt' | 'owner'>>,
   ): Promise<OfflineQueueItem | null> {
     const current = await this.getQueueItem(id)
     if (!current) return null
@@ -179,6 +206,7 @@ export class OfflineStore {
       ...patch,
       id: current.id,
       idempotencyKey: current.idempotencyKey,
+      owner: current.owner ?? this.namespace,
       createdAt: current.createdAt,
       updatedAt: new Date().toISOString(),
     }
