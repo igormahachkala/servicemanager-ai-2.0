@@ -409,14 +409,6 @@ export function MobileHome() {
     },
   })
 
-  function handlePrimaryAction(ticket: api.TicketCard) {
-    if (!isOnline && ticket.status === 'NEW') {
-      setHomeActionErr('Для этого действия нужен интернет.')
-      return
-    }
-    actionM.mutate(ticket)
-  }
-
   const closeM = useMutation({
     mutationFn: async () => {
       if (!closeModal) throw new Error('Нет данных для закрытия')
@@ -588,7 +580,7 @@ export function MobileHome() {
             assignTicket={assignTicket}
             ticketHref={ticketHref}
             ticketLinkState={ticketLinkState}
-            onAction={handlePrimaryAction}
+            onAction={(ticket) => actionM.mutate(ticket)}
             setAssignErr={setAssignErr}
             setAssignTicket={setAssignTicket}
             assignCandidatesQ={assignCandidatesQ}
