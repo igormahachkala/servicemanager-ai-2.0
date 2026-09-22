@@ -523,7 +523,7 @@ ssh sma-spare 'docker inspect sma_stage_backend sma_stage_web --format "{{.Name}
   откатить: ревёрт слияния из beta,
             skills/sma-deploy-stage/references/rollback.md.
             Правка дальше в ветке задачи. Возврат на Stage через
-            revert от revert в beta, не вторым PR той же ветки
+            unrevert в beta, не вторым PR той же ветки
             поверх живого слияния.
 
   принять: поставить stage-ok шагом 12, замок оставить, перейти
@@ -536,59 +536,65 @@ ssh sma-spare 'docker inspect sma_stage_backend sma_stage_web --format "{{.Name}
 
 <step id="12" name="поставить тег приёмки">
 <target>
-Тег ставится на вершину ветки задачи, не на развёрнутый коммит слияния.
+Тег ставится на вершину исходной feat-ветки задачи, не на развёрнутый
+коммит слияния. &lt;ветка&gt; в stage-ok/&lt;ветка&gt; — исходная feat-ветка,
+не текущая HEAD, если агент стоит на revert/… или unrevert/….
+Коммит тега — origin/&lt;исходная feat-ветка&gt;.
 </target>
 <naming>
-Имя тега содержит полное имя ветки вместе с типом: stage-ok/fix/push-fix,
-не stage-ok/push-fix. Иначе fix/push-fix и feat/push-fix дают один тег,
-и второй агент либо получит отказ, либо перезапишет чужой признак приёмки.
+Имя тега содержит полное имя исходной ветки вместе с типом:
+stage-ok/feat/bot-first-master, не stage-ok/bot-first-master.
+Иначе fix/… и feat/… с одним хвостом дают один тег, и второй агент
+либо получит отказ, либо перезапишет чужой признак приёмки.
+Теги stage-ok/unrevert/… и stage-ok/revert/… не создавать.
 </naming>
 <command>
-git rev-parse origin/&lt;ветка&gt;                    # это B, на него ставится тег
+git rev-parse origin/&lt;исходная feat-ветка&gt;       # это B, на него ставится тег
 ssh sma-spare 'cd /opt/sma-beta &amp;&amp; git rev-parse HEAD'  # это M, на нём проводилась приёмка
 
-git tag -a stage-ok/&lt;ветка&gt; $(git rev-parse origin/&lt;ветка&gt;) -m "Stage acceptance passed
-branch: &lt;ветка&gt;
+git tag -a stage-ok/&lt;исходная feat-ветка&gt; $(git rev-parse origin/&lt;исходная feat-ветка&gt;) -m "Stage acceptance passed
+branch: &lt;исходная feat-ветка&gt;
 branch_sha: &lt;B&gt;
 stage_sha: &lt;M — коммит, развёрнутый на Stage во время приёмки&gt;
 criterion: &lt;критерий приёмки&gt;
 checks: &lt;перечень пройденных наборов&gt;
 date: &lt;дата&gt;"
-git push origin stage-ok/&lt;ветка&gt;
+git push origin stage-ok/&lt;исходная feat-ветка&gt;
 </command>
 <rationale>
-Три коммита: вершина ветки B, слияние с beta M, слияние с prod. Приёмка
-идёт на M, но M в prod не попадает никогда. Общий объект всех трёх
-состояний — только B, поэтому тег на B, а M пишется в тело тега.
+Три коммита: вершина исходной feat-ветки B, слияние с beta M, слияние
+с prod. Приёмка идёт на M, но M в prod не попадает никогда. Общий объект
+всех трёх состояний — только B, поэтому тег на B, а M пишется в тело тега.
 
 Тег на B работает в обе стороны: новый коммит в ветке — тег остался
 на старом, sma-deploy-prod обнаружит. Ветка ушла в prod — B стал предком
 prod, тег не блокирует сброс beta.
 </rationale>
 <on_failure>
-Тег stage-ok/&lt;ветка&gt; уже существует — это повторная приёмка после исправлений.
-Переставить: git tag -f -a stage-ok/&lt;ветка&gt; ... и git push --force origin stage-ok/&lt;ветка&gt;.
-Перестановка допустима только на вершину той же ветки задачи.
+Тег stage-ok/&lt;исходная feat-ветка&gt; уже существует — это повторная приёмка
+после исправлений. Переставить: git tag -f -a stage-ok/&lt;исходная feat-ветка&gt; ...
+и git push --force origin stage-ok/&lt;исходная feat-ветка&gt;.
+Перестановка допустима только на вершину той же исходной feat-ветки.
 </on_failure>
 <keep_lock>
 После того как stage-ok отправлен в origin, замок не снимать. Код задачи
 в beta, в prod его нет. Снятие здесь ломает инвариант блока invariant
 в skills/_shared/contour-lock.md. Замок снимает шаг 12 sma-deploy-prod,
 когда код в origin/prod, либо rollback этого скила, когда слияние
-убрано из beta.
+убрано из beta. Поле branch в теле замка — исходная feat-ветка.
 
 git fetch --force origin 'refs/tags/stage-busy:refs/tags/stage-busy'
-git tag -l --format='%(contents)' stage-busy     # поле branch — ваша ветка?
+git tag -l --format='%(contents)' stage-busy     # поле branch — исходная feat-ветка?
 </keep_lock>
 <if name="замка нет либо он чужой">
 Не продолжать и чужой замок не снимать. Своего замка нет: инвариант
 уже мог быть нарушен. Блок own_lock_missing справочника
-skills/_shared/references/contour-lock-cases.md: прочитать lock-void/&lt;ветка&gt;
-и показать пользователю.
+skills/_shared/references/contour-lock-cases.md: прочитать
+lock-void/&lt;исходная feat-ветка&gt; и показать пользователю.
 </if>
 <verify>
 git ls-remote --tags origin 'refs/tags/stage-busy'
-Вывод непуст. Тело: поле branch — ваша ветка.
+Вывод непуст. Тело: поле branch — исходная feat-ветка.
 </verify>
 </step>
 
