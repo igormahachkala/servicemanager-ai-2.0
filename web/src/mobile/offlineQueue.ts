@@ -1,10 +1,11 @@
-import { useEffect, useLayoutEffect, useState } from 'react'
 import * as api from '../lib/api'
 import {
   safeReadJson as readBrowserStorageJson,
   safeRemoveItem as removeBrowserStorageItem,
   safeWriteJson as writeBrowserStorageJson,
 } from '../lib/browserStorage'
+import { getOfflineStatus } from './offline/runtime'
+import { useOfflineStatus } from './offline/useOffline'
 
 export type OfflineQueueActionType = 'ticket_status_change' | 'ticket_comment' | 'ticket_photo_upload'
 export type OfflineQueueItemStatus = 'pending' | 'syncing' | 'failed' | 'synced'
@@ -96,29 +97,11 @@ export function clearLegacyOfflineCaches() {
 }
 
 export function getOnlineStatus(): boolean {
-  if (typeof navigator === 'undefined') return true
-  return navigator.onLine
+  return getOfflineStatus().online
 }
 
 export function useOnlineStatus(): boolean {
-  const [isOnline, setIsOnline] = useState(() => getOnlineStatus())
-
-  useLayoutEffect(() => {
-    setIsOnline(getOnlineStatus())
-  }, [])
-
-  useEffect(() => {
-    const sync = () => setIsOnline(getOnlineStatus())
-    sync()
-    window.addEventListener('online', sync)
-    window.addEventListener('offline', sync)
-    return () => {
-      window.removeEventListener('online', sync)
-      window.removeEventListener('offline', sync)
-    }
-  }, [])
-
-  return isOnline
+  return useOfflineStatus().online
 }
 
 export function subscribeOfflineQueue(listener: () => void): () => void {
