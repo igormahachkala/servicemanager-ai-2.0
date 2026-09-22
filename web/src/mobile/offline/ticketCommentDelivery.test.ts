@@ -62,6 +62,46 @@ describe('physical mobile comment connectivity fallback', () => {
     expect((await store.listQueue())[0].payload.comment).toBe('Тест')
   })
 
+  it('Safari cross-realm TypeError persists the comment', async () => {
+    const { store, enqueue, input } = setup()
+    const safariFailure = {
+      name: 'TypeError',
+      message: 'The Internet connection appears to be offline.',
+    }
+
+    const result = await deliverTicketComment({
+      reportedOnline: true,
+      queueInput: input,
+      send: vi.fn().mockRejectedValue(safariFailure),
+      enqueue,
+    })
+
+    expect(result.kind).toBe('queued')
+    expect(await store.pendingCount()).toBe(1)
+  })
+
+  it('does not acknowledge a queued comment before the durable write completes', async () => {
+    const { store, input } = setup()
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    let settled = false
+    const delivery = deliverTicketComment({
+      reportedOnline: false,
+      queueInput: input,
+      send: vi.fn(),
+      enqueue: async (queuedInput) => {
+        await gate
+        return store.enqueue(queuedInput)
+      },
+    }).finally(() => { settled = true })
+
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    release()
+    expect((await delivery).kind).toBe('queued')
+    expect(await store.pendingCount()).toBe(1)
+  })
+
   it('reported offline queues directly without attempting the network', async () => {
     const { store, enqueue, input } = setup()
     const send = vi.fn()

@@ -185,14 +185,16 @@ function pickWindowClient(clientList) {
 // авторизованные ответы API в кэш Service Worker нельзя ещё и потому, что
 // он общий для всех, кто открывал браузер: на общем планшете следующий
 // техник увидел бы чужие данные.
-const APP_SHELL_CACHE = 'sma-app-shell-v1'
+const APP_SHELL_CACHE = 'sma-app-shell-v2'
 const APP_SHELL_URL = '/index.html'
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(APP_SHELL_CACHE)
-      .then((cache) => cache.addAll([APP_SHELL_URL, '/']))
+      .then((cache) => Promise.all(
+        [APP_SHELL_URL, '/', '/m'].map((url) => cache.add(url).catch(() => undefined)),
+      ))
       .catch(() => undefined),
   )
   // Не ждём — новый SW должен активироваться сразу же после обновления кода.
@@ -261,26 +263,26 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return
   if (url.pathname.startsWith('/uploads/') || url.pathname.startsWith('/api/')) return
 
+  // Cold-start on iOS must not wait for a network request to time out. Return
+  // the installed shell immediately and refresh it in the background. If the
+  // shell is not installed yet, the same network promise becomes the first
+  // response and retains the explicit 503 fallback.
+  const network = fetch(request).then((response) => {
+    if (response && response.ok && response.type === 'basic') {
+      const copy = response.clone()
+      caches.open(APP_SHELL_CACHE).then((cache) => cache.put(APP_SHELL_URL, copy)).catch(() => undefined)
+    }
+    return response
+  })
+  event.waitUntil(network.then(() => undefined).catch(() => undefined))
   event.respondWith(
-    fetch(request)
-      .then((response) => {
-        // Свежую оболочку сохраняем, чтобы в следующий раз было что показать.
-        // Только успешный ответ: страницей 502 от упавшего прокси кэш затирать
-        // нельзя — она осталась бы там и после починки сервера.
-        if (response && response.ok && response.type === 'basic') {
-          const copy = response.clone()
-          caches.open(APP_SHELL_CACHE).then((cache) => cache.put(APP_SHELL_URL, copy)).catch(() => undefined)
-        }
-        return response
-      })
-      .catch(async () => {
-        const cached = await caches.match(APP_SHELL_URL)
-        if (cached) return cached
-        return new Response('Нет связи и нет сохранённой копии приложения.', {
-          status: 503,
-          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-        })
-      }),
+    caches.match(APP_SHELL_URL).then((cached) => {
+      if (cached) return cached
+      return network.catch(() => new Response('Нет связи и нет сохранённой копии приложения.', {
+        status: 503,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      }))
+    }),
   )
 })
 

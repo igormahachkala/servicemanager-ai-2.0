@@ -99,7 +99,7 @@ export function MobileHome() {
   }, [meQ.data, linkedClientCompanyId, techBoundDefaultsQ.isSuccess, techBoundDefaultsQ.data, navigate, companyId, location.pathname, location.search])
 
   const boardQ = useQuery({
-    queryKey: ['mobile-home-board', linkedClientCompanyId, companyId],
+    queryKey: ['mobile-home-board', linkedClientCompanyId, companyId, isOnline],
     queryFn: async () => {
       if (!getOnlineStatus()) {
         const cached = loadBoardCache(pageScope)

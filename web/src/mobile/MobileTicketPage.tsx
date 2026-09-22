@@ -420,6 +420,7 @@ export function MobileTicketPage() {
       navTicketOwnerCompanyId,
       meQ.data?.id,
       meQ.data?.role,
+      isOnline,
     ],
     queryFn: async () => {
       if (!ticketId) throw new Error('Нет идентификатора заявки')
@@ -543,6 +544,7 @@ export function MobileTicketPage() {
       meQ.data?.id,
       meQ.data?.role,
       ticket?.companyId,
+      isOnline,
     ],
     queryFn: async () => {
       if (!ticket) return [] as api.TicketAttachmentItem[]
@@ -593,6 +595,7 @@ export function MobileTicketPage() {
       ticketId,
       ticketResourceScope.companyId,
       ticketResourceScope.linkedClientCompanyId,
+      isOnline,
     ],
     queryFn: async () => {
       if (!getOnlineStatus()) {
