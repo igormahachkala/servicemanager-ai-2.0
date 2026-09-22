@@ -2,14 +2,28 @@
      по ссылке шага, только когда откат нужен. -->
 
 <contents>
-  phase 1     откатить контейнеры на прежний образ
-  phase 2     вернуть ветку prod, ревёрт слияния; замки не снимать
-  beta        ревёрт того же содержимого из beta, затем снять замки
-  return      повторное вливание через ревёрт ревёрта
-  rework      запасной путь: переделка в той же ветке
-  abandon     отказ от кода задачи
-  tag_void    перенос stage-ok в reverted делает откат из beta
+  warn                 ошибка в Production чинится fix/&lt;тема&gt;;
+                       реверт ветки prod агент сам не начинает
+  phase 1              откатить контейнеры на точку; ветку prod не реверит
+  after_phase1         дальше fix/&lt;тема&gt;; prod-busy держится до её
+                       развёртывания
+  beta_after_rollback  ревёрт из beta — по решению пользователя, не
+                       следствие фазы 1
+  decision             что дальше с задачей
+  fix                  ветка fix/&lt;тема&gt; и возврат в Production
+  rework               переделка с опорой на код задачи
+  abandon              отказ от кода задачи
+  explicit_prod_revert реверт и unrevert в prod — только после явной
+                       команды пользователя
+  tag_void             перенос stage-ok в reverted делает откат из beta
 </contents>
+
+<warn when="речь о реверте в prod или читают этот откат">
+Ошибка, уже попавшая в Production, исправляется веткой fix/&lt;тема&gt;
+от origin/prod и PR в prod. Ревёрт слияния в prod агент не начинает.
+После ревёрта чужая правка тех же файлов даёт конфликт на unrevert.
+Реверт в prod выполняется только если пользователь явно это сказал.
+</warn>
 
 <rollback>
 <when>Сверка после развёртывания не прошла либо задача сломала Production.</when>
@@ -22,204 +36,186 @@ ssh sma 'cd /opt/sma-prod &amp;&amp; RELEASE_SHA=$(git rev-parse HEAD) &amp;&amp
 ssh sma 'docker compose -p sma-service -f /opt/sma-prod/docker-compose.yml -f /etc/servicemanager-ai/docker-compose.production.override.yml -f /etc/servicemanager-ai/docker-compose.production.stable.override.yml up -d --no-deps backend web'
 </command>
 <state>
-Каталог /opt/sma-prod переведён в отсоединённое состояние: он на коммите,
-а не на ветке. Это временно и допустимо только до конца фазы 2.
+Каталог /opt/sma-prod переведён в отсоединённое состояние: он на коммите
+точки отката, а не на ветке. Ветка prod этой фазой не реверится: вершина
+origin/prod по-прежнему содержит слияние с ошибкой. Каталог на prod
+не переключать, пока не развёрнута fix-ветка: иначе подтянется сломанный
+код. Отсоединённое состояние допустимо до развёртывания fix/&lt;тема&gt;.
 </state>
-</phase>
-
-<phase id="2" name="вернуть ветку prod">
-<why>
-PR слит на шаге 7, до развёртывания: вершина prod содержит сломанный код,
-фаза 1 её не трогает. Без этой фазы следующая задача создаётся от prod уже
-со сломанным внутри, и её развёртывание вернёт поломку — разбираться будут
-с новой задачей.
-</why>
-<command>
-git fetch origin
-git switch -c revert/&lt;тема&gt; origin/prod
-git revert -m 1 &lt;SHA коммита слияния&gt; --no-edit
-git push -u origin revert/&lt;тема&gt;
-gh pr create --base prod --title "revert: &lt;тема&gt;" --body "&lt;что сломалось, ссылка на исходный PR&gt;"
-gh pr merge &lt;номер revert-PR&gt; --merge --delete-branch=false
-</command>
-<why_pr>
-prod защищён, прямой push и force push запрещены. Обязательных одобрений
-ноль, поэтому агент выполняет revert-PR сам, за десятки секунд.
-</why_pr>
-<explain flag="-m 1">
-Отменяется коммит слияния, у него два родителя. -m 1 указывает оставить
-первого — состояние prod до слияния.
-</explain>
-<record>
-Записать SHA revert-коммита рядом с точкой отката. Без него фаза 4
-не найдёт, что отменять.
-</record>
-<after>
-ssh sma 'cd /opt/sma-prod &amp;&amp; git checkout prod &amp;&amp; git pull --ff-only'
-Каталог возвращается на ветку, отсоединённое состояние снято.
-</after>
 <invariant>
 В покое совпадают три вещи: HEAD в /opt/sma-prod, вершина origin/prod,
-код в работающих контейнерах. Откат этот инвариант ломает и обязан
-восстановить. Откат завершён тогда, когда все три сошлись, а не тогда,
-когда каталог вернулся на ветку.
+код в работающих контейнерах. После фазы 1 инвариант намеренно нарушен:
+контейнеры на точке отката, origin/prod ещё со слиянием. Восстанавливает
+развёртывание fix/&lt;тема&gt;.
 </invariant>
-<check name="вершина prod совпадает с развёрнутым">
-ssh sma 'cd /opt/sma-prod &amp;&amp; test "$(git rev-parse prod^{tree})" = "$(git rev-parse &lt;точка отката&gt;^{tree})"'
+<check name="контейнеры на точке отката">
+ssh sma 'cd /opt/sma-prod &amp;&amp; test "$(git rev-parse HEAD)" = "&lt;записанная точка отката&gt;"'
+curl -o /dev/null -w "%{http_code}" https://servicemanagerai.ru/ → 200
+curl -o /dev/null -w "%{http_code}" https://api.servicemanagerai.ru/health → 200
 </check>
-<on_success>Три состояния сошлись, фаза 2 завершена. Замки не снимать:
-фича ещё в beta. Перейти к beta_after_rollback.</on_success>
-<release_lock>
-Не снимать. Путь 2 блока release_paths требует, чтобы фича была убрана
-и из prod, и из beta. Снятие здесь оставит в beta код, которого нет
-в prod, без замка.
-</release_lock>
-<lock_on_return>
-Возврат в Production, фаза 4, — это отдельное занятие контура: замок ставится
-заново шагом 7 sma-deploy-prod, как при обычном развёртывании. Stage
-занимается заново шагом 7 sma-deploy-stage.
-</lock_on_return>
-<on_failure>
-Пока шёл откат, другой агент влил в prod свою задачу. Вершина ветки содержит
-её, работающие контейнеры — нет. Инвариант нарушен, откат не закончен.
-Остановиться. Сообщить пользователю: в prod появилось изменение, его нет
-в работающих контейнерах, показать что именно — git log &lt;точка отката&gt;..prod --oneline.
-</on_failure>
-<ask_user>
-Как приводить в соответствие. Два варианта:
-  развернуть текущую вершину prod — это развёртывание в Production,
-    выполняется по шагам 5-10 этого skill с обычным подтверждением;
-  откатить и чужое изменение тоже — если оно связано с поломкой.
-Самостоятельно не выбирать.
-</ask_user>
-<forbidden>Завершать откат с известным расхождением каталога, ветки и контейнеров.</forbidden>
 </phase>
 
-<beta_after_rollback after="фаза 2">
+<after_phase1>
+<rule>
+Ошибка чинится веткой fix/&lt;тема&gt; от origin/prod. Обычный путь отката
+не реверит ветку prod и не открывает PR revert/… или unrevert/….
+</rule>
+<lock>
+prod-busy НЕ снимать до развёртывания этой fix-ветки. Снимает шаг 12
+sma-deploy-prod, когда fix уже в origin/prod и развёрнута. Пока fix
+не развёрнута, в origin/prod остаётся слияние с ошибкой: замок сообщает
+следующему агенту, что контур занят.
+</lock>
+<beta>
+Если пользователь отдельно велел убрать фичу из beta — ревёрт из beta
+по sma-deploy-stage, skills/sma-deploy-stage/references/rollback.md.
+stage-busy снимается своим путём. prod-busy от ревёрта из beta
+не снимается.
+</beta>
+</after_phase1>
+
+<beta_after_rollback>
 <fact>
-Откат prod сам по себе beta не трогает. Слияние ветки там на месте,
-Production уже без этого кода. Оставить так нельзя: в beta окажется
-код, которого нет в prod.
+Откат контейнеров фазой 1 сам по себе beta не трогает. Слияние ветки
+в beta на месте. Убирать его из beta — решение пользователя, не
+обязательное следствие фазы 1 и не следствие ревёрта ветки prod
+(ревёрта в обычном пути нет).
 </fact>
 <rule>
-После фаз 1 и 2 убрать фичу из beta ревёртом слияния. Порядок —
-skills/sma-deploy-stage/references/rollback.md. Случай возврата к задаче
-на это не влияет: чинить через второе слияние поверх живого кода в beta
-нельзя, возврат на Stage идёт revert от revert в beta.
+Пользователь велел убрать фичу из beta — ревёрт слияния по
+skills/sma-deploy-stage/references/rollback.md. stage-ok переносится
+в reverted блоком tag_void там же. stage-busy снимается путём 2
+блока release_paths в skills/_shared/contour-lock.md. prod-busy
+при этом не снимать.
 </rule>
-<then>
-Ревёрт из beta выполнен, каталог Stage на откаченном, stage-ok перенесён
-в reverted блоком tag_void там же. Снять prod-busy и stage-busy, путь 2
-блока release_paths в skills/_shared/contour-lock.md.
-</then>
 <why_not_reset>
-Сброс beta = prod здесь не применяется: стоит stage-busy, предусловие
-beta_reset его запрещает. Ревёрт убирает одно слияние и не требует
-снимать замок заранее.
+Сброс beta = prod здесь не применяется: стоит stage-busy либо
+prod-busy, предусловие beta_reset их запрещает. Ревёрт убирает одно
+слияние и не требует снимать замок заранее.
 </why_not_reset>
 </beta_after_rollback>
 
-<decision after="фаза 2 и ревёрт из beta">
+<decision after="фаза 1">
 <question>Что делать с задачей дальше. Решает пользователь. К этому
-моменту фича убрана и из prod, и из beta, замки сняты.</question>
-<case id="1" name="чиним">Фазы 3 и 4. Код задачи возвращается через
-revert от revert, сначала на Stage, потом в prod, вместе с исправлением.</case>
-<case id="2" name="переделываем с опорой на код задачи">Блок rework. Код возвращается, работа идёт заново в новой ветке.</case>
-<case id="3" name="отказываемся от кода задачи">Блок abandon. Код в prod не возвращается, фаза 2 и ревёрт из beta остаются конечным состоянием.</case>
+моменту контейнеры на точке отката, prod-busy стоит, ветка prod
+не ревертнута.</question>
+<case id="1" name="чиним">Блок fix. Ветка fix/&lt;тема&gt; от origin/prod,
+затем sma-deploy-stage и PR этой ветки в prod.</case>
+<case id="2" name="переделываем с опорой на код задачи">Блок rework.
+Новая ветка от origin/prod, работа заново.</case>
+<case id="3" name="отказываемся от кода задачи">Блок abandon. Код
+в prod через unrevert не возвращается. Что делать с вершиной prod
+и с beta — отдельно решает пользователь.</case>
 <ask_user>Выбор случая. Самостоятельно не принимать.</ask_user>
 </decision>
 
-<phase id="3" name="исправление" case="1">
-<constraint>
-Работа продолжается в той же ветке задачи. Это оговорённое исключение
-из правила о закрытой ветке, см. exception в sma-code-delivery.
-</constraint>
+<fix case="1">
+<precondition>Фаза 1 выполнена. Пользователи работают на точке отката.</precondition>
+<action>
+git fetch origin
+git switch -c fix/&lt;тема&gt; origin/prod
+
+Исправление коммитами в fix/&lt;тема&gt;. Дальше обычный sma-deploy-stage
+целиком: проверки, PR в beta, развёртывание, приёмка, тег stage-ok
+на эту fix-ветку. Затем PR этой fix-ветки в prod по sma-deploy-prod.
+</action>
+<lock>
+prod-busy остаётся до шага 12 sma-deploy-prod после развёртывания fix.
+Замок Stage для fix ставится и снимается своим кругом sma-deploy-stage
+и шагом 12 sma-deploy-prod.
+</lock>
 <why>
-Повторное слияние после отката ничего не принесёт: коммиты ветки остаются
-предками prod. git ответит Already up to date, отменённое содержимое
-не вернётся, отказа не будет.
+Ветка от origin/prod уже содержит слияние с ошибкой. Fix правит его
+поверх. Ревёрт слияния в prod для этого не нужен.
 </why>
-<flow>
-Исправление коммитами в ветку задачи, затем возврат на Stage:
-revert от revert в beta и слияние новых коммитов, блок return
-в skills/sma-deploy-stage/references/rollback.md. Дальше sma-deploy-stage
-целиком: развёртывание, приёмка, тег. Кода задачи в beta к этому моменту
-уже нет.
-</flow>
-<fact>
-После beta_after_rollback в beta содержимого задачи нет. Приёмка
-на живом откаченном слиянии не проводится.
-</fact>
-</phase>
-
-<phase id="4" name="возврат в Production" case="1">
-<precondition>Исправление принято на Stage, тег stage-ok переставлен на новую вершину ветки.</precondition>
-<why_order>
-Revert от revert возвращает в prod фичу без исправления. Пока исправление
-не принято, делать его нельзя: prod окажется в состоянии, которое уже
-роняло Production.
-</why_order>
-<command>
-# сначала оба PR, слияния — потом
-git switch -c unrevert/&lt;тема&gt; origin/prod
-git revert &lt;SHA revert-коммита из фазы 2&gt; --no-edit
-git push -u origin unrevert/&lt;тема&gt;
-gh pr create --base prod --title "unrevert: &lt;тема&gt;"
-gh pr create --base prod --head &lt;ветка задачи&gt; --title "&lt;заголовок&gt;"
-
-# затем два слияния подряд, без пауз
-gh pr merge &lt;номер unrevert&gt; --merge --delete-branch=false
-gh pr merge &lt;номер задачи&gt; --merge --delete-branch=false
-</command>
-<why_both_pr_first>
-Между двумя слияниями prod содержит фичу без исправления — состояние,
-которое уже роняло Production. Оба PR готовятся заранее, чтобы промежуток
-занимал время одного слияния, а не время подготовки.
-</why_both_pr_first>
-<constraint>
-Развёртывание между двумя слияниями запрещено. Ограничение связывает только
-этого агента: другие агенты о нём не знают, их развёртывание в этот промежуток
-поднимет сломанное состояние. Полностью риск снимается общим сигналом между
-агентами — вопрос оркестрации, пункт P-06 бэклога.
-</constraint>
-<order_fixed>
-Порядок слияний обратить нельзя. Исправление опирается на присутствующее
-содержимое фичи; в prod его до unrevert нет, слияние даст конфликт.
-</order_fixed>
-<expect>
-После обоих слияний prod содержит фичу и исправление. Дальше развёртывание
-по шагам 5-10 этого skill.
-</expect>
-</phase>
+</fix>
 
 <rework case="2">
 <when>Решено переделать задачу по существу, но код ветки нужен как основа.</when>
 <action>
-Фазы 3 и 4 не применяются. Новая ветка от origin/prod, revert от revert
-первым коммитом — содержимое задачи возвращается, — дальше работа заново.
-Исходная ветка закрывается, но не удаляется.
+Блок fix не применяется как единственный путь. Новая ветка от
+origin/prod, нужные коммиты переносятся туда, дальше работа заново
+и полный круг Stage → Production. Исходная ветка закрывается, но
+не удаляется.
 </action>
-<tag>
-Тег stage-ok исходной ветки уже перенесён в reverted блоком tag_void
-при ревёрте из beta. Повторно не ставить.
-</tag>
-<beta>Код исходной ветки уже убран из beta, блок beta_after_rollback.</beta>
+<lock>prod-busy держится, пока новая ветка не развёрнута в Production
+либо пользователь явно иначе решил.</lock>
+<beta>Код исходной ветки в beta убирается только если пользователь
+это велел, блок beta_after_rollback.</beta>
 </rework>
 
 <abandon case="3">
 <when>От кода задачи отказались: задача откладывается либо решается иначе с нуля.</when>
 <action>
-Revert от revert не выполняется. Фаза 2 — конечное состояние: prod вернулся
-к тому, что было до задачи, и таким остаётся. Фазы 3 и 4 не применяются.
+Unrevert в prod не выполняется. Ревёрт ветки prod обычным путём
+не делается. Вершина origin/prod по-прежнему содержит слияние:
+что с ним делать (оставить, явно ревертнуть, перекрыть другой веткой) —
+решает пользователь. Фаза 1 остаётся конечным состоянием контейнеров,
+пока не решено иначе.
 </action>
 <branch>
 Ветку задачи не удалять. Пока не решено окончательно, что код не понадобится,
 удаление означает потерю работы. Задача возвращается в бэклог с записью,
 что попытка была и чем закончилась.
 </branch>
-<beta>Код задачи уже убран из beta, блок beta_after_rollback.</beta>
-<tag>Тег stage-ok уже перенесён в reverted при ревёрте из beta.</tag>
+<lock>
+prod-busy не снимать, пока в origin/prod остаётся слияние с ошибкой
+и пользователь не принял другое конечное состояние контура.
+</lock>
+<beta>Код задачи убирается из beta только по отдельному решению
+пользователя, блок beta_after_rollback.</beta>
 </abandon>
+
+<explicit_prod_revert>
+<when>
+Только после явной команды пользователя на реверт в Production.
+Обычный откат сюда не заходит. То, что откат Stage делается ревёртом,
+эту команду не заменяет.
+</when>
+<warn>
+Ошибка, уже попавшая в Production, обычно чинится fix/&lt;тема&gt;.
+После ревёрта чужая правка тех же файлов даёт конфликт на unrevert.
+Читать этот блок — не начинать реверт самому: нужна явная команда.
+</warn>
+
+<revert>
+<command>
+git fetch origin
+git switch -c revert/&lt;тема&gt; origin/prod
+git revert -m 1 &lt;SHA слияния в prod&gt; --no-edit
+git push -u origin revert/&lt;тема&gt;
+gh pr create --base prod --head revert/&lt;тема&gt; --title "revert: &lt;тема&gt;"
+</command>
+<after>
+gh pr merge &lt;номер revert-PR&gt; --merge --delete-branch=false
+ssh sma 'cd /opt/sma-prod &amp;&amp; git checkout prod &amp;&amp; git pull --ff-only'
+</after>
+<record>
+Записать SHA revert-коммита рядом с точкой отката. Без него unrevert
+не найдёт, что отменять.
+</record>
+</revert>
+
+<unrevert>
+<when>
+Пользователь явно велел вернуть код после ревёрта в prod, и этот
+реверт уже есть в истории.
+</when>
+<command>
+git fetch origin
+git switch -c unrevert/&lt;тема&gt; origin/prod
+git revert &lt;SHA коммита ревёрта в prod&gt; --no-edit
+git push -u origin unrevert/&lt;тема&gt;
+gh pr create --base prod --head unrevert/&lt;тема&gt; --title "unrevert: &lt;тема&gt;"
+</command>
+<order>
+Сначала PR unrevert/&lt;тема&gt;, затем PR исходной ветки или fix/&lt;тема&gt;,
+когда на ней есть коммиты сверх того, что вернул unrevert. Оба PR
+готовить заранее, сливать подряд. Развёртывание между двумя слияниями
+запрещено.
+</order>
+</unrevert>
+</explicit_prod_revert>
 
 <tag_void>
 <when>После ревёрта из beta, всегда. Делает блок tag_void файла
@@ -240,12 +236,17 @@ skills/sma-deploy-stage/references/rollback.md. Здесь не дублиров
 код впереди базы — опасное.
 </constraint>
 <forbidden>
-<f>Оставить фазу 2 невыполненной. Расхождение сервера и ветки вернёт поломку следующей задачей.</f>
-<f>Развёртывать что-либо в Production между двумя слияниями фазы 4.</f>
-<f>Сливать ветку задачи повторно, не выполнив revert от revert.</f>
-<f>Удалять ветку задачи, слияние которой откачено. Формально она влита в prod, фактически задача не закрыта.</f>
-<f>Оставлять в beta код задачи после отката из prod.</f>
-<f>Снимать prod-busy или stage-busy, пока фича осталась в beta, а в prod её нет.</f>
-<f>Оставлять тег stage-ok после ревёрта из beta. Он сохранит действующий допуск для кода, которого в prod нет, и заблокирует сброс beta навсегда.</f>
+<f>Начинать реверт или unrevert ветки prod без явной команды пользователя.</f>
+<f>Снимать prod-busy до развёртывания fix/&lt;тема&gt; (или иного конечного
+состояния, которое принял пользователь).</f>
+<f>Снимать prod-busy только потому, что фичу убрали из beta.</f>
+<f>Переключать /opt/sma-prod на ветку prod после фазы 1, пока там ещё
+слияние с ошибкой и fix не развёрнута.</f>
+<f>Подставлять служебные ветки revert/… или unrevert/… в PR в prod
+как head фичи.</f>
+<f>Удалять ветку задачи, пока ошибка в Production не закрыта fix-веткой
+либо пользователь не отказался от задачи окончательно.</f>
+<f>Оставлять тег stage-ok после ревёрта из beta. Он сохранит действующий
+допуск для кода, которого в prod нет, и заблокирует сброс beta навсегда.</f>
 </forbidden>
 </rollback>
