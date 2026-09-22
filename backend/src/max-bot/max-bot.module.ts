@@ -14,6 +14,8 @@ import { MaxBotPollingService } from './max-bot-polling.service';
 import { MaxBotWebhookController } from './max-bot-webhook.controller';
 import { MaxBotService } from './max-bot.service';
 import { MaxFileClient } from './max-file.client';
+import { MaxMasterCommandService } from './max-master-command.service';
+import { MaxMasterWorkplaceService } from './max-master-workplace.service';
 import { MaxTechnicianRoundsService } from './max-technician-rounds.service';
 import { MaxTechnicianWorkplaceService } from './max-technician-workplace.service';
 
@@ -34,6 +36,8 @@ import { MaxTechnicianWorkplaceService } from './max-technician-workplace.servic
     MaxBindingService,
     MaxTechnicianWorkplaceService,
     MaxTechnicianRoundsService,
+    MaxMasterWorkplaceService,
+    MaxMasterCommandService,
     { provide: MaxFileClient, useFactory: () => new MaxFileClient() },
   ],
   // MaxIdentityService is the single bot-facing identity contract (`resolveMaxIdentity`).
