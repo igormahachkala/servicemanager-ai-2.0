@@ -185,33 +185,48 @@ function pickWindowClient(clientList) {
 // авторизованные ответы API в кэш Service Worker нельзя ещё и потому, что
 // он общий для всех, кто открывал браузер: на общем планшете следующий
 // техник увидел бы чужие данные.
-const APP_SHELL_CACHE = 'sma-app-shell-v2'
+const APP_SHELL_CACHE = 'sma-app-shell-v3'
 const APP_SHELL_URL = '/index.html'
+const BUILD_ASSET_MANIFEST_URL = '/asset-manifest.json'
+
+function manifestAssetUrls(manifest) {
+  const urls = new Set()
+  for (const entry of Object.values(manifest || {})) {
+    if (!entry || typeof entry !== 'object') continue
+    for (const value of [entry.file, ...(entry.css || []), ...(entry.assets || [])]) {
+      const path = safeString(value)
+      if (path) urls.add(path.startsWith('/') ? path : `/${path}`)
+    }
+  }
+  return [...urls]
+}
+
+async function precacheApplication() {
+  const cache = await caches.open(APP_SHELL_CACHE)
+  const manifestResponse = await fetch(BUILD_ASSET_MANIFEST_URL, { cache: 'no-store' })
+  if (!manifestResponse.ok) throw new Error('Build asset manifest is unavailable')
+  const manifest = await manifestResponse.json()
+  const urls = [APP_SHELL_URL, '/', '/m', BUILD_ASSET_MANIFEST_URL, ...manifestAssetUrls(manifest)]
+
+  // An incomplete cache must not take control: that recreates the physical
+  // iPhone failure where the shell opens but a lazy route crashes offline.
+  await Promise.all(urls.map(async (url) => {
+    const response = await fetch(url, { cache: 'no-store' })
+    if (!response.ok) throw new Error(`Unable to precache ${url}`)
+    await cache.put(url, response)
+  }))
+}
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches
-      .open(APP_SHELL_CACHE)
-      .then((cache) => Promise.all(
-        [APP_SHELL_URL, '/', '/m'].map((url) => cache.add(url).catch(() => undefined)),
-      ))
-      .catch(() => undefined),
-  )
-  // Не ждём — новый SW должен активироваться сразу же после обновления кода.
-  self.skipWaiting()
+  event.waitUntil(precacheApplication().then(() => self.skipWaiting()))
 })
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    Promise.all([
-      self.clients.claim(),
-      // Старые версии оболочки убираем, иначе после релиза техник получит
-      // вчерашний бандл.
-      caches.keys().then((keys) =>
-        Promise.all(keys.filter((k) => k.startsWith('sma-app-shell-') && k !== APP_SHELL_CACHE).map((k) => caches.delete(k))),
-      ),
-    ]),
-  )
+  // Do not delete the previous cache while an installed PWA page can still be
+  // executing its old HTML. Its not-yet-loaded hashed chunk must remain
+  // available until that client is reloaded. Hashed assets are immutable and
+  // caches.match() safely resolves the exact requested version.
+  event.waitUntil(self.clients.claim())
 })
 
 /**

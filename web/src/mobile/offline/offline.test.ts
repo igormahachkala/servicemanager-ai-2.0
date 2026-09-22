@@ -522,12 +522,13 @@ test('24. Service Worker кэширует оболочку и не кэширу�
   assert.match(sw, /request\.mode !== 'navigate'/, 'кэшируется только навигация')
   assert.match(sw, /request\.method !== 'GET'/, 'мутации не кэшируются')
   assert.match(sw, /\/uploads\//, 'защищённая раздача исключена явно')
-  // Ответы API в кэш не кладутся. Записей в кэш ровно две, и обе безопасны:
-  // сама оболочка и сборочный файл, отобранный isBuildAsset. 113D добавил
-  // вторую — без неё экран, который техник не открывал до потери связи,
-  // не открывался вовсе.
+  // Ответы API в кэш не кладутся. Записей в кэш ровно три, и все безопасны:
+  // полный build manifest при install, оболочка при обновлении и сборочный
+  // файл, отобранный isBuildAsset. Без manifest iOS открывал /m, но падал на
+  // первом lazy chunk, который не был загружен до потери связи.
   const puts = sw.match(/cache\.put\([^)]*\)/g) ?? []
-  assert.equal(puts.length, 2, `в кэш пишутся только оболочка и сборочный файл, найдено: ${puts.length}`)
+  assert.equal(puts.length, 3, `в кэш пишутся только manifest assets, оболочка и сборочный файл, найдено: ${puts.length}`)
+  assert.ok(puts.some((p) => /\(url, response\)/.test(p)), 'manifest assets сохраняются по хэшированному URL')
   assert.ok(puts.some((p) => /APP_SHELL_URL/.test(p)), 'оболочка сохраняется')
   assert.ok(puts.some((p) => /\(request, copy\)/.test(p)), 'сборочный файл сохраняется по своему запросу')
 
@@ -535,7 +536,9 @@ test('24. Service Worker кэширует оболочку и не кэширу�
   // расширениями: под него не должен попасть ни один ответ с данными.
   assert.match(sw, /function isBuildAsset/, 'отбор сборочных файлов выделен явно')
   assert.match(sw, /url\.pathname\.startsWith\('\/assets\/'\)/, 'только каталог /assets/')
-  assert.match(sw, /sma-app-shell-v2/, 'новая оболочка отделена от старого cache поколения')
+  assert.match(sw, /sma-app-shell-v3/, 'полный precache отделён от прежнего cache поколения')
+  assert.match(sw, /BUILD_ASSET_MANIFEST_URL/, 'install читает build manifest')
+  assert.doesNotMatch(sw, /caches\.delete/, 'cache живой старой страницы не удаляется при activate')
   assert.match(sw, /if \(cached\) return cached/, 'cold navigation не ждёт сеть при наличии оболочки')
 })
 
