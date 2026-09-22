@@ -10,9 +10,21 @@ const swSource = readFileSync(
 )
 
 describe('iOS installed-PWA cold start', () => {
-  it('serves the cached /m shell without waiting for a hanging network request', async () => {
+  it('precaches lazy chunks and serves the cached /m shell without waiting for network', async () => {
     const handlers = new Map<string, (event: any) => void>()
     const entries = new Map<string, Response>()
+    const deletedCaches: string[] = []
+    const manifest = {
+      'src/router.tsx': {
+        file: 'assets/index-current.js',
+        css: ['assets/index-current.css'],
+        dynamicImports: ['src/mobile/MobileTicketPage.tsx'],
+      },
+      'src/mobile/MobileTicketPage.tsx': {
+        file: 'assets/MobileTicketPage-current.js',
+        css: ['assets/MobileShell-current.css'],
+      },
+    }
     const normalize = (value: string | { url?: string }) => {
       const raw = typeof value === 'string' ? value : value.url || ''
       return new URL(raw, 'https://stage.sma-assistants.ru').href
@@ -31,8 +43,8 @@ describe('iOS installed-PWA cold start', () => {
     const caches = {
       open: async () => cache,
       match: async (request: string | { url?: string }) => entries.get(normalize(request)),
-      keys: async () => ['sma-app-shell-v2'],
-      delete: async () => true,
+      keys: async () => ['sma-app-shell-v2', 'sma-app-shell-v3'],
+      delete: async (name: string) => { deletedCaches.push(name); return true },
     }
     const self = {
       location: { origin: 'https://stage.sma-assistants.ru', href: 'https://stage.sma-assistants.ru/sw.js' },
@@ -49,13 +61,29 @@ describe('iOS installed-PWA cold start', () => {
       clearTimeout,
       self,
       caches,
-      fetch: async () => new Response('<div id="root"></div>', { status: 200 }),
+      fetch: async (request: string | { url?: string }) => {
+        const url = normalize(request)
+        if (url.endsWith('/asset-manifest.json')) {
+          return new Response(JSON.stringify(manifest), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        }
+        return new Response(url.endsWith('.css') ? 'body{}' : '<div id="root"></div>', { status: 200 })
+      },
     })
     vm.runInContext(swSource, context, { filename: 'sw.js' })
 
     let installWork = Promise.resolve()
     handlers.get('install')?.({ waitUntil(value: Promise<void>) { installWork = value } })
     await installWork
+    expect(entries.has(normalize('/assets/MobileTicketPage-current.js'))).toBe(true)
+    expect(entries.has(normalize('/assets/MobileShell-current.css'))).toBe(true)
+
+    let activateWork = Promise.resolve()
+    handlers.get('activate')?.({ waitUntil(value: Promise<void>) { activateWork = value } })
+    await activateWork
+    expect(deletedCaches).toEqual([])
 
     context.fetch = () => new Promise<Response>(() => {})
     let responsePromise!: Promise<Response>
@@ -70,5 +98,20 @@ describe('iOS installed-PWA cold start', () => {
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error('cold start waited for network')), 100)),
     ])
     expect(await response.text()).toContain('id="root"')
+
+    let assetResponsePromise!: Promise<Response>
+    handlers.get('fetch')?.({
+      request: {
+        method: 'GET',
+        mode: 'cors',
+        url: 'https://stage.sma-assistants.ru/assets/MobileTicketPage-current.js',
+      },
+      respondWith(value: Promise<Response>) { assetResponsePromise = value },
+    })
+    const assetResponse = await Promise.race([
+      assetResponsePromise,
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('lazy chunk waited for network')), 100)),
+    ])
+    expect(await assetResponse.text()).toContain('id="root"')
   })
 })
