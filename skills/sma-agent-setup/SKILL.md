@@ -246,12 +246,14 @@ ssh-keygen -t ed25519 -f ~/.ssh/sma_deploy -N "" -C "&lt;кто&gt;@sma"
 <content>
 Host sma
   HostName 194.67.101.37
+  Port 22009
   User deploy
   IdentityFile ~/.ssh/sma_deploy
   IdentitiesOnly yes
 
 Host sma-spare
   HostName 194.67.92.186
+  Port 22009
   User deploy
   IdentityFile ~/.ssh/sma_deploy
   IdentitiesOnly yes
@@ -290,7 +292,7 @@ ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 
 <substep id="3.2" name="снять ключ Production-машины и сверить">
 <command>
-ssh-keyscan -t ed25519 194.67.101.37 &gt; /tmp/sma_host_key
+ssh-keyscan -p 22009 -t ed25519 194.67.101.37 &gt; /tmp/sma_host_key
 ssh-keygen -lf /tmp/sma_host_key
 </command>
 <expect>Отпечаток совпадает с полученным на шаге 3.1 для 194.67.101.37 посимвольно.</expect>
@@ -310,7 +312,7 @@ cat /tmp/sma_host_key &gt;&gt; ~/.ssh/known_hosts
 
 <substep id="3.4" name="снять ключ Stage-машины и сверить">
 <command>
-ssh-keyscan -t ed25519 194.67.92.186 &gt; /tmp/sma_spare_host_key
+ssh-keyscan -p 22009 -t ed25519 194.67.92.186 &gt; /tmp/sma_spare_host_key
 ssh-keygen -lf /tmp/sma_spare_host_key
 </command>
 <expect>Отпечаток совпадает с полученным на шаге 3.1 для 194.67.92.186 посимвольно.</expect>
@@ -350,7 +352,7 @@ ssh -o BatchMode=yes sma-spare 'whoami; id; docker ps --format "{{.Names}}" | he
 <expect>whoami на обоих хостах возвращает deploy. В группах присутствует docker. docker ps выводит контейнеры.</expect>
 <on_failure>
 Permission denied — ключ не добавлен на ту машину, куда идёт ssh, либо добавлен не тому пользователю.
-Connection refused или timeout — недоступен порт 22.
+Connection refused или timeout — недоступен порт 22009.
 Отказ docker ps — пользователь не в группе docker.
 </on_failure>
 </step>
