@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import * as api from '../lib/api'
-import { offlineAwareLogout } from '../lib/offlineSessionLogout'
 import {
   getMaxEnvironmentContext,
   getStartParamFromLocation,
@@ -107,9 +106,6 @@ export function MaxApp() {
       } catch (err) {
         const reason = api.getApiDenyReason(err)
         if (isMaxUserAlreadyBound(reason)) {
-          // 005: привязка чужая или сессия истекла — решения человека здесь нет.
-          // Очередь останавливаем, офлайн-базу не удаляем.
-          void offlineAwareLogout('session_lost')
           api.clearToken()
           queryClient.clear()
           markMaxBindPending()
@@ -117,9 +113,6 @@ export function MaxApp() {
         }
         const failure = classifyMaxAuthFailure(err)
         if (failure === 'unauthenticated') {
-          // 005: привязка чужая или сессия истекла — решения человека здесь нет.
-          // Очередь останавливаем, офлайн-базу не удаляем.
-          void offlineAwareLogout('session_lost')
           api.clearToken()
           queryClient.clear()
           markMaxBindPending()
@@ -142,9 +135,6 @@ export function MaxApp() {
       } catch (err) {
         const reason = api.getApiDenyReason(err)
         if (isMaxUserAlreadyBound(reason)) {
-          // 005: привязка чужая или сессия истекла — решения человека здесь нет.
-          // Очередь останавливаем, офлайн-базу не удаляем.
-          void offlineAwareLogout('session_lost')
           api.clearToken()
           queryClient.clear()
           markMaxBindPending()
@@ -204,9 +194,6 @@ export function MaxApp() {
           if (cancelled) return
           const failure = classifyMaxAuthFailure(err)
           if (failure === 'unauthenticated') {
-            // 005: сессия истекла, не выход. Очередь останавливаем,
-            // офлайн-базу не удаляем.
-            void offlineAwareLogout('session_lost')
             api.clearToken()
             queryClient.clear()
           } else {
