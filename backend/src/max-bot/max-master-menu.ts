@@ -73,7 +73,15 @@ export function chunk3(buttons: MaxBotInlineKeyboardButton[]): MaxBotInlineKeybo
 }
 
 function isMenuOnlyRow(row: MaxBotInlineKeyboardButton[] | undefined): boolean {
-  return !!row && row.length === 1 && row[0].text === 'Меню' && row[0].payload === 'menu';
+  const button = row?.[0];
+  return (
+    !!row &&
+    row.length === 1 &&
+    !!button &&
+    button.type === 'callback' &&
+    button.text === 'Меню' &&
+    button.payload === 'menu'
+  );
 }
 
 export function withKeyboard(text: string, rows: MaxBotInlineKeyboardButton[][]): MaxBotCommandResponse {
