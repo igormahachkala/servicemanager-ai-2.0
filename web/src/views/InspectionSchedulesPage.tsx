@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
@@ -58,7 +58,6 @@ export function InspectionSchedulesPage() {
 
   const schedulesQ = useQuery({ queryKey: ['inspection-schedules'], queryFn: () => api.getInspectionSchedules() })
   const templatesQ = useQuery({ queryKey: ['inspection-templates'], queryFn: api.getInspectionTemplates, enabled: canManage })
-  const techniciansQ = useQuery({ queryKey: ['technicians'], queryFn: api.technicians, enabled: canManage })
   const linkedClientsQ = useQuery({ queryKey: ['linked-clients'], queryFn: api.getLinkedClients, enabled: canManage })
 
   const [clientCompanyId, setClientCompanyId] = useState('')
@@ -84,10 +83,35 @@ export function InspectionSchedulesPage() {
   const clients = linkedClientsQ.data || []
   const locations = locationsQ.data || []
 
-  const executors = useMemo(
-    () => (techniciansQ.data || []).filter((t) => t.isActive !== false),
-    [techniciansQ.data],
-  )
+  /**
+   * SMA-ROUND-TECHNICIAN-ASSIGNMENT-025.
+   *
+   * Кандидатов отдаёт сервер и только для выбранной точки: договор, привязки
+   * и правило исполнителя считаются там же, где их проверяет сохранение.
+   * Раньше список был общим — предлагались все активные сотрудники, и
+   * непригодность всплывала только отказом при сохранении.
+   *
+   * Без выбранной точки запрос не уходит: вопрос «кто может выполнить обход»
+   * без точки не имеет ответа.
+   */
+  const candidatesQ = useQuery({
+    queryKey: ['round-assignable-technicians', locationId],
+    queryFn: () => api.getAssignableRoundTechnicians(locationId),
+    enabled: canManage && !!locationId,
+  })
+
+  const executors = candidatesQ.data || []
+
+  /**
+   * Точку сменили — прежний выбор может стать недействительным. Держать его
+   * в поле нельзя: человек увидел бы имя, которое сервер всё равно отклонит.
+   */
+  useEffect(() => {
+    if (!assignedToUserId) return
+    if (candidatesQ.isPending) return
+    if (executors.some((candidate) => candidate.id === assignedToUserId)) return
+    setAssignedToUserId('')
+  }, [assignedToUserId, candidatesQ.isPending, executors])
 
   const createM = useMutation({
     mutationFn: async () => {
@@ -185,7 +209,7 @@ export function InspectionSchedulesPage() {
 
             <label>
               <div className="muted small">Точка</div>
-              <select value={locationId} onChange={(e) => setLocationId(e.target.value)}>
+              <select value={locationId} onChange={(e) => { setLocationId(e.target.value); setAssignedToUserId('') }}>
                 <option value="">Не выбрана</option>
                 {locations.map((l) => (
                   <option key={l.id} value={l.id}>
@@ -197,12 +221,32 @@ export function InspectionSchedulesPage() {
 
             <label>
               <div className="muted small">Техник</div>
-              <select value={assignedToUserId} onChange={(e) => setAssignedToUserId(e.target.value)}>
+              <select
+                value={assignedToUserId}
+                onChange={(e) => setAssignedToUserId(e.target.value)}
+                disabled={!locationId || candidatesQ.isPending}
+              >
                 <option value="">Без назначения</option>
                 {executors.map((t) => (
-                  <option key={t.id} value={t.id}>{t.email}</option>
+                  <option key={t.id} value={t.id}>{technicianLabel(t)}</option>
                 ))}
               </select>
+              {/*
+                * 025: пустой список — не ошибка формы, а состояние доступа.
+                * Объясняем по-русски, чем оно вызвано, вместо молчаливого
+                * выпадающего списка с одним «Без назначения».
+                */}
+              {!locationId ? (
+                <div className="muted small">Сначала выберите точку</div>
+              ) : candidatesQ.isPending ? (
+                <div className="muted small">Подбираем исполнителей…</div>
+              ) : candidatesQ.isError ? (
+                <div className="muted small">Не удалось получить список исполнителей</div>
+              ) : executors.length === 0 ? (
+                <div className="muted small">
+                  Для этой точки нет доступных исполнителей. Проверьте договор и привязки сотрудников к точке.
+                </div>
+              ) : null}
             </label>
 
             <label>

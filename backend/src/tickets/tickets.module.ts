@@ -38,6 +38,7 @@ import { WorkforceModule } from '../workforce/workforce.module'
     PermissionsContextGuard,
   ],
   controllers: [TicketsController],
-  exports: [TicketsService, TicketAttachmentsService],
+  // 025: планирование обходов берёт кандидатов тем же резолвером, что и назначение заявок.
+  exports: [TicketsService, TicketAttachmentsService, TicketsAssignmentService],
 })
 export class TicketsModule {}

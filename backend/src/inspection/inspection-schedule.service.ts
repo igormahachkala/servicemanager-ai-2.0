@@ -6,6 +6,7 @@ import { assertAllowed } from '../policy/policy.utils'
 import { InspectionPolicy, type InspectionUserCtx } from '../policy/inspection.policy'
 import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
+import { TicketsAssignmentService } from '../tickets/tickets.assignment.service'
 
 import { CreateScheduleDto } from './dto/create-schedule.dto'
 import { ListSchedulesDto } from './dto/list-schedules.dto'
@@ -37,6 +38,11 @@ export class InspectionScheduleService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly serviceContracts: ServiceContractsService,
+    /**
+     * 025: кандидаты на назначение берутся тем же резолвером, что и у заявок.
+     * Своего отбора исполнителей планирование не заводит.
+     */
+    private readonly assignment: TicketsAssignmentService,
   ) {}
 
   // ── read ───────────────────────────────────────────────────────────────────
@@ -75,6 +81,47 @@ export class InspectionScheduleService {
     // lapsed after the plan was made, so out-of-scope sites are dropped here.
     const visible = await this.filterByLocationScope(user, schedules)
     return visible.map(withLastRun)
+  }
+
+  /**
+   * SMA-ROUND-TECHNICIAN-ASSIGNMENT-025.
+   *
+   * Кто может выполнить обход в этой точке.
+   *
+   * До 025 выбор техника в плане предлагал всех активных сотрудников, а
+   * непригодность выяснялась только при сохранении: список кандидатов и
+   * правило назначения жили в разных местах. Теперь список строит тот же
+   * канонический резолвер, которым назначаются заявки, и сверху остаётся
+   * ровно то же правило исполнителя, что применяет resolveAssigneeId.
+   *
+   * Отбор здесь ничего не разрешает: сохранение по-прежнему проверяет
+   * кандидата заново, поэтому подставленный чужой идентификатор отклоняется
+   * независимо от того, что показал интерфейс.
+   */
+  async listAssignableTechnicians(user: InspectionUserCtx, locationId: string) {
+    assertAllowed(this.policy.canManageSchedule(user))
+    if (!locationId) throw new BadRequestException('locationId is required')
+
+    const location = await this.requireAccessibleLocation(user, locationId)
+
+    const candidates = await this.assignment.listLocationAssignableExecutors({
+      // Планирует компания исполнителя: обход своей точки ведёт её же сотрудник.
+      employerCompanyId: user.companyId,
+      // Площадка принадлежит компании-владельцу, а не исполнителю.
+      scopeCompanyId: location.clientCompanyId,
+      locationId: location.id,
+    })
+
+    return candidates
+      .filter((candidate) => isExecutorEligible({ role: candidate.role, isExecutor: true }))
+      .map((candidate) => ({
+        id: candidate.id,
+        email: candidate.email,
+        firstName: candidate.firstName,
+        lastName: candidate.lastName,
+        role: candidate.role,
+        activeLoad: candidate.activeLoad,
+      }))
   }
 
   async get(user: InspectionUserCtx, scheduleId: string) {
