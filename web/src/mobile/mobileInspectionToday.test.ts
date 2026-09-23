@@ -301,8 +301,17 @@ describe('120G source contract', () => {
     expect(router()).toMatch(/import\('\.\/mobile\/MobileInspectionTodayPage'\)/)
   })
 
-  it('план запрашивается окном суток и без клиентского сужения по технику', () => {
-    expect(page()).toMatch(/api\.getInspectionSchedules\(\{ from: window\.from, to: window\.to/)
+  /**
+   * SMA-ROUND-SCHEDULE-ADVANCE-029: контракт изменён намеренно.
+   *
+   * Окно суток больше не считает устройство: часовой пояс телефона — не
+   * источник правды о рабочем дне, и /m расходился из-за этого с MAX.
+   * Границу определяет сервер по поясу компании, а просроченные визиты
+   * остаются видны, иначе вчерашний невыполненный обход молча выпадал.
+   */
+  it('план запрашивается серверным признаком «сегодня», без пояса устройства', () => {
+    expect(page()).toMatch(/api\.getInspectionSchedules\(\{ dueToday: true/)
+    expect(page()).not.toMatch(/todayWindow\(/)
     // Сужение делает сервер. Фильтр по технику в запросе был бы не ограничением,
     // а его имитацией: сервер всё равно перезапишет, а читатель поверит клиенту.
     const call = page().match(/api\.getInspectionSchedules\(\{[^}]*\}\)/)?.[0] || ''

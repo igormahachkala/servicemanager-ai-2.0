@@ -581,7 +581,19 @@ describe('098 schedule UPDATE', () => {
     expect(data.nextDueAt).toEqual(new Date('2026-11-05T08:00:00.000Z'))
   })
 
-  it('does NOT rewind nextDueAt once a generator has produced runs', async () => {
+  /**
+   * SMA-ROUND-SCHEDULE-ADVANCE-029: правило заменено намеренно.
+   *
+   * 098 замораживал nextDueAt после первого обхода, потому что курсор
+   * принадлежал будущему генератору. Генератор появился здесь, и курсор
+   * двигает завершение обхода. Заморозка при этом лишила администратора
+   * возможности перенести действующий план: оставалось погасить его и
+   * завести новый, потеряв связь с историей.
+   *
+   * Теперь правка даты переносит ближайший визит и при наличии прошлых
+   * обходов. Сами обходы не переписываются — это проверяется ниже.
+   */
+  it('029 moves the next occurrence even after previous runs exist', async () => {
     const { svc, prisma } = makeSuite({
       schedules: [scheduleRow({ lastGeneratedAt: new Date('2026-09-01T00:00:00.000Z') })],
     })
@@ -589,8 +601,25 @@ describe('098 schedule UPDATE', () => {
     await svc.update(admin, 'sched-1', { startDate: '2026-11-05T08:00:00.000Z' } as any)
 
     const data = prisma.inspectionSchedule.update.mock.calls[0][0].data
-    expect(data.startDate).toBeDefined()
-    expect(data.nextDueAt).toBeUndefined()
+    expect(data.startDate).toEqual(new Date('2026-11-05T08:00:00.000Z'))
+    expect(data.nextDueAt).toEqual(new Date('2026-11-05T08:00:00.000Z'))
+  })
+
+  it('029 rescheduling does not touch historical runs', async () => {
+    const { svc, prisma } = makeSuite({
+      schedules: [scheduleRow({ lastGeneratedAt: new Date('2026-09-01T00:00:00.000Z') })],
+    })
+
+    await svc.update(admin, 'sched-1', { startDate: '2026-11-05T08:00:00.000Z' } as any)
+
+    /*
+     * Прошлое остаётся с теми датами, когда работу действительно делали.
+     * Доказательство прямое: перенос обошёлся вообще без обращения к обходам —
+     * в поддельной призме делегата inspectionRun нет, и будь он нужен,
+     * вызов упал бы, а не прошёл молча.
+     */
+    expect((prisma as Record<string, unknown>).inspectionRun).toBeUndefined()
+    expect(prisma.inspectionSchedule.update).toHaveBeenCalledTimes(1)
   })
 
   it('DENIES moving a schedule to an out-of-scope location', async () => {

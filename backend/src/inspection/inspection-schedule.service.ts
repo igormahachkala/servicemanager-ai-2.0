@@ -5,6 +5,7 @@ import { isExecutorEligible } from '../common/executor.utils'
 import { assertAllowed } from '../policy/policy.utils'
 import { InspectionPolicy, type InspectionUserCtx } from '../policy/inspection.policy'
 import { PrismaService } from '../prisma/prisma.service'
+import { endOfZonedDay } from '../common/zoned-time.utils'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 
 import { CreateScheduleDto } from './dto/create-schedule.dto'
@@ -61,7 +62,9 @@ export class InspectionScheduleService {
     if (filters.frequency) where.frequency = filters.frequency
     if (filters.active !== undefined) where.isActive = filters.active === 'true'
 
-    const dueWindow = this.buildDueWindow(filters)
+    const dueWindow = filters.dueToday === 'true'
+      ? { lte: await this.endOfCompanyDay(user.companyId) }
+      : this.buildDueWindow(filters)
     if (dueWindow) where.nextDueAt = dueWindow
 
     const schedules = await this.prisma.inspectionSchedule.findMany({
@@ -185,16 +188,23 @@ export class InspectionScheduleService {
       data.intervalDays = this.resolveIntervalDays(frequency, intervalDays)
     }
 
-    if (dto.startDate !== undefined) {
-      const startDate = this.parseStartDate(dto.startDate)
-      data.startDate = startDate
-      /**
-       * Moving the planned moment moves the next due moment — but only while nothing has been
-       * generated from this schedule yet. Once a generator has produced runs, `nextDueAt` is
-       * its cursor, and 098 has no business rewinding it.
-       */
-      if (!current.lastGeneratedAt) data.nextDueAt = startDate
-    }
+      if (dto.startDate !== undefined) {
+        const startDate = this.parseStartDate(dto.startDate)
+        data.startDate = startDate
+        /**
+         * SMA-ROUND-SCHEDULE-ADVANCE-029: перенос ближайшего визита.
+         *
+         * Запрет 098 снят намеренно. Раньше nextDueAt следовал за датой начала
+         * только пока по плану не было ни одного обхода, а после первого
+         * замораживался — и перенести действующий план становилось нечем:
+         * оставалось погасить его и завести новый, потеряв связь с историей.
+         *
+         * Теперь правка даты переносит именно ближайший визит. Прошлое при этом
+         * не переписывается: выполненные обходы остаются с теми датами, когда их
+         * действительно делали, — здесь их никто не трогает.
+         */
+        data.nextDueAt = startDate
+      }
 
     if (dto.leadTimeDays !== undefined) data.leadTimeDays = dto.leadTimeDays
     if (dto.graceDays !== undefined) data.graceDays = dto.graceDays
@@ -322,6 +332,21 @@ export class InspectionScheduleService {
     }
     if (intervalDays) throw new BadRequestException('intervalDays is allowed only for CUSTOM frequency')
     return null
+  }
+
+  /**
+   * 029: конец сегодняшних суток в поясе компании.
+   *
+   * Источник правды о дне — компания, а не устройство. Телефон техника
+   * в поездке показывал бы чужой день, и «сегодня» на /m расходилось бы
+   * с «сегодня» в MAX и в планировщике.
+   */
+  private async endOfCompanyDay(companyId: string): Promise<Date> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { timezone: true },
+    })
+    return endOfZonedDay(new Date(), company?.timezone)
   }
 
   private buildDueWindow(filters: ListSchedulesDto) {

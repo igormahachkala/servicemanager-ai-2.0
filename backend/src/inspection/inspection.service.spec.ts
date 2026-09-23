@@ -36,6 +36,10 @@ function makeService(overrides: Record<string, any> = {}, deps: { shiftPolicy?: 
       findFirst: jest.fn(),
       update: jest.fn(),
       findMany: jest.fn(),
+      // 029: закрытие обхода идёт условным updateMany внутри транзакции.
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      findUnique: jest.fn().mockResolvedValue(null),
+      findUniqueOrThrow: jest.fn().mockResolvedValue({ id: 'run-1', items: [] }),
     },
     location: {
       findFirst: jest.fn().mockResolvedValue({ id: 'location-1', name: 'Location 1', clientCompanyId: USER.companyId }),

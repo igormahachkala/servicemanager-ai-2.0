@@ -34,6 +34,7 @@ import { ListRunsDto } from './dto/list-runs.dto'
 import { StartRunDto } from './dto/start-run.dto'
 import { UpdateRunItemDto } from './dto/update-run-item.dto'
 import { CreateTicketFromItemDto } from './dto/create-ticket-from-item.dto'
+import { advanceSchedule } from './inspection-recurrence'
 import { ReviewRunReportDto } from './dto/review-run-report.dto'
 import {
   buildInspectionDocumentDate,
@@ -1055,15 +1056,112 @@ export class InspectionService {
     }
     await this.assertActiveShiftForRoundMutation(user)
 
-    const updated = await this.prisma.inspectionRun.update({
+    /**
+     * SMA-ROUND-SCHEDULE-ADVANCE-029.
+     *
+     * Завершение и сдвиг плана — одна транзакция, и признак «уже завершён»
+     * ставится самим переходом статуса, а не проверкой перед ним.
+     *
+     * Проверка выше остаётся ради понятного сообщения человеку, но полагаться
+     * на неё нельзя: между чтением и записью помещается второе завершение,
+     * и тогда план сдвинулся бы дважды за один визит. updateMany с условием
+     * по статусу отдаёт единице count=1, а всем остальным — 0, и сдвиг
+     * делает только победитель. Отдельного поля для этого не нужно: один
+     * обход закрывается один раз, а обход принадлежит одному визиту.
+     */
+    const completedAt = new Date()
+
+    const advanced = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.inspectionRun.updateMany({
+        where: { id: run.id, status: { not: InspectionRunStatus.COMPLETED } },
+        data: { status: InspectionRunStatus.COMPLETED, completedAt },
+      })
+
+      // Гонку проиграли: обход уже закрыт другим вызовом, план трогать нельзя.
+      if (claimed.count === 0) return null
+
+      return this.advanceScheduleAfterCompletion(tx, run.id, completedAt)
+    })
+
+    if (advanced === null) {
+      throw new BadRequestException('Inspection run is already completed')
+    }
+
+    const updated = await this.prisma.inspectionRun.findUniqueOrThrow({
       where: { id: run.id },
-      data: { status: InspectionRunStatus.COMPLETED, completedAt: new Date() },
       select: runSelect(),
     })
 
     return {
       run: updated,
       summary: buildInspectionRunSummary(updated.items),
+    }
+  }
+
+  /**
+   * 029: сдвиг плана после выполненного визита.
+   *
+   * Второго пути завершения не заводится — сюда попадают только из completeRun,
+   * внутри той же транзакции. Расписание читается там же, поэтому решение
+   * принимается по состоянию, которое никто не успеет изменить.
+   *
+   * Одноразовый план после выполнения гасится: висеть вечно просроченным ему
+   * незачем. Повторяемый сдвигается к ближайшему будущему визиту с догоном
+   * пропущенных.
+   */
+  private async advanceScheduleAfterCompletion(
+    tx: Prisma.TransactionClient,
+    runId: string,
+    completedAt: Date,
+  ): Promise<{ scheduleId: string | null; nextDueAt: Date | null; deactivated: boolean; missed: number }> {
+    const withSchedule = await tx.inspectionRun.findUnique({
+      where: { id: runId },
+      select: {
+        scheduleId: true,
+        schedule: {
+          select: {
+            id: true,
+            isActive: true,
+            frequency: true,
+            intervalDays: true,
+            nextDueAt: true,
+            company: { select: { timezone: true } },
+          },
+        },
+      },
+    })
+
+    const schedule = withSchedule?.schedule
+    // Обход без плана — обычный разовый обход, двигать нечего.
+    if (!schedule || !schedule.isActive) {
+      return { scheduleId: null, nextDueAt: null, deactivated: false, missed: 0 }
+    }
+
+    const outcome = advanceSchedule({
+      frequency: schedule.frequency,
+      intervalDays: schedule.intervalDays,
+      currentDueAt: schedule.nextDueAt,
+      completedAt,
+      timezone: schedule.company?.timezone,
+    })
+
+    if (!outcome.nextDueAt) {
+      await tx.inspectionSchedule.update({
+        where: { id: schedule.id },
+        data: { isActive: false },
+      })
+      return { scheduleId: schedule.id, nextDueAt: null, deactivated: true, missed: 0 }
+    }
+
+    await tx.inspectionSchedule.update({
+      where: { id: schedule.id },
+      data: { nextDueAt: outcome.nextDueAt },
+    })
+    return {
+      scheduleId: schedule.id,
+      nextDueAt: outcome.nextDueAt,
+      deactivated: false,
+      missed: outcome.missedOccurrences,
     }
   }
 
