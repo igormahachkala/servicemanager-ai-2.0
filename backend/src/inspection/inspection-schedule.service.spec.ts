@@ -55,8 +55,18 @@ function makeContract(overrides: any = {}) {
 /**
  * 025: что канонический резолвер вернул бы для точки. Тесты переопределяют
  * список там, где проверяют пустое состояние.
+ *
+ * 039: сохранение теперь спрашивает того же резолвера, поэтому по умолчанию
+ * здесь пригодные исполнители этой точки, а не пустота. Пустой список —
+ * это «на точке работать некому», и подставлять его во все тесты назначения
+ * значило бы проверять отказ там, где проверяется успех.
  */
-let assignableExecutors: any[] = []
+const eligibleFixture = () => [
+  { id: technician.id, email: 'tech@example.com', firstName: 'Иван', lastName: 'Петров', role: UserRole.TECHNICIAN, activeLoad: 0 },
+  { id: otherTechnician.id, email: 'tech2@example.com', firstName: 'Пётр', lastName: 'Иванов', role: UserRole.TECHNICIAN, activeLoad: 0 },
+]
+
+let assignableExecutors: any[] = eligibleFixture()
 
 const LOCATIONS = [LOC_A, LOC_B, LOC_UNCONTRACTED]
 
