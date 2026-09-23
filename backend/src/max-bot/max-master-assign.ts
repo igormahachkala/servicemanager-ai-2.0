@@ -2,7 +2,6 @@ import { MaxBotCommandResponse } from './max-bot.types';
 import {
   MASTER_CANDIDATE_PAGE_SIZE,
   callbackButton,
-  masterFooterRows,
   masterPaginationRows,
   withKeyboard,
 } from './max-master-menu';
@@ -71,7 +70,6 @@ export function renderMasterReassignConfirm(
 export function renderMasterAssignedMessage(view: MasterAssignedView): MaxBotCommandResponse {
   return withKeyboard(`Заявка #${view.ticketNumber} назначена ${view.technicianName}.`, [
     [callbackButton(`Открыть #${view.ticketNumber}`, `mk:${view.ticketId}`), callbackButton('Без исполнителя', 'unassigned')],
-    ...masterFooterRows(),
   ]);
 }
 

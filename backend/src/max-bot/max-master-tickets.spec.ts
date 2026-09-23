@@ -18,16 +18,29 @@ function buttonCount(response: ReturnType<typeof renderMasterTicketListMessage>)
 }
 
 describe('master ticket screens stay within the MAX button cap', () => {
-  it('unassigned/sla pages show one card so open+assign+footer fit in 7', () => {
+  it('unassigned page has open, assign and Меню, without the section footer', () => {
     const page = toMasterTicketListPage('Без исполнителя', 'unassigned', [item(1), item(2), item(3)], 0);
     expect(page.items).toHaveLength(1);
-    expect(buttonCount(renderMasterTicketListMessage(page))).toBeLessThanOrEqual(7);
+    const res = renderMasterTicketListMessage(page);
+    expect(res.attachments?.[0]?.payload.buttons.flat().map((button) => button.text)).toEqual([
+      '#1',
+      'Назначить #1',
+      'Следующие',
+      'Меню',
+    ]);
   });
 
-  it('filter lists keep three opens plus footer', () => {
+  it('filter lists keep three opens and Меню', () => {
     const page = toMasterTicketListPage('Новые', 'new', [item(1), item(2), item(3), item(4)], 0);
     expect(page.items).toHaveLength(3);
-    expect(buttonCount(renderMasterTicketListMessage(page))).toBeLessThanOrEqual(7);
+    const res = renderMasterTicketListMessage(page);
+    expect(res.attachments?.[0]?.payload.buttons.flat().map((button) => button.text)).toEqual([
+      '#1',
+      '#2',
+      '#3',
+      'Следующие',
+      'Меню',
+    ]);
   });
 
   it('card uses Меню instead of the three-button footer', () => {

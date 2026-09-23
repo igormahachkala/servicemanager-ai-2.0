@@ -9,7 +9,6 @@ export const MASTER_MENU_ROLES = new Set<UserRole>([
   UserRole.MASTER,
   UserRole.ADMIN,
   UserRole.DISPATCHER,
-  UserRole.NETWORK_DIRECTOR,
 ]);
 
 export const MASTER_SECTIONS: readonly { payload: MasterSectionPayload; label: string }[] = [
@@ -73,22 +72,17 @@ export function chunk3(buttons: MaxBotInlineKeyboardButton[]): MaxBotInlineKeybo
   return rows;
 }
 
+function isMenuOnlyRow(row: MaxBotInlineKeyboardButton[] | undefined): boolean {
+  return !!row && row.length === 1 && row[0].text === 'Меню' && row[0].payload === 'menu';
+}
+
 export function withKeyboard(text: string, rows: MaxBotInlineKeyboardButton[][]): MaxBotCommandResponse {
-  const keyboard = renderInlineKeyboard(rows);
+  const withMenu = isMenuOnlyRow(rows[rows.length - 1]) ? rows : [...rows, [callbackButton('Меню', 'menu')]];
+  const keyboard = renderInlineKeyboard(withMenu);
   return {
     text,
     ...(keyboard ? { attachments: [keyboard] } : {}),
   };
-}
-
-export function masterFooterRows(): MaxBotInlineKeyboardButton[][] {
-  return [
-    [
-      callbackButton('Сегодня', 'today'),
-      callbackButton('Без исполнителя', 'unassigned'),
-      callbackButton('Просрочено', 'sla'),
-    ],
-  ];
 }
 
 export function masterPaginationRows(prevPayload: string | null, nextPayload: string | null) {
