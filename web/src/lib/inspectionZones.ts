@@ -6,6 +6,7 @@ export type ZoneCheckpointItem = {
   zoneName?: string | null
   zoneSortOrder?: number | null
   checkpointSortOrder?: number | null
+  defaultCategoryId?: string | null
   responseType?: api.InspectionCheckpointResponseType | null
   numericMin?: number | null
   numericMax?: number | null
@@ -33,6 +34,15 @@ export function numericConstraintLabel(item: Pick<ZoneCheckpointItem, 'numericMi
   if (item.numericMax !== null && item.numericMax !== undefined) parts.push(`макс. ${item.numericMax}`)
   if (item.numericUnit) parts.push(item.numericUnit)
   return parts.join(' · ')
+}
+
+export function inspectionDefaultTicketCategoryId(
+  item: Pick<ZoneCheckpointItem, 'defaultCategoryId'>,
+  categories: Array<{ id: string; isActive?: boolean }>,
+): string {
+  const categoryId = item.defaultCategoryId?.trim()
+  if (!categoryId) return ''
+  return categories.some((category) => category.id === categoryId && category.isActive !== false) ? categoryId : ''
 }
 
 export function groupInspectionItemsByZone<T extends ZoneCheckpointItem>(items: T[]): InspectionZoneGroup<T>[] {

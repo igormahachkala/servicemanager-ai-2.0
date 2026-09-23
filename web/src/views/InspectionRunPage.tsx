@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
-import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
+import { inspectionDefaultTicketCategoryId, numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 import { ProtectedUploadThumbLink } from '../ui/ProtectedUploadMedia'
 
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024
@@ -130,21 +130,27 @@ export function InspectionRunPage() {
 
   useEffect(() => {
     if (!runQ.data) return
-    const firstCategoryId = categories[0]?.id || ''
     setDrafts((current) => {
       const next: Record<string, ItemDraft> = {}
       for (const item of runQ.data.items) {
-        next[item.id] = current[item.id] || {
+        const defaultCategoryId = inspectionDefaultTicketCategoryId(item, categories)
+        const existing = current[item.id]
+        next[item.id] = existing
+          ? {
+              ...existing,
+              categoryId: existing.categoryId || defaultCategoryId,
+            }
+          : {
           status: item.status,
           requiresRepair: item.requiresRepair,
           comment: item.comment || '',
-          categoryId: firstCategoryId,
+          categoryId: defaultCategoryId,
           title: item.title,
           description: item.comment || item.description || '',
           booleanValue: item.booleanValue ?? null,
           numberValue: item.numberValue === null || item.numberValue === undefined ? '' : String(item.numberValue),
           textValue: item.textValue || '',
-        }
+            }
       }
       return next
     })
@@ -352,7 +358,7 @@ export function InspectionRunPage() {
                 status: item.status,
                 requiresRepair: item.requiresRepair,
                 comment: item.comment || '',
-                categoryId: categories[0]?.id || '',
+                categoryId: inspectionDefaultTicketCategoryId(item, categories),
                 title: item.title,
                 description: item.comment || item.description || '',
                 booleanValue: item.booleanValue ?? null,

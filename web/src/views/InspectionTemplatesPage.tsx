@@ -6,7 +6,7 @@ import * as api from '../lib/api'
 import { groupInspectionItemsByZone, numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 
 /** Роли, у которых по канонической матрице есть LOCATIONS_MANAGE. Подсказка интерфейса: решение принимает бэкенд. */
-const MANAGER_ROLES = ['ADMIN', 'MASTER', 'DISPATCHER']
+const MANAGER_ROLES = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR']
 
 function fmtDate(value?: string | null) {
   if (!value) return '—'
@@ -24,6 +24,7 @@ type TemplateDraftItem = {
   zoneName: string
   zoneSortOrder: string
   checkpointSortOrder: string
+  defaultCategoryId: string
   responseType: api.InspectionCheckpointResponseType
   numericMin: string
   numericMax: string
@@ -37,6 +38,7 @@ const emptyDraftItem = (): TemplateDraftItem => ({
   zoneName: '',
   zoneSortOrder: '',
   checkpointSortOrder: '',
+  defaultCategoryId: '',
   responseType: 'NORMAL_PROBLEM',
   numericMin: '',
   numericMax: '',
@@ -52,6 +54,7 @@ function templateToDraftItems(template: api.InspectionTemplate): TemplateDraftIt
     zoneName: item.zoneName || '',
     zoneSortOrder: String(item.zoneSortOrder ?? 0),
     checkpointSortOrder: String(item.checkpointSortOrder ?? item.sortOrder ?? 0),
+    defaultCategoryId: item.defaultCategoryId || '',
     responseType: item.responseType || 'NORMAL_PROBLEM',
     numericMin: item.numericMin === null || item.numericMin === undefined ? '' : String(item.numericMin),
     numericMax: item.numericMax === null || item.numericMax === undefined ? '' : String(item.numericMax),
@@ -72,6 +75,7 @@ function draftStateSnapshot(name: string, description: string, items: TemplateDr
       zoneName: item.zoneName,
       zoneSortOrder: item.zoneSortOrder,
       checkpointSortOrder: item.checkpointSortOrder,
+      defaultCategoryId: item.defaultCategoryId,
       responseType: item.responseType,
       numericMin: item.numericMin,
       numericMax: item.numericMax,
@@ -88,6 +92,7 @@ function draftHasContent(item: TemplateDraftItem) {
       item.zoneName.trim() ||
       item.zoneSortOrder.trim() ||
       item.checkpointSortOrder.trim() ||
+      item.defaultCategoryId.trim() ||
       item.numericMin.trim() ||
       item.numericMax.trim() ||
       item.numericUnit.trim() ||
@@ -138,6 +143,7 @@ function buildTemplatePayload(
         zoneName: item.zoneName.trim() || undefined,
         zoneSortOrder: parseOptionalInteger(item.zoneSortOrder, 'Порядок зоны') ?? 0,
         checkpointSortOrder: parseOptionalInteger(item.checkpointSortOrder, 'Порядок пункта') ?? index,
+        defaultCategoryId: item.defaultCategoryId.trim() || null,
         responseType: item.responseType,
         numericMin,
         numericMax,
@@ -165,142 +171,322 @@ function buildTemplatePayload(
 function TemplateItemsEditor({
   items,
   onChange,
-  onAdd,
-  onRemoveLast,
+  categories,
 }: {
   items: TemplateDraftItem[]
-  onChange: (index: number, patch: Partial<TemplateDraftItem>) => void
-  onAdd: () => void
-  onRemoveLast: () => void
+  onChange: (items: TemplateDraftItem[]) => void
+  categories: api.ProblemCategoryListItem[]
 }) {
+  type DraftZone = {
+    key: string
+    name: string
+    order: number
+    entries: Array<{ item: TemplateDraftItem; index: number; checkpointOrder: number }>
+  }
+
+  function readDraftOrder(value: string, fallback: number) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? Math.max(0, Math.trunc(parsed)) : fallback
+  }
+
+  function sortedEntries(source = items) {
+    return source
+      .map((item, index) => ({
+        item,
+        index,
+        zoneOrder: readDraftOrder(item.zoneSortOrder, index),
+        checkpointOrder: readDraftOrder(item.checkpointSortOrder, index),
+      }))
+      .sort(
+        (a, b) =>
+          a.zoneOrder - b.zoneOrder ||
+          a.checkpointOrder - b.checkpointOrder ||
+          a.index - b.index,
+      )
+  }
+
+  function normalizeDraftOrdering(source: TemplateDraftItem[]) {
+    let currentZoneKey = ''
+    let zoneOrder = -1
+    let checkpointOrder = 0
+
+    return sortedEntries(source).map(({ item }) => {
+      const zoneKey = item.zoneName.trim() || 'Без зоны'
+      if (zoneKey !== currentZoneKey) {
+        currentZoneKey = zoneKey
+        zoneOrder += 1
+        checkpointOrder = 0
+      }
+      const next = {
+        ...item,
+        zoneSortOrder: String(zoneOrder),
+        checkpointSortOrder: String(checkpointOrder),
+      }
+      checkpointOrder += 1
+      return next
+    })
+  }
+
+  function zonesFromItems(): DraftZone[] {
+    const zones = new Map<string, DraftZone>()
+    for (const entry of sortedEntries()) {
+      const name = entry.item.zoneName.trim()
+      const displayName = name || 'Без зоны'
+      const key = `${entry.zoneOrder}:${displayName}`
+      const existing = zones.get(key)
+      if (existing) {
+        existing.entries.push({ item: entry.item, index: entry.index, checkpointOrder: entry.checkpointOrder })
+      } else {
+        zones.set(key, {
+          key,
+          name: displayName,
+          order: entry.zoneOrder,
+          entries: [{ item: entry.item, index: entry.index, checkpointOrder: entry.checkpointOrder }],
+        })
+      }
+    }
+    return Array.from(zones.values()).sort((a, b) => a.order - b.order)
+  }
+
+  function replaceItem(index: number, patch: Partial<TemplateDraftItem>) {
+    onChange(normalizeDraftOrdering(items.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item))))
+  }
+
+  function replaceMany(patches: Array<{ index: number; patch: Partial<TemplateDraftItem> }>) {
+    const byIndex = new Map(patches.map((entry) => [entry.index, entry.patch]))
+    onChange(normalizeDraftOrdering(items.map((item, index) => (byIndex.has(index) ? { ...item, ...byIndex.get(index)! } : item))))
+  }
+
+  function addZone() {
+    const zones = zonesFromItems()
+    const order = zones.length
+    onChange(normalizeDraftOrdering([
+      ...items,
+      {
+        ...emptyDraftItem(),
+        zoneName: `Новая зона ${order + 1}`,
+        zoneSortOrder: String(order),
+        checkpointSortOrder: '0',
+      },
+    ]))
+  }
+
+  function renameZone(zone: DraftZone, name: string) {
+    replaceMany(zone.entries.map((entry) => ({ index: entry.index, patch: { zoneName: name } })))
+  }
+
+  function moveZone(zoneIndex: number, direction: -1 | 1) {
+    const zones = zonesFromItems()
+    const target = zoneIndex + direction
+    if (target < 0 || target >= zones.length) return
+    const currentZone = zones[zoneIndex]
+    const targetZone = zones[target]
+    replaceMany([
+      ...currentZone.entries.map((entry) => ({ index: entry.index, patch: { zoneSortOrder: String(target) } })),
+      ...targetZone.entries.map((entry) => ({ index: entry.index, patch: { zoneSortOrder: String(zoneIndex) } })),
+    ])
+  }
+
+  function deleteZone(zone: DraftZone) {
+    if (!window.confirm(`Удалить зону «${zone.name}» и все её пункты?`)) return
+    const indexesToDelete = new Set(zone.entries.map((entry) => entry.index))
+    const next = items.filter((_, index) => !indexesToDelete.has(index))
+    onChange(next.length > 0 ? normalizeDraftOrdering(next) : [emptyDraftItem()])
+  }
+
+  function addCheckpoint(zone: DraftZone) {
+    onChange(normalizeDraftOrdering([
+      ...items,
+      {
+        ...emptyDraftItem(),
+        zoneName: zone.name === 'Без зоны' ? '' : zone.name,
+        zoneSortOrder: String(zone.order),
+        checkpointSortOrder: String(zone.entries.length),
+      },
+    ]))
+  }
+
+  function deleteCheckpoint(index: number) {
+    if (!window.confirm('Удалить пункт из шаблона?')) return
+    const next = items.filter((_, itemIndex) => itemIndex !== index)
+    onChange(next.length > 0 ? normalizeDraftOrdering(next) : [emptyDraftItem()])
+  }
+
+  function moveCheckpoint(zone: DraftZone, entryIndex: number, direction: -1 | 1) {
+    const target = entryIndex + direction
+    if (target < 0 || target >= zone.entries.length) return
+    const current = zone.entries[entryIndex]
+    const other = zone.entries[target]
+    replaceMany([
+      { index: current.index, patch: { checkpointSortOrder: String(target) } },
+      { index: other.index, patch: { checkpointSortOrder: String(entryIndex) } },
+    ])
+  }
+
+  const zones = zonesFromItems()
+
   return (
     <>
       <div style={{ display: 'grid', gap: 10 }}>
-        {items.map((item, index) => (
-          <div key={item.id || index} className="panel" style={{ padding: 12 }}>
-            <div style={{ fontWeight: 700, marginBottom: 8 }}>Пункт {index + 1}</div>
-            <div className="form">
-              <div className="grid2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
-                <label>
-                  Зона
-                  <input
-                    value={item.zoneName}
-                    onChange={(e) => onChange(index, { zoneName: e.target.value })}
-                    placeholder="Например: Зал"
-                  />
-                </label>
-                <label>
-                  Порядок зоны
-                  <input
-                    type="number"
-                    min={0}
-                    value={item.zoneSortOrder}
-                    onChange={(e) => onChange(index, { zoneSortOrder: e.target.value })}
-                    placeholder="0"
-                  />
-                </label>
-                <label>
-                  Порядок пункта
-                  <input
-                    type="number"
-                    min={0}
-                    value={item.checkpointSortOrder}
-                    onChange={(e) => onChange(index, { checkpointSortOrder: e.target.value })}
-                    placeholder={String(index)}
-                  />
-                </label>
+        {zones.map((zone, zoneIndex) => (
+          <div key={zone.key} className="panel" style={{ padding: 12, display: 'grid', gap: 12 }}>
+            <div className="row" style={{ alignItems: 'flex-end', marginBottom: 0 }}>
+              <label style={{ flex: 1 }}>
+                Зона {zoneIndex + 1}
+                <input
+                  value={zone.name === 'Без зоны' ? '' : zone.name}
+                  onChange={(e) => renameZone(zone, e.target.value)}
+                  placeholder="Например: Зал"
+                />
+              </label>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <button type="button" className="ghost" onClick={() => moveZone(zoneIndex, -1)} disabled={zoneIndex === 0}>
+                  ↑
+                </button>
+                <button type="button" className="ghost" onClick={() => moveZone(zoneIndex, 1)} disabled={zoneIndex === zones.length - 1}>
+                  ↓
+                </button>
+                <button type="button" className="ghost" onClick={() => deleteZone(zone)}>
+                  Удалить зону
+                </button>
               </div>
-
-              <label>
-                Заголовок
-                <input
-                  value={item.title}
-                  onChange={(e) => onChange(index, { title: e.target.value })}
-                  placeholder="Например: Проверить фасад оборудования"
-                />
-              </label>
-
-              <label>
-                Комментарий для техника
-                <input
-                  value={item.description}
-                  onChange={(e) => onChange(index, { description: e.target.value })}
-                  placeholder="Что именно нужно проверить"
-                />
-              </label>
-
-              <div className="grid2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10 }}>
-                <label>
-                  Тип ответа
-                  <select
-                    value={item.responseType}
-                    onChange={(e) =>
-                      onChange(index, {
-                        responseType: e.target.value as api.InspectionCheckpointResponseType,
-                        numericMin: e.target.value === 'NUMBER' ? item.numericMin : '',
-                        numericMax: e.target.value === 'NUMBER' ? item.numericMax : '',
-                        numericUnit: e.target.value === 'NUMBER' ? item.numericUnit : '',
-                      })
-                    }
-                  >
-                    <option value="NORMAL_PROBLEM">Проблема/норма</option>
-                    <option value="YES_NO">Да/Нет</option>
-                    <option value="NUMBER">Число</option>
-                    <option value="TEXT">Текст</option>
-                    <option value="PHOTO">Фото</option>
-                  </select>
-                </label>
-                <label>
-                  Мин.
-                  <input
-                    type="number"
-                    value={item.numericMin}
-                    onChange={(e) => onChange(index, { numericMin: e.target.value })}
-                    disabled={item.responseType !== 'NUMBER'}
-                  />
-                </label>
-                <label>
-                  Макс.
-                  <input
-                    type="number"
-                    value={item.numericMax}
-                    onChange={(e) => onChange(index, { numericMax: e.target.value })}
-                    disabled={item.responseType !== 'NUMBER'}
-                  />
-                </label>
-                <label>
-                  Ед.
-                  <input
-                    value={item.numericUnit}
-                    onChange={(e) => onChange(index, { numericUnit: e.target.value })}
-                    disabled={item.responseType !== 'NUMBER'}
-                    placeholder="°C"
-                  />
-                </label>
-              </div>
-
-              <label className="small" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={item.isRequired}
-                  onChange={(e) => onChange(index, { isRequired: e.target.checked })}
-                />
-                Обязательный пункт
-              </label>
             </div>
+
+            <div style={{ display: 'grid', gap: 10 }}>
+              {zone.entries.map((entry, entryIndex) => {
+                const item = entry.item
+                const missingSelectedCategory =
+                  item.defaultCategoryId && !categories.some((category) => category.id === item.defaultCategoryId)
+                return (
+                  <div key={item.id || `${zone.key}:${entry.index}`} className="panel" style={{ padding: 12 }}>
+                    <div className="row" style={{ marginBottom: 8 }}>
+                      <div style={{ fontWeight: 700 }}>Пункт {entryIndex + 1}</div>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <button type="button" className="ghost" onClick={() => moveCheckpoint(zone, entryIndex, -1)} disabled={entryIndex === 0}>
+                          ↑
+                        </button>
+                        <button type="button" className="ghost" onClick={() => moveCheckpoint(zone, entryIndex, 1)} disabled={entryIndex === zone.entries.length - 1}>
+                          ↓
+                        </button>
+                        <button type="button" className="ghost" onClick={() => deleteCheckpoint(entry.index)}>
+                          Удалить пункт
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="form">
+                      <label>
+                        Название пункта
+                        <input
+                          value={item.title}
+                          onChange={(e) => replaceItem(entry.index, { title: e.target.value })}
+                          placeholder="Например: Освещение"
+                        />
+                      </label>
+
+                      <label>
+                        Комментарий для техника
+                        <input
+                          value={item.description}
+                          onChange={(e) => replaceItem(entry.index, { description: e.target.value })}
+                          placeholder="Что именно нужно проверить"
+                        />
+                      </label>
+
+                      <div className="grid2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
+                        <label>
+                          Тип ответа
+                          <select
+                            value={item.responseType}
+                            onChange={(e) =>
+                              replaceItem(entry.index, {
+                                responseType: e.target.value as api.InspectionCheckpointResponseType,
+                                numericMin: e.target.value === 'NUMBER' ? item.numericMin : '',
+                                numericMax: e.target.value === 'NUMBER' ? item.numericMax : '',
+                                numericUnit: e.target.value === 'NUMBER' ? item.numericUnit : '',
+                              })
+                            }
+                          >
+                            <option value="NORMAL_PROBLEM">Проблема/норма</option>
+                            <option value="YES_NO">Да/Нет</option>
+                            <option value="NUMBER">Число</option>
+                            <option value="TEXT">Текст</option>
+                            <option value="PHOTO">Фото</option>
+                          </select>
+                        </label>
+                        <label>
+                          Мин.
+                          <input
+                            type="number"
+                            value={item.numericMin}
+                            onChange={(e) => replaceItem(entry.index, { numericMin: e.target.value })}
+                            disabled={item.responseType !== 'NUMBER'}
+                          />
+                        </label>
+                        <label>
+                          Макс.
+                          <input
+                            type="number"
+                            value={item.numericMax}
+                            onChange={(e) => replaceItem(entry.index, { numericMax: e.target.value })}
+                            disabled={item.responseType !== 'NUMBER'}
+                          />
+                        </label>
+                        <label>
+                          Ед.
+                          <input
+                            value={item.numericUnit}
+                            onChange={(e) => replaceItem(entry.index, { numericUnit: e.target.value })}
+                            disabled={item.responseType !== 'NUMBER'}
+                            placeholder="°C"
+                          />
+                        </label>
+                      </div>
+
+                      <label>
+                        Категория заявки по умолчанию
+                        <select
+                          value={item.defaultCategoryId}
+                          onChange={(e) => replaceItem(entry.index, { defaultCategoryId: e.target.value })}
+                        >
+                          <option value="">Без категории</option>
+                          {missingSelectedCategory ? (
+                            <option value={item.defaultCategoryId}>Недоступная категория</option>
+                          ) : null}
+                          {categories.map((category) => (
+                            <option key={category.id} value={category.id}>
+                              {category.name}
+                              {category.isActive === false ? ' (отключена)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="small" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <input
+                          type="checkbox"
+                          checked={item.isRequired}
+                          onChange={(e) => replaceItem(entry.index, { isRequired: e.target.checked })}
+                        />
+                        Обязательный пункт
+                      </label>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <button type="button" className="ghost" onClick={() => addCheckpoint(zone)}>
+              Добавить пункт в зону
+            </button>
           </div>
         ))}
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button type="button" className="ghost" onClick={onAdd}>
-          Добавить пункт
+        <button type="button" className="ghost" onClick={addZone}>
+          Добавить зону
         </button>
-        {items.length > 1 ? (
-          <button type="button" className="ghost" onClick={onRemoveLast}>
-            Удалить последний пункт
-          </button>
-        ) : null}
       </div>
     </>
   )
@@ -327,6 +513,7 @@ export function InspectionTemplatesPage() {
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const templatesQ = useQuery({ queryKey: ['inspection-templates'], queryFn: api.getInspectionTemplates })
+  const templateCategoriesQ = useQuery({ queryKey: ['problem-categories', 'inspection-template-defaults'], queryFn: () => api.problemCategories() })
   const runsQ = useQuery({ queryKey: ['inspection-runs'], queryFn: () => api.getInspectionRuns() })
   /**
    * SMA-ROUNDS-V1-PROVIDER-CLIENT-LOCATION-SELECTOR-103B.
@@ -391,6 +578,10 @@ export function InspectionTemplatesPage() {
   const activeTemplates = useMemo(
     () => (templatesQ.data || []).filter((item) => item.isActive !== false),
     [templatesQ.data],
+  )
+  const templateCategories = useMemo(
+    () => (templateCategoriesQ.data || []).slice().sort((a, b) => a.name.localeCompare(b.name, 'ru')),
+    [templateCategoriesQ.data],
   )
 
   const selectedTemplate = useMemo(
@@ -492,14 +683,6 @@ export function InspectionTemplatesPage() {
     })
   }
 
-  function updateDraftItem(index: number, patch: Partial<TemplateDraftItem>) {
-    setDraftItems((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)))
-  }
-
-  function updateEditItem(index: number, patch: Partial<TemplateDraftItem>) {
-    setEditItems((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)))
-  }
-
   function confirmDiscardEdit() {
     if (!editDirty) return true
     return window.confirm('Есть несохранённые изменения. Продолжить без сохранения?')
@@ -596,9 +779,8 @@ export function InspectionTemplatesPage() {
 
             <TemplateItemsEditor
               items={draftItems}
-              onChange={updateDraftItem}
-              onAdd={() => setDraftItems((current) => [...current, emptyDraftItem()])}
-              onRemoveLast={() => setDraftItems((current) => current.slice(0, -1))}
+              onChange={setDraftItems}
+              categories={templateCategories}
             />
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -645,9 +827,8 @@ export function InspectionTemplatesPage() {
 
             <TemplateItemsEditor
               items={editItems}
-              onChange={updateEditItem}
-              onAdd={() => setEditItems((current) => [...current, emptyDraftItem()])}
-              onRemoveLast={() => setEditItems((current) => current.slice(0, -1))}
+              onChange={setEditItems}
+              categories={templateCategories}
             />
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

@@ -1113,6 +1113,7 @@ model InspectionTemplateItem {
   zoneName            String?
   zoneSortOrder       Int                              @default(0)
   checkpointSortOrder Int                              @default(0)
+  defaultCategoryId   String?
   responseType        InspectionCheckpointResponseType @default(NORMAL_PROBLEM)
   numericMin          Float?
   numericMax          Float?
@@ -1125,6 +1126,7 @@ model InspectionTemplateItem {
   runItems InspectionRunItem[]
 
   @@index([templateId, sortOrder])
+  @@index([defaultCategoryId], map: "InspectionTemplateItem_defaultCategoryId_idx")
   @@index([templateId, zoneSortOrder, checkpointSortOrder], map: "InspectionTemplateItem_template_zone_checkpoint_idx")
 }
 
@@ -1221,6 +1223,7 @@ model InspectionRunItem {
   zoneName            String?
   zoneSortOrder       Int                              @default(0)
   checkpointSortOrder Int                              @default(0)
+  defaultCategoryId   String?
   responseType        InspectionCheckpointResponseType @default(NORMAL_PROBLEM)
   numericMin          Float?
   numericMax          Float?
@@ -1242,6 +1245,7 @@ model InspectionRunItem {
   attachments  InspectionRunItemAttachment[]
 
   @@index([runId, sortOrder])
+  @@index([defaultCategoryId], map: "InspectionRunItem_defaultCategoryId_idx")
   @@index([runId, zoneSortOrder, checkpointSortOrder], map: "InspectionRunItem_run_zone_checkpoint_idx")
   @@index([runId, status])
   @@index([ticketId])

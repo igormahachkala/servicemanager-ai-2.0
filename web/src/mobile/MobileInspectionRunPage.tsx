@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
-import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
+import { inspectionDefaultTicketCategoryId, numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
 import { mobilePath } from './mobileRoute'
 import { queueOffline, useOfflineStatus } from './offline/useOffline'
@@ -103,7 +103,7 @@ export function MobileInspectionRunPage() {
    *
    * Десктоп категорию всегда спрашивал; мобильный теперь тоже.
    */
-  const [ticketCategoryId, setTicketCategoryId] = useState('')
+  const [ticketCategoryIds, setTicketCategoryIds] = useState<Record<string, string>>({})
   const [confirmComplete, setConfirmComplete] = useState(false)
   const [completeBusy, setCompleteBusy] = useState(false)
   const [flashMsg, setFlashMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
@@ -323,7 +323,7 @@ export function MobileInspectionRunPage() {
       flash('err', 'Нет активной категории для создания заявки')
       return
     }
-    const categoryId = ticketCategoryId.trim()
+    const categoryId = (ticketCategoryIds[item.id] ?? inspectionDefaultTicketCategoryId(item, activeCategories)).trim()
     if (!categoryId) {
       flash('err', 'Выберите категорию заявки')
       return
@@ -868,13 +868,20 @@ export function MobileInspectionRunPage() {
 
                     {canCreateTicket ? (
                       <div className="mobilePatrolItemActions" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+                        {(() => {
+                          const selectedTicketCategoryId =
+                            ticketCategoryIds[item.id] ?? inspectionDefaultTicketCategoryId(item, activeCategories)
+                          return (
+                            <>
                         <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#374151' }}>
                           Категория заявки
                           <select
                             style={{ width: '100%', marginTop: 4, minHeight: 34, fontSize: '0.82rem', borderRadius: 8 }}
-                            value={ticketCategoryId}
+                            value={selectedTicketCategoryId}
                             disabled={busy}
-                            onChange={(e) => setTicketCategoryId(e.target.value)}
+                            onChange={(e) =>
+                              setTicketCategoryIds((current) => ({ ...current, [item.id]: e.target.value }))
+                            }
                           >
                             <option value="">— выберите категорию —</option>
                             {activeCategories.map((category) => (
@@ -886,11 +893,14 @@ export function MobileInspectionRunPage() {
                           type="button"
                           className="mobileBtn"
                           style={{ minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
-                          disabled={busy || !ticketCategoryId}
+                          disabled={busy || !selectedTicketCategoryId}
                           onClick={() => createTicket(item)}
                         >
                           {busy ? 'Создаём…' : 'Создать заявку'}
                         </button>
+                            </>
+                          )
+                        })()}
                       </div>
                     ) : null}
 

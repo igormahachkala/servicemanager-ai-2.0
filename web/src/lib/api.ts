@@ -3481,6 +3481,7 @@ export type InspectionTemplateItem = {
   zoneName?: string | null
   zoneSortOrder: number
   checkpointSortOrder: number
+  defaultCategoryId?: string | null
   responseType: InspectionCheckpointResponseType
   numericMin?: number | null
   numericMax?: number | null
@@ -3534,6 +3535,7 @@ export type InspectionRunItem = {
   zoneName?: string | null
   zoneSortOrder: number
   checkpointSortOrder: number
+  defaultCategoryId?: string | null
   responseType: InspectionCheckpointResponseType
   numericMin?: number | null
   numericMax?: number | null
@@ -4114,6 +4116,7 @@ export type SaveInspectionTemplateInput = {
     zoneName?: string
     zoneSortOrder?: number
     checkpointSortOrder?: number
+    defaultCategoryId?: string | null
     responseType?: InspectionCheckpointResponseType
     numericMin?: number
     numericMax?: number

@@ -31,6 +31,9 @@ function makeService(overrides: Record<string, any> = {}, deps: { shiftPolicy?: 
       deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
       update: jest.fn().mockResolvedValue({ id: 'template-item-1' }),
     },
+    problemCategory: {
+      findMany: jest.fn().mockResolvedValue([{ id: 'cat-1' }, { id: 'cat-2' }]),
+    },
     inspectionRun: {
       create: jest.fn().mockResolvedValue({ id: 'run-1' }),
       findFirst: jest.fn(),
@@ -125,6 +128,7 @@ describe('InspectionService round zone/checkpoint foundation', () => {
           numericMin: 18,
           numericMax: 24,
           numericUnit: 'C',
+          defaultCategoryId: 'cat-1',
         },
       ],
     } as any)
@@ -148,6 +152,7 @@ describe('InspectionService round zone/checkpoint foundation', () => {
         numericMin: 18,
         numericMax: 24,
         numericUnit: 'C',
+        defaultCategoryId: 'cat-1',
       }),
       expect.objectContaining({
         title: 'Sink',
@@ -196,6 +201,7 @@ describe('InspectionService round zone/checkpoint foundation', () => {
           numericMin: null,
           numericMax: null,
           numericUnit: null,
+          defaultCategoryId: 'cat-1',
           isRequired: true,
         },
       ],
@@ -211,6 +217,7 @@ describe('InspectionService round zone/checkpoint foundation', () => {
       zoneName: 'Hall',
       zoneSortOrder: 1,
       checkpointSortOrder: 0,
+      defaultCategoryId: 'cat-1',
       responseType: InspectionCheckpointResponseType.YES_NO,
       status: InspectionRunItemStatus.PENDING,
       requiresRepair: false,
@@ -268,6 +275,30 @@ describe('InspectionService round zone/checkpoint foundation', () => {
     ).rejects.toBeInstanceOf(BadRequestException)
   })
 
+  it('rejects default ticket categories outside the template company', async () => {
+    const { prisma, service } = makeService({
+      problemCategory: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    })
+
+    await expect(
+      service.createTemplate(USER, {
+        name: 'Foreign category template',
+        items: [{ title: 'Checkpoint', defaultCategoryId: 'foreign-cat' }],
+      } as any),
+    ).rejects.toBeInstanceOf(BadRequestException)
+
+    expect(prisma.problemCategory.findMany).toHaveBeenCalledWith({
+      where: {
+        companyId: USER.companyId,
+        id: { in: ['foreign-cat'] },
+      },
+      select: { id: true },
+    })
+    expect(prisma.inspectionTemplate.create).not.toHaveBeenCalled()
+  })
+
   it('updates an existing template definition and checklist for future runs', async () => {
     const { prisma, service } = makeService()
     const updatedAt = new Date('2026-01-10T12:00:00.000Z')
@@ -292,6 +323,7 @@ describe('InspectionService round zone/checkpoint foundation', () => {
           numericMin: 2,
           numericMax: 6,
           numericUnit: 'C',
+          defaultCategoryId: 'cat-2',
         },
         {
           title: 'Doors',
@@ -331,6 +363,7 @@ describe('InspectionService round zone/checkpoint foundation', () => {
         numericMin: 2,
         numericMax: 6,
         numericUnit: 'C',
+        defaultCategoryId: 'cat-2',
       }),
     }))
     expect(prisma.inspectionTemplateItem.create).toHaveBeenCalledWith(expect.objectContaining({
@@ -399,6 +432,7 @@ describe('InspectionService round zone/checkpoint foundation', () => {
             numericMin: 10,
             numericMax: 20,
             numericUnit: 'C',
+            defaultCategoryId: 'cat-1',
             isRequired: true,
           },
         ],
@@ -420,6 +454,7 @@ describe('InspectionService round zone/checkpoint foundation', () => {
             numericMin: 1,
             numericMax: 5,
             numericUnit: 'C',
+            defaultCategoryId: 'cat-2',
             isRequired: true,
           },
         ],
@@ -493,6 +528,7 @@ describe('InspectionService round zone/checkpoint foundation', () => {
           numericMin: 1,
           numericMax: 5,
           numericUnit: 'C',
+          defaultCategoryId: 'cat-2',
         },
       ],
     } as any)
@@ -510,6 +546,7 @@ describe('InspectionService round zone/checkpoint foundation', () => {
       responseType: InspectionCheckpointResponseType.NUMBER,
       numericMin: 10,
       numericMax: 20,
+      defaultCategoryId: 'cat-1',
     }))
     expect(prisma.inspectionRunItem.update).not.toHaveBeenCalled()
     expect(newRunCreate.title).toBe('Round template V2')
@@ -523,6 +560,7 @@ describe('InspectionService round zone/checkpoint foundation', () => {
       responseType: InspectionCheckpointResponseType.NUMBER,
       numericMin: 1,
       numericMax: 5,
+      defaultCategoryId: 'cat-2',
     }))
     expect(prisma.inspectionTemplateItem.deleteMany).toHaveBeenCalledWith({
       where: {

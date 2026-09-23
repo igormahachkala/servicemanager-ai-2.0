@@ -101,6 +101,7 @@ export class InspectionService {
     const name = this.normalizeTemplateName(dto.name)
     const description = this.normalizeTemplateDescription(dto.description)
     const items = this.normalizeTemplateItems(dto.items)
+    await this.assertTemplateDefaultCategories(user.companyId, items)
 
     return this.prisma.inspectionTemplate.create({
       data: {
@@ -149,6 +150,7 @@ export class InspectionService {
       }
 
       if (items !== undefined) {
+        await this.assertTemplateDefaultCategories(user.companyId, items, tx)
         const existingItemIds = new Set(existing.items.map((item) => item.id))
         const providedItemIds = items.map((item) => item.id).filter((id): id is string => Boolean(id))
         if (new Set(providedItemIds).size !== providedItemIds.length) {
@@ -258,6 +260,7 @@ export class InspectionService {
             numericMin: true,
             numericMax: true,
             numericUnit: true,
+            defaultCategoryId: true,
             isRequired: true,
           },
         },
@@ -358,6 +361,7 @@ export class InspectionService {
           numericMin: item.numericMin,
           numericMax: item.numericMax,
           numericUnit: item.numericUnit,
+          defaultCategoryId: item.defaultCategoryId,
           isRequired: item.isRequired,
           status: InspectionRunItemStatus.PENDING,
           requiresRepair: false,
@@ -1089,6 +1093,7 @@ export class InspectionService {
       zoneName?: string | null
       zoneSortOrder?: number
       checkpointSortOrder?: number
+      defaultCategoryId?: string | null
       responseType?: InspectionCheckpointResponseType
       numericMin?: number | null
       numericMax?: number | null
@@ -1106,6 +1111,7 @@ export class InspectionService {
         zoneName: item.zoneName?.trim() || null,
         zoneSortOrder: item.zoneSortOrder ?? 0,
         checkpointSortOrder: item.checkpointSortOrder ?? item.sortOrder ?? index,
+        defaultCategoryId: item.defaultCategoryId?.trim() || null,
         responseType: item.responseType ?? InspectionCheckpointResponseType.NORMAL_PROBLEM,
         numericMin: item.numericMin ?? null,
         numericMax: item.numericMax ?? null,
@@ -1135,6 +1141,30 @@ export class InspectionService {
     }
 
     return items
+  }
+
+  private async assertTemplateDefaultCategories(
+    companyId: string,
+    items: Array<{ defaultCategoryId?: string | null }>,
+    tx: Prisma.TransactionClient | PrismaService = this.prisma,
+  ) {
+    const categoryIds = Array.from(
+      new Set(items.map((item) => item.defaultCategoryId?.trim()).filter((id): id is string => Boolean(id))),
+    )
+    if (categoryIds.length === 0) return
+
+    const found = await tx.problemCategory.findMany({
+      where: {
+        companyId,
+        id: { in: categoryIds },
+      },
+      select: { id: true },
+    })
+    const allowed = new Set(found.map((category) => category.id))
+    const foreignCategoryId = categoryIds.find((id) => !allowed.has(id))
+    if (foreignCategoryId) {
+      throw new BadRequestException('Default category does not belong to the template company')
+    }
   }
 
   /**
@@ -1296,6 +1326,7 @@ function templateSelect() {
         zoneName: true,
         zoneSortOrder: true,
         checkpointSortOrder: true,
+        defaultCategoryId: true,
         responseType: true,
         numericMin: true,
         numericMax: true,
@@ -1331,6 +1362,7 @@ function runItemSelect() {
     zoneName: true,
     zoneSortOrder: true,
     checkpointSortOrder: true,
+    defaultCategoryId: true,
     responseType: true,
     numericMin: true,
     numericMax: true,
