@@ -1,9 +1,8 @@
-import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { MaxUserBindingStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
-import { MaxBotService } from './max-bot.service';
 import { verifyMaxInitData, type MaxInitDataRejectReason } from './max-init-data';
 
 type MaxStartHintSender = {
@@ -62,7 +61,10 @@ export class MaxBindingService {
 
   constructor(
     private readonly prisma: PrismaService,
-    @Optional() @Inject(MaxBotService) private readonly bot?: MaxStartHintSender,
+    @Optional()
+    // Прямой import MaxBotService зацикливает модуль и обнуляет его в NotificationsService.
+    @Inject(forwardRef(() => require('./max-bot.service').MaxBotService))
+    private readonly bot?: MaxStartHintSender,
   ) {}
 
   private get botToken(): string {
