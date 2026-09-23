@@ -84,7 +84,7 @@ export class MaxIdentityService {
    * implements a ceremony that proves possession of BOTH identities in one request — the
    * ServiceManager side by an authenticated session, the MAX side by `initData` verified
    * against the bot token per dev.max.ru/docs/webapps/validation, with a freshness window
-   * and single-use consumption layered on top.
+   * on `auth_date`.
    *
    * This flag says bindings can now be created. It says nothing about what a bound user may
    * do: that remains entirely with PBAC, Contract Context and the tenant access resolver.

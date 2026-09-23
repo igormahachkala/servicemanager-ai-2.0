@@ -3,12 +3,7 @@ import { MaxUserBindingStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
-import {
-  MAX_INIT_DATA_MAX_AGE_SECONDS,
-  maxInitDataReplayDigest,
-  verifyMaxInitData,
-  type MaxInitDataRejectReason,
-} from './max-init-data';
+import { verifyMaxInitData, type MaxInitDataRejectReason } from './max-init-data';
 
 /**
  * SMA-MAX-SECURE-USER-BINDING-054.
@@ -24,10 +19,10 @@ import {
  *     `verifyMaxInitData`. A MAX user id is accepted only when it arrives inside a payload
  *     MAX itself signed.
  *
- * That is why there is no email challenge and no ticket challenge: a challenge proves the
- * user can read something, whereas the ceremony proves MAX and ServiceManager each already
- * authenticated the same person. Anything weaker — chat id, typed email, ticket number,
- * display name, MAX username — is a hint, and this file treats hints as worthless.
+ * Freshness is `auth_date` plus the server window in `verifyMaxInitData`. The same valid
+ * payload may be presented again within that window: after Mini App logout the client often
+ * still holds one `initData`, and refusing it blocked chat re-link while the JWT session
+ * stayed alive. Signature + age are enough; a one-shot nonce is not kept.
  *
  * The binding is an IDENTITY record and nothing more. It stores who, not what-they-may-do.
  * No permission, scope, role or tenant decision is made here or derived from it; callers
@@ -37,7 +32,6 @@ import {
 
 export type MaxBindingDenyReason =
   | `init_data_${MaxInitDataRejectReason}`
-  | 'replayed'
   | 'user_not_found'
   | 'user_inactive'
   | 'user_already_bound'
@@ -81,20 +75,7 @@ export class MaxBindingService {
       return { ok: false, reason: `init_data_${verification.reason}` };
     }
 
-    const { maxUserId, hash, authDate } = verification.data;
-
-    // Single-use consumption. MAX documents no replay protection, so we add it: a payload
-    // that verified once can never verify again. Without this, a captured initData could be
-    // replayed by a different authenticated session to bind someone else's MAX identity to
-    // the attacker's account — after which the victim's bot traffic would resolve to the
-    // attacker's ServiceManager user. The insert races safely: the unique constraint makes
-    // the first writer win and every concurrent replay fail.
-    const digest = maxInitDataReplayDigest(hash);
-    const consumed = await this.consumeReplayDigest(digest, authDate);
-    if (!consumed) {
-      this.logger.warn({ maxUserId: maskMaxUserId(maxUserId) }, 'max_binding_replay_rejected');
-      return { ok: false, reason: 'replayed' };
-    }
+    const { maxUserId } = verification.data;
 
     const user = await this.prisma.user.findUnique({
       where: { id: authenticatedUserId },
@@ -167,10 +148,13 @@ export class MaxBindingService {
     return { ok: true, created: true, binding: toView(binding) };
   }
 
-  /** Current binding for the authenticated user, masked. Null when there is none. */
+  /**
+   * Current ACTIVE binding for the authenticated user, masked. Null when chat would not
+   * resolve this person — REVOKED and SUSPENDED are not enough for `/start`.
+   */
   async getBinding(authenticatedUserId: string): Promise<MaxBindingView | null> {
     const binding = await this.prisma.maxUserBinding.findFirst({
-      where: { userId: authenticatedUserId, status: { not: MaxUserBindingStatus.REVOKED } },
+      where: { userId: authenticatedUserId, status: MaxUserBindingStatus.ACTIVE },
       select: { status: true, maxUserId: true, linkedAt: true, lastVerifiedAt: true },
       orderBy: { linkedAt: 'desc' },
     });
@@ -187,7 +171,7 @@ export class MaxBindingService {
    *
    * Mini App «Выйти» sends signed initData of this MAX person. That row is revoked,
    * whoever the JWT user is. Browser and desktop logout do not call this with initData.
-   * initData is verified, not consumed: the same payload was already burned at bind.
+   * initData is verified only to name the MAX side; the same payload may bind again later.
    */
   async revokeBinding(authenticatedUserId: string, initData?: string): Promise<MaxBindingRevokeResult> {
     const maxUserId = this.maxUserIdFromInitData(initData);
@@ -223,44 +207,14 @@ export class MaxBindingService {
   }
 
   /**
-   * Silent Mini App login: burn this `initData` once and refresh `lastVerifiedAt`.
+   * Silent Mini App login: refresh `lastVerifiedAt` on the ACTIVE row.
    * Does not create or re-point a binding. Call only after `resolveByMaxUserId` succeeded.
    */
-  async consumeInitDataForSilentLogin(hash: string, authDate: Date, userId: string): Promise<boolean> {
-    const digest = maxInitDataReplayDigest(hash);
-    const consumed = await this.consumeReplayDigest(digest, authDate);
-    if (!consumed) return false;
+  async touchBindingAfterSilentLogin(userId: string): Promise<void> {
     await this.prisma.maxUserBinding.updateMany({
       where: { userId, status: MaxUserBindingStatus.ACTIVE },
       data: { lastVerifiedAt: new Date() },
     });
-    return true;
-  }
-
-  /**
-   * Records the payload digest, returning false when it was already used.
-   *
-   * Expiry is set from `auth_date` plus the freshness window: once a payload is too old to
-   * be accepted anyway, its guard row carries no security value and can be swept.
-   */
-  private async consumeReplayDigest(digest: string, authDate: Date): Promise<boolean> {
-    const expiresAt = new Date(authDate.getTime() + MAX_INIT_DATA_MAX_AGE_SECONDS * 1000);
-    try {
-      await this.prisma.maxInitDataNonce.create({ data: { digest, authDate, expiresAt } });
-      return true;
-    } catch {
-      // Unique violation, or the guard table is unavailable. Both mean we cannot prove this
-      // payload is unused, and an unprovable payload is treated as replayed. Fail closed.
-      return false;
-    }
-  }
-
-  /** Housekeeping for expired guard rows. Safe to call from a scheduler; not wired here. */
-  async pruneExpiredReplayGuards(now: Date = new Date()): Promise<number> {
-    const result = await this.prisma.maxInitDataNonce.deleteMany({
-      where: { expiresAt: { lt: now } },
-    });
-    return result.count;
   }
 }
 

@@ -3,14 +3,13 @@ import { createHmac } from 'node:crypto';
 import { MaxUserBindingStatus } from '@prisma/client';
 
 import { MaxBindingService, maskMaxUserId } from './max-binding.service';
-import { verifyMaxInitData } from './max-init-data';
 
 /**
  * SMA-MAX-SECURE-USER-BINDING-054.
  *
  * Ceremony-level tests. The signature algorithm itself is covered in max-init-data.spec.ts;
- * here the concern is what the ceremony does with a verdict — who may bind to whom, what
- * happens on replay, and that every uncertain path fails closed.
+ * here the concern is what the ceremony does with a verdict — who may bind to whom, and that
+ * a still-fresh initData can re-bind after revoke (MAX keeps the same string for a while).
  */
 
 const BOT_TOKEN = 'test-bot-token-054';
@@ -43,11 +42,6 @@ type BindingRow = {
   lastVerifiedAt: Date | null;
 };
 
-/**
- * In-memory stand-in for the two tables the ceremony touches. The nonce store enforces the
- * same uniqueness the migration's unique index does, so replay behaviour is exercised for
- * real rather than mocked away.
- */
 function makePrisma(options: {
   users?: Record<string, { id: string; companyId: string; isActive: boolean; deletedAt: Date | null }>;
   bindings?: BindingRow[];
@@ -57,22 +51,12 @@ function makePrisma(options: {
     'user-2': { id: 'user-2', companyId: 'company-2', isActive: true, deletedAt: null },
   };
   const bindings: BindingRow[] = [...(options.bindings ?? [])];
-  const nonces = new Set<string>();
   let seq = 0;
 
   return {
     _bindings: bindings,
-    _nonces: nonces,
     user: {
       findUnique: async ({ where }: any) => users[where.id] ?? null,
-    },
-    maxInitDataNonce: {
-      create: async ({ data }: any) => {
-        if (nonces.has(data.digest)) throw new Error('unique constraint');
-        nonces.add(data.digest);
-        return data;
-      },
-      deleteMany: async () => ({ count: 0 }),
     },
     maxUserBinding: {
       findUnique: async ({ where }: any) =>
@@ -103,6 +87,7 @@ function makePrisma(options: {
           if (where.userId && row.userId !== where.userId) continue;
           if (where.maxUserId && row.maxUserId !== where.maxUserId) continue;
           if (where.status?.not && row.status === where.status.not) continue;
+          if (typeof where.status === 'string' && row.status !== where.status) continue;
           Object.assign(row, data);
           count += 1;
         }
@@ -169,9 +154,9 @@ describe('MaxBindingService', () => {
     expect(result).toEqual({ ok: false, reason: 'init_data_expired' });
   });
 
-  // --- replay ---
+  // --- same initData after revoke / re-confirm ---
 
-  it('denies a replayed payload even though it is cryptographically valid', async () => {
+  it('accepts the same valid initData a second time for the same user', async () => {
     const prisma = makePrisma();
     const service = new MaxBindingService(prisma);
     const initData = buildInitData(4242);
@@ -179,12 +164,32 @@ describe('MaxBindingService', () => {
     const first = await service.createBinding('user-1', initData);
     expect(first.ok).toBe(true);
 
-    const replay = await service.createBinding('user-1', initData);
-    expect(replay).toEqual({ ok: false, reason: 'replayed' });
+    const second = await service.createBinding('user-1', initData);
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.created).toBe(false);
+    expect(prisma._bindings).toHaveLength(1);
   });
 
-  it('blocks the cross-account replay attack outright', async () => {
-    // user-2 captures user-1's payload and tries to bind user-1's MAX identity to itself.
+  it('reactivates after revoke with the same initData', async () => {
+    const prisma = makePrisma();
+    const service = new MaxBindingService(prisma);
+    const initData = buildInitData(4242);
+
+    await service.createBinding('user-1', initData);
+    await service.revokeBinding('user-1', initData);
+    expect(prisma._bindings[0].status).toBe(MaxUserBindingStatus.REVOKED);
+    expect(await service.getBinding('user-1')).toBeNull();
+
+    const again = await service.createBinding('user-1', initData);
+    expect(again.ok).toBe(true);
+    if (!again.ok) return;
+    expect(again.created).toBe(false);
+    expect(prisma._bindings[0].status).toBe(MaxUserBindingStatus.ACTIVE);
+    expect(await service.getBinding('user-1')).not.toBeNull();
+  });
+
+  it('refuses cross-account bind while the victim binding is still ACTIVE', async () => {
     const prisma = makePrisma();
     const service = new MaxBindingService(prisma);
     const victimPayload = buildInitData(4242);
@@ -192,19 +197,9 @@ describe('MaxBindingService', () => {
     await service.createBinding('user-1', victimPayload);
     const attack = await service.createBinding('user-2', victimPayload);
 
-    expect(attack).toEqual({ ok: false, reason: 'replayed' });
+    expect(attack).toEqual({ ok: false, reason: 'max_user_already_bound' });
     expect(prisma._bindings).toHaveLength(1);
     expect(prisma._bindings[0].userId).toBe('user-1');
-  });
-
-  it('fails closed when the replay guard is unavailable', async () => {
-    const prisma = makePrisma();
-    prisma.maxInitDataNonce.create = async () => {
-      throw new Error('table missing');
-    };
-    const result = await new MaxBindingService(prisma).createBinding('user-1', buildInitData(4242));
-    expect(result).toEqual({ ok: false, reason: 'replayed' });
-    expect(prisma._bindings).toHaveLength(0);
   });
 
   // --- uniqueness ---
@@ -382,7 +377,7 @@ describe('MaxBindingService', () => {
     expect(maskMaxUserId('123456')).toBe('****3456');
   });
 
-  it('silent login burns the nonce and refreshes lastVerifiedAt without creating a row', async () => {
+  it('silent login refreshes lastVerifiedAt without creating a row', async () => {
     const prisma = makePrisma({
       bindings: [
         {
@@ -397,25 +392,12 @@ describe('MaxBindingService', () => {
       ],
     });
     const service = new MaxBindingService(prisma);
-    const initData = buildInitData(4242);
-    const verified = verifyMaxInitData(initData, BOT_TOKEN);
-    expect(verified.valid).toBe(true);
-    if (!verified.valid) return;
 
-    const first = await service.consumeInitDataForSilentLogin(
-      verified.data.hash,
-      verified.data.authDate,
-      'user-1',
-    );
-    expect(first).toBe(true);
+    await service.touchBindingAfterSilentLogin('user-1');
     expect(prisma._bindings).toHaveLength(1);
     expect(prisma._bindings[0].lastVerifiedAt).toBeInstanceOf(Date);
 
-    const replay = await service.consumeInitDataForSilentLogin(
-      verified.data.hash,
-      verified.data.authDate,
-      'user-1',
-    );
-    expect(replay).toBe(false);
+    await service.touchBindingAfterSilentLogin('user-1');
+    expect(prisma._bindings).toHaveLength(1);
   });
 });

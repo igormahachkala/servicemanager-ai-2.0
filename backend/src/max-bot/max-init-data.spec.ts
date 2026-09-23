@@ -2,7 +2,6 @@ import { createHmac } from 'node:crypto';
 
 import {
   MAX_INIT_DATA_MAX_AGE_SECONDS,
-  maxInitDataReplayDigest,
   verifyMaxInitData,
 } from './max-init-data';
 
@@ -182,17 +181,5 @@ describe('verifyMaxInitData', () => {
     expect(verifyMaxInitData(buildInitData({ user: JSON.stringify({ first_name: 'Ada' }) }), BOT_TOKEN)).toEqual(
       { valid: false, reason: 'max_user_id_missing' },
     );
-  });
-
-  // --- replay digest ---
-
-  it('derives a stable digest that is not the signature itself', () => {
-    const result = verifyMaxInitData(buildInitData(), BOT_TOKEN);
-    expect(result.valid).toBe(true);
-    if (!result.valid) return;
-    const digest = maxInitDataReplayDigest(result.data.hash);
-    expect(digest).toMatch(/^[0-9a-f]{64}$/);
-    expect(digest).not.toBe(result.data.hash);
-    expect(maxInitDataReplayDigest(result.data.hash)).toBe(digest);
   });
 });
