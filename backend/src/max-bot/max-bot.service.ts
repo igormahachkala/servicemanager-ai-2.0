@@ -13,6 +13,7 @@ import { extractMaxUserId } from './max-identity.service';
 import {
   buildMinimalMaxBotCommands,
   normalizeMaxBotUsername,
+  MAX_START_AFTER_LOGIN_TEXT,
   renderOpenAppMessage,
   renderTicketNavigationMessage,
   type MaxTicketNotificationButtonKind,
@@ -457,6 +458,10 @@ export class MaxBotService implements OnModuleInit {
       messageId,
       ...result,
     };
+  }
+
+  async sendStartHint(chatId: number) {
+    await this.sendRawMessage(chatId, MAX_START_AFTER_LOGIN_TEXT);
   }
 
   private async findLocationAnchorRecord(companyId: string, locationId: string): Promise<LocationAnchor | null> {

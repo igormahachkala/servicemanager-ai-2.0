@@ -1,9 +1,14 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { MaxUserBindingStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
+import { MaxBotService } from './max-bot.service';
 import { verifyMaxInitData, type MaxInitDataRejectReason } from './max-init-data';
+
+type MaxStartHintSender = {
+  sendStartHint(chatId: number): Promise<unknown>;
+};
 
 /**
  * SMA-MAX-SECURE-USER-BINDING-054.
@@ -55,7 +60,10 @@ export type MaxBindingRevokeResult = { ok: true; revoked: boolean };
 export class MaxBindingService {
   private readonly logger = new Logger(MaxBindingService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() @Inject(MaxBotService) private readonly bot?: MaxStartHintSender,
+  ) {}
 
   private get botToken(): string {
     return (process.env.MAX_BOT_API_TOKEN || '').trim();
@@ -115,6 +123,7 @@ export class MaxBindingService {
     if (byMaxUser) {
       // Same user re-confirming, or a previously revoked/suspended row being reclaimed.
       // Both identities were just proven, so reactivation is legitimate and recorded.
+      const notifyStart = byMaxUser.status !== MaxUserBindingStatus.ACTIVE;
       const binding = await this.prisma.maxUserBinding.update({
         where: { id: byMaxUser.id },
         data: {
@@ -130,6 +139,7 @@ export class MaxBindingService {
         { maxUserId: maskMaxUserId(maxUserId), reactivated: byMaxUser.status !== MaxUserBindingStatus.ACTIVE },
         'max_binding_confirmed',
       );
+      if (notifyStart) await this.hintStart(maxUserId);
       return { ok: true, created: false, binding: toView(binding) };
     }
 
@@ -145,7 +155,19 @@ export class MaxBindingService {
       select: { status: true, maxUserId: true, linkedAt: true, lastVerifiedAt: true },
     });
     this.logger.log({ maxUserId: maskMaxUserId(maxUserId) }, 'max_binding_created');
+    await this.hintStart(maxUserId);
     return { ok: true, created: true, binding: toView(binding) };
+  }
+
+  private async hintStart(maxUserId: string) {
+    if (!this.bot) return;
+    const chatId = Number(maxUserId);
+    if (!Number.isSafeInteger(chatId)) return;
+    try {
+      await this.bot.sendStartHint(chatId);
+    } catch {
+      this.logger.warn({ maxUserId: maskMaxUserId(maxUserId) }, 'max_binding_start_hint_failed');
+    }
   }
 
   /**

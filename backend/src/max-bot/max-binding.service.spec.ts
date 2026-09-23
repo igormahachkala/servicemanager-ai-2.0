@@ -3,6 +3,7 @@ import { createHmac } from 'node:crypto';
 import { MaxUserBindingStatus } from '@prisma/client';
 
 import { MaxBindingService, maskMaxUserId } from './max-binding.service';
+import { MAX_START_AFTER_LOGIN_TEXT } from './max-menu.builder';
 
 /**
  * SMA-MAX-SECURE-USER-BINDING-054.
@@ -124,6 +125,22 @@ describe('MaxBindingService', () => {
     });
   });
 
+  it('asks the MAX chat for /start when a binding is created', async () => {
+    const bot = { sendStartHint: jest.fn().mockResolvedValue(undefined) };
+    const result = await new MaxBindingService(makePrisma(), bot).createBinding('user-1', buildInitData(4242));
+    expect(result.ok).toBe(true);
+    expect(bot.sendStartHint).toHaveBeenCalledWith(4242);
+    expect(MAX_START_AFTER_LOGIN_TEXT).toContain('/start');
+  });
+
+  it('keeps the binding when the start hint cannot be sent', async () => {
+    const bot = { sendStartHint: jest.fn().mockRejectedValue(new Error('max down')) };
+    const result = await new MaxBindingService(makePrisma(), bot).createBinding('user-1', buildInitData(4242));
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.created).toBe(true);
+  });
+
   it('never returns the full MAX user id', async () => {
     const prisma = makePrisma();
     const result = await new MaxBindingService(prisma).createBinding('user-1', buildInitData(1234567890));
@@ -239,6 +256,46 @@ describe('MaxBindingService', () => {
     });
     const result = await new MaxBindingService(prisma).createBinding('user-1', buildInitData(2222));
     expect(result).toEqual({ ok: false, reason: 'user_already_bound' });
+  });
+
+  it('does not ask for /start again when an active binding is re-confirmed', async () => {
+    const prisma = makePrisma({
+      bindings: [
+        {
+          id: 'b-existing',
+          userId: 'user-1',
+          companyId: 'company-1',
+          maxUserId: '4242',
+          status: MaxUserBindingStatus.ACTIVE,
+          linkedAt: new Date('2026-01-01'),
+          lastVerifiedAt: null,
+        },
+      ],
+    });
+    const bot = { sendStartHint: jest.fn().mockResolvedValue(undefined) };
+    const result = await new MaxBindingService(prisma, bot).createBinding('user-1', buildInitData(4242));
+    expect(result.ok).toBe(true);
+    expect(bot.sendStartHint).not.toHaveBeenCalled();
+  });
+
+  it('asks for /start again when a revoked binding is restored', async () => {
+    const prisma = makePrisma({
+      bindings: [
+        {
+          id: 'b-old',
+          userId: 'user-1',
+          companyId: 'company-1',
+          maxUserId: '4242',
+          status: MaxUserBindingStatus.REVOKED,
+          linkedAt: new Date('2026-01-01'),
+          lastVerifiedAt: null,
+        },
+      ],
+    });
+    const bot = { sendStartHint: jest.fn().mockResolvedValue(undefined) };
+    const result = await new MaxBindingService(prisma, bot).createBinding('user-1', buildInitData(4242));
+    expect(result.ok).toBe(true);
+    expect(bot.sendStartHint).toHaveBeenCalledWith(4242);
   });
 
   it('is deterministic when the same user re-confirms the same MAX account', async () => {

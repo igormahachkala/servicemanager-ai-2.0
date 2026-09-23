@@ -150,6 +150,7 @@ describe('renderMenuText', () => {
   it('tells an unbound viewer how to link and shows no ticket wording', () => {
     const text = renderMenuText(buildUnboundMenuModel());
     expect(text).toContain('войдите в ServiceManager');
+    expect(text).toContain('После входа отправьте /start');
     expect(text).not.toContain('Мои заявки');
   });
 });
@@ -293,6 +294,7 @@ describe('help and command menu helpers', () => {
     const message = renderHelpMessage('id056001679003_bot');
     const raw = JSON.stringify(message);
     expect(raw).toContain('open_app');
+    expect(raw).toContain('После входа отправьте /start');
     expect(raw).toContain('"payload":"menu"');
     expect(raw).not.toMatch(/Принять|Отклонить|Взять|Назначить/);
   });
