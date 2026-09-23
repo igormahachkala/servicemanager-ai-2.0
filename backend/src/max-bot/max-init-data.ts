@@ -26,10 +26,8 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
  * spec, checked against MAX's own page — not an assumption of Telegram compatibility. If
  * MAX ever diverges, this file is the single place that changes.
  *
- * Two properties MAX does NOT give us, which we add ourselves and label as our policy:
- *   * a freshness window over `auth_date` (MAX defines the field but no expiry);
- *   * single-use consumption (MAX documents no replay protection at all).
- * Freshness is enforced here; single-use lives in the binding service, which owns storage.
+ * MAX does not define expiry. We add a freshness window over `auth_date` here.
+ * The same valid payload may be accepted more than once within that window.
  */
 
 /** Our policy, not MAX's: how old an `auth_date` may be and still be accepted.
@@ -267,14 +265,4 @@ function constantTimeHexEqual(a: string, b: string): boolean {
   const bufferB = Buffer.from(b, 'hex');
   if (bufferA.length !== bufferB.length || bufferA.length === 0) return false;
   return timingSafeEqual(bufferA, bufferB);
-}
-
-/**
- * Stable digest of the payload `hash`, used as the replay-guard key.
- *
- * The signature itself is never persisted: storing a one-way digest keeps the replay
- * guard exact while leaving nothing at rest that could be replayed if the table leaked.
- */
-export function maxInitDataReplayDigest(hash: string): string {
-  return createHmac('sha256', 'MaxInitDataReplayGuard').update(hash.toLowerCase()).digest('hex');
 }

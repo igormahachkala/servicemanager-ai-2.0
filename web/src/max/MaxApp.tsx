@@ -132,6 +132,7 @@ export function MaxApp() {
       }
       try {
         await api.createMaxBinding(initData)
+        return 'authenticated'
       } catch (err) {
         const reason = api.getApiDenyReason(err)
         if (isMaxUserAlreadyBound(reason)) {
@@ -140,8 +141,15 @@ export function MaxApp() {
           markMaxBindPending()
           return 'max_already_bound'
         }
+        const failure = classifyMaxAuthFailure(err)
+        if (failure === 'unauthenticated') {
+          api.clearToken()
+          queryClient.clear()
+          markMaxBindPending()
+          return 'unauthenticated'
+        }
+        return 'temporary_error'
       }
-      return 'authenticated'
     }
 
     async function silentMaxLogin(initData: string): Promise<MaxBootstrapState> {
