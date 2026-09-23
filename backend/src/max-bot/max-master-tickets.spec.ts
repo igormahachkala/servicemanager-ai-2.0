@@ -39,8 +39,11 @@ describe('master ticket screens stay within the MAX button cap', () => {
       '#2',
       '#3',
       'Следующие',
+      'Отмена',
       'Меню',
     ]);
+    const cancel = res.attachments?.[0]?.payload.buttons.flat().find((button) => button.text === 'Отмена');
+    expect(cancel).toEqual({ type: 'callback', text: 'Отмена', payload: 'tickets' });
   });
 
   it('card uses Меню instead of the three-button footer', () => {

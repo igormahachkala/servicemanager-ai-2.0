@@ -72,7 +72,6 @@ export function renderMasterTicketFilterMessage(): MaxBotCommandResponse {
       callbackButton('В работе', 'mf:work'),
       callbackButton('Просрочено', 'mf:sla'),
     ],
-    [callbackButton('Отмена', 'menu')],
   ]);
 }
 
@@ -111,10 +110,15 @@ export function renderMasterTicketListMessage(page: MasterTicketListPage): MaxBo
         ? `mt:${page.extra}:${page.nextOffset}`
         : `${pageKey}:${page.nextOffset}`
       : null;
+  const backToFilter =
+    page.filter === 'new' || page.filter === 'work' || page.filter === 'sla'
+      ? [[callbackButton('Отмена', 'tickets')]]
+      : [];
   return withKeyboard([page.title, '', body].join('\n'), [
     ...chunk3(opens),
     ...chunk3(assigns),
     ...masterPaginationRows(prev, next),
+    ...backToFilter,
   ]);
 }
 

@@ -910,15 +910,16 @@ describe('MaxBotCommandService — master chat menu', () => {
     expect(res?.text).toContain('Новых: 2');
     expect(res?.text).toContain('На смене: 2');
     expect(res?.text).not.toContain('Мои заявки');
-    expect(buttonsOf(res).map((button) => button.text)).toEqual([
-      'Без исполнителя',
-      'Техники',
-      'Обходы',
-      'Просрочено',
-      'Меню',
-    ]);
-    expect(res?.attachments?.[0]?.payload.buttons.at(-1)).toEqual([
-      { type: 'callback', text: 'Меню', payload: 'menu' },
+    expect(res?.attachments?.[0]?.payload.buttons).toEqual([
+      [
+        { type: 'callback', text: 'Без исполнителя', payload: 'unassigned' },
+        { type: 'callback', text: 'Просрочено', payload: 'sla' },
+      ],
+      [
+        { type: 'callback', text: 'Техники', payload: 'techs' },
+        { type: 'callback', text: 'Обходы', payload: 'rounds' },
+      ],
+      [{ type: 'callback', text: 'Меню', payload: 'menu' }],
     ]);
   });
 
@@ -926,13 +927,7 @@ describe('MaxBotCommandService — master chat menu', () => {
     const { service } = makeMasterService();
     const res = await service.handleUpdate({ message: { text: '/tickets', sender: { user_id: 4242 } } });
     expect(res?.text).toBe('Какие заявки показать');
-    expect(buttonsOf(res).map((button) => button.text)).toEqual([
-      'Новые',
-      'В работе',
-      'Просрочено',
-      'Отмена',
-      'Меню',
-    ]);
+    expect(buttonsOf(res).map((button) => button.text)).toEqual(['Новые', 'В работе', 'Просрочено', 'Меню']);
   });
 
   it('Без исполнителя lists NEW tickets and assign goes through TicketsService', async () => {

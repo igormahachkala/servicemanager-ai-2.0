@@ -24,9 +24,11 @@ export function renderMasterTodayMessage(summary: MasterTodaySummary): MaxBotCom
   return withKeyboard(text, [
     [
       callbackButton('Без исполнителя', 'unassigned'),
+      callbackButton('Просрочено', 'sla'),
+    ],
+    [
       callbackButton('Техники', 'techs'),
       callbackButton('Обходы', 'rounds'),
     ],
-    [callbackButton('Просрочено', 'sla')],
   ]);
 }
