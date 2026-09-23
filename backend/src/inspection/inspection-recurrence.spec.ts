@@ -197,3 +197,138 @@ describe('029 сдвиг плана после выполнения', () => {
     expect(local(out.nextDueAt)).toBe('2026-02-28 09:00')
   })
 })
+
+/**
+ * SMA-ROUND-RECURRENCE-HARDENING-038 — закрытые находки аудита 033.
+ *
+ * Два дефекта были не в арифметике одного шага, а в том, что получалось
+ * из нескольких шагов подряд: число месяца необратимо сползало на конец
+ * короткого февраля, а исчерпанный догон отдавал курсор из прошлого как
+ * готовый результат.
+ */
+describe('038 якорь числа месяца', () => {
+  const MSK = 'Europe/Moscow'
+
+  function localDate(value: Date, timezone = MSK): string {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(value)
+  }
+
+  function monthlyChain(startLocal: string, steps: number, anchorDay = 31, timezone = MSK): string[] {
+    const out: string[] = []
+    let cursor = new Date(`${startLocal}T09:00:00.000Z`)
+    for (let i = 0; i < steps; i += 1) {
+      const next = nextDueAfter({
+        frequency: InspectionFrequency.MONTHLY,
+        from: cursor,
+        timezone,
+        anchorDay,
+      })
+      if (!next) throw new Error('шаг обязан быть')
+      out.push(localDate(next, timezone))
+      cursor = next
+    }
+    return out
+  }
+
+  it('1. 31 января не превращает план в план 28-го числа навсегда', () => {
+    // До 038: 28 фев → 28 мар → 28 апр. Число месяца сползало необратимо.
+    expect(monthlyChain('2027-01-31', 4)).toEqual([
+      '2027-02-28',
+      '2027-03-31',
+      '2027-04-30',
+      '2027-05-31',
+    ])
+  })
+
+  it('2. в високосном году февраль прижимается к 29-му, а не к 28-му', () => {
+    expect(monthlyChain('2028-01-31', 2)).toEqual(['2028-02-29', '2028-03-31'])
+  })
+
+  it('3. якорь 30 не выдумывает 31-е число в коротком месяце', () => {
+    expect(monthlyChain('2027-04-30', 3, 30)).toEqual(['2027-05-30', '2027-06-30', '2027-07-30'])
+  })
+
+  it('4. без якоря поведение прежнее: число берётся из самой даты', () => {
+    const next = nextDueAfter({
+      frequency: InspectionFrequency.MONTHLY,
+      from: new Date('2027-02-28T09:00:00.000Z'),
+      timezone: MSK,
+    })!
+    expect(localDate(next)).toBe('2027-03-28')
+  })
+
+  it('5. квартал и год тоже держат якорь', () => {
+    const quarterly = nextDueAfter({
+      frequency: InspectionFrequency.QUARTERLY,
+      from: new Date('2027-02-28T09:00:00.000Z'),
+      timezone: MSK,
+      anchorDay: 31,
+    })!
+    expect(localDate(quarterly)).toBe('2027-05-31')
+
+    const annual = nextDueAfter({
+      frequency: InspectionFrequency.ANNUAL,
+      from: new Date('2028-02-29T09:00:00.000Z'),
+      timezone: MSK,
+      anchorDay: 29,
+    })!
+    // В невисокосном году 29-го нет — прижимаем, но якорь не теряем.
+    expect(localDate(annual)).toBe('2029-02-28')
+  })
+
+  it('6. догон по месяцам восстанавливает исходное число', () => {
+    const outcome = advanceSchedule({
+      frequency: InspectionFrequency.MONTHLY,
+      currentDueAt: new Date('2027-01-31T09:00:00.000Z'),
+      completedAt: new Date('2027-05-02T10:00:00.000Z'),
+      timezone: MSK,
+      anchorDate: new Date('2027-01-31T09:00:00.000Z'),
+    })
+    expect(outcome.exhausted).toBe(false)
+    expect(localDate(outcome.nextDueAt!)).toBe('2027-05-31')
+    expect(outcome.missedOccurrences).toBe(3)
+  })
+})
+
+describe('038 исчерпанный догон', () => {
+  it('7. курсор из прошлого наружу не отдаётся', () => {
+    const outcome = advanceSchedule({
+      frequency: InspectionFrequency.DAILY,
+      currentDueAt: new Date('1990-01-01T09:00:00.000Z'),
+      completedAt: new Date('2027-01-01T09:00:00.000Z'),
+      timezone: 'Europe/Moscow',
+    })
+    expect(outcome.exhausted).toBe(true)
+    // Главное: нет даты, выдающей незаконченный расчёт за результат.
+    expect(outcome.nextDueAt).toBeNull()
+    expect(outcome.missedOccurrences).toBeGreaterThan(0)
+  })
+
+  it('8. обычный догон предохранитель не задевает', () => {
+    const outcome = advanceSchedule({
+      frequency: InspectionFrequency.DAILY,
+      currentDueAt: new Date('2027-01-01T09:00:00.000Z'),
+      completedAt: new Date('2027-01-10T10:00:00.000Z'),
+      timezone: 'Europe/Moscow',
+    })
+    expect(outcome.exhausted).toBe(false)
+    expect(outcome.nextDueAt).not.toBeNull()
+    expect(outcome.missedOccurrences).toBe(9)
+  })
+
+  it('9. отсутствие повторения и исчерпание различимы', () => {
+    const once = advanceSchedule({
+      frequency: InspectionFrequency.ONCE,
+      currentDueAt: new Date('2027-01-01T09:00:00.000Z'),
+      completedAt: new Date('2027-01-01T10:00:00.000Z'),
+    })
+    // Обе ветки дают nextDueAt: null, но означают разное.
+    expect(once.nextDueAt).toBeNull()
+    expect(once.exhausted).toBe(false)
+  })
+})

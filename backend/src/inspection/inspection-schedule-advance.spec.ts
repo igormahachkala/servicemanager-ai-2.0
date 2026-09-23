@@ -224,3 +224,73 @@ describe('029 границы и изоляция', () => {
     expect(withTimers).toEqual([])
   })
 })
+
+/**
+ * SMA-ROUND-RECURRENCE-HARDENING-038.
+ *
+ * Инварианты сдвига, которые иначе видно только по исходнику: план с
+ * исчерпанным догоном не трогают вовсе, якорь числа месяца доходит до
+ * арифметики, а пропуски не заводят своей подсистемы и не растворяются.
+ */
+function advanceBlock(): string {
+  const start = SERVICE.indexOf('private async advanceScheduleAfterCompletion')
+  const rest = SERVICE.slice(start)
+  return rest.slice(0, rest.indexOf('\n  private normalizeTemplateName'))
+}
+
+describe('038 исчерпанный догон не портит план', () => {
+  it('1. при exhausted план не обновляется и не гасится', () => {
+    const block = advanceBlock()
+    const exhausted = block.indexOf('outcome.exhausted')
+    const firstUpdate = block.indexOf('tx.inspectionSchedule.update')
+
+    expect(exhausted).toBeGreaterThan(-1)
+    // Ветка исчерпания обязана стоять до любой записи в план и выходить сама.
+    expect(exhausted).toBeLessThan(firstUpdate)
+
+    const branch = block.slice(exhausted, firstUpdate)
+    expect(branch).toContain('return')
+    expect(branch).not.toContain('tx.inspectionSchedule.update')
+  })
+
+  it('2. исчерпание уходит в журнал, а не в тишину', () => {
+    const block = advanceBlock()
+    expect(block).toMatch(/this\.logger\.warn\(/)
+    expect(block).toContain('inspection_schedule_advance_exhausted')
+  })
+
+  it('3. обход остаётся завершённым: исчерпание не откатывает работу', () => {
+    const block = advanceBlock()
+    expect(block).not.toMatch(/throw new \w+Exception/)
+    expect(block).not.toContain('InspectionRunStatus.IN_PROGRESS')
+  })
+})
+
+describe('038 якорь числа месяца доходит до арифметики', () => {
+  it('4. исходная дата плана читается и передаётся в расчёт', () => {
+    const block = advanceBlock()
+    expect(block).toContain('startDate: true')
+    expect(block).toContain('anchorDate: schedule.startDate')
+  })
+})
+
+describe('038 пропуски не растворяются и не становятся подсистемой', () => {
+  it('5. missedOccurrences попадает в существующий журнал', () => {
+    const block = advanceBlock()
+    expect(block).toContain('inspection_schedule_missed_occurrences')
+    expect(block).toContain('outcome.missedOccurrences')
+  })
+
+  it('6. новой таблицы, события или ручки ради пропусков не заведено', () => {
+    const block = advanceBlock()
+    for (const forbidden of ['prisma.domainEvent', 'tx.domainEvent', 'missedOccurrence.create', 'notify']) {
+      expect(block).not.toContain(forbidden)
+    }
+  })
+
+  it('7. фиктивных обходов за пропущенные дни по-прежнему никто не создаёт', () => {
+    expect(SERVICE.slice(SERVICE.indexOf('private async advanceScheduleAfterCompletion'))).not.toContain(
+      'inspectionRun.create',
+    )
+  })
+})

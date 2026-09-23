@@ -55,6 +55,13 @@ function stepDays(frequency: InspectionFrequency, intervalDays?: number | null):
   return DAYS_BY_FREQUENCY[frequency] ?? null
 }
 
+/** 038: пригодное число месяца, иначе null — якоря нет. */
+function normalizeAnchorDay(value?: number | null): number | null {
+  if (!Number.isInteger(value as number)) return null
+  const day = Number(value)
+  return day >= 1 && day <= 31 ? day : null
+}
+
 function daysInMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate()
 }
@@ -70,8 +77,25 @@ export function nextDueAfter(params: {
   intervalDays?: number | null
   from: Date
   timezone?: string | null
+  /**
+   * SMA-ROUND-RECURRENCE-HARDENING-038.
+   *
+   * Исходное число месяца, от которого построен план. Нужно только месячным
+   * частотам и только затем, чтобы прижатие к концу месяца не стало
+   * необратимым.
+   *
+   * Без якоря шаг считался от предыдущего результата, и план «31-го числа»
+   * после первого февраля навсегда становился планом «28-го»:
+   * 31 янв → 28 фев → 28 мар → 28 апр. Якорь возвращает исходное число,
+   * как только в месяце оно снова есть: 31 янв → 28 фев → 31 мар → 30 апр
+   * → 31 мая.
+   *
+   * Не передан — берётся число самой даты `from`, то есть прежнее поведение.
+   * Дневные частоты якорь не используют: у них шаг в сутках, а не в числе.
+   */
+  anchorDay?: number | null
 }): Date | null {
-  const { frequency, intervalDays, from, timezone } = params
+  const { frequency, intervalDays, from, timezone, anchorDay } = params
   if (frequency === InspectionFrequency.ONCE) return null
   if (!Number.isFinite(from.getTime())) return null
 
@@ -90,7 +114,13 @@ export function nextDueAfter(params: {
      * По той же причине 29 февраля раз в год превращается в 28-е: другого
      * 29-го в невисокосном году нет.
      */
-    const day = Math.min(local.day, daysInMonth(year, month))
+    /**
+     * 038: прижатие считается от исходного числа, а не от предыдущего шага.
+     * В месяце, где такого числа нет, берётся последний день месяца — но
+     * только на этот месяц; следующий шаг снова отсчитывается от якоря.
+     */
+    const anchor = normalizeAnchorDay(anchorDay) ?? local.day
+    const day = Math.min(anchor, daysInMonth(year, month))
     return utcInstantForLocalParts(
       { year, month, day, hour: local.hour, minute: local.minute, second: local.second },
       timezone,
@@ -120,11 +150,30 @@ export function nextDueAfter(params: {
 }
 
 export type AdvanceOutcome = {
-  /** Новая дата ближайшего визита. null — повторения нет, план закрывается. */
+  /**
+   * Новая дата ближайшего визита.
+   *
+   * null означает «двигать нечем» и имеет две причины, которые различает
+   * поле `exhausted`: повторения нет вовсе (ONCE, CUSTOM без интервала) —
+   * план закрывается; либо догон не уложился в предохранитель — план
+   * не трогают вовсе.
+   */
   nextDueAt: Date | null
-  /** Сколько шагов пропущено сверх одного: план не выполнялся какое-то время. */
+  /**
+   * Сколько визитов пропущено сверх одного: план не выполнялся какое-то
+   * время. 038: значение уходит в предупреждение журнала на той же ветке
+   * кода — отдельной аналитики ради него не заводится.
+   */
   missedOccurrences: number
-  /** Догон прерван предохранителем: данные требуют человека. */
+  /**
+   * Догон прерван предохранителем.
+   *
+   * 038: вместе с exhausted всегда отдаётся nextDueAt: null. Раньше здесь
+   * возвращался курсор, который всё ещё лежал в прошлом, и вызывающий код
+   * записывал его как «ближайший визит» — дата выглядела рассчитанной,
+   * хотя будущего визита так и не нашли. Молчаливой неправды в плане быть
+   * не должно: план остаётся как есть, просроченным и видимым.
+   */
   exhausted: boolean
 }
 
@@ -144,18 +193,28 @@ export function advanceSchedule(params: {
   currentDueAt: Date
   completedAt: Date
   timezone?: string | null
+  /**
+   * 038: исходная дата плана. Из неё берётся число месяца-якорь, поэтому
+   * догон по месяцам не сползает на конец короткого февраля навсегда.
+   */
+  anchorDate?: Date | null
 }): AdvanceOutcome {
-  const { frequency, intervalDays, currentDueAt, completedAt, timezone } = params
+  const { frequency, intervalDays, currentDueAt, completedAt, timezone, anchorDate } = params
 
   if (!isRecurring(frequency)) {
     return { nextDueAt: null, missedOccurrences: 0, exhausted: false }
   }
 
+  const anchorDay =
+    anchorDate && Number.isFinite(anchorDate.getTime())
+      ? zonedParts(anchorDate, timezone).day
+      : zonedParts(currentDueAt, timezone).day
+
   let cursor = currentDueAt
   let steps = 0
 
   for (;;) {
-    const next = nextDueAfter({ frequency, intervalDays, from: cursor, timezone })
+    const next = nextDueAfter({ frequency, intervalDays, from: cursor, timezone, anchorDay })
     // Шага нет — считаем план неповторяемым, а не зацикливаемся.
     if (!next || next.getTime() <= cursor.getTime()) {
       return { nextDueAt: null, missedOccurrences: 0, exhausted: false }
@@ -169,7 +228,12 @@ export function advanceSchedule(params: {
     }
 
     if (steps >= MAX_CATCH_UP_STEPS) {
-      return { nextDueAt: cursor, missedOccurrences: steps - 1, exhausted: true }
+      /**
+       * 038: будущего визита не нашли. Курсор наружу не отдаём — он всё ещё
+       * в прошлом, и записать его значило бы выдать незаконченный расчёт
+       * за результат. Вызывающий код оставит план нетронутым.
+       */
+      return { nextDueAt: null, missedOccurrences: steps, exhausted: true }
     }
   }
 }

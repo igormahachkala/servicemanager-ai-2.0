@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common'
 import {
   InspectionCheckpointResponseType,
   InspectionReportStatus,
@@ -70,6 +70,12 @@ function scheduledStartKey(schedule: { id: string; lastRunId: string | null }): 
 export class InspectionService {
   private readonly policy = new InspectionPolicy()
   private readonly uploadsDir = join(process.cwd(), 'uploads', 'inspection-run-items')
+
+  /**
+   * 038: журнал того же сервиса. Отдельной аналитики повторений не заводится —
+   * пропуски и исчерпанный догон уходят сюда, рядом с остальной диагностикой.
+   */
+  private readonly logger = new Logger(InspectionService.name)
 
   constructor(
     private readonly prisma: PrismaService,
@@ -1125,6 +1131,8 @@ export class InspectionService {
             frequency: true,
             intervalDays: true,
             nextDueAt: true,
+            // 038: якорь числа месяца берётся из исходной даты плана.
+            startDate: true,
             company: { select: { timezone: true } },
           },
         },
@@ -1143,7 +1151,35 @@ export class InspectionService {
       currentDueAt: schedule.nextDueAt,
       completedAt,
       timezone: schedule.company?.timezone,
+      anchorDate: schedule.startDate,
     })
+
+    /**
+     * SMA-ROUND-RECURRENCE-HARDENING-038.
+     *
+     * Догон не уложился в предохранитель. Плана не касаемся вовсе: записать
+     * незаконченный расчёт значило бы показать человеку дату, которой никто
+     * не считал, а погасить план — молча снять с него работу, которую он
+     * ещё должен. План остаётся просроченным и видимым, а случай уходит
+     * в журнал: дальше это разбирает человек.
+     *
+     * Обход при этом остаётся завершённым: работу выполнили, и отменять её
+     * из-за арифметики расписания нельзя. Фиктивных обходов за пропущенные
+     * дни не появляется — их не создаёт никто.
+     */
+    if (outcome.exhausted) {
+      this.logger.warn(
+        `inspection_schedule_advance_exhausted scheduleId=${schedule.id} ` +
+          `frequency=${schedule.frequency} missedOccurrences=${outcome.missedOccurrences} ` +
+          'nextDueAt left unchanged',
+      )
+      return {
+        scheduleId: schedule.id,
+        nextDueAt: null,
+        deactivated: false,
+        missed: outcome.missedOccurrences,
+      }
+    }
 
     if (!outcome.nextDueAt) {
       await tx.inspectionSchedule.update({
@@ -1151,6 +1187,18 @@ export class InspectionService {
         data: { isActive: false },
       })
       return { scheduleId: schedule.id, nextDueAt: null, deactivated: true, missed: 0 }
+    }
+
+    /**
+     * 038: пропуски не выдумывают обходов и не заводят своей аналитики —
+     * они видны в журнале на той же ветке кода, что и сам сдвиг.
+     */
+    if (outcome.missedOccurrences > 0) {
+      this.logger.warn(
+        `inspection_schedule_missed_occurrences scheduleId=${schedule.id} ` +
+          `frequency=${schedule.frequency} missedOccurrences=${outcome.missedOccurrences} ` +
+          `nextDueAt=${outcome.nextDueAt.toISOString()}`,
+      )
     }
 
     await tx.inspectionSchedule.update({
