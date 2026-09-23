@@ -35,7 +35,7 @@ describe('AuthService.loginWithMaxInitData', () => {
   let prisma: { user: { findUnique: jest.Mock } }
   let jwt: { sign: jest.Mock }
   let maxIdentity: { resolveByMaxUserId: jest.Mock }
-  let maxBindings: { consumeInitDataForSilentLogin: jest.Mock }
+  let maxBindings: { touchBindingAfterSilentLogin: jest.Mock }
   let service: AuthService
 
   beforeEach(() => {
@@ -43,7 +43,7 @@ describe('AuthService.loginWithMaxInitData', () => {
     prisma = { user: { findUnique: jest.fn() } }
     jwt = { sign: jest.fn().mockReturnValue('jwt-from-max') }
     maxIdentity = { resolveByMaxUserId: jest.fn() }
-    maxBindings = { consumeInitDataForSilentLogin: jest.fn() }
+    maxBindings = { touchBindingAfterSilentLogin: jest.fn().mockResolvedValue(undefined) }
     service = new AuthService(prisma as any, jwt as any, maxIdentity as any, maxBindings as any)
   })
 
@@ -60,7 +60,6 @@ describe('AuthService.loginWithMaxInitData', () => {
       role: UserRole.TECHNICIAN,
       maxUserId: '4242',
     })
-    maxBindings.consumeInitDataForSilentLogin.mockResolvedValue(true)
     prisma.user.findUnique.mockResolvedValue({
       id: 'user-1',
       email: 'tech@example.com',
@@ -77,10 +76,10 @@ describe('AuthService.loginWithMaxInitData', () => {
 
     expect(result.access_token).toBe('jwt-from-max')
     expect(result.user.email).toBe('tech@example.com')
-    expect(maxBindings.consumeInitDataForSilentLogin).toHaveBeenCalledTimes(1)
+    expect(maxBindings.touchBindingAfterSilentLogin).toHaveBeenCalledWith('user-1')
   })
 
-  it('does not consume the nonce when the MAX user is not bound', async () => {
+  it('does not touch binding when the MAX user is not bound', async () => {
     maxIdentity.resolveByMaxUserId.mockResolvedValue({ resolved: false, reason: 'not_bound' })
 
     try {
@@ -89,10 +88,10 @@ describe('AuthService.loginWithMaxInitData', () => {
     } catch (err) {
       expect(denyReason(err)).toBe('not_bound')
     }
-    expect(maxBindings.consumeInitDataForSilentLogin).not.toHaveBeenCalled()
+    expect(maxBindings.touchBindingAfterSilentLogin).not.toHaveBeenCalled()
   })
 
-  it('rejects a replay after a successful silent login', async () => {
+  it('allows a second silent login with the same initData', async () => {
     maxIdentity.resolveByMaxUserId.mockResolvedValue({
       resolved: true,
       userId: 'user-1',
@@ -100,23 +99,33 @@ describe('AuthService.loginWithMaxInitData', () => {
       role: UserRole.TECHNICIAN,
       maxUserId: '4242',
     })
-    maxBindings.consumeInitDataForSilentLogin.mockResolvedValue(false)
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      email: 'tech@example.com',
+      firstName: 'Ada',
+      lastName: 'L',
+      avatarUrl: null,
+      role: UserRole.TECHNICIAN,
+      companyId: 'company-1',
+      isActive: true,
+      company: { name: 'Acme', type: CompanyType.CLIENT },
+    })
 
-    try {
-      await service.loginWithMaxInitData(buildInitData(4242))
-      throw new Error('expected deny')
-    } catch (err) {
-      expect(denyReason(err)).toBe('replayed')
-    }
+    const initData = buildInitData(4242)
+    await service.loginWithMaxInitData(initData)
+    const second = await service.loginWithMaxInitData(initData)
+
+    expect(second.access_token).toBe('jwt-from-max')
+    expect(maxBindings.touchBindingAfterSilentLogin).toHaveBeenCalledTimes(2)
   })
 
   it('rejects a broken signature without resolving identity', async () => {
     await expect(service.loginWithMaxInitData('not-init-data')).rejects.toBeInstanceOf(UnauthorizedException)
     expect(maxIdentity.resolveByMaxUserId).not.toHaveBeenCalled()
-    expect(maxBindings.consumeInitDataForSilentLogin).not.toHaveBeenCalled()
+    expect(maxBindings.touchBindingAfterSilentLogin).not.toHaveBeenCalled()
   })
 
-  it('does not consume the nonce when the bound user is inactive', async () => {
+  it('does not touch binding when the bound user is inactive', async () => {
     maxIdentity.resolveByMaxUserId.mockResolvedValue({ resolved: false, reason: 'user_inactive' })
 
     try {
@@ -125,6 +134,6 @@ describe('AuthService.loginWithMaxInitData', () => {
     } catch (err) {
       expect(denyReason(err)).toBe('user_inactive')
     }
-    expect(maxBindings.consumeInitDataForSilentLogin).not.toHaveBeenCalled()
+    expect(maxBindings.touchBindingAfterSilentLogin).not.toHaveBeenCalled()
   })
 })

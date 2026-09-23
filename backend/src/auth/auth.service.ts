@@ -159,14 +159,7 @@ export class AuthService {
       this.throwMaxSessionDenied(identity.reason)
     }
 
-    const consumed = await this.maxBindings.consumeInitDataForSilentLogin(
-      verification.data.hash,
-      verification.data.authDate,
-      identity.userId,
-    )
-    if (!consumed) {
-      this.throwMaxSessionDenied('replayed')
-    }
+    await this.maxBindings.touchBindingAfterSilentLogin(identity.userId)
 
     const user = await this.prisma.user.findUnique({
       where: { id: identity.userId },
