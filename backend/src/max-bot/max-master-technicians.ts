@@ -2,7 +2,6 @@ import { MaxBotCommandResponse } from './max-bot.types';
 import {
   MASTER_TECH_PAGE_SIZE,
   callbackButton,
-  masterFooterRows,
   masterPaginationRows,
   withKeyboard,
 } from './max-master-menu';
@@ -23,7 +22,7 @@ export type MasterTechnicianListPage = {
 
 export function renderMasterTechniciansMessage(page: MasterTechnicianListPage): MaxBotCommandResponse {
   if (page.items.length === 0) {
-    return withKeyboard('На смене никого нет.', masterFooterRows());
+    return withKeyboard('На смене никого нет.', []);
   }
   const body = page.items
     .map(
@@ -38,7 +37,6 @@ export function renderMasterTechniciansMessage(page: MasterTechnicianListPage): 
       page.prevOffset !== null ? `ms:${page.prevOffset}` : null,
       page.nextOffset !== null ? `ms:${page.nextOffset}` : null,
     ),
-    ...masterFooterRows(),
   ]);
 }
 

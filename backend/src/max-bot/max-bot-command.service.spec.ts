@@ -890,14 +890,18 @@ describe('MaxBotCommandService — master chat menu', () => {
     ]);
   });
 
-  it.each([UserRole.ADMIN, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR])(
-    '%s gets the same master menu',
-    async (role) => {
-      const { service } = makeMasterService(role);
-      const res = await service.handleUpdate({ message: { text: '/start', sender: { user_id: 4242 } } });
-      expect(buttonsOf(res).map((button) => button.text)).toContain('Без исполнителя');
-    },
-  );
+  it.each([UserRole.ADMIN, UserRole.DISPATCHER])('%s gets the same master menu', async (role) => {
+    const { service } = makeMasterService(role);
+    const res = await service.handleUpdate({ message: { text: '/start', sender: { user_id: 4242 } } });
+    expect(buttonsOf(res).map((button) => button.text)).toContain('Без исполнителя');
+  });
+
+  it('NETWORK_DIRECTOR gets the bound stub, not the master menu', async () => {
+    const { service } = makeMasterService(UserRole.NETWORK_DIRECTOR);
+    const res = await service.handleUpdate({ message: { text: '/start', sender: { user_id: 4242 } } });
+    expect(res?.text).toContain('Этот функционал в разработке');
+    expect(buttonsOf(res).map((button) => button.text)).toEqual(['Меню']);
+  });
 
   it('callback Сегодня replies with coordinator counters, not technician ones', async () => {
     const { service, workplace } = makeMasterService();
@@ -906,22 +910,24 @@ describe('MaxBotCommandService — master chat menu', () => {
     expect(res?.text).toContain('Новых: 2');
     expect(res?.text).toContain('На смене: 2');
     expect(res?.text).not.toContain('Мои заявки');
-    expect(buttonsOf(res).length).toBeLessThanOrEqual(7);
+    expect(res?.attachments?.[0]?.payload.buttons).toEqual([
+      [
+        { type: 'callback', text: 'Без исполнителя', payload: 'unassigned' },
+        { type: 'callback', text: 'Просрочено', payload: 'sla' },
+      ],
+      [
+        { type: 'callback', text: 'Техники', payload: 'techs' },
+        { type: 'callback', text: 'Обходы', payload: 'rounds' },
+      ],
+      [{ type: 'callback', text: 'Меню', payload: 'menu' }],
+    ]);
   });
 
   it('/tickets opens the filter, not the legacy Mini App redirect', async () => {
     const { service } = makeMasterService();
     const res = await service.handleUpdate({ message: { text: '/tickets', sender: { user_id: 4242 } } });
     expect(res?.text).toBe('Какие заявки показать');
-    expect(buttonsOf(res).map((button) => button.text)).toEqual([
-      'Новые',
-      'В работе',
-      'Просрочено',
-      'Отмена',
-      'Сегодня',
-      'Без исполнителя',
-      'Просрочено',
-    ]);
+    expect(buttonsOf(res).map((button) => button.text)).toEqual(['Новые', 'В работе', 'Просрочено', 'Меню']);
   });
 
   it('Без исполнителя lists NEW tickets and assign goes through TicketsService', async () => {
@@ -929,13 +935,7 @@ describe('MaxBotCommandService — master chat menu', () => {
     const list = await service.handleUpdate(callback('unassigned'));
     expect(workplace.unassigned).toHaveBeenCalled();
     expect(list?.text).toContain('Без исполнителя');
-    expect(buttonsOf(list).map((button) => button.text)).toEqual([
-      '#12',
-      'Назначить #12',
-      'Сегодня',
-      'Без исполнителя',
-      'Просрочено',
-    ]);
+    expect(buttonsOf(list).map((button) => button.text)).toEqual(['#12', 'Назначить #12', 'Меню']);
     const candidates = await service.handleUpdate(callback(`ma:${TICKET_ID}:u`));
     expect(workplace.candidates).toHaveBeenCalled();
     expect(candidates?.text).toContain('Кого назначить?');

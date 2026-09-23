@@ -1,4 +1,4 @@
-import { callbackButton, masterFooterRows, withKeyboard } from './max-master-menu';
+import { callbackButton, withKeyboard } from './max-master-menu';
 import { MaxBotCommandResponse } from './max-bot.types';
 
 export type MasterTodaySummary = {
@@ -24,10 +24,11 @@ export function renderMasterTodayMessage(summary: MasterTodaySummary): MaxBotCom
   return withKeyboard(text, [
     [
       callbackButton('Без исполнителя', 'unassigned'),
+      callbackButton('Просрочено', 'sla'),
+    ],
+    [
       callbackButton('Техники', 'techs'),
       callbackButton('Обходы', 'rounds'),
     ],
-    [callbackButton('Просрочено', 'sla')],
-    ...masterFooterRows(),
   ]);
 }

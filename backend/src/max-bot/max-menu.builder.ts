@@ -173,6 +173,9 @@ export function buildMenuModel(capabilities: MaxMenuCapabilities): MaxMenuModel 
   return { title: MENU_TITLE, subtitle: MENU_SUBTITLE, items, unbound: false };
 }
 
+/** Чат после входа в Миниапп. Меню само не открывается, пока человек не отправит /start. */
+export const MAX_START_AFTER_LOGIN_TEXT = 'Вход выполнен. Отправьте /start, чтобы открыть меню.';
+
 /**
  * Text rendering — the only rendering the current MAX integration can send, because
  * `sendRawMessage` posts `{ text }`. Replaced, not rewritten, once buttons ship.
@@ -181,7 +184,7 @@ export function renderMenuText(model: MaxMenuModel): string {
   const lines = [model.title, '', model.subtitle];
   lines.push(
     model.unbound
-      ? 'Откройте приложение и войдите в ServiceManager. Бот не показывает данные заявок без входа.'
+      ? 'Откройте приложение и войдите в ServiceManager. После входа отправьте /start. Бот не показывает данные заявок без входа.'
       : 'Подробности заявок открываются в приложении.',
   );
   return lines.join('\n');
@@ -286,7 +289,7 @@ export function renderHelpMessage(botUsername: string): MaxBotCommandResponse {
     text: [
       'Помощь',
       '',
-      'Нажмите кнопку, чтобы открыть ServiceManager. Заявки и уведомления доступны только после входа в приложение.',
+      'Нажмите кнопку, чтобы открыть ServiceManager. После входа отправьте /start. Заявки и уведомления доступны только после входа в приложение.',
     ].join('\n'),
     ...(keyboard ? { attachments: [keyboard] } : {}),
   };

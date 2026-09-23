@@ -3,7 +3,6 @@ import {
   MASTER_ROUND_PAGE_SIZE,
   callbackButton,
   chunk3,
-  masterFooterRows,
   masterPaginationRows,
   withKeyboard,
 } from './max-master-menu';
@@ -47,7 +46,7 @@ export type MasterRoundReportView = {
 
 export function renderMasterRoundListMessage(page: MasterRoundListPage): MaxBotCommandResponse {
   if (page.items.length === 0) {
-    return withKeyboard('На сегодня назначений нет.', masterFooterRows());
+    return withKeyboard('На сегодня назначений нет.', []);
   }
   const body = page.items
     .map(
@@ -67,7 +66,6 @@ export function renderMasterRoundListMessage(page: MasterRoundListPage): MaxBotC
       page.prevOffset !== null ? `mr:${page.prevOffset}` : null,
       page.nextOffset !== null ? `mr:${page.nextOffset}` : null,
     ),
-    ...masterFooterRows(),
   ]);
 }
 
@@ -81,11 +79,11 @@ export function renderMasterRoundProgressMessage(view: MasterRoundProgress): Max
   const actions = view.completed
     ? [[callbackButton('К итогам', `mz:${view.runId}`)]]
     : [];
-  return withKeyboard(text, [...actions, ...masterFooterRows()]);
+  return withKeyboard(text, actions);
 }
 
 export function renderMasterRoundNotStartedMessage(locationName: string): MaxBotCommandResponse {
-  return withKeyboard(`Обход на объекте ${locationName} ещё не начат.`, masterFooterRows());
+  return withKeyboard(`Обход на объекте ${locationName} ещё не начат.`, []);
 }
 
 export function renderMasterRoundReportMessage(report: MasterRoundReportView): MaxBotCommandResponse {
@@ -100,10 +98,7 @@ export function renderMasterRoundReportMessage(report: MasterRoundReportView): M
     .filter((item) => item.ticketId && item.ticketNumber)
     .slice(0, 3)
     .map((item) => callbackButton(`Открыть #${item.ticketNumber}`, `mk:${item.ticketId}`));
-  return withKeyboard(['Итог обхода', '', ...lines].join('\n'), [
-    ...chunk3(ticketButtons),
-    ...masterFooterRows(),
-  ]);
+  return withKeyboard(['Итог обхода', '', ...lines].join('\n'), [...chunk3(ticketButtons)]);
 }
 
 export function toMasterRoundListPage(items: MasterRoundListItem[], offset = 0): MasterRoundListPage {
