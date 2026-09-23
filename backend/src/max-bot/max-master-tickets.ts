@@ -7,7 +7,6 @@ import {
   MASTER_PAGE_SIZE,
   callbackButton,
   chunk3,
-  masterFooterRows,
   masterPaginationRows,
   withKeyboard,
 } from './max-master-menu';
@@ -74,7 +73,6 @@ export function renderMasterTicketFilterMessage(): MaxBotCommandResponse {
       callbackButton('Просрочено', 'mf:sla'),
     ],
     [callbackButton('Отмена', 'menu')],
-    ...masterFooterRows(),
   ]);
 }
 
@@ -117,7 +115,6 @@ export function renderMasterTicketListMessage(page: MasterTicketListPage): MaxBo
     ...chunk3(opens),
     ...chunk3(assigns),
     ...masterPaginationRows(prev, next),
-    ...masterFooterRows(),
   ]);
 }
 
@@ -155,13 +152,12 @@ export function renderMasterCommentPrompt(ticketId: string, ticketNumber: number
   const text = mention
     ? `Напишите, кого уведомить по заявке #${ticketNumber}`
     : `Введите комментарий к заявке #${ticketNumber}`;
-  return withKeyboard(text, [[callbackButton('Отмена', `mk:${ticketId}`)], ...masterFooterRows()]);
+  return withKeyboard(text, [[callbackButton('Отмена', `mk:${ticketId}`)]]);
 }
 
 export function renderMasterCommentSaved(ticketId: string, ticketNumber: number): MaxBotCommandResponse {
   return withKeyboard(`Комментарий добавлен к #${ticketNumber}`, [
     [callbackButton('К заявке', `mk:${ticketId}`)],
-    ...masterFooterRows(),
   ]);
 }
 
@@ -173,7 +169,6 @@ export function renderMasterHistoryMessage(page: MasterHistoryPage): MaxBotComma
       page.nextOffset !== null ? `mh:${page.ticketId}:${page.nextOffset}` : null,
     ),
     [callbackButton('К заявке', `mk:${page.ticketId}`)],
-    ...masterFooterRows(),
   ]);
 }
 
@@ -184,7 +179,6 @@ export function renderMasterAttachmentsMessage(list: MasterAttachmentList): MaxB
       : `${list.lines.join('\n')}\n\nСмотрите в Mini App.`;
   return withKeyboard(`Вложения #${list.ticketNumber}\n\n${body}`, [
     [callbackButton('К заявке', `mk:${list.ticketId}`)],
-    ...masterFooterRows(),
   ]);
 }
 
