@@ -1,0 +1,21 @@
+{
+  "name": "agent-runner",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MVP executor for ServiceManager.AI Engineering Agent — read-only analysis worker (HTTP API only).",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/index.js",
+    "dry-run": "node dist/index.js --dry-run",
+    "live": "node dist/index.js --live"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.4.0"
+  }
+}

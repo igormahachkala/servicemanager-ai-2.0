@@ -1,11 +1,11 @@
-import { CanActivate, ExecutionContext, Injectable, ForbiddenException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { ROLES_KEY } from './roles.decorator';
 import { UserRole } from '@prisma/client';
+import { ROLES_KEY } from './roles.decorator';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+  constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
     const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(ROLES_KEY, [
@@ -13,16 +13,15 @@ export class RolesGuard implements CanActivate {
       context.getClass(),
     ]);
 
+    // Если роли не заданы — пропускаем любого авторизованного пользователя
     if (!requiredRoles || requiredRoles.length === 0) return true;
 
-    const request = context.switchToHttp().getRequest();
-    const user = request.user as { role?: UserRole };
+    const req = context.switchToHttp().getRequest();
+    const user = req.user as { role?: UserRole | string } | undefined;
 
-    if (!user?.role) throw new ForbiddenException('No role in token');
+    const role = user?.role;
+    if (!role) return false;
 
-    if (!requiredRoles.includes(user.role)) {
-      throw new ForbiddenException('Insufficient role');
-    }
-    return true;
+    return requiredRoles.includes(role as UserRole);
   }
 }

@@ -1,0 +1,429 @@
+import { useEffect, useMemo, useState } from 'react'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import * as api from '../lib/api'
+import { useWsInvalidation } from '../ui/useWsInvalidation'
+import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications'
+import { registerAppShellServiceWorker } from './offline/appShell'
+import { identityFromToken } from './offline/identity'
+import { startOffline, stopOffline } from './offline/runtime'
+import { syncNow, useOfflineStatus } from './offline/useOffline'
+import { getOfflineStatus } from './offline/runtime'
+import { MobileGuidedTour } from './MobileGuidedTour'
+import { MobileShiftGatePrompt } from './MobileShiftGatePrompt'
+import { getMobileRouteRoot, mobilePath } from './mobileRoute'
+import { syncMaxChatBinding } from '../max/syncMaxChatBinding'
+import './mobile.css'
+
+type MobileNavItem = {
+  id: string
+  label: string
+  to: string
+}
+
+function NavIcon({ id, active }: { id: string; active: boolean }) {
+  const stroke = active ? '#2563eb' : '#9ca3af'
+  const base = { fill: 'none' as const, stroke, strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  if (id === 'home') return (
+    <svg width={22} height={22} viewBox="0 0 24 24" {...base} aria-hidden>
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+      <polyline points="9 22 9 12 15 12 15 22"/>
+    </svg>
+  )
+  if (id === 'tickets') return (
+    <svg width={22} height={22} viewBox="0 0 24 24" {...base} aria-hidden>
+      <rect x="5" y="2" width="14" height="20" rx="2"/>
+      <line x1="9" y1="8" x2="15" y2="8"/>
+      <line x1="9" y1="12" x2="15" y2="12"/>
+      <line x1="9" y1="16" x2="13" y2="16"/>
+    </svg>
+  )
+  if (id === 'inspection') return (
+    <svg width={22} height={22} viewBox="0 0 24 24" {...base} aria-hidden>
+      <path d="M9 5h6"/>
+      <path d="M9 3h6a2 2 0 0 1 2 2v1h1a2 2 0 0 1 2 2v11a2 2 0 0 1 -2 2H6a2 2 0 0 1 -2 -2V8a2 2 0 0 1 2 -2h1V5a2 2 0 0 1 2 -2z"/>
+      <path d="M9 14l2 2l4 -5"/>
+    </svg>
+  )
+  if (id === 'notifications') return (
+    <svg width={22} height={22} viewBox="0 0 24 24" {...base} aria-hidden>
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+      <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+    </svg>
+  )
+  if (id === 'analytics') return (
+    <svg width={22} height={22} viewBox="0 0 24 24" {...base} aria-hidden>
+      <line x1="3" y1="21" x2="21" y2="21"/>
+      <rect x="6" y="11" width="3" height="7"/>
+      <rect x="11" y="7" width="3" height="11"/>
+      <rect x="16" y="13" width="3" height="5"/>
+    </svg>
+  )
+  if (id === 'chats') return (
+    <svg width={22} height={22} viewBox="0 0 24 24" {...base} aria-hidden>
+      <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+      <path d="M8 9h8" />
+      <path d="M8 13h6" />
+    </svg>
+  )
+  if (id === 'settings') return (
+    <svg width={22} height={22} viewBox="0 0 24 24" {...base} aria-hidden>
+      <path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+  )
+  return (
+    <svg width={22} height={22} viewBox="0 0 24 24" {...base} aria-hidden>
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+      <circle cx="12" cy="7" r="4"/>
+    </svg>
+  )
+}
+
+function isActivePath(pathname: string, target: string) {
+  const root = getMobileRouteRoot(pathname)
+  if (target === root) return pathname === root
+  return pathname.startsWith(target)
+}
+
+function isProviderLinkedClientRole(role?: api.Role | null) {
+  return (
+    role === 'ADMIN' ||
+    role === 'ADMIN_PROVIDER' ||
+    role === 'MASTER' ||
+    role === 'DISPATCHER' ||
+    role === 'NETWORK_DIRECTOR'
+  )
+}
+
+export function MobileShell() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+
+  // SMA-MOBILE-OFFLINE-INTEGRATION-113D: офлайн-режим открывается один раз
+  // на оболочку и под конкретного пользователя. Здесь же он закрывается при
+  // размонтировании — иначе подписка продолжила бы разбирать очередь чужого
+  // хранилища после смены пользователя.
+  const offline = useOfflineStatus()
+  // Оболочка для работы без связи. Регистрируется независимо от push:
+  // офлайн-режим не должен требовать включённых уведомлений.
+  useEffect(() => {
+    void registerAppShellServiceWorker()
+  }, [])
+  useEffect(() => {
+    if (!meQ.data) return
+    void syncMaxChatBinding()
+  }, [meQ.data?.id])
+  /**
+   * Личность для офлайн-хранилища. Ответ `/auth/me` без сети не приходит —
+   * react-query держит запрос приостановленным, — поэтому запасной источник
+   * это токен на устройстве. Без него после перезагрузки в офлайне слой
+   * не открывался бы вовсе: ни сохранённого обхода, ни возможности
+   * сохранить новую работу.
+   */
+  const offlineIdentity = useMemo(() => {
+    if (meQ.data?.id && meQ.data?.companyId) {
+      return { id: meQ.data.id, companyId: meQ.data.companyId }
+    }
+    return identityFromToken(api.getToken())
+  }, [meQ.data?.id, meQ.data?.companyId])
+
+  useEffect(() => {
+    if (!offlineIdentity) return
+    void startOffline(offlineIdentity)
+    return () => stopOffline()
+  }, [offlineIdentity?.id, offlineIdentity?.companyId])
+  const queryClient = useQueryClient()
+  // Состояние связи берётся из офлайн-слоя: один источник на приложение.
+  const isOnline = offline.online
+  const [syncMessage, setSyncMessage] = useState('')
+
+  const companyQ = useQuery({
+    queryKey: ['mobile-shell-company'],
+    queryFn: () => api.company(),
+    enabled: !!meQ.data && meQ.data.role !== 'CLIENT' && meQ.data.role !== 'TECHNICIAN',
+  })
+
+  const isProviderCompany = companyQ.data?.type === 'PROVIDER'
+  const canShowLinkedClients = !!meQ.data && isProviderCompany && isProviderLinkedClientRole(meQ.data.role)
+
+  const linkedClientsQ = useQuery({
+    queryKey: ['mobile-shell-linked-clients'],
+    queryFn: api.getLinkedClients,
+    enabled: canShowLinkedClients,
+  })
+
+  const linkedClients = useMemo(() => linkedClientsQ.data || [], [linkedClientsQ.data])
+  const linkedClientsLoaded = !canShowLinkedClients || linkedClientsQ.isSuccess || linkedClientsQ.isError
+  const selectedLinkedClientCompanyId = (new URLSearchParams(location.search).get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
+  const selectedLinkedClient = useMemo(
+    () => linkedClients.find((row) => row.clientCompany.id === selectedLinkedClientCompanyId) || null,
+    [linkedClients, selectedLinkedClientCompanyId],
+  )
+
+  const scope = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    const linked = (params.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
+    const company = canShowLinkedClients ? '' : (params.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
+    return {
+      linkedClientCompanyId: linked || undefined,
+      companyId: company || undefined,
+    }
+  }, [location.search, meQ.data, canShowLinkedClients])
+
+  useEffect(() => {
+    if (!canShowLinkedClients) return
+    if (!linkedClientsLoaded) return
+    const params = new URLSearchParams(location.search)
+    const nextLinkedClientCompanyId = selectedLinkedClientCompanyId || api.pickDefaultLinkedClientCompanyId(linkedClients)
+    const currentNext = nextLinkedClientCompanyId.trim()
+    const needsCompanyCleanup = params.has('companyId')
+    const needsLinkedSync = currentNext ? params.get('linkedClientCompanyId') !== currentNext : params.has('linkedClientCompanyId')
+    if (!needsCompanyCleanup && !needsLinkedSync) return
+
+    params.delete('companyId')
+    if (currentNext) {
+      params.set('linkedClientCompanyId', currentNext)
+    } else {
+      params.delete('linkedClientCompanyId')
+    }
+    api.persistScopeFromSearchParams(params, meQ.data)
+    const next = `${location.pathname}${params.toString() ? `?${params.toString()}` : ''}`
+    if (next !== `${location.pathname}${location.search}`) {
+      navigate(next, { replace: true })
+    }
+  }, [canShowLinkedClients, linkedClients, linkedClientsLoaded, selectedLinkedClientCompanyId, location.pathname, location.search, meQ.data, navigate])
+
+  const onNotification = useRealtimeNotifications(getMobileRouteRoot(location.pathname) === '/max' ? 'max' : 'mobile')
+  useWsInvalidation(scope, { onNotification })
+
+  useEffect(() => {
+    if (!meQ.data) return
+    api.persistScopeFromSearchParams(new URLSearchParams(location.search), meQ.data)
+  }, [location.search, meQ.data])
+
+  /** Тот же queryKey, что у `/m/notifications`: оптимистичные PATCH там сразу обновляют бейдж. */
+  const notifQ = useQuery({
+    queryKey: ['mobile-notifications'],
+    queryFn: api.fetchNotifications,
+    enabled: !!meQ.data,
+    staleTime: 20_000,
+    refetchOnWindowFocus: true,
+    refetchOnMount: 'always',
+  })
+
+  // SMA-MOBILE-OFFLINE-INTEGRATION-113D: ручная отправка идёт через тот же
+  // единственный координатор. Обновление кэшей осталось здесь: координатор
+  // о React Query ничего не знает и знать не должен, но после успешной
+  // отправки экраны обязаны показать серверное состояние.
+  const retryM = useMutation({
+    // Кнопка офлайн-баннера. Пауза по отсутствию сети здесь недопустима:
+    // при её срабатывании кнопка «Отправить» замирала бы в «…» и ничего
+    // не делала. Разбор очереди сам решает, что делать без связи.
+    networkMode: 'always',
+    mutationFn: async () => {
+      await syncNow()
+      return getOfflineStatus()
+    },
+    onMutate: () => setSyncMessage(''),
+    onSuccess: async (result) => {
+      if (result.attention > 0) {
+        setSyncMessage(`Требует внимания: ${result.attention}. Откройте очередь.`)
+      } else if (result.pending > 0) {
+        setSyncMessage(`Осталось отправить: ${result.pending}.`)
+      } else {
+        setSyncMessage('Синхронизировано.')
+      }
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-detail'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-attachments'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-timeline'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-notifications'] })
+      await queryClient.invalidateQueries({ queryKey: ['board'] })
+    },
+    onError: (error: unknown) => {
+      setSyncMessage(error instanceof Error ? error.message : String(error))
+    },
+  })
+
+  // SMA-MOBILE-OFFLINE-INTEGRATION-113D: прежний автоповтор по возвращении
+  // связи убран намеренно. Он был вторым обработчиком очереди: разбирал
+  // localStorage параллельно с координатором 113C, который подписывается на
+  // то же событие `online`. Требование задачи — ровно один координатор,
+  // и он живёт в offline/runtime. Прежние строки очереди при этом не
+  // теряются: они переносятся в новое хранилище при открытии сессии.
+
+  const unread = notifQ.data?.unreadCount ?? 0
+  const mobileRoot = getMobileRouteRoot(location.pathname)
+  const mobileNavItems: MobileNavItem[] = [
+    { id: 'home', label: 'Главная', to: mobileRoot },
+    { id: 'inspection', label: 'Обходы', to: mobilePath(location.pathname, '/inspection') },
+    { id: 'create', label: '+', to: mobilePath(location.pathname, '/create') },
+    { id: 'analytics', label: 'Аналитика', to: mobilePath(location.pathname, '/analytics') },
+    { id: 'settings', label: 'Настройки', to: mobilePath(location.pathname, '/settings') },
+  ]
+
+  const notificationsHref = api.appendScopeToPath(mobilePath(location.pathname, '/notifications'), scope, meQ.data)
+  const profileHref = api.appendScopeToPath(mobilePath(location.pathname, '/profile'), scope, meQ.data)
+
+  return (
+    <div className="mobileShell">
+      <header className="mobileTopBar" aria-label="Панель приложения">
+        <div className="mobileTopBarMain">
+          <div className="mobileTopBarBrandRow">
+            <div className="mobileTopBarBrand">Сервис Менеджер</div>
+            <div
+              className={`mobileTopBarStatusChip ${isOnline ? 'mobileTopBarStatusChip--online' : 'mobileTopBarStatusChip--offline'}`}
+              role="status"
+              aria-live="polite"
+            >
+              <span className="mobileConnDot" aria-hidden />
+              <span className="mobileConnText">{isOnline ? 'Онлайн' : 'Офлайн'}</span>
+            </div>
+          </div>
+          {canShowLinkedClients ? (
+            <div className="mobileTopBarSubline">
+              {selectedLinkedClient?.clientCompany.name || 'Клиентский контур'}
+            </div>
+          ) : null}
+        </div>
+        <div className="mobileTopBarActions">
+          <Link
+            className="mobileTopBarAction"
+            to={notificationsHref}
+            aria-label={unread > 0 ? `Уведомления, непрочитано: ${unread}` : 'Уведомления'}
+          >
+            <svg className="mobileTopBarActionIcon" width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            {unread > 0 ? <span className="mobileNavBadgeDot" aria-hidden /> : null}
+          </Link>
+          <Link
+            className="mobileTopBarAction"
+            to={profileHref}
+            aria-label="Личный аккаунт"
+          >
+            <svg className="mobileTopBarActionIcon" width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+          </Link>
+        </div>
+      </header>
+      <main className="mobilePage">
+        {/*
+          SMA-MOBILE-OFFLINE-INTEGRATION-113D: полоса состояния читает новый
+          offline-слой (IndexedDB), а не прежнюю очередь в localStorage.
+          Порядок ветвей — по важности для техника: сперва то, что требует
+          его вмешательства, и только потом обычное ожидание отправки.
+
+          «Синхронизировано» отдельной строкой не показывается: пустая очередь
+          и есть этот случай, а постоянная зелёная плашка быстро перестаёт
+          читаться. Успех сервера здесь не рисуется до подтверждения — строка
+          уходит из очереди только после него.
+        */}
+        {!offline.ready && offline.unavailableReason ? (
+          <div className="mobileOfflineBanner mobileOfflineBannerFailed">
+            <div>{offline.unavailableReason}</div>
+          </div>
+        ) : offline.attention > 0 ? (
+          <Link
+            className="mobileOfflineBanner mobileOfflineBannerFailed mobileOfflineBannerLink"
+            to={mobilePath(location.pathname, '/offline-queue')}
+          >
+            <div>Требует внимания: {offline.attention}</div>
+            <span className="mobileOfflineBannerLinkHint">Открыть очередь ›</span>
+          </Link>
+        ) : !offline.online && offline.pending > 0 ? (
+          <Link
+            className="mobileOfflineBanner mobileOfflineBannerWarning mobileOfflineBannerLink"
+            to={mobilePath(location.pathname, '/offline-queue')}
+          >
+            <div>Нет сети · Сохранено на устройстве: {offline.pending}</div>
+          </Link>
+        ) : !offline.online ? (
+          <div className="mobileOfflineBanner mobileOfflineBannerWarning">
+            <div>Нет сети. Показываем сохранённые данные.</div>
+          </div>
+        ) : offline.syncing ? (
+          <div className="mobileOfflineBanner mobileOfflineBannerPending">
+            <div>Синхронизация…</div>
+          </div>
+        ) : offline.pending > 0 ? (
+          <div className="mobileOfflineBanner mobileOfflineBannerPending">
+            <div>Ожидает отправки: {offline.pending}</div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                className="mobileBtn mobileOfflineBannerBtn"
+                disabled={retryM.isPending}
+                onClick={() => retryM.mutate()}
+              >
+                {retryM.isPending ? '…' : 'Отправить'}
+              </button>
+              <Link
+                className="mobileBtn mobileBtnSecondary mobileOfflineBannerBtn"
+                to={mobilePath(location.pathname, '/offline-queue')}
+              >
+                Очередь
+              </Link>
+            </div>
+          </div>
+        ) : null}
+        {import.meta.env.DEV ? (
+          <div className="mobileDevConnectivityDebug" aria-hidden>
+            UI: {offline.online ? 'online' : 'offline'} · navigator.onLine:{' '}
+            {typeof navigator !== 'undefined' ? String(navigator.onLine) : 'n/a'} · очередь: {offline.pending} · внимание: {offline.attention}
+          </div>
+        ) : null}
+        {syncMessage ? <div className="mobileNotice mobileNoticeSuccess">{syncMessage}</div> : null}
+        <Outlet />
+      </main>
+      <nav className="mobileBottomNav" aria-label="Мобильная навигация" data-mobile-tour="main-menu">
+        <div className="mobileBottomNavInner">
+          {mobileNavItems.map((item) => {
+            const active = isActivePath(location.pathname, item.to)
+            const isCreate = item.id === 'create'
+            if (isCreate) {
+              return (
+                <Link
+                  key={item.id}
+                  className="mobileNavItemCreate"
+                  to={api.appendScopeToPath(item.to, scope, meQ.data)}
+                  aria-label="Создать заявку"
+                  data-mobile-tour="create-ticket"
+                >
+                  <button type="button" className="mobileNavCreateButton" aria-hidden>
+                    +
+                  </button>
+                </Link>
+              )
+            }
+            return (
+              <Link
+                key={item.id}
+                className="mobileNavItem"
+                to={api.appendScopeToPath(item.to, scope, meQ.data)}
+                aria-current={active ? 'page' : undefined}
+              >
+                <div className={active ? 'mobileNavButton mobileNavButtonActive' : 'mobileNavButton'}>
+                  <span className="mobileNavIconWrap">
+                    <NavIcon id={item.id} active={active} />
+                    {item.id === 'notifications' && unread > 0 ? <span className="mobileNavBadgeDot" aria-hidden /> : null}
+                  </span>
+                  <span className="mobileNavLabel">{item.label}</span>
+                </div>
+              </Link>
+            )
+          })}
+        </div>
+      </nav>
+      <MobileShiftGatePrompt user={meQ.data} />
+      <MobileGuidedTour userKey={meQ.data?.id || meQ.data?.email || null} />
+    </div>
+  )
+}

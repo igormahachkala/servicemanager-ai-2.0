@@ -1,3 +1,10 @@
+import { IsBoolean, IsOptional, IsString } from 'class-validator';
+
 export class CreateSpecializationDto {
-  name: string;
+  @IsString()
+  name!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }

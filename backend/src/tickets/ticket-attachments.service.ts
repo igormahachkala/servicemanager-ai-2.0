@@ -1,0 +1,407 @@
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
+import { Prisma, TicketAttachmentPurpose, UserRole } from '@prisma/client'
+import { ServiceContractRole } from '@prisma/client'
+import { mkdir, rm, writeFile } from 'fs/promises'
+import { extname, join } from 'path'
+import { randomUUID } from 'crypto'
+
+import { PrismaService } from '../prisma/prisma.service'
+import { IdempotencyService } from '../common/idempotency/idempotency.service'
+import { TimelineService } from '../timeline/timeline.service'
+import { NotificationsService } from '../notifications/notifications.service'
+import { type UserCtx } from '../policy/tickets.policy'
+import { ServiceContractsService } from '../service-contracts/service-contracts.service'
+import { resolveReadableTicketAccess, resolveTicketOperationAccess } from './ticket-access.utils'
+import { assertTicketAttachmentMedia, ticketAttachmentExtension } from './ticket-attachment-media'
+
+@Injectable()
+export class TicketAttachmentsService {
+  private readonly uploadsDir = join(process.cwd(), 'uploads', 'ticket-attachments')
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly serviceContractsService: ServiceContractsService,
+    private readonly timeline: TimelineService,
+    private readonly notifications: NotificationsService,
+    /** 113B: optional so existing unit tests constructing this service directly keep working. */
+    private readonly idempotency?: IdempotencyService,
+  ) {}
+
+  async uploadDraftAttachment(companyId: string, uploadedByUserId: string | null, file: any) {
+    assertTicketAttachmentMedia(file)
+
+    const stored = await this.persistFile(file)
+
+    return this.prisma.ticketAttachment.create({
+      data: {
+        companyId,
+        ticketId: null,
+        uploadedByUserId,
+        originalName: file.originalname,
+        storageKey: stored.storageKey,
+        mimeType: file.mimetype,
+        sizeBytes: file.size,
+        url: stored.url,
+        purpose: TicketAttachmentPurpose.REQUEST,
+      },
+      select: this.attachmentSelect(),
+    })
+  }
+
+  async bindAttachmentsToTicketTx(
+    tx: Prisma.TransactionClient,
+    params: {
+      companyId: string
+      ticketId: string
+      attachmentIds?: string[] | null
+      actorCompanyId?: string
+      uploadedByUserId?: string | null
+    },
+  ) {
+    const attachmentIds = [...new Set((params.attachmentIds || []).filter(Boolean))]
+    if (attachmentIds.length === 0) return []
+
+    const allowedCompanyIds = Array.from(
+      new Set([params.companyId, params.actorCompanyId].filter((value): value is string => !!value)),
+    )
+
+    const attachments = await tx.ticketAttachment.findMany({
+      where: {
+        id: { in: attachmentIds },
+        companyId: { in: allowedCompanyIds },
+      },
+      select: {
+        id: true,
+        ticketId: true,
+        companyId: true,
+        uploadedByUserId: true,
+      },
+    })
+
+    const safeAttachments = attachments.filter((attachment) => {
+      if (attachment.companyId === params.companyId) return true
+      return (
+        attachment.companyId === params.actorCompanyId &&
+        attachment.ticketId === null &&
+        !!params.uploadedByUserId &&
+        attachment.uploadedByUserId === params.uploadedByUserId
+      )
+    })
+
+    if (safeAttachments.length !== attachmentIds.length) {
+      throw new BadRequestException('Some attachmentIds are invalid')
+    }
+
+    const alreadyBound = safeAttachments.find((attachment) => attachment.ticketId && attachment.ticketId !== params.ticketId)
+    if (alreadyBound) {
+      throw new BadRequestException('Attachment already belongs to another ticket')
+    }
+
+    await tx.ticketAttachment.updateMany({
+      where: {
+        id: { in: safeAttachments.map((attachment) => attachment.id) },
+      },
+      data: {
+        ticketId: params.ticketId,
+        companyId: params.companyId,
+      },
+    })
+
+    return tx.ticketAttachment.findMany({
+      where: {
+        id: { in: attachmentIds },
+      },
+      select: this.attachmentSelect(),
+      orderBy: { createdAt: 'asc' },
+    })
+  }
+  async listForTicket(
+    user: UserCtx,
+    ticketId: string,
+    linkedClientCompanyId?: string,
+    observerCompanyId?: string,
+  ) {
+    const ticketCompanyId = await this.resolveReadableTicketCompanyId(
+      user,
+      ticketId,
+      linkedClientCompanyId,
+      observerCompanyId,
+    )
+
+    const candidateCompanyIds = Array.from(new Set([ticketCompanyId, user.companyId].filter(Boolean)))
+
+    return this.prisma.ticketAttachment.findMany({
+      where: {
+        ticketId,
+        ...(candidateCompanyIds.length === 1
+          ? { companyId: candidateCompanyIds[0] }
+          : { companyId: { in: candidateCompanyIds } }),
+      },
+      select: this.attachmentSelect(),
+      orderBy: { createdAt: 'asc' },
+    })
+  }
+
+  async uploadToTicket(
+    user: UserCtx,
+    ticketId: string,
+    file: any,
+    linkedClientCompanyId?: string,
+    idempotencyKey?: string | null,
+  ) {
+    /**
+     * SMA-OFFLINE-IDEMPOTENCY-113B.
+     *
+     * Access is resolved first and on every call, replay included — a key never substitutes for
+     * permission. Only then may a replay short-circuit the write.
+     */
+    const ticketCompanyId = await this.resolveOperationalTicketCompanyId(user, ticketId, linkedClientCompanyId)
+    assertTicketAttachmentMedia(file)
+
+    const key = IdempotencyService.normalizeKey(idempotencyKey)
+    if (key && this.idempotency) {
+      /**
+       * The fingerprint deliberately covers the file's identity, not its bytes: name, size and
+       * type are enough to catch a key reused for a different photo, and hashing an arbitrarily
+       * large upload on every retry would cost more than it protects.
+       */
+      const fingerprint = IdempotencyService.fingerprint({
+        ticketId,
+        originalName: file?.originalname,
+        size: file?.size,
+        mimeType: file?.mimetype,
+      })
+      const outcome = await this.idempotency.run<any>(
+        { companyId: ticketCompanyId, userId: user.id, operationType: 'ticket_attachment', key },
+        fingerprint,
+        {
+          execute: async (ctx) => {
+            const created = await this.uploadToTicketInternal(user, ticketId, file, ticketCompanyId, ctx)
+            return { result: created, entityType: 'TicketAttachment', entityId: created.id }
+          },
+          replay: async (entityId) =>
+            this.prisma.ticketAttachment.findUnique({
+              where: { id: entityId },
+              select: this.attachmentSelect(),
+            }),
+          // A crash between writing the file and committing the row leaves an orphan on disk.
+          discardOrphan: async (storageKey) => this.removeStoredFile(storageKey),
+        },
+      )
+      return outcome.result
+    }
+
+    return this.uploadToTicketInternal(user, ticketId, file, ticketCompanyId)
+  }
+
+  private async uploadToTicketInternal(
+    user: UserCtx,
+    ticketId: string,
+    file: any,
+    ticketCompanyId: string,
+    ctx?: { noteStorageKey: (k: string) => Promise<void> },
+  ) {
+    const stored = await this.persistFile(file)
+    // Record the binary before the row exists, so a retry can find and clean this exact orphan.
+    if (ctx) await ctx.noteStorageKey(stored.storageKey)
+
+    const attachment = await this.prisma.ticketAttachment.create({
+      data: {
+        companyId: ticketCompanyId,
+        ticketId,
+        uploadedByUserId: user.id,
+        originalName: file.originalname,
+        storageKey: stored.storageKey,
+        mimeType: file.mimetype,
+        sizeBytes: file.size,
+        url: stored.url,
+        purpose: TicketAttachmentPurpose.WORK_REPORT,
+      },
+      select: this.attachmentSelect(),
+    })
+
+    const ticket = await this.prisma.ticket.findFirst({
+      where: { id: ticketId, companyId: ticketCompanyId },
+      select: {
+        id: true,
+        companyId: true,
+        ticketNumber: true,
+        problemText: true,
+        assignedTechnicianId: true,
+      },
+    })
+    if (ticket) {
+      const event = (await this.timeline.record({
+        event: 'TICKET_ATTACHMENT_UPLOADED',
+        companyId: ticket.companyId,
+        ticketId: ticket.id,
+        actorUserId: user.id,
+        payload: {
+          attachmentId: attachment.id,
+          attachmentPurpose: attachment.purpose,
+          mimeType: attachment.mimeType,
+        },
+      })) as { id: string }
+
+      const assignee = ticket.assignedTechnicianId
+        ? await this.prisma.user.findUnique({
+            where: { id: ticket.assignedTechnicianId },
+            select: { companyId: true },
+          })
+        : null
+
+      this.notifications.scheduleTicketAttachmentUploaded({
+        ticketCompanyId: ticket.companyId,
+        ticketId: ticket.id,
+        ticketNumber: ticket.ticketNumber,
+        summary: (ticket.problemText || '').trim() || `Заявка #${ticket.ticketNumber}`,
+        actorUserId: user.id,
+        assigneeUserId: ticket.assignedTechnicianId,
+        assigneeCompanyId: assignee?.companyId ?? null,
+        sourceEventId: event.id,
+      })
+    }
+
+    return attachment
+  }
+
+  async deleteDraftAttachment(companyId: string, uploadedByUserId: string | null, attachmentId: string) {
+    const attachment = await this.prisma.ticketAttachment.findFirst({
+      where: {
+        id: attachmentId,
+        companyId,
+        uploadedByUserId,
+        ticketId: null,
+      },
+    })
+
+    if (!attachment) {
+      throw new NotFoundException('Attachment not found')
+    }
+
+    await this.prisma.ticketAttachment.delete({ where: { id: attachment.id } })
+    await this.removeStoredFile(attachment.storageKey)
+
+    return { ok: true }
+  }
+
+  async deleteFromTicket(user: UserCtx, ticketId: string, attachmentId: string, linkedClientCompanyId?: string) {
+    const ticketCompanyId = await this.resolveReadableTicketCompanyId(user, ticketId, linkedClientCompanyId)
+
+    const attachment = await this.prisma.ticketAttachment.findFirst({
+      where: {
+        id: attachmentId,
+        companyId: ticketCompanyId,
+        ticketId,
+      },
+    })
+
+    if (!attachment) {
+      throw new NotFoundException('Attachment not found')
+    }
+
+    if (attachment.uploadedByUserId !== user.id) {
+      const managementRoles: UserRole[] = [
+        UserRole.ADMIN,
+        UserRole.MASTER,
+        UserRole.DISPATCHER,
+        UserRole.NETWORK_DIRECTOR,
+        UserRole.TERRITORIAL_MANAGER,
+      ]
+      if (!managementRoles.includes(user.role)) {
+        throw new ForbiddenException('Only the uploader or a manager can delete this attachment')
+      }
+      await this.resolveOperationalTicketCompanyId(user, ticketId, linkedClientCompanyId)
+    }
+
+    await this.prisma.ticketAttachment.delete({ where: { id: attachment.id } })
+    await this.removeStoredFile(attachment.storageKey)
+
+    return { ok: true }
+  }
+
+  private async resolveReadableTicketCompanyId(
+    user: UserCtx,
+    ticketId: string,
+    linkedClientCompanyId?: string,
+    observerCompanyId?: string,
+  ) {
+    const readable = await resolveReadableTicketAccess({
+      prisma: this.prisma,
+      serviceContractsService: this.serviceContractsService,
+      actor: {
+        id: user.id,
+        role: user.role,
+        companyId: user.companyId,
+        accessFlags: user.accessFlags,
+      },
+      ticketId,
+      linkedClientCompanyId,
+      observerCompanyId,
+      allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
+    })
+
+    return readable.ticket.companyId
+  }
+
+  private async resolveOperationalTicketCompanyId(
+    user: UserCtx,
+    ticketId: string,
+    linkedClientCompanyId?: string,
+  ) {
+    const access = await resolveTicketOperationAccess({
+      prisma: this.prisma,
+      serviceContractsService: this.serviceContractsService,
+      actor: {
+        id: user.id,
+        role: user.role,
+        companyId: user.companyId,
+        accessFlags: user.accessFlags,
+      },
+      ticketId,
+      linkedClientCompanyId,
+      allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
+    })
+
+    return access.ticket.companyId
+  }
+
+  private attachmentSelect() {
+    return {
+      id: true,
+      ticketId: true,
+      originalName: true,
+      mimeType: true,
+      sizeBytes: true,
+      url: true,
+      purpose: true,
+      createdAt: true,
+      uploadedBy: {
+        select: {
+          id: true,
+          email: true,
+        },
+      },
+    } satisfies Prisma.TicketAttachmentSelect
+  }
+
+  private async persistFile(file: any) {
+    await mkdir(this.uploadsDir, { recursive: true })
+
+    const ext = extname(file.originalname || '') || ticketAttachmentExtension(file.mimetype || '')
+    const storageKey = `${randomUUID()}${ext}`
+    const absolutePath = join(this.uploadsDir, storageKey)
+
+    await writeFile(absolutePath, file.buffer)
+
+    return {
+      storageKey,
+      url: `/uploads/ticket-attachments/${storageKey}`,
+    }
+  }
+
+  private async removeStoredFile(storageKey: string) {
+    if (!storageKey) return
+    await rm(join(this.uploadsDir, storageKey), { force: true })
+  }
+}

@@ -1,24 +1,77 @@
-import { Body, Controller, Get, Patch, Req, UseGuards } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/jwt.guard';
-import { Roles } from '../common/roles.decorator';
-import { RolesGuard } from '../common/roles.guard';
-import { UserRole } from '@prisma/client';
-import { CompanyService } from './company.service';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common'
+import { UserRole } from '@prisma/client'
+
+import { JwtAuthGuard } from '../auth/jwt.guard'
+import { Roles } from '../common/roles.decorator'
+import { RolesGuard } from '../common/roles.guard'
+import { ManagementSurface } from '../common/management-surface-access'
+
+import { UpdateCompanyDto } from './dto/update-company.dto'
+import { CreateCompanyDto } from './dto/create-company.dto'
+import { CreateCompanyAdminDto } from './dto/create-company-admin.dto'
+import { CompanyService } from './company.service'
 
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Controller('company')
+@Controller()
 export class CompanyController {
   constructor(private svc: CompanyService) {}
 
-  @Roles(UserRole.ADMIN)
-  @Get()
-  get(@Req() req: any) {
-    return this.svc.get(req.user.companyId);
+  @Roles(UserRole.PLATFORM_ADMIN)
+  @ManagementSurface()
+  @Get('companies')
+  listAll() {
+    return this.svc.listAll()
+  }
+
+  @Roles(UserRole.PLATFORM_ADMIN)
+  @ManagementSurface()
+  @Post('companies')
+  createPlatformCompany(@Body() dto: CreateCompanyDto) {
+    return this.svc.createPlatformCompany(dto)
+  }
+
+  @Roles(UserRole.PLATFORM_ADMIN)
+  @ManagementSurface()
+  @Post('companies/:id/admins')
+  createFirstAdmin(@Param('id') companyId: string, @Body() dto: CreateCompanyAdminDto) {
+    return this.svc.createFirstAdmin(companyId, dto)
+  }
+
+  @Roles(UserRole.PLATFORM_ADMIN)
+  @ManagementSurface()
+  @Patch('companies/:id/public-request/token')
+  regeneratePlatformPublicRequestToken(@Param('id') companyId: string) {
+    return this.svc.regeneratePlatformPublicRequestToken(companyId)
+  }
+
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TERRITORIAL_MANAGER, UserRole.PLATFORM_ADMIN)
+  @Get('company')
+  get(
+    @Req() req: any,
+    @Query('companyId') companyId?: string,
+    @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
+  ) {
+    return this.svc.get(req.user.companyId, req.user.role as UserRole, companyId, linkedClientCompanyId)
   }
 
   @Roles(UserRole.ADMIN)
-  @Patch('auto-assign')
+  @ManagementSurface()
+  @Patch('company')
+  update(@Req() req: any, @Body() dto: UpdateCompanyDto) {
+    return this.svc.update(req.user.companyId, dto)
+  }
+
+  @Roles(UserRole.ADMIN)
+  @ManagementSurface()
+  @Patch('company/auto-assign')
   setAutoAssign(@Req() req: any, @Body() body: { enabled: boolean }) {
-    return this.svc.setAutoAssign(req.user.companyId, !!body.enabled);
+    return this.svc.setAutoAssign(req.user.companyId, !!body.enabled)
+  }
+
+  @Roles(UserRole.ADMIN)
+  @ManagementSurface()
+  @Patch('company/public-request/token')
+  regenerateOwnPublicRequestToken(@Req() req: any) {
+    return this.svc.regeneratePublicRequestToken(req.user.companyId)
   }
 }

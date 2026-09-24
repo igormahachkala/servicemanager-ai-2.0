@@ -1,0 +1,36 @@
+---
+description: Architecture invariants for ServiceManager.AI
+alwaysApply: true
+---
+
+Архитектурные инварианты:
+
+- Multi-tenant через companyId
+- ticket owner = CLIENT
+- provider access только через relationship
+- technician работает через binding (TechnicianClientBinding)
+
+Нельзя:
+
+- превращать provider в owner тикета
+- обходить policy / permissions
+- делать cross-tenant доступ напрямую
+
+Слои:
+
+Controller → Guard → Policy → Service → DB
+
+- Controller: только HTTP
+- Service: бизнес-логика
+- Policy: доступ к данным
+
+Важно:
+
+Access = Capability + Scope + Relationship
+
+Проверять при любых изменениях:
+
+- не ломается ли technician flow
+- не ломается ли linked-client flow
+- не ломается ли impersonation
+- не ломается ли inspection flow

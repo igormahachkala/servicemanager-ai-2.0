@@ -1,0 +1,19 @@
+# secrets
+.env
+.env.*
+
+# build
+node_modules
+dist
+build
+coverage
+
+# logs
+*.log
+
+# uploads
+uploads
+
+# system
+.DS_Store
+Thumbs.db

@@ -37,4 +37,17 @@ export class SpecializationsService {
   async setStatus(companyId: string, id: string, isActive: boolean) {
     return this.update(companyId, id, { isActive });
   }
+
+  async remove(companyId: string, id: string) {
+    const existing = await this.prisma.specialization.findFirst({ where: { id, companyId } });
+    if (!existing) throw new NotFoundException('Not found');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.problemCategorySpecialization.deleteMany({ where: { specializationId: id } });
+      await tx.technicianSpecialization.deleteMany({ where: { specializationId: id } });
+      await tx.specialization.delete({ where: { id } });
+    });
+
+    return { ok: true, id };
+  }
 }

@@ -1,0 +1,466 @@
+﻿import { Injectable } from '@nestjs/common'
+import { Prisma, ServiceContractRole } from '@prisma/client'
+
+import { emitDomainEvent, emitDomainEventTx } from '../events/events.bus'
+import { type DomainEvent, type DomainEventType } from '../events/events.types'
+import { type UserCtx } from '../policy/tickets.policy'
+import { PrismaService } from '../prisma/prisma.service'
+import { ServiceContractsService } from '../service-contracts/service-contracts.service'
+import { resolveReadableTicketAccess } from '../tickets/ticket-access.utils'
+
+import {
+  type TimelineActor,
+  type TimelineEntry,
+  type TimelineEvent,
+  type TimelineHistoryItem,
+  type TimelineRecordedEventItem,
+  type TimelineReplyPreview,
+} from './timeline.types'
+
+const companyIdentitySelect = {
+  id: true,
+  name: true,
+  legalName: true,
+  brandName: true,
+  type: true,
+} as const
+
+function readPayloadUserId(payload: Prisma.JsonValue | null, key: string): string | null {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
+  const value = (payload as Record<string, unknown>)[key]
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+/**
+ * SMA-TICKET-REPLY-READ-PATH-120R.
+ *
+ * Идентификатор комментария лежит в полезной нагрузке события: внешнего ключа
+ * у DomainEvent нет, и другой связки между журналом и строкой комментария
+ * не существует. У исторических событий поля нет — они и остаются
+ * без устойчивой личности.
+ */
+function readCommentId(payload: Prisma.JsonValue | null): string | null {
+  return readPayloadUserId(payload, 'commentId')
+}
+
+/** Предпросмотр ограничен по длине: лента не место для полного текста. */
+const REPLY_PREVIEW_LIMIT = 160
+
+function buildReplyPreview(
+  target:
+    | {
+        id: string
+        ticketId: string
+        companyId: string
+        body: string
+        author: NonNullable<TimelineActor> | null
+      }
+    | null
+    | undefined,
+  expected: { ticketId: string; companyId: string },
+): TimelineReplyPreview | null {
+  if (!target) return null
+
+  /*
+   * Сверка области видимости выполняется и здесь, хотя запись её уже
+   * обеспечила. Причина простая: это единственное место, где чужой текст мог
+   * бы уйти в ответ клиенту, и полагаться тут на корректность записи —
+   * значит зависеть от неё навсегда. Несовпадение не скрывается и не
+   * притворяется отсутствием ответа: сообщение помечается недоступным,
+   * а тела не отдаётся вовсе.
+   */
+  const inScope = target.ticketId === expected.ticketId && target.companyId === expected.companyId
+  const body = (target.body || '').trim()
+  if (!inScope || !body) {
+    return { id: target.id, author: null, bodyPreview: '', unavailable: true }
+  }
+
+  return {
+    id: target.id,
+    author: target.author ?? null,
+    bodyPreview: body.length > REPLY_PREVIEW_LIMIT ? `${body.slice(0, REPLY_PREVIEW_LIMIT)}…` : body,
+    unavailable: false,
+  }
+}
+
+function enrichAssignmentPayload(
+  payload: Prisma.JsonValue | null,
+  actorMap: Map<string, NonNullable<TimelineActor>>,
+) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return payload ?? null
+  const out: Record<string, unknown> = { ...(payload as Record<string, unknown>) }
+  const assignedTechnicianId = readPayloadUserId(payload, 'assignedTechnicianId')
+  const previousAssignedTechnicianId = readPayloadUserId(payload, 'previousAssignedTechnicianId')
+  if (assignedTechnicianId) out.assignedTechnician = actorMap.get(assignedTechnicianId) ?? null
+  if (previousAssignedTechnicianId) out.previousAssignedTechnician = actorMap.get(previousAssignedTechnicianId) ?? null
+  return out
+}
+
+@Injectable()
+export class TimelineService {
+  private readonly eventToDomainType: Record<TimelineEvent, DomainEventType> = {
+    TICKET_CREATED: 'ticket.created',
+    TICKET_ASSIGNED: 'ticket.assigned',
+    TICKET_CLAIMED: 'ticket.claimed',
+    TICKET_ASSIGNMENT_CHANGED: 'ticket.assignment_changed',
+    TICKET_ATTACHMENT_UPLOADED: 'ticket.attachment_uploaded',
+    TICKET_ASSIGNMENT_REQUESTED: 'ticket.assignment_requested',
+    TICKET_FIELDS_UPDATED: 'ticket.updated',
+    STATUS_CHANGED: 'ticket.status_changed',
+    COMMENT_ADDED: 'ticket.comment_added',
+    SLA_WARNING: 'ticket.sla_warning',
+    SLA_BREACH: 'ticket.sla_breached',
+    TICKET_READY_FOR_ACCEPTANCE: 'ticket.ready_for_acceptance',
+    TICKET_ACCEPTED: 'ticket.accepted',
+    TICKET_REJECTED: 'ticket.rejected',
+  }
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly serviceContractsService: ServiceContractsService,
+  ) {}
+
+  async recordTx(
+    tx: Prisma.TransactionClient,
+    params: {
+      event: TimelineEvent
+      companyId: string
+      ticketId: string
+      actorUserId?: string | null
+      payload?: Record<string, any>
+      createdAt?: Date
+    },
+  ) {
+    const { event, companyId, ticketId, actorUserId, payload, createdAt } = params
+
+    return emitDomainEventTx(tx, {
+      type: this.eventToDomainType[event],
+      companyId,
+      entityType: 'Ticket',
+      entityId: ticketId,
+      actorUserId: actorUserId ?? null,
+      payload,
+      createdAt,
+    })
+  }
+
+  record(params: {
+    event: TimelineEvent
+    companyId: string
+    ticketId: string
+    actorUserId?: string | null
+    payload?: Record<string, any>
+    createdAt?: Date
+  }) {
+    const { event, companyId, ticketId, actorUserId, payload, createdAt } = params
+
+    return emitDomainEvent({
+      type: this.eventToDomainType[event],
+      companyId,
+      entityType: 'Ticket',
+      entityId: ticketId,
+      actorUserId: actorUserId ?? null,
+      payload,
+      createdAt,
+    })
+  }
+
+  async recordLegacyTx(tx: Prisma.TransactionClient, ev: DomainEvent) {
+    return emitDomainEventTx(tx, ev)
+  }
+
+  recordLegacy(ev: DomainEvent) {
+    return emitDomainEvent(ev)
+  }
+
+  async listTicketEvents(companyId: string, ticketIds: string[]) {
+    if (ticketIds.length === 0) return []
+
+    const events = await this.prisma.domainEvent.findMany({
+      where: {
+        companyId,
+        entityType: 'Ticket',
+        entityId: { in: ticketIds },
+      },
+      orderBy: [{ entityId: 'asc' }, { createdAt: 'asc' }],
+      select: {
+        id: true,
+        entityId: true,
+        type: true,
+        actorUserId: true,
+        payload: true,
+        createdAt: true,
+      },
+    })
+
+    return events
+      .map((event) => {
+        const timelineEvent = this.toTimelineEvent(event.type)
+        if (!timelineEvent) return null
+
+        return {
+          id: event.id,
+          ticketId: event.entityId,
+          at: event.createdAt,
+          timelineEvent,
+          domainType: event.type,
+          actorUserId: event.actorUserId,
+          payload: event.payload ?? null,
+        }
+      })
+      .filter((event): event is NonNullable<typeof event> => event !== null)
+  }
+
+  async getTicketTimeline(
+    user: UserCtx,
+    ticketId: string,
+    linkedClientCompanyId?: string,
+    observerCompanyId?: string,
+  ) {
+    const readable = await resolveReadableTicketAccess({
+      prisma: this.prisma,
+      serviceContractsService: this.serviceContractsService,
+      actor: {
+        id: user.id,
+        role: user.role,
+        companyId: user.companyId,
+        accessFlags: user.accessFlags,
+      },
+      ticketId,
+      linkedClientCompanyId,
+      observerCompanyId,
+      allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
+    })
+
+    const [historyRows, eventRows] = await Promise.all([
+      this.prisma.ticketStatusHistory.findMany({
+        where: { ticketId },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          fromStatus: true,
+          toStatus: true,
+          comment: true,
+          changedByUserId: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.domainEvent.findMany({
+        where: {
+          companyId: readable.ticket.companyId,
+          entityType: 'Ticket',
+          entityId: ticketId,
+        },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          entityId: true,
+          type: true,
+          actorUserId: true,
+          payload: true,
+          createdAt: true,
+        },
+      }),
+    ])
+
+    const actorIds = new Set<string>()
+    for (const row of historyRows) if (row.changedByUserId) actorIds.add(row.changedByUserId)
+    for (const row of eventRows) {
+      if (row.actorUserId) actorIds.add(row.actorUserId)
+      const assignedTechnicianId = readPayloadUserId(row.payload, 'assignedTechnicianId')
+      const previousAssignedTechnicianId = readPayloadUserId(row.payload, 'previousAssignedTechnicianId')
+      if (assignedTechnicianId) actorIds.add(assignedTechnicianId)
+      if (previousAssignedTechnicianId) actorIds.add(previousAssignedTechnicianId)
+    }
+
+    const actors = actorIds.size
+      ? await this.prisma.user.findMany({
+          where: { id: { in: Array.from(actorIds) } },
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+            companyId: true,
+            company: { select: companyIdentitySelect },
+          },
+        })
+      : []
+
+    const actorMap = new Map<string, NonNullable<TimelineActor>>(actors.map((actor) => [actor.id, actor]))
+
+    /**
+     * SMA-TICKET-REPLY-READ-PATH-120R — комментарии одним запросом.
+     *
+     * Идентификаторы собираются из уже загруженных событий, поэтому запрос
+     * ровно один независимо от числа сообщений в ленте. Запрос на сообщение
+     * дал бы N+1 на длинной переписке — именно того здесь и нет.
+     *
+     * Сужение по ticketId и companyId обязательно: идентификатор приходит
+     * из полезной нагрузки события, а она хранится как свободный JSON.
+     * Без сужения подложное значение в старой записи могло бы притянуть
+     * комментарий чужой заявки.
+     */
+    const commentIds = Array.from(
+      new Set(eventRows.map((row) => readCommentId(row.payload)).filter((id): id is string => !!id)),
+    )
+    const commentRows = commentIds.length
+      ? await this.prisma.ticketComment.findMany({
+          where: {
+            id: { in: commentIds },
+            ticketId,
+            companyId: readable.ticket.companyId,
+          },
+          select: {
+            id: true,
+            replyTo: {
+              select: {
+                id: true,
+                ticketId: true,
+                companyId: true,
+                body: true,
+                author: {
+                  select: {
+                    id: true,
+                    email: true,
+                    firstName: true,
+                    lastName: true,
+                    role: true,
+                    companyId: true,
+                    company: { select: companyIdentitySelect },
+                  },
+                },
+              },
+            },
+          },
+        })
+      : []
+    const commentMap = new Map(commentRows.map((row) => [row.id, row]))
+
+    const history: TimelineHistoryItem[] = historyRows.map((row) => ({
+      id: row.id,
+      at: row.createdAt,
+      timelineEvent: 'STATUS_CHANGED',
+      title: `Status changed: ${row.toStatus}`,
+      actor: row.changedByUserId ? actorMap.get(row.changedByUserId) ?? null : null,
+      payload: {
+        fromStatus: row.fromStatus,
+        toStatus: row.toStatus,
+        comment: row.comment ?? null,
+      },
+    }))
+
+    const events: TimelineRecordedEventItem[] = eventRows
+      .map((row) => {
+        const timelineEvent = this.toTimelineEvent(row.type)
+        if (!timelineEvent) return null
+
+        const commentId = readCommentId(row.payload)
+        const stored = commentId ? commentMap.get(commentId) ?? null : null
+
+        return {
+          id: row.id,
+          ticketId: row.entityId,
+          at: row.createdAt,
+          timelineEvent,
+          domainType: row.type,
+          title: this.eventTitle(row.type),
+          actor: row.actorUserId ? actorMap.get(row.actorUserId) ?? null : null,
+          payload: enrichAssignmentPayload(row.payload, actorMap),
+          // Только у сообщений, за которыми стоит строка TicketComment,
+          // и только если она нашлась в пределах этой заявки.
+          commentId: stored ? stored.id : null,
+          replyTo: stored
+            ? buildReplyPreview(stored.replyTo, {
+                ticketId,
+                companyId: readable.ticket.companyId,
+              })
+            : null,
+        }
+      })
+      .filter((row): row is TimelineRecordedEventItem => row !== null)
+
+    const timeline: TimelineEntry[] = [
+      ...history.map((item) => ({
+        at: item.at,
+        source: 'history' as const,
+        timelineEvent: item.timelineEvent,
+        domainType: 'ticket.status_history',
+        title: item.title,
+        actor: item.actor,
+        payload: item.payload,
+        // Запись истории статусов сообщением чата не является: личности нет.
+        commentId: null,
+        replyTo: null,
+      })),
+      ...events.map((item) => ({
+        at: item.at,
+        source: 'event' as const,
+        timelineEvent: item.timelineEvent,
+        domainType: item.domainType,
+        title: item.title,
+        actor: item.actor,
+        payload: item.payload,
+        commentId: item.commentId,
+        replyTo: item.replyTo,
+      })),
+    ].sort((a, b) => a.at.getTime() - b.at.getTime())
+
+    return {
+      ticketId,
+      timeline,
+      history,
+      events,
+      meta: {
+        historyCount: history.length,
+        eventCount: events.length,
+        scopeCompanyId: readable.ticket.companyId,
+        visibilityMode: readable.visibilityMode,
+      },
+    }
+  }
+
+  private toTimelineEvent(type: string): TimelineEvent | null {
+    if (type === 'ticket.created') return 'TICKET_CREATED'
+    if (type === 'ticket.assigned') return 'TICKET_ASSIGNED'
+    if (type === 'ticket.claimed') return 'TICKET_CLAIMED'
+    if (type === 'ticket.assignment_changed') return 'TICKET_ASSIGNMENT_CHANGED'
+    if (type === 'ticket.attachment_uploaded') return 'TICKET_ATTACHMENT_UPLOADED'
+    if (type === 'ticket.assignment_requested') return 'TICKET_ASSIGNMENT_REQUESTED'
+    // SMA-TICKET-HISTORY-AUDIT-001: событие правки заявки писалось в DomainEvent,
+    // но не имело маппинга и отбрасывалось до попадания в ленту.
+    if (type === 'ticket.updated') return 'TICKET_FIELDS_UPDATED'
+    if (type === 'ticket.status_changed') return 'STATUS_CHANGED'
+    if (type === 'ticket.comment_added') return 'COMMENT_ADDED'
+    if (type === 'ticket.sla_warning') return 'SLA_WARNING'
+    if (type === 'ticket.sla_breached' || type === 'sla.breached') return 'SLA_BREACH'
+    if (type === 'ticket.ready_for_acceptance') return 'TICKET_READY_FOR_ACCEPTANCE'
+    if (type === 'ticket.accepted') return 'TICKET_ACCEPTED'
+    if (type === 'ticket.rejected') return 'TICKET_REJECTED'
+
+    return null
+  }
+
+  private eventTitle(type: string) {
+    if (type === 'ticket.created') return 'Ticket created'
+    if (type === 'ticket.assigned') return 'Ticket assigned'
+    if (type === 'ticket.claimed') return 'Ticket claimed'
+    if (type === 'ticket.assignment_changed') return 'Assignment changed'
+    if (type === 'ticket.attachment_uploaded') return 'Attachment uploaded'
+    if (type === 'ticket.assignment_requested') return 'Запрос назначения'
+    if (type === 'ticket.reassigned') return 'Ticket reassigned'
+    if (type === 'ticket.category_changed') return 'Ticket category changed'
+    if (type === 'ticket.updated') return 'Ticket updated'
+    if (type === 'ticket.status_changed') return 'Status changed'
+    if (type === 'ticket.comment_added') return 'Comment added'
+    if (type === 'ticket.sla_warning') return 'SLA warning'
+    if (type === 'ticket.sla_breached' || type === 'sla.breached') return 'SLA breach'
+    if (type === 'ticket.ready_for_acceptance') return 'Отправлено на приёмку'
+    if (type === 'ticket.accepted') return 'Работа принята'
+    if (type === 'ticket.rejected') return 'Работа отклонена'
+    if (type === 'user.created') return 'User created'
+
+    return type
+  }
+}
