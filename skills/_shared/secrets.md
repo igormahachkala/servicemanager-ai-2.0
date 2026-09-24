@@ -45,32 +45,27 @@ docker compose config без -q печатает значения всех пе�
 </action>
 <files contour="stage">
 Пути на Stage-машине, читать через ssh sma-spare:
-/etc/servicemanager-ai/stage-backend-isolated.env
-/etc/servicemanager-ai/docker-compose.stage.override.yml — если переменная задана в нём напрямую
+/opt/sma-beta/.env
+/etc/servicemanager-ai/docker-compose.stage.override.yml — сертификат, порты и аргумент сборки. Runtime-переменных в нём нет.
 </files>
 <files contour="production">
 Пути на Production-машине, читать через ssh sma:
-/opt/sma-service/backend/.env.docker
-/etc/servicemanager-ai/docker-compose.production.stable.override.yml — если переменная задана в нём напрямую
+/opt/sma-prod/.env
+/etc/servicemanager-ai/docker-compose.production.override.yml — если переменная задана в нём напрямую
 </files>
 <path_note contour="production">
-Путь к файлу окружения задан директивой env_file: !override в
-/etc/servicemanager-ai/docker-compose.production.stable.override.yml
-абсолютным значением. Относительный путь ./backend/.env.docker из базового
-docker-compose.yml не применяется: !override заменяет список целиком,
-а не дополняет его.
-Канонический файл окружения Production лежит вне worktree развёртывания:
-/opt/sma-service/backend/.env.docker. Файл /opt/sma-prod/backend/.env.docker
-не является каноническим источником и не должен создаваться для деплоя.
-Каталог /opt/sma-service — действующая зависимость Production: там же
-смонтированы загруженные пользователями файлы, /opt/sma-service/uploads.
+Канонический файл окружения Production — /opt/sma-prod/.env, рядом с каталогом развёртывания.
+В compose у сервисов стоит env_file: .env. Оверрайд может заменить список
+директивой env_file: !override абсолютным путём /opt/sma-prod/.env.
+Каталог /opt/sma-service остаётся зависимостью Production: там смонтированы
+загруженные пользователями файлы, /opt/sma-service/uploads.
+Файл /opt/sma-service/backend/.env.docker больше не является источником для контейнера.
 </path_note>
 <apply>Переменные подхватываются при пересоздании контейнера. Перезапуска недостаточно.</apply>
 <forbidden>
 <f>Вписывать значение в файл.</f>
 <f>Печатать значение в выводе или отчёте.</f>
 <f>Передавать значение аргументом команды — попадёт в историю.</f>
-<f>Создавать .env в каталоге развёртывания.</f>
 </forbidden>
 </env_changes>
 

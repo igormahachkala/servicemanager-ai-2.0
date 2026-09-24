@@ -78,7 +78,7 @@ npm run prisma:generate — это dotenv -e .env -- npx prisma generate.
 ssh sma-spare 'docker compose -p sma-service -f /opt/sma-beta/docker-compose.stage.yml -f /etc/servicemanager-ai/docker-compose.stage.override.yml exec -T stage_backend npx prisma validate'
 </on>
 <on contour="production">
-ssh sma 'docker compose -p sma-service -f /opt/sma-prod/docker-compose.yml -f /etc/servicemanager-ai/docker-compose.production.override.yml -f /etc/servicemanager-ai/docker-compose.production.stable.override.yml exec -T backend npx prisma validate'
+ssh sma 'docker compose -p sma-service -f /opt/sma-prod/docker-compose.yml -f /etc/servicemanager-ai/docker-compose.production.override.yml exec -T backend npx prisma validate'
 </on>
 Это закрывает одну команду из четырёх. Сборка и тесты так не проверяются,
 и контур на время занят. Не считать эту замену равноценной.

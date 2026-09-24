@@ -41,7 +41,7 @@ case "$CONTOUR" in
   production)
     WORKDIR="/opt/sma-prod"
     SSH_HOST="sma"
-    COMPOSE_VERIFY="-f /tmp/verify-$PR/docker-compose.yml -f /etc/servicemanager-ai/docker-compose.production.override.yml -f /etc/servicemanager-ai/docker-compose.production.stable.override.yml"
+    COMPOSE_VERIFY="-f /tmp/verify-$PR/docker-compose.yml -f /etc/servicemanager-ai/docker-compose.production.override.yml"
     ;;
   *) echo "Неизвестный контур: $CONTOUR. Допустимо stage или production." >&2; usage; exit 2 ;;
 esac

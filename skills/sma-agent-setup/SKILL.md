@@ -95,7 +95,7 @@ Production — ssh sma. Stage — ssh sma-spare.
 <expect>/opt/sma-prod принадлежит deploy</expect>
 
 <v name="файлы окружения читаются пользователем deploy">
-ssh sma 'test -r /opt/sma-service/backend/.env.docker'
+ssh sma 'test -r /opt/sma-prod/.env'
 </v>
 <expect>код возврата 0</expect>
 
@@ -119,12 +119,12 @@ ssh sma 'docker inspect sma_backend --format "{{range .Config.Env}}{{println .}}
 <expect>/opt/sma-beta принадлежит deploy</expect>
 
 <v name="файлы окружения читаются пользователем deploy">
-ssh sma-spare 'test -r /etc/servicemanager-ai/stage-backend-isolated.env'
+ssh sma-spare 'test -r /opt/sma-beta/.env'
 </v>
 <expect>код возврата 0</expect>
 
 <v name="переменные дошли до контейнеров">
-ssh sma-spare 'docker inspect sma_stage_backend --format "{{range .Config.Env}}{{println .}}{{end}}"' | cut -d= -f1 | grep -c VAPID_PUBLIC_KEY
+ssh sma-spare 'docker inspect sma_stage_backend --format "{{range .Config.Env}}{{println .}}{{end}}"' | cut -d= -f1 | grep -c DATABASE_URL
 </v>
 <expect>1</expect>
 
@@ -144,13 +144,10 @@ ssh sma-spare 'docker inspect sma_stage_backend --format "{{range .Config.Env}}{
 
 Маркер выбирается так, чтобы переменная приходила только из файла.
 Установлено 2026-08-28:
-  Production — DATABASE_URL. В docker-compose.yml блок environment задаёт
-    только CORS_ALLOWED_ORIGINS, оверрайды production.override
-    и production.stable.override DATABASE_URL не задают.
-  Stage — VAPID_PUBLIC_KEY. DATABASE_URL там маркером не годится:
-    docker-compose.stage.yml задаёт его напрямую в environment, и проверка
-    вернёт единицу независимо от файла. VAPID_PUBLIC_KEY есть
-    в stage-backend-isolated.env и отсутствует и в compose, и в оверрайде.
+  Production — DATABASE_URL. В docker-compose.yml блока environment нет,
+    оверрайд DATABASE_URL не задаёт. Значение приходит из /opt/sma-prod/.env.
+  Stage — DATABASE_URL. В docker-compose.stage.yml блока environment нет,
+    оверрайд DATABASE_URL не задаёт. Значение приходит из /opt/sma-beta/.env.
 
 cut -d= -f1 отрезает значения: в вывод попадают только имена переменных.
 </why>
@@ -192,8 +189,8 @@ chown -R deploy:deploy /home/deploy/.ssh
 На Production-машине:
 
 chown deploy:deploy /opt/sma-prod
-chgrp deploy /opt/sma-service/backend/.env.docker
-chmod 640 /opt/sma-service/backend/.env.docker
+chgrp deploy /opt/sma-prod/.env
+chmod 640 /opt/sma-prod/.env
 mkdir -p /var/backups/sma
 chown deploy:deploy /var/backups/sma
 chmod 700 /var/backups/sma
@@ -201,8 +198,8 @@ chmod 700 /var/backups/sma
 На Stage-машине:
 
 chown deploy:deploy /opt/sma-beta
-chgrp deploy /etc/servicemanager-ai/stage-backend-isolated.env
-chmod 640 /etc/servicemanager-ai/stage-backend-isolated.env
+chgrp deploy /opt/sma-beta/.env
+chmod 640 /opt/sma-beta/.env
 </by_root>
 <why_700>
 В дампе базы лежат пароли пользователей, ключи push-подписок и персональные
