@@ -193,6 +193,17 @@ if has_area infra; then
   WORKTREE_CREATED=1
   echo "   создан /tmp/verify-$PR"
 
+  # env_file: .env резолвится от каталога compose-файла. Во временном дереве
+  # файла нет, значения лежат в каталоге контура. Ссылка, не копия.
+  echo "-- сервер: файл окружения контура для разбора compose"
+  if ssh "$SSH_HOST" "test -f $WORKDIR/.env && ln -sfn $WORKDIR/.env /tmp/verify-$PR/.env"; then
+    echo "   ок"
+  else
+    echo "   ОТКАЗ: нет файла окружения $WORKDIR/.env" >&2
+    FAILED="$FAILED
+файл окружения $WORKDIR/.env"
+  fi
+
   # -q оставляет только ошибки: полный вывод config печатает значения переменных
   echo "-- сервер: разбор конфигурации compose"
   if ssh "$SSH_HOST" "docker compose -p sma-service $COMPOSE_VERIFY config -q"; then

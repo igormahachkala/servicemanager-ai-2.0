@@ -60,6 +60,7 @@ docker compose config без -q печатает значения всех пе�
 Каталог /opt/sma-service остаётся зависимостью Production: там смонтированы
 загруженные пользователями файлы, /opt/sma-service/uploads.
 Файл /opt/sma-service/backend/.env.docker больше не является источником для контейнера.
+Файл /opt/sma-prod/backend/.env.docker не является каноническим источником и не должен создаваться для деплоя.
 </path_note>
 <apply>Переменные подхватываются при пересоздании контейнера. Перезапуска недостаточно.</apply>
 <forbidden>
