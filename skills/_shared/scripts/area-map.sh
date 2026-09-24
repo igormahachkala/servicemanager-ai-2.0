@@ -75,6 +75,7 @@ area_of() {
     .gitignore|.cursorignore)      echo none ;;
     child|child/*|.npm-cache/*)    echo none ;;
     docker-compose*.yml)           echo infra ;;
+    .env.example)                  echo infra ;;
     *.md)                          echo none ;;
     *)                             echo UNKNOWN ;;
   esac

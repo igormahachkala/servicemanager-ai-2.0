@@ -41,7 +41,7 @@ case "$CONTOUR" in
   production)
     WORKDIR="/opt/sma-prod"
     SSH_HOST="sma"
-    COMPOSE_VERIFY="-f /tmp/verify-$PR/docker-compose.yml -f /etc/servicemanager-ai/docker-compose.production.override.yml -f /etc/servicemanager-ai/docker-compose.production.stable.override.yml"
+    COMPOSE_VERIFY="-f /tmp/verify-$PR/docker-compose.yml -f /etc/servicemanager-ai/docker-compose.production.override.yml"
     ;;
   *) echo "Неизвестный контур: $CONTOUR. Допустимо stage или production." >&2; usage; exit 2 ;;
 esac
@@ -192,6 +192,17 @@ if has_area infra; then
     echo "   ОТКАЗ: git worktree add /tmp/verify-$PR" >&2; exit 1; }
   WORKTREE_CREATED=1
   echo "   создан /tmp/verify-$PR"
+
+  # env_file: .env резолвится от каталога compose-файла. Во временном дереве
+  # файла нет, значения лежат в каталоге контура. Ссылка, не копия.
+  echo "-- сервер: файл окружения контура для разбора compose"
+  if ssh "$SSH_HOST" "test -f $WORKDIR/.env && ln -sfn $WORKDIR/.env /tmp/verify-$PR/.env"; then
+    echo "   ок"
+  else
+    echo "   ОТКАЗ: нет файла окружения $WORKDIR/.env" >&2
+    FAILED="$FAILED
+файл окружения $WORKDIR/.env"
+  fi
 
   # -q оставляет только ошибки: полный вывод config печатает значения переменных
   echo "-- сервер: разбор конфигурации compose"
