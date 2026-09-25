@@ -1224,6 +1224,7 @@ model InspectionRunItem {
   zoneSortOrder       Int                              @default(0)
   checkpointSortOrder Int                              @default(0)
   defaultCategoryId   String?
+  defaultCategoryName String?
   responseType        InspectionCheckpointResponseType @default(NORMAL_PROBLEM)
   numericMin          Float?
   numericMax          Float?

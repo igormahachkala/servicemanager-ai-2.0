@@ -1,6 +1,8 @@
 ALTER TABLE "InspectionTemplateItem" ADD COLUMN "defaultCategoryId" TEXT;
 
-ALTER TABLE "InspectionRunItem" ADD COLUMN "defaultCategoryId" TEXT;
+ALTER TABLE "InspectionRunItem"
+ADD COLUMN "defaultCategoryId" TEXT,
+ADD COLUMN "defaultCategoryName" TEXT;
 
 CREATE INDEX "InspectionTemplateItem_defaultCategoryId_idx" ON "InspectionTemplateItem"("defaultCategoryId");
 

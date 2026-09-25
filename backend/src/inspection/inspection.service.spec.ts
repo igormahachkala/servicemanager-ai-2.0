@@ -18,7 +18,7 @@ const USER = {
   role: UserRole.ADMIN,
 }
 
-function makeService(overrides: Record<string, any> = {}, deps: { shiftPolicy?: any } = {}) {
+function makeService(overrides: Record<string, any> = {}, deps: { shiftPolicy?: any; serviceContracts?: any } = {}) {
   const prisma = {
     inspectionTemplate: {
       create: jest.fn().mockResolvedValue({ id: 'template-1' }),
@@ -33,12 +33,24 @@ function makeService(overrides: Record<string, any> = {}, deps: { shiftPolicy?: 
     },
     problemCategory: {
       findMany: jest.fn().mockResolvedValue([{ id: 'cat-1' }, { id: 'cat-2' }]),
+      findFirst: jest.fn(async ({ where }: any) => ({
+        id: where.id,
+        name: `Category ${where.id}`,
+        specializationLinks: [],
+      })),
+    },
+    technicianSpecialization: {
+      findMany: jest.fn().mockResolvedValue([]),
     },
     inspectionRun: {
       create: jest.fn().mockResolvedValue({ id: 'run-1' }),
       findFirst: jest.fn(),
       update: jest.fn(),
       findMany: jest.fn(),
+    },
+    inspectionSchedule: {
+      findFirst: jest.fn(),
+      update: jest.fn(),
     },
     location: {
       findFirst: jest.fn().mockResolvedValue({ id: 'location-1', name: 'Location 1', clientCompanyId: USER.companyId }),
@@ -53,6 +65,17 @@ function makeService(overrides: Record<string, any> = {}, deps: { shiftPolicy?: 
       findUnique: jest.fn().mockResolvedValue(null),
     },
     userLocationBinding: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    serviceContract: {
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'contract-1',
+        status: 'ACTIVE',
+        startsAt: new Date('2020-01-01T00:00:00.000Z'),
+        endsAt: null,
+        locationMode: 'ALL_LOCATIONS',
+        locations: [],
+      }),
       findMany: jest.fn().mockResolvedValue([]),
     },
     inspectionRunItem: {
@@ -74,7 +97,7 @@ function makeService(overrides: Record<string, any> = {}, deps: { shiftPolicy?: 
   }
   const timeline = { recordLegacy: jest.fn().mockResolvedValue(undefined) }
   const exporter = { exportReport: jest.fn() }
-  const serviceContracts = new ServiceContractsService({
+  const serviceContracts = deps.serviceContracts ?? new ServiceContractsService({
     serviceContract: {
       findUnique: jest.fn(),
       findMany: jest.fn().mockResolvedValue([]),
@@ -183,7 +206,7 @@ describe('InspectionService round zone/checkpoint foundation', () => {
     }))
   })
 
-  it('snapshots zone and checkpoint identity when a run starts', async () => {
+  it('snapshots zone and checkpoint identity when an unscheduled run starts', async () => {
     const { prisma, service } = makeService()
     prisma.inspectionTemplate.findFirst.mockResolvedValue({
       id: 'template-1',
@@ -218,10 +241,238 @@ describe('InspectionService round zone/checkpoint foundation', () => {
       zoneSortOrder: 1,
       checkpointSortOrder: 0,
       defaultCategoryId: 'cat-1',
+      defaultCategoryName: 'Category cat-1',
       responseType: InspectionCheckpointResponseType.YES_NO,
       status: InspectionRunItemStatus.PENDING,
       requiresRepair: false,
     }))
+  })
+
+  it('resolves a checkpoint hint against the Location CLIENT and snapshots id plus name', async () => {
+    const { prisma, service } = makeService()
+    prisma.inspectionTemplate.findFirst.mockResolvedValue({
+      id: 'template-1',
+      name: 'Round template',
+      items: [{
+        id: 'template-item-1',
+        title: 'Door',
+        description: null,
+        sortOrder: 0,
+        zoneName: 'Hall',
+        zoneSortOrder: 0,
+        checkpointSortOrder: 0,
+        defaultCategoryId: 'cat-client-v1',
+        responseType: InspectionCheckpointResponseType.NORMAL_PROBLEM,
+        numericMin: null,
+        numericMax: null,
+        numericUnit: null,
+        isRequired: true,
+      }],
+    })
+    prisma.problemCategory.findFirst.mockResolvedValue({
+      id: 'cat-client-v1',
+      name: 'Холодильное оборудование',
+      specializationLinks: [],
+    })
+
+    await service.startRun(USER, { templateId: 'template-1', locationId: 'location-1' })
+
+    expect(prisma.problemCategory.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        id: 'cat-client-v1',
+        companyId: USER.companyId,
+        isActive: true,
+      }),
+    }))
+    expect(prisma.inspectionRun.create.mock.calls[0][0].data.items.create[0]).toEqual(
+      expect.objectContaining({
+        defaultCategoryId: 'cat-client-v1',
+        defaultCategoryName: 'Холодильное оборудование',
+      }),
+    )
+  })
+
+  it.each(['foreign', 'inactive', 'deleted'])(
+    'starts the Run with a null snapshot when the checkpoint hint is %s',
+    async () => {
+      const { prisma, service } = makeService()
+      prisma.inspectionTemplate.findFirst.mockResolvedValue({
+        id: 'template-1',
+        name: 'Round template',
+        items: [{
+          id: 'template-item-1',
+          title: 'Door',
+          description: null,
+          sortOrder: 0,
+          zoneName: null,
+          zoneSortOrder: 0,
+          checkpointSortOrder: 0,
+          defaultCategoryId: 'stale-category',
+          responseType: InspectionCheckpointResponseType.NORMAL_PROBLEM,
+          numericMin: null,
+          numericMax: null,
+          numericUnit: null,
+          isRequired: true,
+        }],
+      })
+      prisma.problemCategory.findFirst.mockResolvedValue(null)
+
+      await service.startRun(USER, { templateId: 'template-1', locationId: 'location-1' })
+
+      expect(prisma.inspectionRun.create.mock.calls[0][0].data.items.create[0]).toEqual(
+        expect.objectContaining({ defaultCategoryId: null, defaultCategoryName: null }),
+      )
+    },
+  )
+
+  it('starts the Run with a null snapshot when the category is outside actor specialization scope', async () => {
+    const { prisma, service } = makeService()
+    prisma.inspectionTemplate.findFirst.mockResolvedValue({
+      id: 'template-1',
+      name: 'Round template',
+      items: [{
+        id: 'template-item-1',
+        title: 'Electrical checkpoint',
+        description: null,
+        sortOrder: 0,
+        zoneName: null,
+        zoneSortOrder: 0,
+        checkpointSortOrder: 0,
+        defaultCategoryId: 'cat-electric',
+        responseType: InspectionCheckpointResponseType.NORMAL_PROBLEM,
+        numericMin: null,
+        numericMax: null,
+        numericUnit: null,
+        isRequired: true,
+      }],
+    })
+    prisma.problemCategory.findFirst.mockResolvedValue({
+      id: 'cat-electric',
+      name: 'Электрика',
+      specializationLinks: [{
+        specializationId: 'spec-electric',
+        specialization: { name: 'Электрика' },
+      }],
+    })
+    prisma.technicianSpecialization.findMany.mockResolvedValue([{
+      specializationId: 'spec-hvac',
+      specialization: { name: 'Холодильное оборудование' },
+    }])
+
+    await service.startRun(USER, { templateId: 'template-1', locationId: 'location-1' })
+
+    expect(prisma.inspectionRun.create.mock.calls[0][0].data.items.create[0]).toEqual(
+      expect.objectContaining({ defaultCategoryId: null, defaultCategoryName: null }),
+    )
+  })
+
+  it('resolves the same provider template hint for CLIENT A and drops it for CLIENT B', async () => {
+    const provider = { id: 'provider-admin', companyId: 'provider-1', role: UserRole.ADMIN }
+    const serviceContracts = {
+      getLinkedClientAccess: jest.fn().mockResolvedValue({
+        role: 'PRIMARY',
+        effectiveLocationScope: { mode: 'tenant_wide', locationIds: [] },
+      }),
+    }
+    const { prisma, service } = makeService({}, { serviceContracts })
+    prisma.inspectionTemplate.findFirst.mockResolvedValue({
+      id: 'template-1',
+      name: 'Provider template',
+      items: [{
+        id: 'template-item-1',
+        title: 'Checkpoint',
+        description: null,
+        sortOrder: 0,
+        zoneName: null,
+        zoneSortOrder: 0,
+        checkpointSortOrder: 0,
+        defaultCategoryId: 'cat-client-a',
+        responseType: InspectionCheckpointResponseType.NORMAL_PROBLEM,
+        numericMin: null,
+        numericMax: null,
+        numericUnit: null,
+        isRequired: true,
+      }],
+    })
+    prisma.location.findFirst
+      .mockResolvedValueOnce({ id: 'location-a', name: 'A', clientCompanyId: 'client-a' })
+      .mockResolvedValueOnce({ id: 'location-b', name: 'B', clientCompanyId: 'client-b' })
+    prisma.problemCategory.findFirst.mockImplementation(async ({ where }: any) =>
+      where.companyId === 'client-a'
+        ? { id: 'cat-client-a', name: 'Category A', specializationLinks: [] }
+        : null,
+    )
+
+    await service.startRun(provider, { templateId: 'template-1', locationId: 'location-a' })
+    await service.startRun(provider, { templateId: 'template-1', locationId: 'location-b' })
+
+    expect(prisma.inspectionRun.create.mock.calls[0][0].data.items.create[0]).toEqual(
+      expect.objectContaining({ defaultCategoryId: 'cat-client-a', defaultCategoryName: 'Category A' }),
+    )
+    expect(prisma.inspectionRun.create.mock.calls[1][0].data.items.create[0]).toEqual(
+      expect.objectContaining({ defaultCategoryId: null, defaultCategoryName: null }),
+    )
+    expect(prisma.problemCategory.findFirst.mock.calls.map((call: any[]) => call[0].where.companyId))
+      .toEqual(['client-a', 'client-b'])
+  })
+
+  it('does not add a PRIMARY-only gate for SECONDARY providers', async () => {
+    const provider = { id: 'provider-admin', companyId: 'provider-1', role: UserRole.ADMIN }
+    const serviceContracts = {
+      getLinkedClientAccess: jest.fn().mockResolvedValue({
+        role: 'SECONDARY',
+        effectiveLocationScope: { mode: 'tenant_wide', locationIds: [] },
+      }),
+    }
+    const { prisma, service } = makeService({}, { serviceContracts })
+    prisma.location.findFirst.mockResolvedValue({
+      id: 'location-1',
+      name: 'Client location',
+      clientCompanyId: 'client-1',
+    })
+    prisma.inspectionTemplate.findFirst.mockResolvedValue({
+      id: 'template-1',
+      name: 'Provider template',
+      items: [{
+        id: 'template-item-1',
+        title: 'Checkpoint',
+        description: null,
+        sortOrder: 0,
+        zoneName: null,
+        zoneSortOrder: 0,
+        checkpointSortOrder: 0,
+        defaultCategoryId: null,
+        responseType: InspectionCheckpointResponseType.NORMAL_PROBLEM,
+        numericMin: null,
+        numericMax: null,
+        numericUnit: null,
+        isRequired: true,
+      }],
+    })
+
+    await service.startRun(provider, { templateId: 'template-1', locationId: 'location-1' })
+
+    expect(prisma.inspectionRun.create).toHaveBeenCalledTimes(1)
+    expect(serviceContracts.getLinkedClientAccess).toHaveBeenCalledWith('provider-1', 'client-1')
+  })
+
+  it('stores raw category hints on provider and client templates without treating template ownership as authority', async () => {
+    const { prisma, service } = makeService()
+
+    await service.createTemplate(USER, {
+      name: 'Hints',
+      items: [
+        { title: 'Client hint', defaultCategoryId: 'cat-client' },
+        { title: 'Provider hint', defaultCategoryId: 'cat-provider' },
+      ],
+    } as any)
+
+    expect(prisma.inspectionTemplate.create.mock.calls[0][0].data.items.create).toEqual([
+      expect.objectContaining({ defaultCategoryId: 'cat-client' }),
+      expect.objectContaining({ defaultCategoryId: 'cat-provider' }),
+    ])
+    expect(prisma.problemCategory.findFirst).not.toHaveBeenCalled()
+    expect(prisma.problemCategory.findMany).not.toHaveBeenCalled()
   })
 
   it('blocks round start through canonical ShiftPolicy before creating a run', async () => {
@@ -273,30 +524,6 @@ describe('InspectionService round zone/checkpoint foundation', () => {
         ],
       } as any),
     ).rejects.toBeInstanceOf(BadRequestException)
-  })
-
-  it('rejects default ticket categories outside the template company', async () => {
-    const { prisma, service } = makeService({
-      problemCategory: {
-        findMany: jest.fn().mockResolvedValue([]),
-      },
-    })
-
-    await expect(
-      service.createTemplate(USER, {
-        name: 'Foreign category template',
-        items: [{ title: 'Checkpoint', defaultCategoryId: 'foreign-cat' }],
-      } as any),
-    ).rejects.toBeInstanceOf(BadRequestException)
-
-    expect(prisma.problemCategory.findMany).toHaveBeenCalledWith({
-      where: {
-        companyId: USER.companyId,
-        id: { in: ['foreign-cat'] },
-      },
-      select: { id: true },
-    })
-    expect(prisma.inspectionTemplate.create).not.toHaveBeenCalled()
   })
 
   it('updates an existing template definition and checklist for future runs', async () => {
@@ -547,6 +774,7 @@ describe('InspectionService round zone/checkpoint foundation', () => {
       numericMin: 10,
       numericMax: 20,
       defaultCategoryId: 'cat-1',
+      defaultCategoryName: 'Category cat-1',
     }))
     expect(prisma.inspectionRunItem.update).not.toHaveBeenCalled()
     expect(newRunCreate.title).toBe('Round template V2')
@@ -561,6 +789,7 @@ describe('InspectionService round zone/checkpoint foundation', () => {
       numericMin: 1,
       numericMax: 5,
       defaultCategoryId: 'cat-2',
+      defaultCategoryName: 'Category cat-2',
     }))
     expect(prisma.inspectionTemplateItem.deleteMany).toHaveBeenCalledWith({
       where: {
@@ -573,6 +802,58 @@ describe('InspectionService round zone/checkpoint foundation', () => {
       data: expect.objectContaining({
         title: 'New temperature',
       }),
+    }))
+  })
+
+  it('keeps an existing Run snapshot after the Template hint is cleared', async () => {
+    const { prisma, service } = makeService()
+    const updatedAt = new Date('2026-01-10T12:00:00.000Z')
+    prisma.inspectionTemplate.findFirst
+      .mockResolvedValueOnce({
+        id: 'template-1',
+        name: 'Round template',
+        items: [{
+          id: 'template-item-1',
+          title: 'Checkpoint',
+          description: null,
+          sortOrder: 0,
+          zoneName: null,
+          zoneSortOrder: 0,
+          checkpointSortOrder: 0,
+          defaultCategoryId: 'cat-before-clear',
+          responseType: InspectionCheckpointResponseType.NORMAL_PROBLEM,
+          numericMin: null,
+          numericMax: null,
+          numericUnit: null,
+          isRequired: true,
+        }],
+      })
+      .mockResolvedValueOnce({
+        id: 'template-1',
+        updatedAt,
+        items: [{ id: 'template-item-1' }],
+      })
+    prisma.problemCategory.findFirst.mockResolvedValue({
+      id: 'cat-before-clear',
+      name: 'Category before clear',
+      specializationLinks: [],
+    })
+
+    await service.startRun(USER, { templateId: 'template-1', locationId: 'location-1' })
+    const snapshot = prisma.inspectionRun.create.mock.calls[0][0].data.items.create[0]
+
+    await service.updateTemplate(USER, 'template-1', {
+      name: 'Round template',
+      updatedAt: updatedAt.toISOString(),
+      items: [{ id: 'template-item-1', title: 'Checkpoint', defaultCategoryId: null }],
+    } as any)
+
+    expect(snapshot).toEqual(expect.objectContaining({
+      defaultCategoryId: 'cat-before-clear',
+      defaultCategoryName: 'Category before clear',
+    }))
+    expect(prisma.inspectionTemplateItem.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ defaultCategoryId: null }),
     }))
   })
 

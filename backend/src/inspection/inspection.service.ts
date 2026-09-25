@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import {
   InspectionCheckpointResponseType,
   InspectionReportStatus,
@@ -17,7 +17,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { IdempotencyService } from '../common/idempotency/idempotency.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { TicketsService } from '../tickets/tickets.service'
-import { assertActorCanUseLocation } from '../tickets/ticket-access.utils'
+import { assertActorCanUseLocation, assertActorCanUseProblemCategory } from '../tickets/ticket-access.utils'
 import { TimelineService } from '../timeline/timeline.service'
 import { ShiftPolicyService } from '../workforce/shift-policy.service'
 
@@ -101,7 +101,6 @@ export class InspectionService {
     const name = this.normalizeTemplateName(dto.name)
     const description = this.normalizeTemplateDescription(dto.description)
     const items = this.normalizeTemplateItems(dto.items)
-    await this.assertTemplateDefaultCategories(user.companyId, items)
 
     return this.prisma.inspectionTemplate.create({
       data: {
@@ -150,7 +149,6 @@ export class InspectionService {
       }
 
       if (items !== undefined) {
-        await this.assertTemplateDefaultCategories(user.companyId, items, tx)
         const existingItemIds = new Set(existing.items.map((item) => item.id))
         const providedItemIds = items.map((item) => item.id).filter((id): id is string => Boolean(id))
         if (new Set(providedItemIds).size !== providedItemIds.length) {
@@ -256,11 +254,11 @@ export class InspectionService {
             zoneName: true,
             zoneSortOrder: true,
             checkpointSortOrder: true,
+            defaultCategoryId: true,
             responseType: true,
             numericMin: true,
             numericMax: true,
             numericUnit: true,
-            defaultCategoryId: true,
             isRequired: true,
           },
         },
@@ -333,6 +331,11 @@ export class InspectionService {
       locationId: location.id,
       equipmentId: equipment?.id ?? null,
     })
+    const categorySnapshots = await this.resolveDefaultCategorySnapshots(
+      user,
+      locationAccess.clientCompanyId,
+      template.items,
+    )
 
     const data: Prisma.InspectionRunUncheckedCreateInput = {
       companyId: user.companyId,
@@ -361,7 +364,8 @@ export class InspectionService {
           numericMin: item.numericMin,
           numericMax: item.numericMax,
           numericUnit: item.numericUnit,
-          defaultCategoryId: item.defaultCategoryId,
+          defaultCategoryId: categorySnapshots.get(item.id)?.id ?? null,
+          defaultCategoryName: categorySnapshots.get(item.id)?.name ?? null,
           isRequired: item.isRequired,
           status: InspectionRunItemStatus.PENDING,
           requiresRepair: false,
@@ -926,6 +930,9 @@ export class InspectionService {
     dto: CreateTicketFromItemDto,
     idempotencyKey?: string | null,
   ) {
+    assertAllowed(this.policy.canCreateTicket(user))
+    const categoryId = await this.resolveTicketCategoryFromRunSnapshot(user, runId, itemId, dto.categoryId)
+
     /**
      * SMA-OFFLINE-IDEMPOTENCY-113B — 113A left this blocked, and the key is what unblocks it.
      *
@@ -940,7 +947,7 @@ export class InspectionService {
       const fingerprint = IdempotencyService.fingerprint({
         runId,
         itemId,
-        categoryId: dto.categoryId,
+        categoryId,
         title: dto.title,
         description: dto.description,
         urgency: dto.urgency,
@@ -950,7 +957,7 @@ export class InspectionService {
         fingerprint,
         {
           execute: async () => {
-            const created = await this.createTicketFromItemInternal(user, runId, itemId, dto)
+            const created = await this.createTicketFromItemInternal(user, runId, itemId, dto, categoryId)
             return { result: created, entityType: 'Ticket', entityId: created.ticket.id }
           },
           replay: async (entityId) => {
@@ -970,7 +977,28 @@ export class InspectionService {
       return outcome.result
     }
 
-    return this.createTicketFromItemInternal(user, runId, itemId, dto)
+    return this.createTicketFromItemInternal(user, runId, itemId, dto, categoryId)
+  }
+
+  private async resolveTicketCategoryFromRunSnapshot(
+    user: InspectionUserCtx,
+    runId: string,
+    itemId: string,
+    explicitCategoryId?: string,
+  ) {
+    const explicit = explicitCategoryId?.trim()
+    if (explicit) return explicit
+
+    const item = await this.prisma.inspectionRunItem.findFirst({
+      where: { id: itemId, runId, run: { companyId: user.companyId } },
+      select: { defaultCategoryId: true },
+    })
+    if (!item) throw new NotFoundException('Inspection run item not found')
+    const snapshotCategoryId = item.defaultCategoryId?.trim()
+    if (!snapshotCategoryId) {
+      throw new BadRequestException('Выберите категорию заявки')
+    }
+    return snapshotCategoryId
   }
 
   private async createTicketFromItemInternal(
@@ -978,6 +1006,7 @@ export class InspectionService {
     runId: string,
     itemId: string,
     dto: CreateTicketFromItemDto,
+    categoryId: string,
   ) {
     assertAllowed(this.policy.canCreateTicket(user))
 
@@ -997,7 +1026,7 @@ export class InspectionService {
     const created = await this.tickets.create(user.companyId, { id: user.id, role: user.role }, {
       locationId: run.locationId,
       equipmentId: run.equipmentId ?? undefined,
-      categoryId: dto.categoryId,
+      categoryId,
       title: dto.title?.trim() || item.title,
       description: dto.description?.trim() || item.comment || item.description || item.title,
       urgency:
@@ -1143,28 +1172,39 @@ export class InspectionService {
     return items
   }
 
-  private async assertTemplateDefaultCategories(
-    companyId: string,
-    items: Array<{ defaultCategoryId?: string | null }>,
-    tx: Prisma.TransactionClient | PrismaService = this.prisma,
+  private async resolveDefaultCategorySnapshots(
+    user: InspectionUserCtx,
+    clientCompanyId: string,
+    items: Array<{ id: string; defaultCategoryId?: string | null }>,
   ) {
-    const categoryIds = Array.from(
-      new Set(items.map((item) => item.defaultCategoryId?.trim()).filter((id): id is string => Boolean(id))),
-    )
-    if (categoryIds.length === 0) return
+    const resolvedByHint = new Map<string, { id: string; name: string } | null>()
 
-    const found = await tx.problemCategory.findMany({
-      where: {
-        companyId,
-        id: { in: categoryIds },
-      },
-      select: { id: true },
-    })
-    const allowed = new Set(found.map((category) => category.id))
-    const foreignCategoryId = categoryIds.find((id) => !allowed.has(id))
-    if (foreignCategoryId) {
-      throw new BadRequestException('Default category does not belong to the template company')
+    for (const item of items) {
+      const hint = item.defaultCategoryId?.trim()
+      if (!hint || resolvedByHint.has(hint)) continue
+
+      try {
+        const category = await assertActorCanUseProblemCategory({
+          prisma: this.prisma,
+          actor: user,
+          scopeCompanyId: clientCompanyId,
+          problemCategoryId: hint,
+        })
+        resolvedByHint.set(hint, { id: category.id, name: category.name })
+      } catch (error) {
+        if (!(error instanceof NotFoundException) && !(error instanceof ForbiddenException)) {
+          throw error
+        }
+        resolvedByHint.set(hint, null)
+      }
     }
+
+    return new Map(
+      items.map((item) => {
+        const hint = item.defaultCategoryId?.trim()
+        return [item.id, hint ? resolvedByHint.get(hint) ?? null : null] as const
+      }),
+    )
   }
 
   /**
@@ -1248,6 +1288,7 @@ export class InspectionService {
         templateItemId: true,
         title: true,
         description: true,
+        defaultCategoryId: true,
         responseType: true,
         numericMin: true,
         numericMax: true,
@@ -1363,6 +1404,7 @@ function runItemSelect() {
     zoneSortOrder: true,
     checkpointSortOrder: true,
     defaultCategoryId: true,
+    defaultCategoryName: true,
     responseType: true,
     numericMin: true,
     numericMax: true,

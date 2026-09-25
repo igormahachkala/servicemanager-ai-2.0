@@ -45,6 +45,16 @@ export function inspectionDefaultTicketCategoryId(
   return categories.some((category) => category.id === categoryId && category.isActive !== false) ? categoryId : ''
 }
 
+export function inspectionTicketCategoryId(
+  item: Pick<ZoneCheckpointItem, 'defaultCategoryId'>,
+  categories: Array<{ id: string; isActive?: boolean }>,
+  explicitCategoryId?: string,
+): string {
+  return explicitCategoryId === undefined
+    ? inspectionDefaultTicketCategoryId(item, categories)
+    : explicitCategoryId.trim()
+}
+
 export function groupInspectionItemsByZone<T extends ZoneCheckpointItem>(items: T[]): InspectionZoneGroup<T>[] {
   const sorted = [...items].sort(
     (a, b) =>

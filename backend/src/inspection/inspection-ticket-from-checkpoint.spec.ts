@@ -39,6 +39,7 @@ const ITEM = {
   status: InspectionRunItemStatus.ISSUE,
   requiresRepair: false,
   comment: 'Капает на пол',
+  defaultCategoryId: null as string | null,
   ticketId: null as string | null,
 }
 
@@ -50,6 +51,9 @@ function makeDeps(overrides: { run?: any; item?: any } = {}) {
     inspectionRunItem: {
       findFirst: jest.fn().mockResolvedValue('item' in overrides ? overrides.item : ITEM),
       update: jest.fn().mockResolvedValue({ ...ITEM, ticketId: 'ticket-1', requiresRepair: true }),
+    },
+    inspectionTemplate: {
+      findFirst: jest.fn(),
     },
   } as any
 
@@ -97,6 +101,74 @@ describe('InspectionService.createTicketFromItem', () => {
     expect(payload.categoryId).toBe('cat-1')
     expect(result.ticket.id).toBe('ticket-1')
   })
+
+  it('uses the run item snapshot default when no explicit category is provided', async () => {
+    const deps = makeDeps({ item: { ...ITEM, defaultCategoryId: 'cat-snapshot' } })
+    const service = makeService(deps)
+
+    await service.createTicketFromItem(technician, RUN.id, ITEM.id, {})
+
+    expect(deps.tickets.create.mock.calls[0][2].categoryId).toBe('cat-snapshot')
+  })
+
+  it('keeps an explicit category ahead of the run item snapshot default', async () => {
+    const deps = makeDeps({ item: { ...ITEM, defaultCategoryId: 'cat-snapshot' } })
+    const service = makeService(deps)
+
+    await service.createTicketFromItem(technician, RUN.id, ITEM.id, { categoryId: 'cat-explicit' })
+
+    expect(deps.tickets.create.mock.calls[0][2].categoryId).toBe('cat-explicit')
+  })
+
+  it('never reads the live Template category after the run has started', async () => {
+    const deps = makeDeps({ item: { ...ITEM, defaultCategoryId: 'cat-snapshot-v1' } })
+    deps.prisma.inspectionTemplate.findFirst.mockResolvedValue({
+      items: [{ id: ITEM.templateItemId, defaultCategoryId: 'cat-live-v2' }],
+    })
+    const service = makeService(deps)
+
+    await service.createTicketFromItem(technician, RUN.id, ITEM.id, {})
+
+    expect(deps.tickets.create.mock.calls[0][2].categoryId).toBe('cat-snapshot-v1')
+    expect(deps.prisma.inspectionTemplate.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('keeps the historical snapshot usable after the Template hint is cleared', async () => {
+    const deps = makeDeps({ item: { ...ITEM, defaultCategoryId: 'cat-snapshot-before-clear' } })
+    deps.prisma.inspectionTemplate.findFirst.mockResolvedValue({
+      items: [{ id: ITEM.templateItemId, defaultCategoryId: null }],
+    })
+    const service = makeService(deps)
+
+    await service.createTicketFromItem(technician, RUN.id, ITEM.id, {})
+
+    expect(deps.tickets.create.mock.calls[0][2].categoryId).toBe('cat-snapshot-before-clear')
+    expect(deps.prisma.inspectionTemplate.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('refuses before Ticket write when explicit and snapshot values are absent', async () => {
+    const deps = makeDeps()
+    const service = makeService(deps)
+
+    await expect(service.createTicketFromItem(technician, RUN.id, ITEM.id, {}))
+      .rejects.toThrow('Выберите категорию заявки')
+    expect(deps.tickets.create).not.toHaveBeenCalled()
+  })
+
+  it.each(['cat-deleted', 'cat-inactive']) (
+    'propagates canonical denial for stale snapshot category %s without a Round-specific resolver',
+    async (categoryId) => {
+      const deps = makeDeps({ item: { ...ITEM, defaultCategoryId: categoryId } })
+      deps.tickets.create.mockRejectedValue(new NotFoundException('Problem category not found'))
+      const service = makeService(deps)
+
+      await expect(service.createTicketFromItem(technician, RUN.id, ITEM.id, {}))
+        .rejects.toThrow('Problem category not found')
+      expect(deps.tickets.create).toHaveBeenCalledTimes(1)
+      expect(deps.tickets.create.mock.calls[0][2].categoryId).toBe(categoryId)
+      expect(deps.prisma.inspectionRunItem.update).not.toHaveBeenCalled()
+    },
+  )
 
   it('derives tenant, location and equipment from the run, never from the caller', async () => {
     const deps = makeDeps()
@@ -205,6 +277,21 @@ describe('InspectionService.createTicketFromItem', () => {
       // аналог в каталоге провайдера. Принадлежность проверяет getCategory
       // по компании-владельцу заявки.
       expect(deps.tickets.create.mock.calls[0][2].categoryId).toBe('cat-client-1')
+    })
+
+    it('passes a snapshot default through the provider actor and client-owned location context', async () => {
+      const deps = makeDeps({ item: { ...ITEM, defaultCategoryId: 'cat-client-snapshot' } })
+      const service = makeService(deps)
+
+      await service.createTicketFromItem(dispatcher, RUN.id, ITEM.id, {})
+
+      const [actorCompanyId, actor, payload] = deps.tickets.create.mock.calls[0]
+      expect(actorCompanyId).toBe(dispatcher.companyId)
+      expect(actor).toEqual({ id: dispatcher.id, role: dispatcher.role })
+      expect(payload.locationId).toBe(RUN.locationId)
+      expect(payload.categoryId).toBe('cat-client-snapshot')
+      expect(payload).not.toHaveProperty('companyId')
+      expect(payload).not.toHaveProperty('clientCompanyId')
     })
 
     it('re-checks the run location against the canonical contract before touching anything', async () => {

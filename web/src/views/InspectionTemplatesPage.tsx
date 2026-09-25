@@ -4,6 +4,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
 import { groupInspectionItemsByZone, numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
+import {
+  buildTemplatePayload,
+  emptyTemplateDraftItem,
+  templateDraftSnapshot,
+  templateToDraftItems,
+  type TemplateDraftItem,
+} from '../lib/inspectionTemplateEditor'
 
 /** Роли, у которых по канонической матрице есть LOCATIONS_MANAGE. Подсказка интерфейса: решение принимает бэкенд. */
 const MANAGER_ROLES = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR']
@@ -17,165 +24,16 @@ function fmtDate(value?: string | null) {
   }
 }
 
-type TemplateDraftItem = {
-  id?: string
-  title: string
-  description: string
-  zoneName: string
-  zoneSortOrder: string
-  checkpointSortOrder: string
-  defaultCategoryId: string
-  responseType: api.InspectionCheckpointResponseType
-  numericMin: string
-  numericMax: string
-  numericUnit: string
-  isRequired: boolean
-}
-
-const emptyDraftItem = (): TemplateDraftItem => ({
-  title: '',
-  description: '',
-  zoneName: '',
-  zoneSortOrder: '',
-  checkpointSortOrder: '',
-  defaultCategoryId: '',
-  responseType: 'NORMAL_PROBLEM',
-  numericMin: '',
-  numericMax: '',
-  numericUnit: '',
-  isRequired: true,
-})
-
-function templateToDraftItems(template: api.InspectionTemplate): TemplateDraftItem[] {
-  const items = template.items.map((item) => ({
-    id: item.id,
-    title: item.title || '',
-    description: item.description || '',
-    zoneName: item.zoneName || '',
-    zoneSortOrder: String(item.zoneSortOrder ?? 0),
-    checkpointSortOrder: String(item.checkpointSortOrder ?? item.sortOrder ?? 0),
-    defaultCategoryId: item.defaultCategoryId || '',
-    responseType: item.responseType || 'NORMAL_PROBLEM',
-    numericMin: item.numericMin === null || item.numericMin === undefined ? '' : String(item.numericMin),
-    numericMax: item.numericMax === null || item.numericMax === undefined ? '' : String(item.numericMax),
-    numericUnit: item.numericUnit || '',
-    isRequired: item.isRequired !== false,
-  }))
-  return items.length > 0 ? items : [emptyDraftItem()]
-}
-
-function draftStateSnapshot(name: string, description: string, items: TemplateDraftItem[]) {
-  return JSON.stringify({
-    name,
-    description,
-    items: items.map((item) => ({
-      id: item.id || '',
-      title: item.title,
-      description: item.description,
-      zoneName: item.zoneName,
-      zoneSortOrder: item.zoneSortOrder,
-      checkpointSortOrder: item.checkpointSortOrder,
-      defaultCategoryId: item.defaultCategoryId,
-      responseType: item.responseType,
-      numericMin: item.numericMin,
-      numericMax: item.numericMax,
-      numericUnit: item.numericUnit,
-      isRequired: item.isRequired,
-    })),
-  })
-}
-
-function draftHasContent(item: TemplateDraftItem) {
-  return Boolean(
-    item.title.trim() ||
-      item.description.trim() ||
-      item.zoneName.trim() ||
-      item.zoneSortOrder.trim() ||
-      item.checkpointSortOrder.trim() ||
-      item.defaultCategoryId.trim() ||
-      item.numericMin.trim() ||
-      item.numericMax.trim() ||
-      item.numericUnit.trim() ||
-      item.responseType !== 'NORMAL_PROBLEM' ||
-      !item.isRequired,
-  )
-}
-
-function parseOptionalNumber(value: string, label: string): number | undefined {
-  const trimmed = value.trim()
-  if (!trimmed) return undefined
-  const parsed = Number(trimmed)
-  if (!Number.isFinite(parsed)) throw new Error(`${label}: укажите число`)
-  return parsed
-}
-
-function parseOptionalInteger(value: string, label: string): number | undefined {
-  const parsed = parseOptionalNumber(value, label)
-  if (parsed === undefined) return undefined
-  if (!Number.isInteger(parsed)) throw new Error(`${label}: укажите целое число`)
-  return parsed
-}
-
-function buildTemplatePayload(
-  name: string,
-  description: string,
-  draftItems: TemplateDraftItem[],
-): api.SaveInspectionTemplateInput {
-  const items = draftItems
-    .map((item, index) => {
-      const title = item.title.trim()
-      if (!title) {
-        if (draftHasContent(item)) throw new Error(`Пункт ${index + 1}: укажите заголовок`)
-        return null
-      }
-
-      const isNumberCheckpoint = item.responseType === 'NUMBER'
-      const numericMin = isNumberCheckpoint ? parseOptionalNumber(item.numericMin, 'Минимум') : undefined
-      const numericMax = isNumberCheckpoint ? parseOptionalNumber(item.numericMax, 'Максимум') : undefined
-      if (numericMin !== undefined && numericMax !== undefined && numericMin > numericMax) {
-        throw new Error('Минимум не может быть больше максимума')
-      }
-
-      return {
-        id: item.id,
-        title,
-        description: item.description.trim() || undefined,
-        zoneName: item.zoneName.trim() || undefined,
-        zoneSortOrder: parseOptionalInteger(item.zoneSortOrder, 'Порядок зоны') ?? 0,
-        checkpointSortOrder: parseOptionalInteger(item.checkpointSortOrder, 'Порядок пункта') ?? index,
-        defaultCategoryId: item.defaultCategoryId.trim() || null,
-        responseType: item.responseType,
-        numericMin,
-        numericMax,
-        numericUnit: isNumberCheckpoint ? item.numericUnit.trim() || undefined : undefined,
-        isRequired: item.isRequired,
-        sortOrder: index,
-      }
-    })
-    .filter((item): item is NonNullable<typeof item> => Boolean(item))
-
-  if (!name.trim()) {
-    throw new Error('Название шаблона обязательно')
-  }
-  if (items.length === 0) {
-    throw new Error('Добавьте хотя бы один пункт обхода')
-  }
-
-  return {
-    name: name.trim(),
-    description: description.trim() || undefined,
-    items,
-  }
-}
-
 function TemplateItemsEditor({
   items,
   onChange,
   categories,
+  categoryContextLabel,
 }: {
   items: TemplateDraftItem[]
   onChange: (items: TemplateDraftItem[]) => void
   categories: api.ProblemCategoryListItem[]
+  categoryContextLabel: string
 }) {
   type DraftZone = {
     key: string
@@ -263,7 +121,7 @@ function TemplateItemsEditor({
     onChange(normalizeDraftOrdering([
       ...items,
       {
-        ...emptyDraftItem(),
+        ...emptyTemplateDraftItem(),
         zoneName: `Новая зона ${order + 1}`,
         zoneSortOrder: String(order),
         checkpointSortOrder: '0',
@@ -291,14 +149,14 @@ function TemplateItemsEditor({
     if (!window.confirm(`Удалить зону «${zone.name}» и все её пункты?`)) return
     const indexesToDelete = new Set(zone.entries.map((entry) => entry.index))
     const next = items.filter((_, index) => !indexesToDelete.has(index))
-    onChange(next.length > 0 ? normalizeDraftOrdering(next) : [emptyDraftItem()])
+    onChange(next.length > 0 ? normalizeDraftOrdering(next) : [emptyTemplateDraftItem()])
   }
 
   function addCheckpoint(zone: DraftZone) {
     onChange(normalizeDraftOrdering([
       ...items,
       {
-        ...emptyDraftItem(),
+        ...emptyTemplateDraftItem(),
         zoneName: zone.name === 'Без зоны' ? '' : zone.name,
         zoneSortOrder: String(zone.order),
         checkpointSortOrder: String(zone.entries.length),
@@ -309,7 +167,7 @@ function TemplateItemsEditor({
   function deleteCheckpoint(index: number) {
     if (!window.confirm('Удалить пункт из шаблона?')) return
     const next = items.filter((_, itemIndex) => itemIndex !== index)
-    onChange(next.length > 0 ? normalizeDraftOrdering(next) : [emptyDraftItem()])
+    onChange(next.length > 0 ? normalizeDraftOrdering(next) : [emptyTemplateDraftItem()])
   }
 
   function moveCheckpoint(zone: DraftZone, entryIndex: number, direction: -1 | 1) {
@@ -451,7 +309,7 @@ function TemplateItemsEditor({
                         >
                           <option value="">Без категории</option>
                           {missingSelectedCategory ? (
-                            <option value={item.defaultCategoryId}>Недоступная категория</option>
+                            <option value={item.defaultCategoryId}>Сохранённая подсказка недоступна</option>
                           ) : null}
                           {categories.map((category) => (
                             <option key={category.id} value={category.id}>
@@ -460,6 +318,9 @@ function TemplateItemsEditor({
                             </option>
                           ))}
                         </select>
+                        <div className="muted small">
+                          Подсказка для контура: {categoryContextLabel}. При запуске доступ проверит сервер.
+                        </div>
                       </label>
 
                       <label className="small" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -504,16 +365,15 @@ export function InspectionTemplatesPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [templateName, setTemplateName] = useState('')
   const [templateDescription, setTemplateDescription] = useState('')
-  const [draftItems, setDraftItems] = useState<TemplateDraftItem[]>([emptyDraftItem(), emptyDraftItem()])
+  const [draftItems, setDraftItems] = useState<TemplateDraftItem[]>([emptyTemplateDraftItem(), emptyTemplateDraftItem()])
   const [editOpen, setEditOpen] = useState(false)
   const [editName, setEditName] = useState('')
   const [editDescription, setEditDescription] = useState('')
-  const [editItems, setEditItems] = useState<TemplateDraftItem[]>([emptyDraftItem()])
+  const [editItems, setEditItems] = useState<TemplateDraftItem[]>([emptyTemplateDraftItem()])
   const [editBaseline, setEditBaseline] = useState('')
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const templatesQ = useQuery({ queryKey: ['inspection-templates'], queryFn: api.getInspectionTemplates })
-  const templateCategoriesQ = useQuery({ queryKey: ['problem-categories', 'inspection-template-defaults'], queryFn: () => api.problemCategories() })
   const runsQ = useQuery({ queryKey: ['inspection-runs'], queryFn: () => api.getInspectionRuns() })
   /**
    * SMA-ROUNDS-V1-PROVIDER-CLIENT-LOCATION-SELECTOR-103B.
@@ -562,6 +422,11 @@ export function InspectionTemplatesPage() {
     queryFn: () => api.equipmentByLocation(locationId),
     enabled: !!locationId,
   })
+  const templateCategoriesQ = useQuery({
+    queryKey: ['problem-categories', 'inspection-template-hints', scopeCompanyId],
+    queryFn: () => api.problemCategories(scopeCompanyId || undefined),
+    enabled: !isProviderScope || !!scopeCompanyId,
+  })
 
   useEffect(() => {
     // Смена клиента обнуляет выбор: площадка и оборудование принадлежат прежнему контуру.
@@ -583,7 +448,9 @@ export function InspectionTemplatesPage() {
     () => (templateCategoriesQ.data || []).slice().sort((a, b) => a.name.localeCompare(b.name, 'ru')),
     [templateCategoriesQ.data],
   )
-
+  const categoryContextLabel = isProviderScope
+    ? linkedClients.find((client) => client.clientCompany.id === scopeCompanyId)?.clientCompany.name || 'клиент не выбран'
+    : 'своя компания'
   const selectedTemplate = useMemo(
     () => activeTemplates.find((item) => item.id === selectedTemplateId) || null,
     [activeTemplates, selectedTemplateId],
@@ -593,7 +460,7 @@ export function InspectionTemplatesPage() {
     [selectedTemplate],
   )
   const editDirty = useMemo(
-    () => editOpen && draftStateSnapshot(editName, editDescription, editItems) !== editBaseline,
+    () => editOpen && templateDraftSnapshot(editName, editDescription, editItems) !== editBaseline,
     [editBaseline, editDescription, editItems, editName, editOpen],
   )
 
@@ -633,7 +500,7 @@ export function InspectionTemplatesPage() {
       setCreateOpen(false)
       setTemplateName('')
       setTemplateDescription('')
-      setDraftItems([emptyDraftItem(), emptyDraftItem()])
+      setDraftItems([emptyTemplateDraftItem(), emptyTemplateDraftItem()])
       await queryClient.invalidateQueries({ queryKey: ['inspection-templates'] })
       setSelectedTemplateId(template.id)
     },
@@ -700,7 +567,7 @@ export function InspectionTemplatesPage() {
     setEditName(selectedTemplate.name || '')
     setEditDescription(selectedTemplate.description || '')
     setEditItems(items)
-    setEditBaseline(draftStateSnapshot(selectedTemplate.name || '', selectedTemplate.description || '', items))
+    setEditBaseline(templateDraftSnapshot(selectedTemplate.name || '', selectedTemplate.description || '', items))
     setEditOpen(true)
   }
 
@@ -781,6 +648,7 @@ export function InspectionTemplatesPage() {
               items={draftItems}
               onChange={setDraftItems}
               categories={templateCategories}
+              categoryContextLabel={categoryContextLabel}
             />
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -794,7 +662,7 @@ export function InspectionTemplatesPage() {
                   setCreateOpen(false)
                   setTemplateName('')
                   setTemplateDescription('')
-                  setDraftItems([emptyDraftItem(), emptyDraftItem()])
+                  setDraftItems([emptyTemplateDraftItem(), emptyTemplateDraftItem()])
                 }}
               >
                 Отмена
@@ -829,6 +697,7 @@ export function InspectionTemplatesPage() {
               items={editItems}
               onChange={setEditItems}
               categories={templateCategories}
+              categoryContextLabel={categoryContextLabel}
             />
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

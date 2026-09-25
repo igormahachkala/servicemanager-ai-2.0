@@ -3536,6 +3536,7 @@ export type InspectionRunItem = {
   zoneSortOrder: number
   checkpointSortOrder: number
   defaultCategoryId?: string | null
+  defaultCategoryName?: string | null
   responseType: InspectionCheckpointResponseType
   numericMin?: number | null
   numericMax?: number | null

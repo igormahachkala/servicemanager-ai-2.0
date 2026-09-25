@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
-import { inspectionDefaultTicketCategoryId, numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
+import { inspectionTicketCategoryId, numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
 import { mobilePath } from './mobileRoute'
 import { queueOffline, useOfflineStatus } from './offline/useOffline'
@@ -323,7 +323,7 @@ export function MobileInspectionRunPage() {
       flash('err', 'Нет активной категории для создания заявки')
       return
     }
-    const categoryId = (ticketCategoryIds[item.id] ?? inspectionDefaultTicketCategoryId(item, activeCategories)).trim()
+    const categoryId = inspectionTicketCategoryId(item, activeCategories, ticketCategoryIds[item.id])
     if (!categoryId) {
       flash('err', 'Выберите категорию заявки')
       return
@@ -869,8 +869,11 @@ export function MobileInspectionRunPage() {
                     {canCreateTicket ? (
                       <div className="mobilePatrolItemActions" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
                         {(() => {
-                          const selectedTicketCategoryId =
-                            ticketCategoryIds[item.id] ?? inspectionDefaultTicketCategoryId(item, activeCategories)
+                          const selectedTicketCategoryId = inspectionTicketCategoryId(
+                            item,
+                            activeCategories,
+                            ticketCategoryIds[item.id],
+                          )
                           return (
                             <>
                         <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#374151' }}>
@@ -888,6 +891,11 @@ export function MobileInspectionRunPage() {
                               <option key={category.id} value={category.id}>{category.name}</option>
                             ))}
                           </select>
+                          {item.defaultCategoryName && !activeCategories.some((category) => category.id === item.defaultCategoryId) ? (
+                            <span className="muted" style={{ display: 'block', marginTop: 4 }}>
+                              При запуске была выбрана категория «{item.defaultCategoryName}», сейчас она недоступна.
+                            </span>
+                          ) : null}
                         </label>
                         <button
                           type="button"

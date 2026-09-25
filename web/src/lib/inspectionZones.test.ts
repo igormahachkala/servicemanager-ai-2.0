@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { groupInspectionItemsByZone, inspectionDefaultTicketCategoryId } from './inspectionZones'
+import {
+  groupInspectionItemsByZone,
+  inspectionDefaultTicketCategoryId,
+  inspectionTicketCategoryId,
+} from './inspectionZones'
 
 describe('inspection zone helpers', () => {
   it('groups checkpoints by ordered zone and checkpoint order', () => {
@@ -24,5 +28,17 @@ describe('inspection zone helpers', () => {
     expect(inspectionDefaultTicketCategoryId({ defaultCategoryId: 'cat-disabled' }, categories)).toBe('')
     expect(inspectionDefaultTicketCategoryId({ defaultCategoryId: 'missing-cat' }, categories)).toBe('')
     expect(inspectionDefaultTicketCategoryId({ defaultCategoryId: null }, categories)).toBe('')
+  })
+
+  it('preserves an explicit category change or clear instead of reapplying the default', () => {
+    const item = { defaultCategoryId: 'cat-default' }
+    const categories = [
+      { id: 'cat-default', isActive: true },
+      { id: 'cat-explicit', isActive: true },
+    ]
+
+    expect(inspectionTicketCategoryId(item, categories)).toBe('cat-default')
+    expect(inspectionTicketCategoryId(item, categories, 'cat-explicit')).toBe('cat-explicit')
+    expect(inspectionTicketCategoryId(item, categories, '')).toBe('')
   })
 })
