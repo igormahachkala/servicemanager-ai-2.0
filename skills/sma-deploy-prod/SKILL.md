@@ -14,7 +14,6 @@ sma-deploy-stage, подтверждением служит тег stage-ok.
 <project>sma-service</project>
 <compose_file>/opt/sma-prod/docker-compose.yml</compose_file>
 <compose_file>/etc/servicemanager-ai/docker-compose.production.override.yml</compose_file>
-<compose_file>/etc/servicemanager-ai/docker-compose.production.stable.override.yml</compose_file>
 <service area="backend">backend</service>
 <service area="frontend">web</service>
 <never_touch>postgres</never_touch>
@@ -524,7 +523,7 @@ Fetch, checkout и pull ниже выполняются отдельными в�
 </why_prune_tags>
 
 <rebuild if="область содержит backend или frontend, либо флаг needs_rebuild">
-ssh sma 'cd /opt/sma-prod &amp;&amp; RELEASE_SHA=$(git rev-parse HEAD) &amp;&amp; SMA_RELEASE_ENFORCE=true SMA_RELEASE_COMMIT_SHA="$RELEASE_SHA" SMA_RELEASE_ENVIRONMENT=prod docker compose -p sma-service -f /opt/sma-prod/docker-compose.yml -f /etc/servicemanager-ai/docker-compose.production.override.yml -f /etc/servicemanager-ai/docker-compose.production.stable.override.yml build --build-arg SMA_RELEASE_ENFORCE=true --build-arg SMA_RELEASE_COMMIT_SHA="$RELEASE_SHA" --build-arg SMA_RELEASE_ENVIRONMENT=prod &lt;сервисы по области&gt;'
+ssh sma 'cd /opt/sma-prod &amp;&amp; RELEASE_SHA=$(git rev-parse HEAD) &amp;&amp; SMA_RELEASE_ENFORCE=true SMA_RELEASE_COMMIT_SHA="$RELEASE_SHA" SMA_RELEASE_ENVIRONMENT=prod docker compose -p sma-service -f /opt/sma-prod/docker-compose.yml -f /etc/servicemanager-ai/docker-compose.production.override.yml build --build-arg SMA_RELEASE_ENFORCE=true --build-arg SMA_RELEASE_COMMIT_SHA="$RELEASE_SHA" --build-arg SMA_RELEASE_ENVIRONMENT=prod &lt;сервисы по области&gt;'
 </rebuild>
 <rebuild if="область только infra">не требуется, образы не затронуты</rebuild>
 
@@ -538,7 +537,7 @@ ssh sma 'cd /opt/sma-prod &amp;&amp; RELEASE_SHA=$(git rev-parse HEAD) &amp;&amp
 Не «наводить порядок», подставляя сюда сервисы по области.
 </service_map_scope>
 <always>
-ssh sma 'docker compose -p sma-service -f /opt/sma-prod/docker-compose.yml -f /etc/servicemanager-ai/docker-compose.production.override.yml -f /etc/servicemanager-ai/docker-compose.production.stable.override.yml up -d --no-deps backend web'
+ssh sma 'docker compose -p sma-service -f /opt/sma-prod/docker-compose.yml -f /etc/servicemanager-ai/docker-compose.production.override.yml up -d --no-deps backend web'
 </always>
 <constraint>--no-deps обязателен: postgres не пересоздавать.</constraint>
 <fact>
@@ -605,7 +604,7 @@ ssh sma 'docker logs sma_backend 2&gt;&amp;1 | grep -icE "error|exception"'
 </case>
 </must>
 <must name="миграции применены" if="has_migration">
-ssh sma 'docker compose -p sma-service -f /opt/sma-prod/docker-compose.yml -f /etc/servicemanager-ai/docker-compose.production.override.yml -f /etc/servicemanager-ai/docker-compose.production.stable.override.yml exec -T backend npx prisma migrate status'
+ssh sma 'docker compose -p sma-service -f /opt/sma-prod/docker-compose.yml -f /etc/servicemanager-ai/docker-compose.production.override.yml exec -T backend npx prisma migrate status'
 → Database schema is up to date
 </must>
 <conditional name="перезапуск контейнеров">
