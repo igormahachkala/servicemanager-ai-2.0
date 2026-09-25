@@ -38,3 +38,29 @@
 - Снимать `stage-busy` при живом слиянии фичи в `beta`.
 - Считать новую ветку от `prod` тем же слиянием, что уже ревёртнули: это
   другой набор коммитов. Unrevert нужен, когда возвращают **ту же** ветку.
+
+---
+
+## ENV-01 — старые файлы окружения Stage
+
+Записано 24 сентября 2026, после `fix/secrets`. Живые compose эти файлы не читают. Удаление работу не чинит.
+
+На Stage-машине удалить `/etc/servicemanager-ai/stage-backend-isolated.env`.
+
+На Production-машине удалить stage-оверрайды в `/etc/servicemanager-ai/`, которые ещё ссылаются на этот файл. На 24 сентября 2026 это
+
+1. `docker-compose.stage.override.yml`
+2. `docker-compose.stage.mobile-resilience-r2.override.yml`
+3. `docker-compose.stage.release-a.override.yml`
+
+Контейнеры `sma_stage_postgres`, `sma_stage_backend` и `sma_stage_web` на Production-машине в состоянии `exited`.
+
+Делает человек с `sudo`. Перед удалением снять копию.
+
+---
+
+## ENV-02 — env_file у postgres при пересоздании
+
+Записано 24 сентября 2026, после `fix/secrets`. `sma_stage_postgres` и `sma_postgres` не пересоздавались. Новый `env_file` у них не применён. База работает. Пароль в томе тот же, что в `.env` контура.
+
+Пересоздать вместе с ближайшей задачей, которая и так пересоздаёт контейнер базы. Том не удалять. Команда с `-v` сотрёт данные.
