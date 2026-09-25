@@ -43,6 +43,7 @@ type Suite = {
 function makeSuite(opts: {
   existingUsers?: Array<{ id: string; companyId: string; isActive?: boolean; deleted?: boolean }>
   eligible?: string[]
+  eligibleByLocation?: Record<string, string[]>
   schedule?: { assignedToUserId?: string | null; locationId?: string }
 } = {}): Suite {
   const existing = opts.existingUsers ?? [{ id: tech.id, companyId: PROVIDER }]
@@ -89,9 +90,17 @@ function makeSuite(opts: {
   } as any
 
   const assignment = {
-    listLocationAssignableExecutors: jest.fn(async () =>
-      eligible.map((id) => ({ id, email: `${id}@x`, firstName: 'И', lastName: 'П', role: UserRole.TECHNICIAN, activeLoad: 0 })),
-    ),
+    listLocationAssignableExecutors: jest.fn(async ({ locationId }: any) => {
+      const eligibleForLocation = opts.eligibleByLocation?.[locationId] ?? eligible
+      return eligibleForLocation.map((id) => ({
+        id,
+        email: `${id}@x`,
+        firstName: 'И',
+        lastName: 'П',
+        role: UserRole.TECHNICIAN,
+        activeLoad: 0,
+      }))
+    }),
   }
 
   const svc: any = new InspectionScheduleService(prisma, serviceContracts, assignment as any)
@@ -160,13 +169,15 @@ describe('039 отрицательные: сохранение закрывае�
     await expect(svc.create(admin, createDto('u-staff'))).rejects.toBeInstanceOf(BadRequestException)
   })
 
-  it('нет привязки к точке, нет договора, не та специализация — один и тот же отказ', async () => {
+  it('нет привязки к точке или нет договора — один и тот же отказ; specialization остаётся за resolver', async () => {
     /*
-     * Все три причины считаются внутри канонического резолвера: он просто
-     * не возвращает такого человека. Сохранению не нужно их различать,
-     * и заводить здесь три отдельные проверки значило бы развести правила.
+     * Contract + Location eligibility обязательны для Round assignee.
+     * Specialization применяет канонический resolver только тогда, когда
+     * caller передаёт реальные requiredSpecializations. У Round Schedule
+     * без category requirements этот список пуст, поэтому сохранение не
+     * дублирует и не выдумывает отдельное specialization-правило.
      */
-    for (const reason of ['без привязки', 'без договора', 'другая специализация']) {
+    for (const reason of ['без привязки', 'без договора']) {
       const { svc } = makeSuite({ eligible: [] })
       await expect(svc.create(admin, createDto(tech.id))).rejects.toThrow(
         /not eligible to execute rounds at this location/,
@@ -200,6 +211,30 @@ describe('039 отрицательные: сохранение закрывае�
     expect(assignment.listLocationAssignableExecutors).toHaveBeenCalledWith(
       expect.objectContaining({ locationId: LOC_B.id, scopeCompanyId: CLIENT }),
     )
+  })
+
+  it('смена точки и нового исполнителя проверяет исполнителя по новой точке до записи', async () => {
+    /*
+     * Тот же update меняет точку A -> B и явно назначает исполнителя.
+     * Исполнитель подходит на старой точке A, но не подходит на новой B:
+     * сохранение обязано проверять B, иначе запрос ошибочно пройдёт.
+     */
+    const { svc, assignment, prisma } = makeSuite({
+      schedule: { assignedToUserId: null, locationId: LOC_A.id },
+      eligibleByLocation: {
+        [LOC_A.id]: [tech.id],
+        [LOC_B.id]: [],
+      },
+    })
+
+    await expect(
+      svc.update(admin, 'sch-1', { locationId: LOC_B.id, assignedToUserId: tech.id } as any),
+    ).rejects.toBeInstanceOf(BadRequestException)
+
+    expect(assignment.listLocationAssignableExecutors).toHaveBeenCalledWith(
+      expect.objectContaining({ locationId: LOC_B.id, scopeCompanyId: CLIENT }),
+    )
+    expect(prisma.inspectionSchedule.update).not.toHaveBeenCalled()
   })
 
   it('отказ наступает до записи: испорченного плана не остаётся', async () => {
@@ -248,6 +283,30 @@ describe('039 положительные: пригодный исполните�
     })
     await svc.update(admin, 'sch-1', { locationId: LOC_B.id } as any)
     expect(prisma.inspectionSchedule.update).toHaveBeenCalledTimes(1)
+  })
+
+  it('смена точки и нового исполнителя проходит, если исполнитель подходит на новой точке', async () => {
+    const { svc, assignment, prisma } = makeSuite({
+      schedule: { assignedToUserId: null, locationId: LOC_A.id },
+      eligibleByLocation: {
+        [LOC_A.id]: [],
+        [LOC_B.id]: [tech.id],
+      },
+    })
+
+    await svc.update(admin, 'sch-1', { locationId: LOC_B.id, assignedToUserId: tech.id } as any)
+
+    expect(assignment.listLocationAssignableExecutors).toHaveBeenCalledWith(
+      expect.objectContaining({ locationId: LOC_B.id, scopeCompanyId: CLIENT }),
+    )
+    expect(prisma.inspectionSchedule.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          location: { connect: { id: LOC_B.id } },
+          assignedTo: { connect: { id: tech.id } },
+        }),
+      }),
+    )
   })
 })
 
