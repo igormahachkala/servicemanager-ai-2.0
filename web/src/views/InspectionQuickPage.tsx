@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
-import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
+import { inspectionDefaultTicketCategoryId, numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024
 
@@ -102,7 +102,7 @@ export function InspectionQuickPage() {
     setSuccess(null)
     setIssueModal({
       itemId: item.id,
-      categoryId: activeCategories[0]?.id || '',
+      categoryId: inspectionDefaultTicketCategoryId(item, activeCategories),
       comment: item.comment || '',
       photo: null,
     })

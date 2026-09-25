@@ -452,6 +452,7 @@ export async function assertActorCanUseProblemCategory(params: {
     },
     select: {
       id: true,
+      name: true,
       specializationLinks: {
         select: {
           specializationId: true,
