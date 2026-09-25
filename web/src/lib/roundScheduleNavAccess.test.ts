@@ -90,7 +90,14 @@ describe('025 план обходов доступен из меню', () => {
 
   it('7. мобильный «Сегодня» сужает план сервером, а не параметром', () => {
     const today = read('../mobile/MobileInspectionTodayPage.tsx')
-    expect(today).toMatch(/getInspectionSchedules\(\{ from: window\.from, to: window\.to, active: true \}\)/)
+    /*
+     * 029 заменило клиентское окно from/to признаком dueToday: границу суток
+     * считает сервер в поясе компании, одинаково для /m и MAX. Намерение теста
+     * от этого не изменилось, а усилилось — сузить по-прежнему обязан сервер,
+     * и теперь клиент не передаёт даже границы дня.
+     */
+    expect(today).toMatch(/getInspectionSchedules\(\{ dueToday: true, active: true \}\)/)
+    expect(today).not.toMatch(/window\.from/)
     // Клиент намеренно не передаёт assignedToUserId: сузить обязан сервер,
     // иначе параметр стал бы способом увидеть чужой план.
     expect(today).not.toMatch(/assignedToUserId:/)
