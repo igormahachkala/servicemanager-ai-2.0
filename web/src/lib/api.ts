@@ -4361,6 +4361,30 @@ export async function getInspectionSchedules(
   return request<InspectionSchedule[]>('/inspection/schedules' + suffix)
 }
 
+/**
+ * SMA-ROUND-TECHNICIAN-ASSIGNMENT-025.
+ *
+ * Кандидаты на назначение обхода в точке. Список строит сервер тем же
+ * резолвером, которым назначаются заявки: договор, привязки к точке и правило
+ * исполнителя. Клиент правил доступа не повторяет и ничего не решает сам —
+ * сохранение всё равно проверяет кандидата заново.
+ */
+export type AssignableRoundTechnician = {
+  id: string
+  email: string
+  firstName?: string | null
+  lastName?: string | null
+  role: Role
+  activeLoad: number
+}
+
+export async function getAssignableRoundTechnicians(
+  locationId: string,
+): Promise<AssignableRoundTechnician[]> {
+  const qs = new URLSearchParams({ locationId })
+  return request<AssignableRoundTechnician[]>('/inspection/schedules/assignable-technicians?' + qs.toString())
+}
+
 export async function getInspectionSchedule(id: string): Promise<InspectionSchedule> {
   return request<InspectionSchedule>('/inspection/schedules/' + id)
 }

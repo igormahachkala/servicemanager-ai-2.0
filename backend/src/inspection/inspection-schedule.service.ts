@@ -7,6 +7,7 @@ import { InspectionPolicy, type InspectionUserCtx } from '../policy/inspection.p
 import { PrismaService } from '../prisma/prisma.service'
 import { endOfZonedDay } from '../common/zoned-time.utils'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
+import { TicketsAssignmentService } from '../tickets/tickets.assignment.service'
 
 import { CreateScheduleDto } from './dto/create-schedule.dto'
 import { ListSchedulesDto } from './dto/list-schedules.dto'
@@ -38,6 +39,11 @@ export class InspectionScheduleService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly serviceContracts: ServiceContractsService,
+    /**
+     * 025: кандидаты на назначение берутся тем же резолвером, что и у заявок.
+     * Своего отбора исполнителей планирование не заводит.
+     */
+    private readonly assignment: TicketsAssignmentService,
   ) {}
 
   // ── read ───────────────────────────────────────────────────────────────────
@@ -80,6 +86,47 @@ export class InspectionScheduleService {
     return visible.map(withLastRun)
   }
 
+  /**
+   * SMA-ROUND-TECHNICIAN-ASSIGNMENT-025.
+   *
+   * Кто может выполнить обход в этой точке.
+   *
+   * До 025 выбор техника в плане предлагал всех активных сотрудников, а
+   * непригодность выяснялась только при сохранении: список кандидатов и
+   * правило назначения жили в разных местах. Теперь список строит тот же
+   * канонический резолвер, которым назначаются заявки, и сверху остаётся
+   * ровно то же правило исполнителя, что применяет resolveAssigneeId.
+   *
+   * Отбор здесь ничего не разрешает: сохранение по-прежнему проверяет
+   * кандидата заново, поэтому подставленный чужой идентификатор отклоняется
+   * независимо от того, что показал интерфейс.
+   */
+  async listAssignableTechnicians(user: InspectionUserCtx, locationId: string) {
+    assertAllowed(this.policy.canManageSchedule(user))
+    if (!locationId) throw new BadRequestException('locationId is required')
+
+    const location = await this.requireAccessibleLocation(user, locationId)
+
+    const candidates = await this.assignment.listLocationAssignableExecutors({
+      // Планирует компания исполнителя: обход своей точки ведёт её же сотрудник.
+      employerCompanyId: user.companyId,
+      // Площадка принадлежит компании-владельцу, а не исполнителю.
+      scopeCompanyId: location.clientCompanyId,
+      locationId: location.id,
+    })
+
+    return candidates
+      .filter((candidate) => isExecutorEligible({ role: candidate.role, isExecutor: true }))
+      .map((candidate) => ({
+        id: candidate.id,
+        email: candidate.email,
+        firstName: candidate.firstName,
+        lastName: candidate.lastName,
+        role: candidate.role,
+        activeLoad: candidate.activeLoad,
+      }))
+  }
+
   async get(user: InspectionUserCtx, scheduleId: string) {
     assertAllowed(this.policy.canViewSchedules(user))
 
@@ -105,7 +152,7 @@ export class InspectionScheduleService {
     const template = await this.requireOwnedTemplate(user, dto.templateId)
     const location = await this.requireAccessibleLocation(user, dto.locationId)
     const equipmentId = await this.resolveEquipmentId(dto.equipmentId, location)
-    const assignedToUserId = await this.resolveAssigneeId(user, dto.assignedToUserId)
+    const assignedToUserId = await this.resolveAssigneeId(user, dto.assignedToUserId, location)
 
     const startDate = this.parseStartDate(dto.startDate)
     const intervalDays = this.resolveIntervalDays(dto.frequency, dto.intervalDays)
@@ -170,8 +217,24 @@ export class InspectionScheduleService {
     }
 
     if (dto.assignedToUserId !== undefined) {
-      const assignedToUserId = await this.resolveAssigneeId(user, dto.assignedToUserId ?? undefined)
+      // Пригодность считается для действующей точки: если её меняют этим же
+      // запросом, проверять надо по новой, а не по прежней.
+      const assignedToUserId = await this.resolveAssigneeId(user, dto.assignedToUserId ?? undefined, location)
       data.assignedTo = assignedToUserId ? { connect: { id: assignedToUserId } } : { disconnect: true }
+    } else if (dto.locationId !== undefined && current.assignedToUserId) {
+      /**
+       * 039: точку сменили, а исполнителя не назвали.
+       *
+       * Прежний исполнитель мог потерять право работать на новой точке:
+       * у него может не быть привязки к ней, а у его компании — договора.
+       * Оставить такого назначенным нельзя, поэтому запрос отклоняется.
+       *
+       * Именно отклоняется, а не «молча снимается»: снятие назначения —
+       * решение человека, и подменять его тихой правкой нельзя. Планирующий
+       * увидит отказ и либо назовёт подходящего исполнителя, либо снимет
+       * назначение явно, передав assignedToUserId: null.
+       */
+      await this.resolveAssigneeId(user, current.assignedToUserId, location)
     }
 
     if (dto.name !== undefined) {
@@ -292,26 +355,56 @@ export class InspectionScheduleService {
     return equipment.id
   }
 
+  /**
+   * SMA-ROUND-ASSIGNEE-SAVE-ELIGIBILITY-HARDENING-039.
+   *
+   * Кого можно назначить на обход в этой точке.
+   *
+   * До 039 сохранение проверяло меньше, чем показывал выбор: компанию,
+   * активность и правило исполнителя — но не привязку к точке и не договор.
+   * Список сужал сильнее, чем валидировала запись, и подставленный
+   * идентификатор своего же сотрудника без привязки к точке сохранялся.
+   * Интерфейс границей доступа не является, поэтому закрыто на сервере.
+   *
+   * Пригодность решает тот же канонический резолвер, которым отбираются
+   * исполнители для заявок и который наполняет выбор кандидатов. Второго
+   * набора правил здесь не появляется: договор, привязки к точке и
+   * специализации считаются там, где считались всегда, а здесь проверяется
+   * только принадлежность названного человека этому набору.
+   *
+   * Существование и владение проверяются отдельным запросом ради понятного
+   * 404: «нет такого сотрудника» и «сотрудник не может работать на этой
+   * точке» — разные ответы для человека, который планирует.
+   */
   private async resolveAssigneeId(
     user: InspectionUserCtx,
     assignedToUserId: string | undefined,
+    location: { id: string; clientCompanyId: string },
   ): Promise<string | null> {
     if (!assignedToUserId) return null
 
-    const candidate = await this.prisma.user.findFirst({
-      // Same company as the manager: a provider plans work for its own people. A technician of
-      // another provider is not a candidate even when both service the same client.
+    const exists = await this.prisma.user.findFirst({
+      // Та же компания, что у планирующего: провайдер планирует работу своим
+      // людям. Техник другого провайдера кандидатом не является, даже если
+      // оба обслуживают одного клиента.
       where: { id: assignedToUserId, companyId: user.companyId, isActive: true, deletedAt: null },
-      select: { id: true, role: true, isExecutor: true },
+      select: { id: true },
     })
-    if (!candidate) throw new NotFoundException('Assignee not found')
+    if (!exists) throw new NotFoundException('Assignee not found')
 
-    // Canonical executor rule, shared with ticket claiming and the assignment engine.
-    if (!isExecutorEligible({ role: candidate.role, isExecutor: candidate.isExecutor })) {
-      throw new BadRequestException('Assignee is not eligible to execute rounds')
+    const eligible = await this.assignment.listLocationAssignableExecutors({
+      employerCompanyId: user.companyId,
+      scopeCompanyId: location.clientCompanyId,
+      locationId: location.id,
+    })
+
+    if (!eligible.some((candidate) => candidate.id === assignedToUserId)) {
+      throw new BadRequestException(
+        'Assignee is not eligible to execute rounds at this location',
+      )
     }
 
-    return candidate.id
+    return assignedToUserId
   }
 
   private parseStartDate(value: string) {
@@ -366,6 +459,8 @@ export class InspectionScheduleService {
         frequency: true,
         intervalDays: true,
         lastGeneratedAt: true,
+        // 039: нужен, чтобы при смене точки перепроверить уже назначенного.
+        assignedToUserId: true,
         location: { select: { id: true, clientCompanyId: true } },
         _count: { select: { runs: true } },
       },

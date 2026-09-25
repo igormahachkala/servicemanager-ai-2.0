@@ -71,6 +71,7 @@ function isActivePath(currentPath: string, targetPath: string) {
   if (targetPath === '/locations') return currentPath.startsWith('/locations')
   if (targetPath === '/employees') return currentPath.startsWith('/employees')
   if (targetPath === '/workforce') return currentPath.startsWith('/workforce')
+  if (targetPath === '/inspection/schedules') return currentPath.startsWith('/inspection/schedules')
   if (targetPath === '/inspection/runs') return currentPath.startsWith('/inspection/runs')
   if (targetPath === '/inspection/templates') return currentPath.startsWith('/inspection/templates')
   if (targetPath === '/map') return currentPath.startsWith('/map')
@@ -118,7 +119,16 @@ function isNavItemVisible(item: NavItem, role?: api.Role, canAccessEngineeringAg
     return fullAdmin
   }
 
-  if (item.to === '/inspection/templates') {
+  /*
+   * SMA-ROUND-TECHNICIAN-ASSIGNMENT-025.
+   *
+   * План обходов виден тем же ролям, что и шаблоны: на бэкенде
+   * SCHEDULE_MANAGE_ROLES — это тот же набор, что TEMPLATE_MANAGE_ROLES,
+   * и заводить здесь третий список значило бы развести правило с политикой.
+   * Видимость пункта доступа не добавляет: маршрут по-прежнему проверяет
+   * canManageSchedule на сервере.
+   */
+  if (item.to === '/inspection/schedules' || item.to === '/inspection/templates') {
     return role === 'ADMIN' || role === 'DISPATCHER' || role === 'MASTER' || role === 'NETWORK_DIRECTOR'
   }
   if (item.to === '/inspection/runs') {

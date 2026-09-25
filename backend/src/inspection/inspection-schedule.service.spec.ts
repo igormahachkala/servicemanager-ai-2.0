@@ -52,6 +52,22 @@ function makeContract(overrides: any = {}) {
   }
 }
 
+/**
+ * 025: что канонический резолвер вернул бы для точки. Тесты переопределяют
+ * список там, где проверяют пустое состояние.
+ *
+ * 039: сохранение теперь спрашивает того же резолвера, поэтому по умолчанию
+ * здесь пригодные исполнители этой точки, а не пустота. Пустой список —
+ * это «на точке работать некому», и подставлять его во все тесты назначения
+ * значило бы проверять отказ там, где проверяется успех.
+ */
+const eligibleFixture = () => [
+  { id: technician.id, email: 'tech@example.com', firstName: 'Иван', lastName: 'Петров', role: UserRole.TECHNICIAN, activeLoad: 0 },
+  { id: otherTechnician.id, email: 'tech2@example.com', firstName: 'Пётр', lastName: 'Иванов', role: UserRole.TECHNICIAN, activeLoad: 0 },
+]
+
+let assignableExecutors: any[] = eligibleFixture()
+
 const LOCATIONS = [LOC_A, LOC_B, LOC_UNCONTRACTED]
 
 const USERS: any[] = [
@@ -114,7 +130,22 @@ function makeSuite(options: { contracts?: any[]; schedules?: any[] } = {}) {
     },
   } as any
 
-  return { svc: new InspectionScheduleService(prisma, serviceContracts), prisma, contractsPrisma }
+  /**
+   * 025: кандидатов на назначение отдаёт канонический резолвер назначения
+   * заявок. В этом наборе он подменён: проверяется, что планирование зовёт
+   * именно его и с теми аргументами, а не что резолвер работает — его
+   * собственные тесты лежат рядом с ним.
+   */
+  const assignment = {
+    listLocationAssignableExecutors: jest.fn(async () => assignableExecutors),
+  } as any
+
+  return {
+    svc: new InspectionScheduleService(prisma, serviceContracts, assignment),
+    prisma,
+    contractsPrisma,
+    assignment,
+  }
 }
 
 function scheduleRow(overrides: any = {}) {
@@ -778,5 +809,101 @@ describe('120G выборка плана для мобильного «Сего�
 
     const orderBy = prisma.inspectionSchedule.findMany.mock.calls[0][0].orderBy
     expect(orderBy[0]).toEqual({ nextDueAt: 'asc' })
+  })
+})
+
+/**
+ * SMA-ROUND-TECHNICIAN-ASSIGNMENT-025 — кандидаты на назначение обхода.
+ *
+ * Дефект был в том, что список кандидатов и правило назначения жили в разных
+ * местах: интерфейс предлагал всех активных сотрудников, а непригодность
+ * всплывала отказом при сохранении. Здесь проверяется, что планирование берёт
+ * кандидатов каноническим резолвером назначения заявок и не заводит своего
+ * отбора, а сохранение по-прежнему решает само.
+ */
+describe('025 кандидаты на назначение обхода', () => {
+  beforeEach(() => {
+    assignableExecutors = [
+      {
+        id: technician.id,
+        email: 'tech@example.com',
+        firstName: 'Иван',
+        lastName: 'Петров',
+        role: UserRole.TECHNICIAN,
+        activeLoad: 2,
+      },
+    ]
+  })
+
+  it('1. зовёт канонический резолвер с компанией исполнителя, компанией площадки и точкой', async () => {
+    const { svc, assignment } = makeSuite()
+
+    const result = await svc.listAssignableTechnicians(admin, LOC_A.id)
+
+    expect(assignment.listLocationAssignableExecutors).toHaveBeenCalledTimes(1)
+    expect(assignment.listLocationAssignableExecutors).toHaveBeenCalledWith({
+      employerCompanyId: PROVIDER_ID,
+      scopeCompanyId: CLIENT_A,
+      locationId: LOC_A.id,
+    })
+    expect(result.map((item: any) => item.id)).toEqual([technician.id])
+  })
+
+  it('2. точка без действующего договора недоступна и кандидатов не отдаёт', async () => {
+    const { svc, assignment } = makeSuite()
+
+    await expect(svc.listAssignableTechnicians(admin, LOC_UNCONTRACTED.id)).rejects.toBeInstanceOf(
+      NotFoundException,
+    )
+    // Резолвер даже не вызывается: право на точку проверяется раньше.
+    expect(assignment.listLocationAssignableExecutors).not.toHaveBeenCalled()
+  })
+
+  it('3. без точки вопрос не имеет смысла и отклоняется', async () => {
+    const { svc, assignment } = makeSuite()
+
+    await expect(svc.listAssignableTechnicians(admin, '')).rejects.toBeInstanceOf(BadRequestException)
+    expect(assignment.listLocationAssignableExecutors).not.toHaveBeenCalled()
+  })
+
+  it('4. техник кандидатов не запрашивает — он не планирует', async () => {
+    const { svc, assignment } = makeSuite()
+
+    await expect(svc.listAssignableTechnicians(technician, LOC_A.id)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    )
+    expect(assignment.listLocationAssignableExecutors).not.toHaveBeenCalled()
+  })
+
+  it('5. пустой список отдаётся как есть, без подмены «всеми активными»', async () => {
+    assignableExecutors = []
+    const { svc } = makeSuite()
+
+    await expect(svc.listAssignableTechnicians(admin, LOC_A.id)).resolves.toEqual([])
+  })
+
+  it('6. наружу уходит только то, что нужно выбору, без нагрузки резолвера', async () => {
+    const { svc } = makeSuite()
+
+    const [candidate] = await svc.listAssignableTechnicians(admin, LOC_A.id)
+
+    expect(Object.keys(candidate).sort()).toEqual(
+      ['activeLoad', 'email', 'firstName', 'id', 'lastName', 'role'].sort(),
+    )
+  })
+
+  it('7. сохранение остаётся авторитетом: подставленный чужой идентификатор отклоняется', async () => {
+    // Список кандидатов интерфейсу ничего не разрешает — create проверяет заново.
+    const { svc } = makeSuite()
+
+    await expect(
+      svc.create(admin, {
+        templateId: 'tpl-1',
+        locationId: LOC_A.id,
+        assignedToUserId: 'u-from-another-company',
+        frequency: InspectionFrequency.ONCE,
+        startDate: VALID_START,
+      } as any),
+    ).rejects.toBeInstanceOf(NotFoundException)
   })
 })
