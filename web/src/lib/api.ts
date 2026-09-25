@@ -4341,6 +4341,8 @@ export type InspectionScheduleFilters = {
   assignedToUserId?: string
   frequency?: InspectionFrequency
   active?: boolean
+  /** 029: план на сегодня по поясу компании, включая просроченные. */
+  dueToday?: boolean
 }
 
 export async function getInspectionSchedules(
@@ -4353,6 +4355,8 @@ export async function getInspectionSchedules(
   if (filters?.assignedToUserId) search.set('assignedToUserId', filters.assignedToUserId)
   if (filters?.frequency) search.set('frequency', filters.frequency)
   if (filters?.active !== undefined) search.set('active', String(filters.active))
+  // 029: «сегодня» решает сервер по поясу компании, а не устройство.
+  if (filters?.dueToday) search.set('dueToday', 'true')
   const suffix = search.toString() ? '?' + search.toString() : ''
   return request<InspectionSchedule[]>('/inspection/schedules' + suffix)
 }
