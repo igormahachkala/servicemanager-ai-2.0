@@ -148,9 +148,15 @@ describe('098/4 карточка читает существующий API', () 
   })
 
   it('4. второго endpoint под карточку не заведено', () => {
+    /*
+     * Проверяются пути запросов, а не ключи кэша: после L2 карточка держит
+     * ключи вида 'location-card-…', и дословный поиск по имени спотыкался бы
+     * о них, ничего не проверяя.
+     */
     expect(locationPageCode).toContain('api.getLocation(')
-    expect(locationPageCode).not.toContain('location-card')
-    expect(locationPageCode).not.toContain('/locations/card')
+    expect(locationPageCode).not.toContain("'/locations/card")
+    expect(locationPageCode).not.toContain("'/location-card")
+    expect(locationPageCode).not.toMatch(/\/locations\/\$\{[^}]+\}\/(card|summary)/)
   })
 })
 
@@ -239,20 +245,13 @@ describe('098/8-12 объём среза не расширен', () => {
     ['9. заметки', ['Заметк', 'notes', 'Notes', 'comment', 'Комментар']],
     ['10. вложения', ['Вложени', 'attachment', 'Attachment', 'upload', 'Файл']],
     ['11. история', ['История', 'history', 'History', 'timeline', 'Timeline']],
-    [
-      '12. агрегаты',
-      [
-        'count',
-        'Count',
-        'equipmentCount',
-        'openTickets',
-        'Оборудовани',
-        'Заявк',
-        'Обход',
-        'Ответственн',
-        'nextPlanned',
-      ],
-    ],
+    /*
+     * L2 (SMA-LOCATION-CARD-L2-AGGREGATES-102) по решению владельца добавил
+     * сводки по оборудованию, заявкам и обходам — их запрет снят здесь
+     * осознанно. Ответственные остались отложенными: готового
+     * location-scoped API под них нет, и карточка их не показывает.
+     */
+    ['12. ответственные', ['Ответственн', 'locationBindings', 'responsible']],
   ]
 
   it.each(forbidden)('%s в карточке отсутствуют', (_label, needles) => {
@@ -262,7 +261,13 @@ describe('098/8-12 объём среза не расширен', () => {
   })
 
   it('12. карточка не ходит ни в один посторонний API', () => {
+    // Состав расширен ровно на три сводки L2 и больше ни на что.
     const apiCalls = [...locationPageCode.matchAll(/api\.([A-Za-z0-9_]+)\(/g)].map((m) => m[1])
-    expect([...new Set(apiCalls)]).toEqual(['getLocation'])
+    expect([...new Set(apiCalls)].sort()).toEqual([
+      'board',
+      'getInspectionSchedules',
+      'getLocation',
+      'listEquipment',
+    ])
   })
 })

@@ -2,6 +2,13 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { appendBoardNavigationContextToPath } from '../lib/boardNavigationContext'
+import {
+  pluralizeRu,
+  summarizeEquipment,
+  summarizeSchedules,
+  summarizeTickets,
+} from './locationAggregates'
 
 /**
  * SMA-LOCATION-CARD-L1-098. Карточка объекта, оболочка V1.
@@ -14,6 +21,15 @@ import * as api from '../lib/api'
  * Прав карточка не добавляет: доступ решает LOCATIONS_VIEW на маршруте
  * бэкенда. Страница только рисует ответ.
  */
+
+function fmtDateTime(value?: string | null) {
+  if (!value) return '—'
+  try {
+    return new Date(value).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })
+  } catch {
+    return value
+  }
+}
 
 /** Решение показать координаты. Обе величины или ничего: одна координата места не задаёт. */
 export function shouldShowCoordinates(location: {
@@ -58,7 +74,46 @@ export function LocationPage() {
     enabled: !!locationId,
   })
 
+  /**
+   * Сводки. Каждая — отдельный существующий авторизованный endpoint, и каждая
+   * обязательно с locationId: запрос без него вернул бы весь тенант, а это ровно
+   * та выборка, которой на карточке объекта быть не должно.
+   *
+   * Отказ любой сводки гасит только её блок. Права на разделы разные: доска
+   * требует TICKETS_VIEW, планы обходов недоступны ролям CLIENT
+   * и TERRITORIAL_MANAGER. Показывать на это ошибку значило бы сообщать,
+   * чего у смотрящего нет; карточка просто не рисует блок.
+   */
+  const scope = companyId || undefined
+
+  const equipmentQ = useQuery({
+    queryKey: ['location-card-equipment', locationId, companyId],
+    queryFn: () => api.listEquipment({ locationId, companyId: scope }),
+    enabled: !!locationId,
+    retry: false,
+  })
+
+  const ticketsQ = useQuery({
+    queryKey: ['location-card-tickets', locationId, companyId],
+    queryFn: () => api.board({ locationId, companyId: scope, take: 1 }),
+    enabled: !!locationId,
+    retry: false,
+  })
+
+  const schedulesQ = useQuery({
+    queryKey: ['location-card-schedules', locationId],
+    queryFn: () => api.getInspectionSchedules({ locationId, active: true }),
+    enabled: !!locationId,
+    retry: false,
+  })
+
+  const equipment = summarizeEquipment(equipmentQ.data)
+  const tickets = summarizeTickets(ticketsQ.data)
+  const schedules = summarizeSchedules(schedulesQ.data)
+
   const backTo = companyId ? `/locations?companyId=${encodeURIComponent(companyId)}` : '/locations'
+  /* Ссылка на заявки объекта строится существующим контрактом доски (boardLocationId). */
+  const ticketsTo = appendBoardNavigationContextToPath('/tickets', { selectedLocationId: locationId })
 
   if (locationQ.isLoading) {
     return (
@@ -148,6 +203,71 @@ export function LocationPage() {
         <div className="muted small">Город: {location.city || '—'}</div>
         <div className="muted small">Регион: {location.region || '—'}</div>
         <div className="muted small">Адрес: {location.address || '—'}</div>
+      </div>
+
+      <div className="panel" style={{ marginTop: 12 }}>
+        <h3 style={{ marginBottom: 10 }}>Оборудование</h3>
+        {equipmentQ.isLoading ? (
+          <div className="muted small">Загружаем…</div>
+        ) : equipmentQ.isError ? null : equipment.total === 0 ? (
+          <div className="muted small">Нет оборудования</div>
+        ) : (
+          <>
+            <div className="muted small">
+              {equipment.total} {pluralizeRu(equipment.total, 'единица', 'единицы', 'единиц')}
+            </div>
+            <div className="muted small">В работе: {equipment.active}</div>
+            <div style={{ marginTop: 10 }}>
+              <Link to="/equipment">
+                <button className="ghost">Открыть оборудование</button>
+              </Link>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="panel" style={{ marginTop: 12 }}>
+        <h3 style={{ marginBottom: 10 }}>Заявки</h3>
+        {ticketsQ.isLoading ? (
+          <div className="muted small">Загружаем…</div>
+        ) : ticketsQ.isError ? null : tickets.inProgress === 0 && tickets.awaitingAcceptance === 0 ? (
+          <div className="muted small">Нет открытых заявок</div>
+        ) : (
+          <>
+            <div className="muted small">В работе: {tickets.inProgress}</div>
+            <div className="muted small">На приёмке: {tickets.awaitingAcceptance}</div>
+            <div style={{ marginTop: 10 }}>
+              <Link to={ticketsTo}>
+                <button className="ghost">Открыть заявки объекта</button>
+              </Link>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="panel" style={{ marginTop: 12 }}>
+        <h3 style={{ marginBottom: 10 }}>Обходы</h3>
+        {schedulesQ.isLoading ? (
+          <div className="muted small">Загружаем…</div>
+        ) : schedulesQ.isError ? null : schedules.activeCount === 0 ? (
+          <div className="muted small">Нет запланированных обходов</div>
+        ) : (
+          <>
+            <div className="muted small">
+              Следующий: {schedules.next ? fmtDateTime(schedules.next.nextDueAt) : '—'}
+            </div>
+            <div className="muted small">
+              {schedules.activeCount}{' '}
+              {pluralizeRu(schedules.activeCount, 'активный план', 'активных плана', 'активных планов')}
+            </div>
+            <div style={{ marginTop: 10 }}>
+              {/* Маршрут планов фильтра по объекту не принимает: ссылка ведёт в раздел. */}
+              <Link to="/inspection/schedules">
+                <button className="ghost">Открыть планы</button>
+              </Link>
+            </div>
+          </>
+        )}
       </div>
 
       {showCoordinates ? (
