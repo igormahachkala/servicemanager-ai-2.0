@@ -2933,6 +2933,19 @@ export async function companyServiceContracts(companyId: string): Promise<Servic
   return request<ServiceContractItem[]>('/companies/' + companyId + '/service-contracts')
 }
 
+/**
+ * SMA-LOCATION-CARD-L1-098: карточка объекта читает ту же локацию, что и список.
+ *
+ * Отдельного endpoint под карточку нет и не заводится: GET /locations/:id уже
+ * существует и уже закрыт правом LOCATIONS_VIEW. `companyId` передаётся тем же
+ * способом, что и в списке, — у провайдера в linked-scope это id клиента;
+ * без него бэкенд возьмёт компанию актора и вернёт 404.
+ */
+export async function getLocation(id: string, companyId?: string): Promise<LocationListItem> {
+  const suffix = companyId ? `?companyId=${encodeURIComponent(companyId)}` : ''
+  return request<LocationListItem>('/locations/' + id + suffix)
+}
+
 /** `companyId` — query для GET /locations: tenant локаций (у провайдера в linked-scope это id клиента). */
 export async function locations(companyId?: string, opts?: { includeDeleted?: boolean }): Promise<LocationListItem[]> {
   const search = new URLSearchParams()
