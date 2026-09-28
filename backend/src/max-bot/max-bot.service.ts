@@ -20,7 +20,7 @@ import {
 } from './max-menu.builder';
 import { getMaxBotRuntimeDiagnostics, type MaxBotRuntimeDiagnostics } from './max-bot-runtime';
 import {
-  MAX_BOT_COMMAND_UPDATE_TYPES,
+  resolveMaxBotUpdateTypes,
   type MaxBotCommandResponse,
   type MaxBotMessageBody,
   MaxBotSendMessageResponse,
@@ -1015,7 +1015,7 @@ export class MaxBotService implements OnModuleInit {
   async registerWebhook(params: { url: string; updateTypes?: string[]; secret?: string }) {
     const body: Record<string, unknown> = {
       url: params.url,
-      update_types: params.updateTypes ?? [...MAX_BOT_COMMAND_UPDATE_TYPES],
+      update_types: params.updateTypes ?? resolveMaxBotUpdateTypes(),
     };
     if (params.secret) body.secret = params.secret;
     return this.requestJson<unknown>('/subscriptions', {

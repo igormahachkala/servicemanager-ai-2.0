@@ -20,6 +20,7 @@ describe('MaxBotPollingService', () => {
     delete process.env.MAX_BOT_WEBHOOK_ENABLED;
     delete process.env.MAX_BOT_WEBHOOK_URL;
     delete process.env.MAX_BOT_WEBHOOK_SECRET;
+    delete process.env.MAX_BOT_UPDATE_TYPES;
   });
 
   afterEach(() => {
@@ -184,6 +185,24 @@ describe('MaxBotPollingService', () => {
       updateTypes: ['message_created', 'message_callback', 'bot_started'],
     });
     expect(mock.registerMinimalCommandMenu).toHaveBeenCalledTimes(1);
+    service.onModuleDestroy();
+  });
+
+  it('registers the update types from MAX_BOT_UPDATE_TYPES', async () => {
+    process.env.MAX_BOT_COMMANDS_ENABLED = 'true';
+    process.env.MAX_BOT_WEBHOOK_ENABLED = 'true';
+    process.env.MAX_BOT_WEBHOOK_URL = 'https://api.example.com/max-bot/webhook';
+    process.env.MAX_BOT_UPDATE_TYPES = ' message_created, message_callback ';
+    const mock = makeMockService();
+    const service = new MaxBotPollingService(mock as any);
+    service.onModuleInit();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mock.registerWebhook).toHaveBeenCalledWith({
+      url: 'https://api.example.com/max-bot/webhook',
+      secret: undefined,
+      updateTypes: ['message_created', 'message_callback'],
+    });
     service.onModuleDestroy();
   });
 
