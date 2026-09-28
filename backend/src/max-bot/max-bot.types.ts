@@ -6,6 +6,17 @@ export const MAX_BOT_COMMAND_UPDATE_TYPES = [
   'bot_started',
 ] as const;
 
+/** Типы из `MAX_BOT_UPDATE_TYPES`. Пустая или отсутствующая переменная даёт дефолт. */
+export function resolveMaxBotUpdateTypes(
+  raw: string | undefined = process.env.MAX_BOT_UPDATE_TYPES,
+): string[] {
+  const parsed = (raw ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  return parsed.length > 0 ? parsed : [...MAX_BOT_COMMAND_UPDATE_TYPES];
+}
+
 export type MaxBotInlineKeyboardButton =
   | { type: 'callback'; text: string; payload: string; intent?: 'default' | 'positive' | 'negative' }
   | { type: 'link'; text: string; url: string }

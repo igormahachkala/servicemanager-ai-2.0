@@ -241,6 +241,33 @@ describe('MaxBotService', () => {
     );
   });
 
+  it('sends MAX_BOT_UPDATE_TYPES when the variable is set', async () => {
+    process.env.MAX_BOT_API_BASE_URL = 'https://platform-api.max.ru';
+    process.env.MAX_BOT_API_TOKEN = 'test-token';
+    process.env.MAX_BOT_UPDATE_TYPES = 'message_callback,bot_started';
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ ok: true }),
+    }) as any;
+
+    const service = new MaxBotService();
+    await service.registerWebhook({ url: 'https://api.example/max-bot/webhook' });
+    delete process.env.MAX_BOT_UPDATE_TYPES;
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://platform-api2.max.ru/subscriptions',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          url: 'https://api.example/max-bot/webhook',
+          update_types: ['message_callback', 'bot_started'],
+        }),
+      }),
+    );
+  });
+
   it('registers only the minimal compatibility command menu', async () => {
     process.env.MAX_BOT_API_BASE_URL = 'https://platform-api.max.ru';
     process.env.MAX_BOT_API_TOKEN = 'test-token';

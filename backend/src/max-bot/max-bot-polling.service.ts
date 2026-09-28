@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 
 import { MaxBotService } from './max-bot.service';
-import { MAX_BOT_COMMAND_UPDATE_TYPES } from './max-bot.types';
+import { resolveMaxBotUpdateTypes } from './max-bot.types';
 
 @Injectable()
 export class MaxBotPollingService implements OnModuleInit, OnModuleDestroy {
@@ -37,7 +37,7 @@ export class MaxBotPollingService implements OnModuleInit, OnModuleDestroy {
           .registerWebhook({
             url: this.webhookUrl,
             secret: this.webhookSecret || undefined,
-            updateTypes: [...MAX_BOT_COMMAND_UPDATE_TYPES],
+            updateTypes: resolveMaxBotUpdateTypes(),
           })
           .then(() => {
             this.logger.log(`MAX bot webhook registered: ${this.webhookUrl}`);
@@ -85,7 +85,7 @@ export class MaxBotPollingService implements OnModuleInit, OnModuleDestroy {
       const result = await this.maxBotService.pollUpdates({
         timeout: this.timeoutSeconds,
         marker: this.marker,
-        types: [...MAX_BOT_COMMAND_UPDATE_TYPES],
+        types: resolveMaxBotUpdateTypes(),
       });
       if (typeof result.savedMarker === 'number') {
         this.marker = result.savedMarker;
