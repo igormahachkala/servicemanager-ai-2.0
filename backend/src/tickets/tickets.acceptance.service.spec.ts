@@ -49,6 +49,8 @@ function makeSetup(opts: {
   actorActive?: boolean
   ticket?: Record<string, any>
   linkedContractRole?: ServiceContractRole | null
+  /** 077: хранилище вложений, по которому мок findMany честно фильтрует. */
+  attachments?: Array<{ id: string; companyId: string; ticketId: string | null; uploadedByUserId: string | null }>
 } = {}) {
   const ticketStatus = opts.ticketStatus ?? TicketStatus.AWAITING_ACCEPTANCE
   const actorRole = opts.actorRole ?? UserRole.ADMIN
@@ -67,12 +69,36 @@ function makeSetup(opts: {
     ticketNumber: accessTicket.ticketNumber,
   }
 
+  const attachmentStore = opts.attachments ?? []
+
   const tx = {
     ticket: {
       findFirst: jest.fn().mockResolvedValue(txTicket),
       update: jest.fn().mockImplementation(async (_args: any) => ({ ...txTicket, status: _args.data.status })),
     },
-    ticketAttachment: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    ticketAttachment: {
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      /**
+       * 077: мок разбирает where, а не отдаёт заготовленный ответ. Иначе
+       * проверка владения превратилась бы в проверку самого мока: подмена
+       * условия в сервисе осталась бы незамеченной.
+       */
+      findMany: jest.fn().mockImplementation(async ({ where }: any) => {
+        const ids: string[] = where?.id?.in ?? []
+        return attachmentStore.filter((row) => {
+          if (!ids.includes(row.id)) return false
+          if (where?.companyId && row.companyId !== where.companyId) return false
+          const or = where?.OR
+          if (!or) return true
+          return or.some((clause: any) => {
+            if ('uploadedByUserId' in clause) {
+              return row.ticketId === null && row.uploadedByUserId === clause.uploadedByUserId
+            }
+            return row.ticketId === clause.ticketId
+          })
+        })
+      }),
+    },
     ticketStatusHistory: { create: jest.fn().mockResolvedValue({}) },
   }
 
@@ -99,7 +125,7 @@ function makeSetup(opts: {
   const notifications = { onTicketAccepted: jest.fn(), onTicketRejected: jest.fn() }
   const svc = new TicketsAcceptanceService(prisma, timeline as any, serviceContracts as any, notifications as any)
 
-  return { svc, prisma, tx, timeline, serviceContracts, notifications }
+  return { svc, prisma, tx, timeline, serviceContracts, notifications, attachmentStore }
 }
 
 // A client-company management role allowed to accept/reject.
@@ -131,7 +157,14 @@ describe('TicketsAcceptanceService.decide', () => {
   })
 
   it('REJECT moves AWAITING_ACCEPTANCE -> IN_PROGRESS and marks rejection attachments', async () => {
-    const { svc, tx, notifications } = makeSetup({ actorRole: UserRole.ADMIN })
+    // 077: вложения принадлежат этой же заявке — обычный путь клиентского отказа.
+    const { svc, tx, notifications } = makeSetup({
+      actorRole: UserRole.ADMIN,
+      attachments: [
+        { id: 'att-1', companyId: CLIENT_ID, ticketId: TICKET_ID, uploadedByUserId: 'u-1' },
+        { id: 'att-2', companyId: CLIENT_ID, ticketId: TICKET_ID, uploadedByUserId: 'u-1' },
+      ],
+    })
     mockResolveReadable.mockResolvedValue(makeAccess())
 
     const result = await svc.decide(clientAdmin, TICKET_ID, {

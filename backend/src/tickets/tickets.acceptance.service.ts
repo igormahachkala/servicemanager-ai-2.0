@@ -56,6 +56,38 @@ export class TicketsAcceptanceService {
         )
       }
 
+      /**
+       * SMA-ACCEPTANCE-ATTACHMENT-OWNERSHIP-P0-077.
+       *
+       * Прежний отбор ограничивался компанией, а принадлежностью к заявке — нет:
+       * id вложения соседней заявки той же компании переподчинял её файл текущей.
+       * Компания у заявок общая, поэтому сама по себе она ничего не разделяет.
+       *
+       * Допустимы ровно два случая, теми же условиями, что и у канонического
+       * связывания черновиков при создании заявки:
+       *   — вложение уже принадлежит этой заявке: обычный путь, клиент грузит
+       *     файл в заявку и следом выносит решение;
+       *   — это ещё ничей черновик, загруженный самим актором (ticketId null).
+       *
+       * Любой другой id — отказ целиком, без частично применённого решения.
+       * Проверка идёт до первой записи.
+       */
+      const attachmentIds = [...new Set((dto.attachmentIds || []).filter(Boolean))]
+      if (attachmentIds.length > 0) {
+        const ownedAttachments = await tx.ticketAttachment.findMany({
+          where: {
+            id: { in: attachmentIds },
+            companyId: access.ticket.companyId,
+            OR: [{ ticketId }, { ticketId: null, uploadedByUserId: actor.id }],
+          },
+          select: { id: true },
+        })
+
+        if (ownedAttachments.length !== attachmentIds.length) {
+          throw new BadRequestException('Some attachmentIds are invalid')
+        }
+      }
+
       const toStatus =
         dto.decision === AcceptanceDecision.ACCEPT ? TicketStatus.DONE : TicketStatus.IN_PROGRESS
 
@@ -73,7 +105,7 @@ export class TicketsAcceptanceService {
         },
       })
 
-      if (dto.attachmentIds && dto.attachmentIds.length > 0) {
+      if (attachmentIds.length > 0) {
         const purpose =
           dto.decision === AcceptanceDecision.REJECT
             ? TicketAttachmentPurpose.DECLINE_REPORT
@@ -81,8 +113,11 @@ export class TicketsAcceptanceService {
 
         await tx.ticketAttachment.updateMany({
           where: {
-            id: { in: dto.attachmentIds },
+            id: { in: attachmentIds },
             companyId: access.ticket.companyId,
+            // Условие владения повторяется и здесь: запись остаётся невозможной
+            // для чужого файла даже если порядок шагов однажды поменяют.
+            OR: [{ ticketId }, { ticketId: null, uploadedByUserId: actor.id }],
           },
           data: {
             ticketId,
