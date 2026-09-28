@@ -7,7 +7,7 @@ import { InspectionPolicy, type InspectionUserCtx } from '../policy/inspection.p
 import { PrismaService } from '../prisma/prisma.service'
 import { endOfZonedDay } from '../common/zoned-time.utils'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
-import { TicketsAssignmentService } from '../tickets/tickets.assignment.service'
+import { AssignmentEligibilityResolver } from '../assignment/assignment-eligibility.resolver'
 
 import { CreateScheduleDto } from './dto/create-schedule.dto'
 import { ListSchedulesDto } from './dto/list-schedules.dto'
@@ -43,7 +43,7 @@ export class InspectionScheduleService {
      * 025: кандидаты на назначение берутся тем же резолвером, что и у заявок.
      * Своего отбора исполнителей планирование не заводит.
      */
-    private readonly assignment: TicketsAssignmentService,
+    private readonly assignmentEligibility: AssignmentEligibilityResolver,
   ) {}
 
   // ── read ───────────────────────────────────────────────────────────────────
@@ -107,7 +107,7 @@ export class InspectionScheduleService {
 
     const location = await this.requireAccessibleLocation(user, locationId)
 
-    const candidates = await this.assignment.listLocationAssignableExecutors({
+    const candidates = await this.assignmentEligibility.listLocationAssignableExecutors({
       // Планирует компания исполнителя: обход своей точки ведёт её же сотрудник.
       employerCompanyId: user.companyId,
       // Площадка принадлежит компании-владельцу, а не исполнителю.
@@ -366,11 +366,12 @@ export class InspectionScheduleService {
    * идентификатор своего же сотрудника без привязки к точке сохранялся.
    * Интерфейс границей доступа не является, поэтому закрыто на сервере.
    *
-   * Пригодность решает тот же канонический резолвер, которым отбираются
-   * исполнители для заявок и который наполняет выбор кандидатов. Второго
-   * набора правил здесь не появляется: договор, привязки к точке и
-   * специализации считаются там, где считались всегда, а здесь проверяется
-   * только принадлежность названного человека этому набору.
+   * Пригодность решает тот же канонический dependency-light резолвер, которым
+   * пользуется назначение заявок. Второго набора правил здесь не появляется:
+   * договор и привязки к точке обязательны, а специализации применяются тем же
+   * резолвером только когда caller передаёт реальные requiredSpecializations.
+   * Для расписания обхода category requirements нет, поэтому проверяется
+   * принадлежность названного человека к location-eligible набору.
    *
    * Существование и владение проверяются отдельным запросом ради понятного
    * 404: «нет такого сотрудника» и «сотрудник не может работать на этой
@@ -392,7 +393,7 @@ export class InspectionScheduleService {
     })
     if (!exists) throw new NotFoundException('Assignee not found')
 
-    const eligible = await this.assignment.listLocationAssignableExecutors({
+    const eligible = await this.assignmentEligibility.listLocationAssignableExecutors({
       employerCompanyId: user.companyId,
       scopeCompanyId: location.clientCompanyId,
       locationId: location.id,

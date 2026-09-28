@@ -28,6 +28,7 @@ jest.mock('./ticket-access.utils', () => {
 })
 
 import { TicketsAssignmentService } from './tickets.assignment.service'
+import { AssignmentEligibilityResolver } from '../assignment/assignment-eligibility.resolver'
 import { CLAIM_REQUEST_ASSIGNMENT_REASON } from './ticket-claim-eligibility'
 
 describe('TicketsAssignmentService location scope override', () => {
@@ -301,6 +302,18 @@ describe('TicketsAssignmentService assignment executor eligibility', () => {
     )
   }
 
+  function makeResolverWithCandidatePrisma(prisma: any) {
+    return new AssignmentEligibilityResolver(
+      prisma,
+      {
+        getLinkedClientAccess: jest.fn().mockResolvedValue({
+          role: ServiceContractRole.PRIMARY,
+          locations: [],
+        }),
+      } as any,
+    )
+  }
+
   it('excludes inactive executors from specialization-matched candidates', async () => {
     const activeTechnician = makeCandidate({
       id: 'active-tech',
@@ -371,9 +384,9 @@ describe('TicketsAssignmentService assignment executor eligibility', () => {
       activeMaster,
       inactiveMaster,
     ])
-    const svc = makeServiceWithCandidatePrisma(prisma)
+    const resolver = makeResolverWithCandidatePrisma(prisma)
 
-    const result = await (svc as any).listAllTechnicians(
+    const result = await resolver.listAllTechnicians(
       providerCompany.id,
       [],
       {
@@ -617,20 +630,14 @@ describe('TicketsAssignmentService assignment candidate location scope filtering
 
     return {
       prisma,
-      service: new TicketsAssignmentService(
+      service: new AssignmentEligibilityResolver(
         prisma as any,
-        {} as any,
-        {} as any,
-        {} as any,
-        {} as any,
         {
           getLinkedClientAccess: jest.fn().mockResolvedValue({
             role: ServiceContractRole.PRIMARY,
             locations: [],
           }),
         } as any,
-        {} as any,
-        {} as any,
       ),
     }
   }
@@ -640,11 +647,11 @@ describe('TicketsAssignmentService assignment candidate location scope filtering
   }
 
   async function filter(
-    service: TicketsAssignmentService,
+    service: AssignmentEligibilityResolver,
     userIds: string[],
     locationId: string,
   ) {
-    return (service as any).filterTechniciansByLocationBindings(
+    return service.filterTechniciansByLocationBindings(
       userIds.map((id) => ({ id })),
       clientCompanyId,
       locationId,

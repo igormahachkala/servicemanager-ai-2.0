@@ -263,7 +263,7 @@ describe('039 границы изменения', () => {
     )
 
     // Решение о пригодности — один вызов канонического резолвера.
-    expect(fn).toContain('this.assignment.listLocationAssignableExecutors')
+    expect(fn).toContain('this.assignmentEligibility.listLocationAssignableExecutors')
     // Правила договора, привязок и специализаций здесь не переписаны.
     expect(fn).not.toContain('serviceContract')
     expect(fn).not.toContain('userLocationBinding')

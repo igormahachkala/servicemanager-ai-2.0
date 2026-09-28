@@ -1,4 +1,4 @@
-import { TicketsAssignmentService } from './tickets.assignment.service';
+import { AssignmentEligibilityResolver } from '../assignment/assignment-eligibility.resolver';
 
 /**
  * SMA-ROUND-TECHNICIAN-ASSIGNMENT-025.
@@ -10,15 +10,14 @@ import { TicketsAssignmentService } from './tickets.assignment.service';
  * исполнителей, которым эта точка недоступна, — то есть вернётся ровно тот
  * дефект, ради которого слайс делался.
  *
- * Прототип вызывается напрямую: проверяется порядок вызовов, а не работа
- * резолвера — у его шагов есть свои наборы.
+ * Прототип вызывается напрямую: проверяется порядок вызовов, а не Prisma.
  */
 describe('025 кандидаты на исполнение в точке', () => {
   const ALL = [{ id: 't-1' }, { id: 't-2' }];
   const IN_SCOPE = [{ id: 't-1' }];
 
   function makeSpy() {
-    const svc: any = Object.create(TicketsAssignmentService.prototype);
+    const svc: any = Object.create(AssignmentEligibilityResolver.prototype);
     svc.listAllTechnicians = jest.fn(async () => ALL);
     svc.filterTechniciansByLocationBindings = jest.fn(async () => IN_SCOPE);
     return svc;
@@ -27,7 +26,7 @@ describe('025 кандидаты на исполнение в точке', () =>
   it('1. сужает по договору и привязкам к точке, а не отдаёт всех', async () => {
     const svc = makeSpy();
 
-    const result = await TicketsAssignmentService.prototype.listLocationAssignableExecutors.call(svc, {
+    const result = await AssignmentEligibilityResolver.prototype.listLocationAssignableExecutors.call(svc, {
       employerCompanyId: 'provider-1',
       scopeCompanyId: 'client-a',
       locationId: 'loc-1',
@@ -41,7 +40,7 @@ describe('025 кандидаты на исполнение в точке', () =>
   it('2. исполнителей берёт у компании работодателя', async () => {
     const svc = makeSpy();
 
-    await TicketsAssignmentService.prototype.listLocationAssignableExecutors.call(svc, {
+    await AssignmentEligibilityResolver.prototype.listLocationAssignableExecutors.call(svc, {
       employerCompanyId: 'provider-1',
       scopeCompanyId: 'client-a',
       locationId: 'loc-1',
@@ -55,7 +54,7 @@ describe('025 кандидаты на исполнение в точке', () =>
   it('3. специализации не сужают: у обхода нет категории проблемы', async () => {
     const svc = makeSpy();
 
-    await TicketsAssignmentService.prototype.listLocationAssignableExecutors.call(svc, {
+    await AssignmentEligibilityResolver.prototype.listLocationAssignableExecutors.call(svc, {
       employerCompanyId: 'provider-1',
       scopeCompanyId: 'client-a',
       locationId: 'loc-1',
