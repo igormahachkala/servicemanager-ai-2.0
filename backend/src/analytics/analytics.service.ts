@@ -126,13 +126,28 @@ export class AnalyticsService {
       const newCount = byStatus.get(TicketStatus.NEW) ?? 0
       const inProgress = activeInProgressStatuses.reduce((sum, status) => sum + (byStatus.get(status) ?? 0), 0)
       const done = doneStatuses.reduce((sum, status) => sum + (byStatus.get(status) ?? 0), 0)
+      /*
+       * SMA-ANALYTICS-AWAITING-ACCEPTANCE-GAP-081.
+       *
+       * Заявка на приёмке и отменённая заявка попадали в total, но ни в один
+       * из показателей: сумма new + inProgress + done не сходилась с total,
+       * и чем дольше клиент тянул с приёмкой, тем сильнее расходился отчёт.
+       *
+       * Приёмка не прячется внутрь done намеренно: работа сделана, но клиент
+       * её ещё не принял, и для провайдера это разные вещи. Внутрь inProgress
+       * она тоже не идёт: активной работы по ней нет, ждут клиента.
+       */
+      const awaitingAcceptance = byStatus.get(TicketStatus.AWAITING_ACCEPTANCE) ?? 0
+      const canceled = byStatus.get(TicketStatus.CANCELED) ?? 0
       return {
         categoryId: category.id,
         name: category.name,
         total,
         new: newCount,
         inProgress,
+        awaitingAcceptance,
         done,
+        canceled,
       }
     })
   }
@@ -739,6 +754,12 @@ export class AnalyticsService {
         const newTickets = byStatus.get(TicketStatus.NEW) ?? 0
         const inProgressTickets = (byStatus.get(TicketStatus.ASSIGNED) ?? 0) + (byStatus.get(TicketStatus.IN_PROGRESS) ?? 0)
         const doneTickets = byStatus.get(TicketStatus.DONE) ?? 0
+        /*
+         * 081: приёмка и отмена считаются здесь по той же причине, что и в
+         * разрезе категорий: без них totalTickets не сходится с суммой.
+         */
+        const awaitingAcceptanceTickets = byStatus.get(TicketStatus.AWAITING_ACCEPTANCE) ?? 0
+        const canceledTickets = byStatus.get(TicketStatus.CANCELED) ?? 0
         const overdueTickets = overdueByLoc.get(loc.id) ?? 0
 
         const catCounts = catByLoc.get(loc.id) ?? new Map<string, number>()
@@ -760,7 +781,9 @@ export class AnalyticsService {
           totalTickets,
           newTickets,
           inProgressTickets,
+          awaitingAcceptanceTickets,
           doneTickets,
+          canceledTickets,
           overdueTickets,
           categories: categoryBreakdown,
         }
@@ -770,6 +793,8 @@ export class AnalyticsService {
 
     const inProgressTotal = items.reduce((s, i) => s + i.inProgressTickets, 0)
     const doneTotal = items.reduce((s, i) => s + i.doneTickets, 0)
+    const awaitingAcceptanceTotal = items.reduce((s, i) => s + i.awaitingAcceptanceTickets, 0)
+    const canceledTotal = items.reduce((s, i) => s + i.canceledTickets, 0)
 
     return {
       items,
@@ -778,7 +803,9 @@ export class AnalyticsService {
         totalTickets: summaryTotal,
         totalOverdue: summaryOverdue,
         inProgressTotal,
+        awaitingAcceptanceTotal,
         doneTotal,
+        canceledTotal,
       },
       meta: { scopeCompanyId, visibilityMode: scope.visibilityMode, workforceCompanyId },
     }
