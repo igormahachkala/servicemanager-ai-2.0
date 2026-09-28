@@ -54,25 +54,32 @@ describe('master ticket screens stay within the MAX button cap', () => {
     expect(footer).toEqual(['Меню', 'Отмена']);
   });
 
-  it('card uses dedicated rows and Меню', () => {
-    const res = renderMasterTicketCardMessage({
-      id: '11111111-1111-4111-8111-111111111111',
-      ticketNumber: 12,
-      locationName: 'Склад',
-      equipmentName: 'Шкаф',
-      sourceLabel: 'обход Утро',
-      sourceRunId: '22222222-2222-4222-8222-222222222222',
-      attachmentCount: 1,
-      historyPreview: '',
-      canAssign: true,
-      hasAssignee: false,
-    });
+  it('card uses dedicated rows, optional Назад, and Меню', () => {
+    const res = renderMasterTicketCardMessage(
+      {
+        id: '11111111-1111-4111-8111-111111111111',
+        ticketNumber: 12,
+        locationName: 'Склад',
+        equipmentName: 'Шкаф',
+        sourceLabel: 'обход Утро',
+        sourceRunId: '22222222-2222-4222-8222-222222222222',
+        attachmentCount: 1,
+        historyPreview: '',
+        canAssign: true,
+        hasAssignee: false,
+      },
+      'ml:new:0',
+    );
     expect(res.attachments?.[0]?.payload.buttons.map((row) => row.map((button) => button.text))).toEqual([
       ['Назначить', 'Упомянуть'],
       ['Комментарий'],
       ['Вложения', 'История'],
       ['Обход'],
+      ['Назад'],
       ['Меню'],
+    ]);
+    expect(res.attachments?.[0]?.payload.buttons[4]).toEqual([
+      { type: 'callback', text: 'Назад', payload: 'ml:new:0' },
     ]);
   });
 });

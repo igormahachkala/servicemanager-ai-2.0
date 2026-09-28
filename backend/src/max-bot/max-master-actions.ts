@@ -5,11 +5,15 @@ const UUID =
 
 export type MasterBack = 'k' | 'u' | 's';
 
+export type MasterCardBack =
+  | { list: 'new' | 'work' | 'sla' | 'unassigned'; offset: number }
+  | { list: 'tech'; userId: string; offset: number };
+
 export type MasterAction =
   | { kind: 'filter'; filter: MasterTicketFilter }
   | { kind: 'list'; filter: MasterTicketFilter; offset: number }
   | { kind: 'unassigned'; offset: number }
-  | { kind: 'card'; ticketId: string }
+  | { kind: 'card'; ticketId: string; back?: MasterCardBack }
   | { kind: 'candidates'; ticketId: string; offset: number; back: MasterBack }
   | { kind: 'assign'; ticketId: string; back: MasterBack }
   | { kind: 'assignYes'; ticketId: string; technicianId: string; back: MasterBack }
@@ -27,6 +31,13 @@ export type MasterAction =
   | { kind: 'changeClient' }
   | { kind: 'clientPage'; offset: number };
 
+export function masterCardBackPayload(back: MasterCardBack): string {
+  if (back.list === 'tech') return `mt:${back.userId}:${back.offset}`;
+  if (back.list === 'unassigned') return back.offset > 0 ? `mu:${back.offset}` : 'unassigned';
+  if (back.list === 'sla') return back.offset > 0 ? `ml:sla:${back.offset}` : 'sla';
+  return `ml:${back.list}:${back.offset}`;
+}
+
 const FILTERS = new Set<MasterTicketFilter>(['new', 'work', 'sla']);
 export function parseMasterAction(payload: string): MasterAction | null {
   if (payload === 'mcc') return { kind: 'changeClient' };
@@ -42,6 +53,25 @@ export function parseMasterAction(payload: string): MasterAction | null {
   }
   const unassigned = payload.match(/^mu:(\d+)$/);
   if (unassigned) return { kind: 'unassigned', offset: Number(unassigned[1]) };
+  const cardTech = payload.match(new RegExp(`^mk:(${UUID}):t:(${UUID}):(\\d+)$`));
+  if (cardTech && isTicketId(cardTech[1]) && isTicketId(cardTech[2])) {
+    return {
+      kind: 'card',
+      ticketId: cardTech[1],
+      back: { list: 'tech', userId: cardTech[2], offset: Number(cardTech[3]) },
+    };
+  }
+  const cardList = payload.match(new RegExp(`^mk:(${UUID}):([nwsu]):(\\d+)$`));
+  if (cardList && isTicketId(cardList[1])) {
+    const code = cardList[2];
+    const listKind =
+      code === 'n' ? 'new' : code === 'w' ? 'work' : code === 's' ? 'sla' : 'unassigned';
+    return {
+      kind: 'card',
+      ticketId: cardList[1],
+      back: { list: listKind, offset: Number(cardList[3]) },
+    };
+  }
   const card = payload.match(new RegExp(`^mk:(${UUID})$`));
   if (card && isTicketId(card[1])) return { kind: 'card', ticketId: card[1] };
   const assign = payload.match(new RegExp(`^ma:(${UUID}):([kus])$`));

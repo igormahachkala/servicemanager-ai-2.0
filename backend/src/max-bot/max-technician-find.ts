@@ -76,10 +76,15 @@ export function renderFindEmptyMessage(): MaxBotCommandResponse {
   ]);
 }
 
-export function renderFindResultsMessage(page: TechnicianTicketListPage): MaxBotCommandResponse {
+export function renderFindResultsMessage(
+  page: TechnicianTicketListPage,
+  listOffset = 0,
+): MaxBotCommandResponse {
   if (page.items.length === 0) return renderFindEmptyMessage();
   const text = ['Поиск заявки', '', page.items.map(formatListCard).join('\n\n')].join('\n');
-  const opens = page.items.map((item) => callbackButton(`#${item.ticketNumber}`, `tk:${item.id}`));
+  const opens = page.items.map((item) =>
+    callbackButton(`#${item.ticketNumber}`, `tk:${item.id}:fn:${listOffset}`),
+  );
   return withKeyboard(text, [
     ...chunk2(opens),
     ...paginationRows(

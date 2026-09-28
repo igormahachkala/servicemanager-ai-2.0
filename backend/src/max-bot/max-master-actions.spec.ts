@@ -9,6 +9,16 @@ describe('parseMasterAction', () => {
     expect(parseMasterAction('ml:work:3')).toEqual({ kind: 'list', filter: 'work', offset: 3 });
     expect(parseMasterAction('mu:0')).toEqual({ kind: 'unassigned', offset: 0 });
     expect(parseMasterAction(`mk:${TICKET}`)).toEqual({ kind: 'card', ticketId: TICKET });
+    expect(parseMasterAction(`mk:${TICKET}:n:0`)).toEqual({
+      kind: 'card',
+      ticketId: TICKET,
+      back: { list: 'new', offset: 0 },
+    });
+    expect(parseMasterAction(`mk:${TICKET}:t:${TECH}:6`)).toEqual({
+      kind: 'card',
+      ticketId: TICKET,
+      back: { list: 'tech', userId: TECH, offset: 6 },
+    });
     expect(parseMasterAction(`ma:${TICKET}:u`)).toEqual({ kind: 'assign', ticketId: TICKET, back: 'u' });
     expect(parseMasterAction(`mpk:${TICKET}:${TECH}:k`)).toEqual({
       kind: 'pick',

@@ -2,7 +2,7 @@ import { Injectable, Optional } from '@nestjs/common';
 
 import { MaxIdentity } from './max-identity.service';
 import { MaxBotCommandResponse, MaxBotUpdate } from './max-bot.types';
-import { keepsMasterWait, parseMasterAction, type MasterAction } from './max-master-actions';
+import { keepsMasterWait, parseMasterAction, masterCardBackPayload, type MasterAction } from './max-master-actions';
 import {
   renderMasterAssignedMessage,
   renderMasterCandidatesMessage,
@@ -40,6 +40,7 @@ import {
 import { renderMasterTodayMessage } from './max-master-today';
 import { MaxMasterWorkplaceService } from './max-master-workplace.service';
 import { renderPersistentMenuMessage } from './max-menu.builder';
+import { getTicketListBack, setTicketListBack } from './max-ticket-list-back';
 import { WorkplaceOutcome } from './max-technician-workplace.service';
 
 type ResolvedMaster = Extract<MaxIdentity, { resolved: true }>;
@@ -168,7 +169,10 @@ export class MaxMasterCommandService {
         renderMasterTicketListMessage,
       );
     }
-    if (action.kind === 'card') return this.card(identity, action.ticketId, linked);
+    if (action.kind === 'card') {
+      if (action.back) setTicketListBack(identity.maxUserId, masterCardBackPayload(action.back));
+      return this.card(identity, action.ticketId, linked);
+    }
     if (action.kind === 'comment') {
       const card = await this.workplace.card(identity, action.ticketId, linked);
       if (!card.ok) return fail(card.message);
@@ -240,7 +244,7 @@ export class MaxMasterCommandService {
     if (!this.workplace) return renderPersistentMenuMessage(FAILED);
     const result = await this.workplace.card(identity, ticketId, linkedClientCompanyId);
     if (!result.ok) return fail(result.message);
-    return renderMasterTicketCardMessage(result.value);
+    return renderMasterTicketCardMessage(result.value, getTicketListBack(identity.maxUserId));
   }
 
   private async assign(

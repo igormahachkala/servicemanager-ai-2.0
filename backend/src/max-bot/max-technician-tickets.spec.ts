@@ -146,6 +146,18 @@ describe('max-technician-tickets', () => {
     expect(parseTechnicianTicketAction('av:6')).toEqual({ kind: 'availList', offset: 6 });
     expect(parseTechnicianTicketAction(`avc:${ID_OLD}`)).toEqual({ kind: 'claim', ticketId: ID_OLD });
     expect(parseTechnicianTicketAction(`tk:${ID_OLD}`)).toEqual({ kind: 'card', ticketId: ID_OLD });
+    expect(parseTechnicianTicketAction(`tk:${ID_OLD}:my:0`)).toEqual({
+      kind: 'card',
+      ticketId: ID_OLD,
+      back: 'my',
+      backOffset: 0,
+    });
+    expect(parseTechnicianTicketAction(`tk:${ID_OLD}:av:6`)).toEqual({
+      kind: 'card',
+      ticketId: ID_OLD,
+      back: 'av',
+      backOffset: 6,
+    });
     expect(parseTechnicianTicketAction(`tks:${ID_OLD}`)).toEqual({ kind: 'start', ticketId: ID_OLD });
     expect(parseTechnicianTicketAction(`tkm:${ID_OLD}`)).toEqual({ kind: 'status', ticketId: ID_OLD });
     expect(parseTechnicianTicketAction(`tkp:${ID_OLD}:ASSIGNED`)).toEqual({
@@ -260,14 +272,16 @@ describe('max-technician-tickets', () => {
         availableStatusTransitions: [TicketStatus.ASSIGNED],
       },
     });
-    const rows = renderTechnicianTicketCardMessage(card!).attachments?.[0]?.payload.buttons || [];
+    const rows = renderTechnicianTicketCardMessage(card!, 'my:0').attachments?.[0]?.payload.buttons || [];
     expect(rows.map((row) => row.map((button) => button.text))).toEqual([
       ['Начать работу'],
       ['Фото', 'Комментарий'],
       ['Изменить статус'],
       ['История'],
       ['Завершить'],
+      ['Назад'],
       ['Меню'],
     ]);
+    expect(rows[5]).toEqual([{ type: 'callback', text: 'Назад', payload: 'my:0' }]);
   });
 });

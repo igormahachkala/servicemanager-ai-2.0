@@ -119,16 +119,35 @@ describe('MaxBotCommandService — entry points', () => {
 });
 
 describe('MaxBotCommandService — unknown input is never silent', () => {
-  it('unknown command returns Меню instead of reprinting the main keyboard', async () => {
+  it('unknown command without binding opens the login screen', async () => {
     const res = await makeService().handleUpdate(msg('/wat'));
     expect(res).not.toBeNull();
-    expect(res?.text).toBe('Не понял запрос.');
-    expect(buttonsOf(res)).toEqual([expect.objectContaining({ type: 'callback', text: 'Меню', payload: 'menu' })]);
+    expect(res?.text).toContain('Откройте приложение и войдите в ServiceManager');
+    expect(res?.text).not.toBe('Не понял запрос.');
+    expect(buttonsOf(res)).toContainEqual(
+      expect.objectContaining({ type: 'open_app', text: 'Открыть ServiceManager' }),
+    );
   });
 
-  it('free text returns Меню', async () => {
+  it('free text without binding opens the login screen', async () => {
     const res = await makeService().handleUpdate(msg('привет'));
     expect(res).not.toBeNull();
+    expect(res?.text).toContain('Откройте приложение и войдите в ServiceManager');
+    expect(res?.text).not.toBe('Не понял запрос.');
+  });
+
+  it('bound technician still gets Не понял запрос for free text', async () => {
+    const identity = {
+      resolve: jest.fn().mockResolvedValue({
+        resolved: true,
+        userId: 'tech-1',
+        companyId: 'company-1',
+        role: UserRole.TECHNICIAN,
+        maxUserId: '4242',
+      }),
+    };
+    const service = new MaxBotCommandService(makeForbiddenPrisma(), identity as any);
+    const res = await service.handleUpdate(msg('привет'));
     expect(res?.text).toBe('Не понял запрос.');
     expect(buttonsOf(res).map((button) => button.text)).toEqual(['Меню']);
   });
@@ -756,15 +775,37 @@ function makeMasterWorkplace() {
     }),
     listTickets: jest.fn().mockResolvedValue({
       ok: true,
-      value: { title: 'Новые', filter: 'new', items: [ticket], prevOffset: null, nextOffset: null },
+      value: {
+        title: 'Новые',
+        filter: 'new',
+        items: [ticket],
+        currentOffset: 0,
+        prevOffset: null,
+        nextOffset: null,
+      },
     }),
     unassigned: jest.fn().mockResolvedValue({
       ok: true,
-      value: { title: 'Без исполнителя', filter: 'unassigned', items: [ticket], prevOffset: null, nextOffset: null },
+      value: {
+        title: 'Без исполнителя',
+        filter: 'unassigned',
+        items: [ticket],
+        currentOffset: 0,
+        prevOffset: null,
+        nextOffset: null,
+      },
     }),
     technicianTickets: jest.fn().mockResolvedValue({
       ok: true,
-      value: { title: 'Заявки техника', filter: 'tech', extra: TECH_ID, items: [ticket], prevOffset: null, nextOffset: null },
+      value: {
+        title: 'Заявки техника',
+        filter: 'tech',
+        extra: TECH_ID,
+        items: [ticket],
+        currentOffset: 0,
+        prevOffset: null,
+        nextOffset: null,
+      },
     }),
     card: jest.fn().mockResolvedValue({
       ok: true,

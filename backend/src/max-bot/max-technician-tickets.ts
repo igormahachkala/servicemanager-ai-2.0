@@ -56,9 +56,11 @@ export type TechnicianTicketHistoryPage = {
   nextOffset: number | null;
 };
 
+export type TechnicianTicketListBack = 'my' | 'av' | 'fn';
+
 export type TechnicianTicketAction =
   | { kind: 'list'; offset: number }
-  | { kind: 'card'; ticketId: string }
+  | { kind: 'card'; ticketId: string; back?: TechnicianTicketListBack; backOffset?: number }
   | { kind: 'start'; ticketId: string }
   | { kind: 'status'; ticketId: string }
   | { kind: 'apply'; ticketId: string; status: TicketStatus }
@@ -73,6 +75,16 @@ export type TechnicianTicketAction =
   | { kind: 'availList'; offset: number }
   | { kind: 'claim'; ticketId: string };
 
+export function technicianTicketListBackPayload(
+  back: TechnicianTicketListBack,
+  offset = 0,
+): string {
+  const start = Number.isFinite(offset) && offset > 0 ? Math.floor(offset) : 0;
+  if (back === 'my') return `my:${start}`;
+  if (back === 'av') return `av:${start}`;
+  return `fn:${start}`;
+}
+
 export function parseTechnicianTicketAction(payload: string): TechnicianTicketAction | null {
   const page = payload.match(/^my:(\d+)$/);
   if (page) return { kind: 'list', offset: Number(page[1]) };
@@ -82,6 +94,17 @@ export function parseTechnicianTicketAction(payload: string): TechnicianTicketAc
   if (availPage) return { kind: 'availList', offset: Number(availPage[1]) };
   const claim = payload.match(/^avc:(.+)$/);
   if (claim && TICKET_ID_RE.test(claim[1])) return { kind: 'claim', ticketId: claim[1] };
+  const cardWithBack = payload.match(
+    new RegExp(`^tk:(${TICKET_ID_RE.source.slice(1, -1)}):(my|av|fn)(?::(\\d+))?$`),
+  );
+  if (cardWithBack) {
+    return {
+      kind: 'card',
+      ticketId: cardWithBack[1],
+      back: cardWithBack[2] as TechnicianTicketListBack,
+      backOffset: cardWithBack[3] ? Number(cardWithBack[3]) : 0,
+    };
+  }
   const card = payload.match(/^tk:(.+)$/);
   if (card && TICKET_ID_RE.test(card[1])) return { kind: 'card', ticketId: card[1] };
   const start = payload.match(/^tks:(.+)$/);
@@ -169,13 +192,18 @@ export function toTechnicianTicketCardView(ticket: Record<string, any>): Technic
   };
 }
 
-export function renderTechnicianTicketsListMessage(page: TechnicianTicketListPage): MaxBotCommandResponse {
+export function renderTechnicianTicketsListMessage(
+  page: TechnicianTicketListPage,
+  listOffset = 0,
+): MaxBotCommandResponse {
   if (page.items.length === 0) {
     return withKeyboard('Мои заявки\n\nНет назначенных заявок.', technicianMenuRow());
   }
 
   const text = ['Мои заявки', '', page.items.map(formatListCard).join('\n\n')].join('\n');
-  const opens = page.items.map((item) => callbackButton(`#${item.ticketNumber}`, `tk:${item.id}`));
+  const opens = page.items.map((item) =>
+    callbackButton(`#${item.ticketNumber}`, `tk:${item.id}:my:${listOffset}`),
+  );
   const rows = [
     ...chunk2(opens),
     ...paginationRows(
@@ -187,7 +215,10 @@ export function renderTechnicianTicketsListMessage(page: TechnicianTicketListPag
   return withKeyboard(text, rows);
 }
 
-export function renderTechnicianTicketCardMessage(card: TechnicianTicketCardView): MaxBotCommandResponse {
+export function renderTechnicianTicketCardMessage(
+  card: TechnicianTicketCardView,
+  backPayload?: string | null,
+): MaxBotCommandResponse {
   const text = [
     `Заявка #${card.ticketNumber}`,
     '',
@@ -208,6 +239,7 @@ export function renderTechnicianTicketCardMessage(card: TechnicianTicketCardView
   }
   rows.push([callbackButton('История', `tkh:${card.id}`)]);
   if (card.canComplete) rows.push([callbackButton('Завершить', `tku:${card.id}`)]);
+  if (backPayload) rows.push([callbackButton('Назад', backPayload)]);
   rows.push(...technicianMenuRow());
 
   return withKeyboard(text, rows);

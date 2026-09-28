@@ -50,7 +50,10 @@ export function toTechnicianAvailablePage(rows: Array<Record<string, any>>, offs
   };
 }
 
-export function renderAvailableTicketsMessage(page: TechnicianAvailablePage): MaxBotCommandResponse {
+export function renderAvailableTicketsMessage(
+  page: TechnicianAvailablePage,
+  listOffset = 0,
+): MaxBotCommandResponse {
   if (page.items.length === 0) {
     return withKeyboard('Доступные\n\nНет доступных заявок.', technicianMenuRow());
   }
@@ -58,7 +61,7 @@ export function renderAvailableTicketsMessage(page: TechnicianAvailablePage): Ma
   const actionRows = page.items.map((item) => {
     const row: MaxBotInlineKeyboardButton[] = [];
     if (item.canClaim) row.push(callbackButton(`Взять #${item.ticketNumber}`, `avc:${item.id}`));
-    row.push(callbackButton('Подробнее', `tk:${item.id}`));
+    row.push(callbackButton('Подробнее', `tk:${item.id}:av:${listOffset}`));
     return row;
   });
   return withKeyboard(text, [

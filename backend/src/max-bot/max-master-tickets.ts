@@ -32,6 +32,7 @@ export type MasterTicketListPage = {
   items: MasterTicketListItem[];
   prevOffset: number | null;
   nextOffset: number | null;
+  currentOffset: number;
   extra?: string;
 };
 
@@ -83,7 +84,15 @@ export function renderMasterTicketListMessage(page: MasterTicketListPage): MaxBo
     page.items.length === 0
       ? empty
       : page.items.map(formatListCard).join('\n\n');
-  const opens = page.items.map((item) => callbackButton(`#${item.ticketNumber}`, `mk:${item.id}`));
+  const listOffset = page.currentOffset;
+  const openPayload = (id: string) => {
+    if (page.filter === 'tech') return `mk:${id}:t:${page.extra || '0'}:${listOffset}`;
+    if (page.filter === 'unassigned') return `mk:${id}:u:${listOffset}`;
+    if (page.filter === 'sla') return `mk:${id}:s:${listOffset}`;
+    if (page.filter === 'work') return `mk:${id}:w:${listOffset}`;
+    return `mk:${id}:n:${listOffset}`;
+  };
+  const opens = page.items.map((item) => callbackButton(`#${item.ticketNumber}`, openPayload(item.id)));
   const assigns =
     page.filter === 'unassigned' || page.filter === 'sla'
       ? page.items.map((item) =>
@@ -119,7 +128,10 @@ export function renderMasterTicketListMessage(page: MasterTicketListPage): MaxBo
   ]);
 }
 
-export function renderMasterTicketCardMessage(card: MasterTicketCardView): MaxBotCommandResponse {
+export function renderMasterTicketCardMessage(
+  card: MasterTicketCardView,
+  backPayload?: string | null,
+): MaxBotCommandResponse {
   const text = [
     `Заявка #${card.ticketNumber}`,
     '',
@@ -141,6 +153,7 @@ export function renderMasterTicketCardMessage(card: MasterTicketCardView): MaxBo
   rows.push([callbackButton('Комментарий', `mm:${card.id}:c`)]);
   rows.push([callbackButton('Вложения', `mw:${card.id}`), callbackButton('История', `mh:${card.id}:0`)]);
   if (card.sourceRunId) rows.push([callbackButton('Обход', `mp:${card.sourceRunId}`)]);
+  if (backPayload) rows.push([callbackButton('Назад', backPayload)]);
   return withKeyboard(text, rows);
 }
 
@@ -193,6 +206,7 @@ export function toMasterTicketListPage(
     filter,
     extra,
     items: slice,
+    currentOffset: start,
     prevOffset: start > 0 ? Math.max(0, start - size) : null,
     nextOffset: start + size < items.length ? start + size : null,
   };
