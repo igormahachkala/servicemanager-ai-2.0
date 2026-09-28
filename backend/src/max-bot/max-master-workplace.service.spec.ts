@@ -10,6 +10,8 @@ const master = {
   maxUserId: '4242',
 };
 
+const CLIENT = 'client-company-1';
+
 function makePrisma() {
   return {
     userPermission: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -18,7 +20,7 @@ function makePrisma() {
 }
 
 describe('MaxMasterWorkplaceService', () => {
-  it('counts company-wide tickets with identity.role, not TECHNICIAN', async () => {
+  it('counts tickets with linkedClientCompanyId and identity.role, not TECHNICIAN', async () => {
     const now = new Date('2026-09-17T12:00:00.000Z');
     const workforce = {
       getMyState: jest.fn().mockResolvedValue({
@@ -43,15 +45,19 @@ describe('MaxMasterWorkplaceService', () => {
     const inspection = {
       listRuns: jest.fn().mockResolvedValue([{ id: 'run-1' }]),
     };
+    const serviceContracts = {
+      listLinkedClients: jest.fn().mockResolvedValue([{ id: CLIENT, name: 'Клиент', role: 'PRIMARY' }]),
+    };
     const service = new MaxMasterWorkplaceService(
       makePrisma() as any,
       workforce as any,
       tickets as any,
       inspection as any,
       {} as any,
+      serviceContracts as any,
     );
 
-    const today = await service.today(master);
+    const today = await service.today(master, CLIENT);
     expect(today).toEqual({
       ok: true,
       value: {
@@ -63,9 +69,14 @@ describe('MaxMasterWorkplaceService', () => {
         roundsTodayCount: 1,
       },
     });
-    expect(tickets.list).toHaveBeenCalledWith('company-1', 'master-1', UserRole.MASTER, undefined, {
-      canTechnicianViewAllCompanyTickets: false,
-    });
+    expect(tickets.list).toHaveBeenCalledWith(
+      'company-1',
+      'master-1',
+      UserRole.MASTER,
+      undefined,
+      { canTechnicianViewAllCompanyTickets: false },
+      CLIENT,
+    );
     expect(inspection.listRuns).toHaveBeenCalledWith(
       { id: 'master-1', companyId: 'company-1', role: UserRole.MASTER },
       expect.objectContaining({ from: expect.any(String), to: expect.any(String) }),
@@ -115,10 +126,44 @@ describe('MaxMasterWorkplaceService', () => {
       tickets as any,
       {} as any,
       {} as any,
+      { listLinkedClients: jest.fn() } as any,
     );
-    const page = await service.listTickets(master, 'new', 0);
+    const page = await service.listTickets(master, 'new', 0, CLIENT);
     expect(page.ok).toBe(true);
     if (!page.ok) return;
     expect(page.value.items.map((item) => item.ticketNumber)).toEqual([2, 1, 3]);
+    expect(tickets.list).toHaveBeenCalledWith(
+      'company-1',
+      'master-1',
+      UserRole.MASTER,
+      undefined,
+      { canTechnicianViewAllCompanyTickets: false },
+      CLIENT,
+    );
+  });
+
+  it('maps linked clients for picker buttons', async () => {
+    const serviceContracts = {
+      listLinkedClients: jest.fn().mockResolvedValue([
+        { id: 'c1', name: 'Макс-бот клиент', role: 'PRIMARY', linkedClientCompanyId: 'c1' },
+        { id: 'c2', name: 'Другой', type: 'SECONDARY', linkedClientCompanyId: 'c2' },
+      ]),
+    };
+    const service = new MaxMasterWorkplaceService(
+      makePrisma() as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      serviceContracts as any,
+    );
+    const result = await service.listLinkedClients(master);
+    expect(result).toEqual({
+      ok: true,
+      value: [
+        { id: 'c1', name: 'Макс-бот клиент', role: 'PRIMARY' },
+        { id: 'c2', name: 'Другой', role: 'SECONDARY' },
+      ],
+    });
   });
 });

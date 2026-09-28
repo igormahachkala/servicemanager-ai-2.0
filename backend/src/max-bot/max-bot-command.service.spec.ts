@@ -739,6 +739,10 @@ function makeMasterWorkplace() {
     slaLabel: '21.09, 12:00',
   };
   return {
+    listLinkedClients: jest.fn().mockResolvedValue({
+      ok: true,
+      value: [{ id: 'client_company_01', name: 'Макс-бот клиент', role: 'PRIMARY' }],
+    }),
     today: jest.fn().mockResolvedValue({
       ok: true,
       value: {
@@ -874,6 +878,12 @@ function makeMasterService(role: UserRole = UserRole.MASTER) {
 }
 
 describe('MaxBotCommandService — master chat menu', () => {
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { resetMasterLinkedClientsForTests } = require('./max-master-client-scope');
+    resetMasterLinkedClientsForTests();
+  });
+
   it('/start and /menu show the six coordinator sections', async () => {
     const { service, identity } = makeMasterService();
     const start = await service.handleUpdate({ message: { text: '/start', sender: { user_id: 4242 } } });
@@ -955,11 +965,45 @@ describe('MaxBotCommandService — master chat menu', () => {
   it('Техники and Обходы stay on the master workplace', async () => {
     const { service, workplace } = makeMasterService();
     const techs = await service.handleUpdate(callback('techs'));
-    expect(workplace.technicians).toHaveBeenCalled();
+    expect(workplace.technicians).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'master-1' }),
+      0,
+      'client_company_01',
+    );
     expect(techs?.text).toContain('Техники на смене');
     const rounds = await service.handleUpdate(callback('rounds'));
     expect(workplace.rounds).toHaveBeenCalled();
     expect(rounds?.text).toContain('Обходы сегодня');
     expect(rounds?.text).toContain('не начат');
+  });
+
+  it('several linked clients open picker before menu', async () => {
+    const { service, workplace } = makeMasterService();
+    workplace.listLinkedClients.mockResolvedValue({
+      ok: true,
+      value: [
+        { id: 'client_company_01', name: 'Макс-бот клиент', role: 'PRIMARY' },
+        { id: 'client_company_02', name: 'Второй', role: 'PRIMARY' },
+      ],
+    });
+    const start = await service.handleUpdate({ message: { text: '/start', sender: { user_id: 4242 } } });
+    expect(start?.text).toContain('Выберите клиента');
+    expect(buttonsOf(start).map((button) => button.text)).toEqual(['Макс-бот клиент', 'Второй']);
+    const picked = await service.handleUpdate(callback('mcl:client_company_01'));
+    expect(buttonsOf(picked).map((button) => button.text)).toContain('Сменить клиента');
+    expect(workplace.today).not.toHaveBeenCalled();
+    const overdue = await service.handleUpdate(callback('sla'));
+    expect(workplace.listTickets).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'master-1' }),
+      'sla',
+      0,
+      'client_company_01',
+    );
+  });
+
+  it('today passes linkedClientCompanyId after single-client auto select', async () => {
+    const { service, workplace } = makeMasterService();
+    await service.handleUpdate(callback('today'));
+    expect(workplace.today).toHaveBeenCalledWith(expect.objectContaining({ userId: 'master-1' }), 'client_company_01');
   });
 });

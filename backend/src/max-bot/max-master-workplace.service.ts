@@ -20,10 +20,12 @@ import { PERMISSIONS } from '../common/permissions.constants';
 import { InspectionScheduleService } from '../inspection/inspection-schedule.service';
 import { InspectionService } from '../inspection/inspection.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { ServiceContractsService } from '../service-contracts/service-contracts.service';
 import { TicketsService } from '../tickets/tickets.service';
 import { WorkforceService } from '../workforce/workforce.service';
 import { MaxIdentity } from './max-identity.service';
 import { MasterBack } from './max-master-actions';
+import { MasterLinkedClient } from './max-master-client-scope';
 import {
   MasterAssignedView,
   MasterCandidate,
@@ -88,14 +90,36 @@ export class MaxMasterWorkplaceService {
     @Inject(forwardRef(() => TicketsService)) private readonly tickets: TicketsService,
     @Inject(forwardRef(() => InspectionService)) private readonly inspection: InspectionService,
     @Inject(forwardRef(() => InspectionScheduleService)) private readonly schedules: InspectionScheduleService,
+    private readonly serviceContracts: ServiceContractsService,
   ) {}
 
-  async today(identity: ResolvedMaster): Promise<WorkplaceOutcome<MasterTodaySummary>> {
+  async listLinkedClients(identity: ResolvedMaster): Promise<WorkplaceOutcome<MasterLinkedClient[]>> {
+    return this.run(async () => {
+      const rows = await this.serviceContracts.listLinkedClients(identity.companyId);
+      return (Array.isArray(rows) ? rows : [])
+        .map((row: any) => {
+          const id = String(row.linkedClientCompanyId || row.id || '').trim();
+          const name = String(row.name || row.clientCompany?.name || '').trim();
+          if (!id || !name) return null;
+          return {
+            id,
+            name,
+            role: String(row.role || row.type || ''),
+          };
+        })
+        .filter((row): row is MasterLinkedClient => row !== null);
+    });
+  }
+
+  async today(
+    identity: ResolvedMaster,
+    linkedClientCompanyId: string,
+  ): Promise<WorkplaceOutcome<MasterTodaySummary>> {
     return this.run(async () => {
       const actor = await this.actor(identity);
       const { now, from, to } = await this.dayWindow(actor);
       const [rows, workforce, runs] = await Promise.all([
-        this.loadTickets(identity, actor),
+        this.loadTickets(identity, actor, linkedClientCompanyId),
         this.workforce.listWorkforce({ actor, from: from.toISOString(), to: to.toISOString() }),
         this.inspection.listRuns(ctx(identity), { from: from.toISOString(), to: to.toISOString() }),
       ]);
@@ -115,11 +139,12 @@ export class MaxMasterWorkplaceService {
     identity: ResolvedMaster,
     filter: MasterTicketFilter,
     offset: number,
+    linkedClientCompanyId: string,
   ): Promise<WorkplaceOutcome<MasterTicketListPage>> {
     return this.run(async () => {
       const actor = await this.actor(identity);
       const { now, timezone } = await this.dayWindow(actor);
-      const rows = sortMaster(await this.loadTickets(identity, actor), now).filter((ticket) => {
+      const rows = sortMaster(await this.loadTickets(identity, actor, linkedClientCompanyId), now).filter((ticket) => {
         if (filter === 'new') return ticket.status === TicketStatus.NEW;
         if (filter === 'work') return ticket.status === TicketStatus.IN_PROGRESS;
         return ACTIVE.has(ticket.status) && isOverdue(ticket, now);
@@ -129,11 +154,15 @@ export class MaxMasterWorkplaceService {
     });
   }
 
-  async unassigned(identity: ResolvedMaster, offset: number): Promise<WorkplaceOutcome<MasterTicketListPage>> {
+  async unassigned(
+    identity: ResolvedMaster,
+    offset: number,
+    linkedClientCompanyId: string,
+  ): Promise<WorkplaceOutcome<MasterTicketListPage>> {
     return this.run(async () => {
       const actor = await this.actor(identity);
       const { now, timezone } = await this.dayWindow(actor);
-      const rows = sortMaster(await this.loadTickets(identity, actor), now).filter(isUnassignedNew);
+      const rows = sortMaster(await this.loadTickets(identity, actor, linkedClientCompanyId), now).filter(isUnassignedNew);
       return toMasterTicketListPage(
         'Без исполнителя',
         'unassigned',
@@ -147,11 +176,12 @@ export class MaxMasterWorkplaceService {
     identity: ResolvedMaster,
     userId: string,
     offset: number,
+    linkedClientCompanyId: string,
   ): Promise<WorkplaceOutcome<MasterTicketListPage>> {
     return this.run(async () => {
       const actor = await this.actor(identity);
       const { now, timezone } = await this.dayWindow(actor);
-      const rows = sortMaster(await this.loadTickets(identity, actor), now).filter(
+      const rows = sortMaster(await this.loadTickets(identity, actor, linkedClientCompanyId), now).filter(
         (ticket) => ticket.assignedTechnicianId === userId && ACTIVE.has(ticket.status),
       );
       return toMasterTicketListPage(
@@ -164,11 +194,20 @@ export class MaxMasterWorkplaceService {
     });
   }
 
-  async card(identity: ResolvedMaster, ticketId: string): Promise<WorkplaceOutcome<MasterTicketCardView>> {
-    return this.run(async () => this.loadCard(identity, await this.actor(identity), ticketId));
+  async card(
+    identity: ResolvedMaster,
+    ticketId: string,
+    linkedClientCompanyId: string,
+  ): Promise<WorkplaceOutcome<MasterTicketCardView>> {
+    return this.run(async () => this.loadCard(identity, await this.actor(identity), ticketId, linkedClientCompanyId));
   }
 
-  async history(identity: ResolvedMaster, ticketId: string, offset: number): Promise<WorkplaceOutcome<MasterHistoryPage>> {
+  async history(
+    identity: ResolvedMaster,
+    ticketId: string,
+    offset: number,
+    linkedClientCompanyId: string,
+  ): Promise<WorkplaceOutcome<MasterHistoryPage>> {
     return this.run(async () => {
       const actor = await this.actor(identity);
       const ticket = await this.tickets.getOne(
@@ -177,6 +216,8 @@ export class MaxMasterWorkplaceService {
         identity.role,
         ticketId,
         actor.accessFlags,
+        undefined,
+        linkedClientCompanyId,
       );
       const entries = await this.tickets.timeline(
         identity.companyId,
@@ -184,13 +225,19 @@ export class MaxMasterWorkplaceService {
         identity.role,
         ticketId,
         actor.accessFlags,
+        undefined,
+        linkedClientCompanyId,
       );
       const lines = (Array.isArray(entries) ? entries : []).map(formatHistoryLine).filter(Boolean) as string[];
       return toMasterHistoryPage(ticketId, ticket.ticketNumber, lines, offset);
     });
   }
 
-  async attachments(identity: ResolvedMaster, ticketId: string): Promise<WorkplaceOutcome<MasterAttachmentList>> {
+  async attachments(
+    identity: ResolvedMaster,
+    ticketId: string,
+    linkedClientCompanyId: string,
+  ): Promise<WorkplaceOutcome<MasterAttachmentList>> {
     return this.run(async () => {
       const actor = await this.actor(identity);
       const ticket = await this.tickets.getOne(
@@ -199,6 +246,8 @@ export class MaxMasterWorkplaceService {
         identity.role,
         ticketId,
         actor.accessFlags,
+        undefined,
+        linkedClientCompanyId,
       );
       const rows = await this.tickets.listAttachments(
         identity.companyId,
@@ -206,6 +255,7 @@ export class MaxMasterWorkplaceService {
         identity.role,
         ticketId,
         actor.accessFlags,
+        linkedClientCompanyId,
       );
       const lines = (Array.isArray(rows) ? rows : []).map((row: { originalName?: string; mimeType?: string }) => {
         const name = String(row.originalName || 'файл');
@@ -220,6 +270,7 @@ export class MaxMasterWorkplaceService {
     identity: ResolvedMaster,
     ticketId: string,
     text: string,
+    linkedClientCompanyId: string,
   ): Promise<WorkplaceOutcome<{ ticketNumber: number }>> {
     return this.run(async () => {
       const actor = await this.actor(identity);
@@ -229,8 +280,17 @@ export class MaxMasterWorkplaceService {
         identity.role,
         ticketId,
         actor.accessFlags,
+        undefined,
+        linkedClientCompanyId,
       );
-      await this.tickets.addComment(identity.companyId, actor, identity.role, ticketId, { comment: text });
+      await this.tickets.addComment(
+        identity.companyId,
+        actor,
+        identity.role,
+        ticketId,
+        { comment: text },
+        linkedClientCompanyId,
+      );
       return { ticketNumber: ticket.ticketNumber };
     });
   }
@@ -240,9 +300,10 @@ export class MaxMasterWorkplaceService {
     ticketId: string,
     offset: number,
     back: MasterBack,
+    linkedClientCompanyId: string,
   ): Promise<WorkplaceOutcome<MasterCandidatePage>> {
     return this.run(async () => {
-      const loaded = await this.loadAssignment(identity, ticketId, back);
+      const loaded = await this.loadAssignment(identity, ticketId, back, linkedClientCompanyId);
       return toMasterCandidatePage(
         loaded.ticketId,
         loaded.ticketNumber,
@@ -260,9 +321,10 @@ export class MaxMasterWorkplaceService {
     ticketId: string,
     technicianId: string,
     back: MasterBack,
+    linkedClientCompanyId: string,
   ): Promise<WorkplaceOutcome<AssignmentContext & { chosen: MasterCandidate }>> {
     return this.run(async () => {
-      const loaded = await this.loadAssignment(identity, ticketId, back);
+      const loaded = await this.loadAssignment(identity, ticketId, back, linkedClientCompanyId);
       const chosen = loaded.items.find((item) => item.id === technicianId);
       if (!chosen) throw new BadRequestException('Кандидат недоступен');
       return { ...loaded, chosen };
@@ -273,16 +335,19 @@ export class MaxMasterWorkplaceService {
     identity: ResolvedMaster,
     ticketId: string,
     technicianId: string,
+    linkedClientCompanyId: string,
   ): Promise<WorkplaceOutcome<MasterAssignedView>> {
     return this.run(async () => {
       const actor = await this.actor(identity);
-      await this.tickets.assign(identity.companyId, actor, ticketId, technicianId);
+      await this.tickets.assign(identity.companyId, actor, ticketId, technicianId, linkedClientCompanyId);
       const ticket = await this.tickets.getOne(
         identity.companyId,
         identity.userId,
         identity.role,
         ticketId,
         actor.accessFlags,
+        undefined,
+        linkedClientCompanyId,
       );
       return {
         ticketId,
@@ -292,13 +357,13 @@ export class MaxMasterWorkplaceService {
     });
   }
 
-  async technicians(identity: ResolvedMaster, offset: number) {
+  async technicians(identity: ResolvedMaster, offset: number, linkedClientCompanyId: string) {
     return this.run(async () => {
       const actor = await this.actor(identity);
       const { from, to, timezone } = await this.dayWindow(actor);
       const [workforce, rows] = await Promise.all([
         this.workforce.listWorkforce({ actor, from: from.toISOString(), to: to.toISOString() }),
-        this.loadTickets(identity, actor),
+        this.loadTickets(identity, actor, linkedClientCompanyId),
       ]);
       const open = (workforce.shifts || []).filter((shift: any) => shift.status === WorkShiftStatus.OPEN);
       const items: MasterTechnicianListItem[] = open.map((shift: any) => {
@@ -406,12 +471,25 @@ export class MaxMasterWorkplaceService {
     });
   }
 
-  private async loadAssignment(identity: ResolvedMaster, ticketId: string, back: MasterBack): Promise<AssignmentContext> {
+  private async loadAssignment(
+    identity: ResolvedMaster,
+    ticketId: string,
+    back: MasterBack,
+    linkedClientCompanyId: string,
+  ): Promise<AssignmentContext> {
     const actor = await this.actor(identity);
     const { from, to } = await this.dayWindow(actor);
     const [ticket, result, workforce] = await Promise.all([
-      this.tickets.getOne(identity.companyId, identity.userId, identity.role, ticketId, actor.accessFlags),
-      this.tickets.listAssignmentCandidates(identity.companyId, actor, ticketId),
+      this.tickets.getOne(
+        identity.companyId,
+        identity.userId,
+        identity.role,
+        ticketId,
+        actor.accessFlags,
+        undefined,
+        linkedClientCompanyId,
+      ),
+      this.tickets.listAssignmentCandidates(identity.companyId, actor, ticketId, linkedClientCompanyId),
       this.workforce.listWorkforce({ actor, from: from.toISOString(), to: to.toISOString() }),
     ]);
     const onShift = new Set(
@@ -440,21 +518,43 @@ export class MaxMasterWorkplaceService {
     };
   }
 
-  private async loadCard(identity: ResolvedMaster, actor: Actor, ticketId: string): Promise<MasterTicketCardView> {
+  private async loadCard(
+    identity: ResolvedMaster,
+    actor: Actor,
+    ticketId: string,
+    linkedClientCompanyId: string,
+  ): Promise<MasterTicketCardView> {
     const ticket = await this.tickets.getOne(
       identity.companyId,
       identity.userId,
       identity.role,
       ticketId,
       actor.accessFlags,
+      undefined,
+      linkedClientCompanyId,
     );
     const [attachments, source, timeline] = await Promise.all([
-      this.tickets.listAttachments(identity.companyId, identity.userId, identity.role, ticketId, actor.accessFlags),
+      this.tickets.listAttachments(
+        identity.companyId,
+        identity.userId,
+        identity.role,
+        ticketId,
+        actor.accessFlags,
+        linkedClientCompanyId,
+      ),
       this.prisma.inspectionRunItem.findFirst({
         where: { ticketId },
         select: { runId: true, title: true, run: { select: { title: true } } },
       }),
-      this.tickets.timeline(identity.companyId, identity.userId, identity.role, ticketId, actor.accessFlags),
+      this.tickets.timeline(
+        identity.companyId,
+        identity.userId,
+        identity.role,
+        ticketId,
+        actor.accessFlags,
+        undefined,
+        linkedClientCompanyId,
+      ),
     ]);
     const terminal = ticket.status === TicketStatus.DONE || ticket.status === TicketStatus.CANCELED;
     const preview = (Array.isArray(timeline) ? timeline : [])
@@ -476,13 +576,14 @@ export class MaxMasterWorkplaceService {
     };
   }
 
-  private async loadTickets(identity: ResolvedMaster, actor: Actor) {
+  private async loadTickets(identity: ResolvedMaster, actor: Actor, linkedClientCompanyId: string) {
     const rows = await this.tickets.list(
       identity.companyId,
       identity.userId,
       identity.role,
       undefined,
       actor.accessFlags,
+      linkedClientCompanyId,
     );
     return Array.isArray(rows) ? rows : [];
   }

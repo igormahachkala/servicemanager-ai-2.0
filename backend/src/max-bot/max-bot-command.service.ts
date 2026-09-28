@@ -205,7 +205,11 @@ export class MaxBotCommandService {
     }
     this.logger.log({ role: identity.role }, 'max_bot_identity_resolved');
     if (identity.role === UserRole.TECHNICIAN) return renderTechnicianMenuMessage();
-    if (isMasterMenuRole(identity.role)) return renderMasterMenuMessage();
+    if (isMasterMenuRole(identity.role)) {
+      const master = await this.resolvedMaster(update);
+      if (master && this.master) return this.master.entryMenu(master);
+      return renderMasterMenuMessage();
+    }
     return renderBoundRoleStubMessage();
   }
 

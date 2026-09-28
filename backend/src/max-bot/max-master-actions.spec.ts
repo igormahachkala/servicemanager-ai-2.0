@@ -19,6 +19,17 @@ describe('parseMasterAction', () => {
     expect(parseMasterAction(`mm:${TICKET}:m`)).toEqual({ kind: 'comment', ticketId: TICKET, mention: true });
   });
 
+  it('parses client select, change and page payloads', () => {
+    expect(parseMasterAction('mcc')).toEqual({ kind: 'changeClient' });
+    expect(parseMasterAction('mcp:3')).toEqual({ kind: 'clientPage', offset: 3 });
+    expect(parseMasterAction(`mcl:${TICKET}`)).toEqual({ kind: 'selectClient', clientId: TICKET });
+    expect(parseMasterAction('mcl:short')).toBeNull();
+    expect(parseMasterAction('mcl:client_company_01')).toEqual({
+      kind: 'selectClient',
+      clientId: 'client_company_01',
+    });
+  });
+
   it('does not collide with technician ticket payloads', () => {
     expect(parseMasterAction(`tk:${TICKET}`)).toBeNull();
     expect(parseMasterAction('today')).toBeNull();

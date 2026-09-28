@@ -106,19 +106,21 @@ export function masterPaginationRows(prevPayload: string | null, nextPayload: st
   return row.length ? [row] : [];
 }
 
-function masterMenuRows(): MaxBotInlineKeyboardButton[][] {
+function masterMenuRows(showChangeClient: boolean): MaxBotInlineKeyboardButton[][] {
   const byPayload = Object.fromEntries(
     MASTER_SECTIONS.map((item) => [item.payload, callbackButton(item.label, item.payload)]),
   ) as Record<MasterSectionPayload, MaxBotInlineKeyboardButton>;
-  return [
+  const rows = [
     [byPayload.today, byPayload.sla],
     [byPayload.tickets, byPayload.unassigned],
     [byPayload.techs, byPayload.rounds],
   ];
+  if (showChangeClient) rows.push([callbackButton('Сменить клиента', 'mcc')]);
+  return rows;
 }
 
-export function renderMasterMenuMessage(): MaxBotCommandResponse {
-  const keyboard = renderInlineKeyboard(masterMenuRows());
+export function renderMasterMenuMessage(options?: { showChangeClient?: boolean }): MaxBotCommandResponse {
+  const keyboard = renderInlineKeyboard(masterMenuRows(options?.showChangeClient === true));
   return {
     text: 'Сервис Менеджер\n\nВыберите действие.',
     ...(keyboard ? { attachments: [keyboard] } : {}),

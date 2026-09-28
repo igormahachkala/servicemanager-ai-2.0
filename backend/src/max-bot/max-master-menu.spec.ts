@@ -30,6 +30,14 @@ describe('max-master-menu', () => {
       'Обходы',
     ]);
     expect(labelsOf(res)).not.toContain('Меню');
+    expect(labelsOf(res)).not.toContain('Сменить клиента');
+  });
+
+  it('adds Сменить клиента on its own fourth row when asked', () => {
+    const res = renderMasterMenuMessage({ showChangeClient: true });
+    const rows = res.attachments?.[0]?.payload.buttons || [];
+    expect(rows).toHaveLength(4);
+    expect(rows[3]).toEqual([{ type: 'callback', text: 'Сменить клиента', payload: 'mcc' }]);
   });
 
   it('puts Меню last on its own row and does not duplicate it', () => {

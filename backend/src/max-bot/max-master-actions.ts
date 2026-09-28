@@ -22,10 +22,18 @@ export type MasterAction =
   | { kind: 'roundList'; offset: number }
   | { kind: 'roundProgress'; runId: string }
   | { kind: 'roundPending'; scheduleId: string }
-  | { kind: 'roundReport'; runId: string; offset: number };
+  | { kind: 'roundReport'; runId: string; offset: number }
+  | { kind: 'selectClient'; clientId: string }
+  | { kind: 'changeClient' }
+  | { kind: 'clientPage'; offset: number };
 
 const FILTERS = new Set<MasterTicketFilter>(['new', 'work', 'sla']);
 export function parseMasterAction(payload: string): MasterAction | null {
+  if (payload === 'mcc') return { kind: 'changeClient' };
+  const clientPage = payload.match(/^mcp:(\d+)$/);
+  if (clientPage) return { kind: 'clientPage', offset: Number(clientPage[1]) };
+  const selectClient = payload.match(/^mcl:([A-Za-z0-9_-]{8,64})$/);
+  if (selectClient) return { kind: 'selectClient', clientId: selectClient[1] };
   const filter = payload.match(/^mf:(new|work|sla)$/);
   if (filter) return { kind: 'filter', filter: filter[1] as MasterTicketFilter };
   const list = payload.match(/^ml:(new|work|sla):(\d+)$/);
