@@ -156,11 +156,70 @@ No entity below should infer provider authority from a provider company alone.
 - Owner: client company.
 - Main fields: `id`, `companyId`, `locationId`, `name`, `type`, `status`,
   timestamps.
-- Relations: company, location, tickets, inspection runs, inspection schedules.
+- Passport fields, all optional: `manufacturer`, `model`, `serialNumber`,
+  `inventoryNumber`, `commissionedAt`, `warrantyUntil`, `description`. The card
+  is filled in gradually, so none of them gates creation.
+- `status` is a `String`, not an enum. `INACTIVE` carries soft deletion
+  (`EquipmentService.remove`), allowed values are checked in the service.
+- Main photo: `mainPhotoId` is a unique optional link to one
+  `EquipmentAttachment`. A card may hold many attachments but only one cover.
+- Relations: company, location, tickets, inspection runs, inspection schedules,
+  attachments, installed parts.
 - Can modify: authorized client management and platform administration.
 - Can read: client users in scope; provider users only through Contract Context
   for the equipment location and relevant operation.
+- Service history: the module keeps no lifecycle table of its own. History is
+  assembled from canonical ticket data — `Ticket` through the optional
+  `Ticket.equipmentId` relation, plus `TicketStatusHistory`,
+  `TicketAttachment`, and `InstalledPart` rows for those tickets. What was
+  replaced is never inferred from free text: it appears only where a person
+  entered it as an `InstalledPart` row.
 - Related services: `equipment`, `locations`, `tickets`, `inspection`.
+
+### EquipmentAttachment
+
+- Purpose: concrete persistence model for equipment card files and photos.
+- Owner: equipment owner through `companyId`.
+- Main fields: `id`, `companyId`, `equipmentId`, `uploadedByUserId`,
+  `originalName`, `storageKey`, `mimeType`, `sizeBytes`, `url`, `createdAt`.
+- Relations: `Company`, `Equipment`, optional uploading `User`, and the
+  optional back-reference from the `Equipment` whose main photo it is.
+- Can modify: equipment service after equipment access checks.
+- Can read: actors with readable equipment access.
+- Related services: `equipment`, `uploads`.
+
+### PartDefinition
+
+- Purpose: client catalog entry for a spare part or material.
+- Owner: client company, the same contour as `Equipment`.
+- Main fields: `id`, `companyId`, `name`, `manufacturer`, `model`, `article`,
+  `unit`, `isActive`, timestamps.
+- Relations: company, installed parts.
+- Can modify: authorized client management and platform administration.
+- Can read: client users in scope when filling in an equipment card.
+- Related services: `equipment`.
+
+### InstalledPart
+
+- Purpose: ledger row of what physically stands on an equipment item, and of
+  what was removed from it.
+- Owner: client company, denormalized in `companyId` for tenant isolation.
+- Main fields: `id`, `companyId`, `equipmentId`, `partDefinitionId`,
+  `displayName`, `serialNumber`, `quantity`, `installedAt`, `removedAt`,
+  `installedTicketId`, `removedTicketId`, `installedByUserId`,
+  `removedByUserId`, `comment`, `removalComment`, timestamps.
+- `partDefinitionId` is optional: a one-off part is entered in place without a
+  catalog card. `displayName` is stored regardless, so renaming a catalog entry
+  never rewrites history.
+- `installedTicketId` is optional because initial equipping is an
+  administrative act; a replacement requires a ticket, and the service enforces
+  that.
+- Currently installed parts are the rows with `removedAt` null.
+- Relations: company, equipment, optional part definition, optional installing
+  and removing tickets, optional installing and removing users.
+- Can modify: equipment parts service after equipment access checks.
+- Can read: actors with readable equipment access.
+- Related services: `equipment`, `tickets`.
 
 ### Specialization
 
@@ -300,6 +359,9 @@ No entity below should infer provider authority from a provider company alone.
 - Relations: client company, parent/child tickets, location, equipment, problem
   category, assigned technician, creator, status history, attachments,
   inspection run item, work logs.
+- `equipmentId` is optional: a ticket may be raised against a location without
+  naming an equipment item. It is the only link between a ticket and equipment;
+  equipment service history reads through it.
 - Can modify: authorized client actors for client-side ticket operations;
   authorized provider actors only through active Contract Context, location,
   specialization, user scope, role permission, and workflow policy. Providers
@@ -551,7 +613,8 @@ No entity below should infer provider authority from a provider company alone.
 
 ### InspectionSchedule
 
-- Purpose: recurring plan for generating inspection runs.
+- Purpose: recurring plan for generating inspection runs at a location and
+  optionally against one equipment item.
 - Owner: company that owns the schedule.
 - Main fields: `id`, `companyId`, `templateId`, `locationId`, `equipmentId`,
   `assignedToUserId`, `createdByUserId`, `name`, `frequency`, `intervalDays`,

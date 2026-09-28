@@ -30,6 +30,7 @@ const tenantDesktopNavItems: NavItem[] = [
   { id: 'specializations', label: 'Специализации', to: '/specializations' },
   { id: 'problemCategories', label: 'Категории проблем', to: '/problem-categories' },
   { id: 'locations', label: 'Точки', to: '/locations' },
+  { id: 'equipment', label: 'Оборудование', to: '/equipment' },
   { id: 'analytics', label: 'Аналитика', to: '/analytics' },
   { id: 'map', label: 'Карта', to: '/map' },
   { id: 'inspectionTemplates', label: 'Шаблоны обходов', to: '/inspection/templates' },

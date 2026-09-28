@@ -83,7 +83,12 @@ function isActivePath(currentPath: string, targetPath: string) {
   return currentPath === targetPath
 }
 
-function isNavItemVisible(item: NavItem, role?: api.Role, canAccessEngineeringAgent?: boolean) {
+/**
+ * Видимость пункта меню. Экспортируется ради регрессии: окружение тестов
+ * node, отрисовать Shell там нечем, а правило проверять надо по самому
+ * правилу, а не по его пересказу в тесте.
+ */
+export function isNavItemVisible(item: NavItem, role?: api.Role, canAccessEngineeringAgent?: boolean) {
   // Owner-only hidden module: gated purely by the server-computed flag,
   // independent of role (an owner email may have a non-platform role).
   if (item.to === '/agents/engineering') return !!canAccessEngineeringAgent
@@ -108,7 +113,16 @@ function isNavItemVisible(item: NavItem, role?: api.Role, canAccessEngineeringAg
 
   const fullAdmin = api.isFullAdminDesktopNavRole(role)
 
-  if (item.to === '/employees' || item.to === '/locations' || item.to === '/problem-categories' || item.to === '/specializations') {
+  // SMA-EQUIPMENT-REACHABILITY-088: «Оборудование» встаёт в то же условие, что
+  // и «Точки», а не заводит своё. Оборудование принадлежит точке и правится тем
+  // же кругом лиц; два отдельных правила разошлись бы при первой же правке.
+  if (
+    item.to === '/employees' ||
+    item.to === '/locations' ||
+    item.to === '/equipment' ||
+    item.to === '/problem-categories' ||
+    item.to === '/specializations'
+  ) {
     return fullAdmin
   }
   if (item.to === '/workforce') {

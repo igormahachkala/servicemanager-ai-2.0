@@ -5,6 +5,7 @@ import * as api from '../lib/api'
 import { canAccessManagementDesktop, managementHomePath } from '../lib/navigation'
 import { ClientContourCard } from './ClientContourCard'
 import { mobilePath } from './mobileRoute'
+import { equipmentMobileNavLink } from './equipmentMobileNav'
 
 type ManagementLink = {
   id: string
@@ -69,6 +70,15 @@ function ManagementIcon({ id }: { id: string }) {
       <svg {...common}>
         <path d="M12 21s-6 -5.33 -6 -10a6 6 0 1 1 12 0c0 4.67 -6 10 -6 10z" />
         <circle cx="12" cy="11" r="2" />
+      </svg>
+    )
+  }
+  if (id === 'equipment') {
+    return (
+      <svg {...common}>
+        <rect x="3" y="7" width="18" height="12" rx="2" />
+        <path d="M8 7V5a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2" />
+        <path d="M3 13h18" />
       </svg>
     )
   }
@@ -167,6 +177,12 @@ export function MobileSettingsPage() {
         hint: 'Объекты, категории проблем и специализации',
         to: scoped('/locations'),
       })
+      // Оборудование: решение о показе вынесено в чистую функцию, см. её файл.
+      // В MAX пункт не появляется — там это единственное отличие набора.
+      const equipment = equipmentMobileNavLink({ role, pathname: location.pathname })
+      if (equipment) {
+        links.push({ ...equipment, to: scoped(equipment.to) })
+      }
       links.push({
         id: 'access',
         label: 'Конструктор доступа',
