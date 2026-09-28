@@ -321,6 +321,7 @@ export function LocationsPage() {
           ) : (
             <LocationList
               locations={sortedLocations}
+              scopeCompanyId={scopeCompanyId}
               editingLocationId={editingLocationId}
               editingValue={editValue}
               busy={busy}
