@@ -1075,7 +1075,13 @@ export type LocationAnalyticsItem = {
   totalTickets: number
   newTickets: number
   inProgressTickets: number
+  /**
+   * 081: заявки, ожидающие приёмки клиентом, и отменённые. Поля необязательные:
+   * контур может быть старее бэкенда, отдающего их.
+   */
+  awaitingAcceptanceTickets?: number
   doneTickets: number
+  canceledTickets?: number
   overdueTickets: number
   categories: Array<{
     categoryId: string
@@ -1092,7 +1098,9 @@ export type LocationAnalyticsResponse = {
     totalTickets: number
     totalOverdue: number
     inProgressTotal: number
+    awaitingAcceptanceTotal?: number
     doneTotal: number
+    canceledTotal?: number
   }
   meta?: {
     scopeCompanyId?: string
