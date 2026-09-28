@@ -63,6 +63,9 @@ export class WorkforceController {
   @Roles(
     UserRole.PLATFORM_ADMIN,
     UserRole.ADMIN,
+    // 122F: CLIENT_ADMIN читает Workforce своей компании наравне с остальными
+    // управленческими ролями. Записи ему закрыты — у них другие права.
+    UserRole.CLIENT_ADMIN,
     UserRole.MASTER,
     UserRole.DISPATCHER,
     UserRole.NETWORK_DIRECTOR,
@@ -113,6 +116,9 @@ export class WorkforceController {
   @Roles(
     UserRole.PLATFORM_ADMIN,
     UserRole.ADMIN,
+    // 122F: CLIENT_ADMIN читает Workforce своей компании наравне с остальными
+    // управленческими ролями. Записи ему закрыты — у них другие права.
+    UserRole.CLIENT_ADMIN,
     UserRole.MASTER,
     UserRole.DISPATCHER,
     UserRole.NETWORK_DIRECTOR,

@@ -17,7 +17,11 @@ describe('ROLE_GRANTS', () => {
       ),
     );
 
-    expect(rows).toHaveLength(79);
+    // 122F добавил ровно одну строку: CLIENT_ADMIN/CLIENT -> WORKFORCE_VIEW.
+    expect(rows).toHaveLength(80);
+    expect(codesFor(UserRole.CLIENT_ADMIN, CompanyType.CLIENT)).toEqual([
+      PERMISSIONS.WORKFORCE_VIEW,
+    ]);
     expect(new Set(rows).size).toBe(rows.length);
 
     expect(codesFor(UserRole.ADMIN, CompanyType.CLIENT)).not.toEqual(
