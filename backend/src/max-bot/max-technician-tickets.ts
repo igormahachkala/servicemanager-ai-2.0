@@ -177,7 +177,7 @@ export function renderTechnicianTicketsListMessage(page: TechnicianTicketListPag
   const text = ['Мои заявки', '', page.items.map(formatListCard).join('\n\n')].join('\n');
   const opens = page.items.map((item) => callbackButton(`#${item.ticketNumber}`, `tk:${item.id}`));
   const rows = [
-    ...chunk3(opens),
+    ...chunk2(opens),
     ...paginationRows(
       page.prevOffset !== null ? `my:${page.prevOffset}` : null,
       page.nextOffset !== null ? `my:${page.nextOffset}` : null,
@@ -200,15 +200,17 @@ export function renderTechnicianTicketCardMessage(card: TechnicianTicketCardView
     `Оборудование: ${card.equipmentName}`,
   ].join('\n');
 
-  const startComment: MaxBotInlineKeyboardButton[] = [];
-  if (card.canStart) startComment.push(callbackButton('Начать работу', `tks:${card.id}`));
-  startComment.push(callbackButton('Комментарий', `tkc:${card.id}`));
+  const rows: MaxBotInlineKeyboardButton[][] = [];
+  if (card.canStart) rows.push([callbackButton('Начать работу', `tks:${card.id}`)]);
+  rows.push([callbackButton('Фото', `tkf:${card.id}`), callbackButton('Комментарий', `tkc:${card.id}`)]);
+  if (card.pickerTransitions.length > 0) {
+    rows.push([callbackButton('Изменить статус', `tkm:${card.id}`)]);
+  }
+  rows.push([callbackButton('История', `tkh:${card.id}`)]);
+  if (card.canComplete) rows.push([callbackButton('Завершить', `tku:${card.id}`)]);
+  rows.push(...technicianMenuRow());
 
-  const photoHistoryComplete: MaxBotInlineKeyboardButton[] = [callbackButton('Фото', `tkf:${card.id}`)];
-  photoHistoryComplete.push(callbackButton('История', `tkh:${card.id}`));
-  if (card.canComplete) photoHistoryComplete.push(callbackButton('Завершить', `tku:${card.id}`));
-
-  return withKeyboard(text, [startComment, photoHistoryComplete, ...technicianMenuRow()]);
+  return withKeyboard(text, rows);
 }
 
 export function renderCommentPromptMessage(ticketId: string, ticketNumber: number): MaxBotCommandResponse {
@@ -230,7 +232,7 @@ export function renderTicketStatusPickerMessage(card: TechnicianTicketCardView):
     callbackButton(ticketStatusLabel(status), `tkp:${card.id}:${status}`),
   );
   return withKeyboard(`Выберите действие.\nЗаявка #${card.ticketNumber}`, [
-    ...chunk3([...choices, callbackButton('Отмена', `tk:${card.id}`)]),
+    ...chunk2([...choices, callbackButton('Отмена', `tk:${card.id}`)]),
     ...technicianMenuRow(),
   ]);
 }
@@ -293,9 +295,9 @@ function callbackButton(text: string, payload: string): MaxBotInlineKeyboardButt
   return { type: 'callback', text, payload };
 }
 
-function chunk3(buttons: MaxBotInlineKeyboardButton[]) {
+function chunk2(buttons: MaxBotInlineKeyboardButton[]) {
   const rows: MaxBotInlineKeyboardButton[][] = [];
-  for (let i = 0; i < buttons.length; i += 3) rows.push(buttons.slice(i, i + 3));
+  for (let i = 0; i < buttons.length; i += 2) rows.push(buttons.slice(i, i + 2));
   return rows;
 }
 

@@ -6,7 +6,7 @@ import {
   MASTER_HISTORY_PAGE_SIZE,
   MASTER_PAGE_SIZE,
   callbackButton,
-  chunk3,
+  chunk2,
   masterPaginationRows,
   withKeyboard,
 } from './max-master-menu';
@@ -67,11 +67,8 @@ const TICKET_ID_RE =
 
 export function renderMasterTicketFilterMessage(): MaxBotCommandResponse {
   return withKeyboard('Какие заявки показать', [
-    [
-      callbackButton('Новые', 'mf:new'),
-      callbackButton('В работе', 'mf:work'),
-      callbackButton('Просрочено', 'mf:sla'),
-    ],
+    [callbackButton('Новые', 'mf:new')],
+    [callbackButton('В работе', 'mf:work'), callbackButton('Просрочено', 'mf:sla')],
   ]);
 }
 
@@ -111,12 +108,12 @@ export function renderMasterTicketListMessage(page: MasterTicketListPage): MaxBo
         : `${pageKey}:${page.nextOffset}`
       : null;
   const backToFilter =
-    page.filter === 'new' || page.filter === 'work' || page.filter === 'sla'
-      ? [[callbackButton('Отмена', 'tickets')]]
+    page.filter === 'new' || page.filter === 'work'
+      ? [[callbackButton('Меню', 'menu'), callbackButton('Отмена', 'tickets')]]
       : [];
   return withKeyboard([page.title, '', body].join('\n'), [
-    ...chunk3(opens),
-    ...chunk3(assigns),
+    ...chunk2(opens),
+    ...chunk2(assigns),
     ...masterPaginationRows(prev, next),
     ...backToFilter,
   ]);
@@ -134,22 +131,17 @@ export function renderMasterTicketCardMessage(card: MasterTicketCardView): MaxBo
   ]
     .filter(Boolean)
     .join('\n');
-  const actions: ReturnType<typeof callbackButton>[] = [];
+  const rows: ReturnType<typeof callbackButton>[][] = [];
+  const first: ReturnType<typeof callbackButton>[] = [];
   if (card.canAssign) {
-    actions.push(callbackButton(card.hasAssignee ? 'Переназначить' : 'Назначить', `ma:${card.id}:k`));
+    first.push(callbackButton(card.hasAssignee ? 'Переназначить' : 'Назначить', `ma:${card.id}:k`));
   }
-  actions.push(callbackButton('Комментарий', `mm:${card.id}:c`));
-  actions.push(callbackButton('Упомянуть', `mm:${card.id}:m`));
-  const second: ReturnType<typeof callbackButton>[] = [
-    callbackButton('Вложения', `mw:${card.id}`),
-    callbackButton('История', `mh:${card.id}:0`),
-  ];
-  if (card.sourceRunId) second.push(callbackButton('Обход', `mp:${card.sourceRunId}`));
-  return withKeyboard(text, [
-    chunk3(actions)[0] || [],
-    chunk3(second)[0] || [],
-    [callbackButton('Меню', 'menu')],
-  ].filter((row) => row.length > 0));
+  first.push(callbackButton('Упомянуть', `mm:${card.id}:m`));
+  rows.push(first);
+  rows.push([callbackButton('Комментарий', `mm:${card.id}:c`)]);
+  rows.push([callbackButton('Вложения', `mw:${card.id}`), callbackButton('История', `mh:${card.id}:0`)]);
+  if (card.sourceRunId) rows.push([callbackButton('Обход', `mp:${card.sourceRunId}`)]);
+  return withKeyboard(text, rows);
 }
 
 export function renderMasterCommentPrompt(ticketId: string, ticketNumber: number, mention: boolean): MaxBotCommandResponse {

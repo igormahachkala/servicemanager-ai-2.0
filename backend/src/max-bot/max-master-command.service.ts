@@ -140,7 +140,7 @@ export class MaxMasterCommandService {
     }
     const report = await this.workplace.roundReport(identity, action.runId);
     if (!report.ok) return fail(report.message);
-    return renderMasterRoundReportMessage(report.value);
+    return renderMasterRoundReportMessage(report.value, action.offset);
   }
 
   private async today(identity: ResolvedMaster) {

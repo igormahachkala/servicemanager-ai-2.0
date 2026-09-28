@@ -6,6 +6,7 @@ const ID_RE =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 export const ROUND_PAGE_SIZE = 6;
+export const ROUND_REPORT_PAGE_SIZE = 6;
 export const ROUND_PROBLEM_PROMPT = 'Опишите проблему';
 export const ROUND_PHOTO_PROMPT = 'Добавить фото?';
 export const ROUND_TICKET_PROMPT = 'Создать заявку из этого пункта?';
@@ -85,7 +86,7 @@ export type TechnicianRoundAction =
   | { kind: 'roundSkipPhoto'; runId: string }
   | { kind: 'roundCreateTicket'; runId: string }
   | { kind: 'roundNext'; runId: string }
-  | { kind: 'roundReport'; runId: string }
+  | { kind: 'roundReport'; runId: string; offset: number }
   | { kind: 'roundCancel' };
 
 function callbackButton(text: string, payload: string): MaxBotInlineKeyboardButton {
@@ -128,8 +129,18 @@ export function parseTechnicianRoundAction(payload: string): TechnicianRoundActi
   if (create) return { kind: 'roundCreateTicket', runId: create };
   const next = uuidPayload('rgo', payload);
   if (next) return { kind: 'roundNext', runId: next };
-  const report = uuidPayload('rrp', payload);
-  if (report) return { kind: 'roundReport', runId: report };
+  const reportPage = payload.match(
+    new RegExp(
+      `^rrp:([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?::(\\d+))?$`,
+    ),
+  );
+  if (reportPage && ID_RE.test(reportPage[1])) {
+    return {
+      kind: 'roundReport',
+      runId: reportPage[1],
+      offset: reportPage[2] ? Number(reportPage[2]) : 0,
+    };
+  }
   return null;
 }
 
@@ -176,11 +187,9 @@ export function renderRoundItemMessage(item: TechnicianRoundItemView): MaxBotCom
     `Норма: ${item.normText}`,
   ].join('\n');
   return withKeyboard(text, [
-    [
-      callbackButton('Норма', `rok:${item.runId}`),
-      callbackButton('Проблема', `rpr:${item.runId}`),
-      callbackButton('Критично', `rcr:${item.runId}`),
-    ],
+    [callbackButton('👍 Норма', `rok:${item.runId}`)],
+    [callbackButton('⚠️ Проблема', `rpr:${item.runId}`)],
+    [callbackButton('🟥 Критично', `rcr:${item.runId}`)],
     [callbackButton('Отмена', 'rcx')],
   ]);
 }
@@ -230,7 +239,10 @@ export function renderRoundBriefMessage(brief: TechnicianRoundBriefView): MaxBot
   ]);
 }
 
-export function renderRoundReportMessage(report: TechnicianRoundReportView): MaxBotCommandResponse {
+export function renderRoundReportMessage(
+  report: TechnicianRoundReportView,
+  offset = 0,
+): MaxBotCommandResponse {
   const lines = report.items.map((item) => {
     if (item.status === 'ok') return `${item.title}: норма`;
     if (item.status === 'skipped') return `${item.title}: пропущен`;
@@ -241,7 +253,19 @@ export function renderRoundReportMessage(report: TechnicianRoundReportView): Max
   const ticketButtons = report.items
     .filter((item) => item.ticketId && item.ticketNumber)
     .map((item) => callbackButton(`Открыть #${item.ticketNumber}`, `tk:${item.ticketId}`));
+  const start = Number.isFinite(offset) && offset > 0 ? Math.floor(offset) : 0;
+  const pageButtons = ticketButtons.slice(start, start + ROUND_REPORT_PAGE_SIZE);
   const rows: MaxBotInlineKeyboardButton[][] = [];
-  for (let i = 0; i < ticketButtons.length; i += 3) rows.push(ticketButtons.slice(i, i + 3));
-  return withKeyboard(['Итог обхода', '', ...lines].join('\n'), [...rows, ...technicianMenuRow()]);
+  for (let i = 0; i < pageButtons.length; i += 2) rows.push(pageButtons.slice(i, i + 2));
+  const prevOffset = start > 0 ? Math.max(0, start - ROUND_REPORT_PAGE_SIZE) : null;
+  const nextOffset =
+    start + ROUND_REPORT_PAGE_SIZE < ticketButtons.length ? start + ROUND_REPORT_PAGE_SIZE : null;
+  return withKeyboard(['Итог обхода', '', ...lines].join('\n'), [
+    ...rows,
+    ...paginationRows(
+      prevOffset !== null ? `rrp:${report.runId}:${prevOffset}` : null,
+      nextOffset !== null ? `rrp:${report.runId}:${nextOffset}` : null,
+    ),
+    ...technicianMenuRow(),
+  ]);
 }

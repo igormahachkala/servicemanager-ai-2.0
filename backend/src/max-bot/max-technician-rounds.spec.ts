@@ -72,7 +72,7 @@ describe('max-technician-rounds', () => {
     });
     expect(item.text).toContain('Пункт 2 из 12');
     expect(item.text).toContain('Проверить: Уплотнитель');
-    expect(labelsOf(item)).toEqual(['Норма', 'Проблема', 'Критично', 'Отмена']);
+    expect(labelsOf(item)).toEqual(['👍 Норма', '⚠️ Проблема', '🟥 Критично', 'Отмена']);
     expect(labelsOf(renderRoundProblemPrompt(RUN))).toEqual(['Отмена']);
     expect(labelsOf(renderRoundPhotoPrompt(RUN))).toEqual(['Без фото', 'Отмена']);
     expect(labelsOf(renderRoundTicketPrompt(RUN))).toEqual(['Создать заявку', 'Продолжить обход']);

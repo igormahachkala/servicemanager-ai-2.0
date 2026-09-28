@@ -73,7 +73,7 @@ describe('max-technician-tickets', () => {
     const rows = res.attachments?.[0]?.payload.buttons || [];
     const labels = buttonsOf(res).map((button) => button.text);
     expect(labels).toEqual(['#11', '#12', '#13', '#14', '#15', '#16', 'Следующие', 'Меню']);
-    expect(rows[2]).toEqual([{ type: 'callback', text: 'Следующие', payload: 'my:6' }]);
+    expect(rows[3]).toEqual([{ type: 'callback', text: 'Следующие', payload: 'my:6' }]);
     expect(rows[rows.length - 1]).toEqual([{ type: 'callback', text: 'Меню', payload: 'menu' }]);
     expect(buttonsOf(res).every((button) => button.type === 'callback')).toBe(true);
   });
@@ -132,11 +132,12 @@ describe('max-technician-tickets', () => {
     expect(res.text).not.toContain('Телефон');
     const rows = res.attachments?.[0]?.payload.buttons || [];
     expect(rows.map((row) => row.map((button) => button.text))).toEqual([
-      ['Начать работу', 'Комментарий'],
-      ['Фото', 'История'],
+      ['Начать работу'],
+      ['Фото', 'Комментарий'],
+      ['История'],
       ['Меню'],
     ]);
-    expect(buttonsOf(res).map((button) => button.text).join()).not.toMatch(/Принять|Отклонить|Взять|Изменить статус/);
+    expect(buttonsOf(res).map((button) => button.text).join()).not.toMatch(/Принять|Отклонить|Взять/);
   });
 
   it('parses list paging and ticket ids, rejects junk', () => {
@@ -247,7 +248,7 @@ describe('max-technician-tickets', () => {
     expect(buttonsOf(saved).map((button) => button.text)).toEqual(['К заявке', 'Меню']);
   });
 
-  it('puts complete on the photo/history row and Menu last full width', () => {
+  it('puts status change and complete on their own rows with Menu last', () => {
     const card = toTechnicianTicketCardView({
       id: ID_OLD,
       ticketNumber: 12,
@@ -261,8 +262,11 @@ describe('max-technician-tickets', () => {
     });
     const rows = renderTechnicianTicketCardMessage(card!).attachments?.[0]?.payload.buttons || [];
     expect(rows.map((row) => row.map((button) => button.text))).toEqual([
-      ['Начать работу', 'Комментарий'],
-      ['Фото', 'История', 'Завершить'],
+      ['Начать работу'],
+      ['Фото', 'Комментарий'],
+      ['Изменить статус'],
+      ['История'],
+      ['Завершить'],
       ['Меню'],
     ]);
   });

@@ -20,12 +20,12 @@ export const MASTER_SECTIONS: readonly { payload: MasterSectionPayload; label: s
   { payload: 'sla', label: 'Просрочено' },
 ];
 
-export const MASTER_PAGE_SIZE = 3;
+export const MASTER_PAGE_SIZE = 6;
 export const MASTER_ASSIGN_PAGE_SIZE = 1;
 export const MASTER_CANDIDATE_PAGE_SIZE = 2;
 export const MASTER_HISTORY_PAGE_SIZE = 3;
-export const MASTER_TECH_PAGE_SIZE = 2;
-export const MASTER_ROUND_PAGE_SIZE = 2;
+export const MASTER_TECH_PAGE_SIZE = 3;
+export const MASTER_ROUND_PAGE_SIZE = 3;
 
 const LABEL_BY_PAYLOAD: Record<MasterSectionPayload, string> = Object.fromEntries(
   MASTER_SECTIONS.map((item) => [item.payload, item.label]),
@@ -72,20 +72,26 @@ export function chunk3(buttons: MaxBotInlineKeyboardButton[]): MaxBotInlineKeybo
   return rows;
 }
 
-function isMenuOnlyRow(row: MaxBotInlineKeyboardButton[] | undefined): boolean {
-  const button = row?.[0];
+export function chunk2(buttons: MaxBotInlineKeyboardButton[]): MaxBotInlineKeyboardButton[][] {
+  const rows: MaxBotInlineKeyboardButton[][] = [];
+  for (let i = 0; i < buttons.length; i += 2) rows.push(buttons.slice(i, i + 2));
+  return rows;
+}
+
+function rowHasMenu(row: MaxBotInlineKeyboardButton[] | undefined): boolean {
   return (
     !!row &&
-    row.length === 1 &&
-    !!button &&
-    button.type === 'callback' &&
-    button.text === 'Меню' &&
-    button.payload === 'menu'
+    row.some(
+      (button) =>
+        button.type === 'callback' && button.text === 'Меню' && button.payload === 'menu',
+    )
   );
 }
 
 export function withKeyboard(text: string, rows: MaxBotInlineKeyboardButton[][]): MaxBotCommandResponse {
-  const withMenu = isMenuOnlyRow(rows[rows.length - 1]) ? rows : [...rows, [callbackButton('Меню', 'menu')]];
+  const withMenu = rowHasMenu(rows[rows.length - 1])
+    ? rows
+    : [...rows, [callbackButton('Меню', 'menu')]];
   const keyboard = renderInlineKeyboard(withMenu);
   return {
     text,
@@ -100,13 +106,19 @@ export function masterPaginationRows(prevPayload: string | null, nextPayload: st
   return row.length ? [row] : [];
 }
 
-function technicianMenuRows(): MaxBotInlineKeyboardButton[][] {
-  const buttons = MASTER_SECTIONS.map((item) => callbackButton(item.label, item.payload));
-  return [buttons.slice(0, 3), buttons.slice(3, 6)].filter((row) => row.length > 0);
+function masterMenuRows(): MaxBotInlineKeyboardButton[][] {
+  const byPayload = Object.fromEntries(
+    MASTER_SECTIONS.map((item) => [item.payload, callbackButton(item.label, item.payload)]),
+  ) as Record<MasterSectionPayload, MaxBotInlineKeyboardButton>;
+  return [
+    [byPayload.today, byPayload.sla],
+    [byPayload.tickets, byPayload.unassigned],
+    [byPayload.techs, byPayload.rounds],
+  ];
 }
 
 export function renderMasterMenuMessage(): MaxBotCommandResponse {
-  const keyboard = renderInlineKeyboard(technicianMenuRows());
+  const keyboard = renderInlineKeyboard(masterMenuRows());
   return {
     text: 'Сервис Менеджер\n\nВыберите действие.',
     ...(keyboard ? { attachments: [keyboard] } : {}),

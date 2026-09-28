@@ -16,9 +16,16 @@ describe('max-technician-menu', () => {
     const res = renderTechnicianMenuMessage();
     expect(res.text).toContain('Выберите действие');
     const rows = res.attachments?.[0]?.payload.buttons || [];
-    expect(rows).toHaveLength(2);
-    expect(rows[0]).toHaveLength(3);
-    expect(labelsOf(res)).toEqual(['Сегодня', 'Мои заявки', 'Доступные', 'Обходы', 'Моя смена', 'Поиск заявки']);
+    expect(rows).toHaveLength(3);
+    expect(rows.every((row) => row.length === 2)).toBe(true);
+    expect(labelsOf(res)).toEqual([
+      'Сегодня',
+      'Моя смена',
+      'Мои заявки',
+      'Доступные',
+      'Обходы',
+      'Поиск заявки',
+    ]);
     expect(rows.flat().every((button) => button.type === 'callback')).toBe(true);
   });
 

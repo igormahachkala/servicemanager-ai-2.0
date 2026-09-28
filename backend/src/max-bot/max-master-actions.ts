@@ -22,7 +22,7 @@ export type MasterAction =
   | { kind: 'roundList'; offset: number }
   | { kind: 'roundProgress'; runId: string }
   | { kind: 'roundPending'; scheduleId: string }
-  | { kind: 'roundReport'; runId: string };
+  | { kind: 'roundReport'; runId: string; offset: number };
 
 const FILTERS = new Set<MasterTicketFilter>(['new', 'work', 'sla']);
 export function parseMasterAction(payload: string): MasterAction | null {
@@ -71,8 +71,14 @@ export function parseMasterAction(payload: string): MasterAction | null {
   if (progress) return { kind: 'roundProgress', runId: progress[1] };
   const pending = payload.match(new RegExp(`^mq:(${UUID})$`));
   if (pending) return { kind: 'roundPending', scheduleId: pending[1] };
-  const report = payload.match(new RegExp(`^mz:(${UUID})$`));
-  if (report) return { kind: 'roundReport', runId: report[1] };
+  const report = payload.match(new RegExp(`^mz:(${UUID})(?::(\\d+))?$`));
+  if (report) {
+    return {
+      kind: 'roundReport',
+      runId: report[1],
+      offset: report[2] ? Number(report[2]) : 0,
+    };
+  }
   return null;
 }
 

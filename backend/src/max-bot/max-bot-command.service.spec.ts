@@ -218,11 +218,11 @@ describe('MaxBotCommandService — unbound identity leaks nothing', () => {
     expect(res?.text).toContain('Выберите действие');
     expect(buttonsOf(res).map((button) => button.text)).toEqual([
       'Сегодня',
+      'Просрочено',
       'Заявки',
       'Без исполнителя',
       'Техники',
       'Обходы',
-      'Просрочено',
     ]);
     expect(res?.text).not.toContain('Мои заявки');
     expect(res?.text).not.toContain('Бот не показывает данные заявок без входа.');
@@ -565,10 +565,10 @@ describe('MaxBotCommandService — technician chat menu', () => {
     expect(start?.text).toContain('Выберите действие');
     expect(buttonsOf(start).map((button) => button.text)).toEqual([
       'Сегодня',
+      'Моя смена',
       'Мои заявки',
       'Доступные',
       'Обходы',
-      'Моя смена',
       'Поиск заявки',
     ]);
     expect(buttonsOf(start).every((button) => button.type === 'callback')).toBe(true);
@@ -610,10 +610,10 @@ describe('MaxBotCommandService — technician chat menu', () => {
     const res = await service.handleUpdate(callback('menu'));
     expect(buttonsOf(res).map((button) => button.text)).toEqual([
       'Сегодня',
+      'Моя смена',
       'Мои заявки',
       'Доступные',
       'Обходы',
-      'Моя смена',
       'Поиск заявки',
     ]);
   });
@@ -641,8 +641,8 @@ describe('MaxBotCommandService — technician chat menu', () => {
     expect(workplace.startMyTicket).toHaveBeenCalled();
     expect(started?.text).toContain('Статус: В работе');
     expect(buttonsOf(started).map((button) => button.text)).toEqual([
-      'Комментарий',
       'Фото',
+      'Комментарий',
       'История',
       'Завершить',
       'Меню',
@@ -694,7 +694,7 @@ describe('MaxBotCommandService — technician chat menu', () => {
     const started = await service.handleUpdate(callback('rst:11111111-1111-4111-8111-111111111111'));
     expect(rounds.start).toHaveBeenCalled();
     expect(started?.text).toContain('Пункт 1 из 2');
-    expect(buttonsOf(started).map((button) => button.text)).toEqual(['Норма', 'Проблема', 'Критично', 'Отмена']);
+    expect(buttonsOf(started).map((button) => button.text)).toEqual(['👍 Норма', '⚠️ Проблема', '🟥 Критично', 'Отмена']);
   });
 
   it('unbound user sending Мои заявки does not get ticket rows', async () => {
@@ -882,11 +882,11 @@ describe('MaxBotCommandService — master chat menu', () => {
     expect(start).toEqual(menu);
     expect(buttonsOf(start).map((button) => button.text)).toEqual([
       'Сегодня',
+      'Просрочено',
       'Заявки',
       'Без исполнителя',
       'Техники',
       'Обходы',
-      'Просрочено',
     ]);
   });
 

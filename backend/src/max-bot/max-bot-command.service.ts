@@ -356,7 +356,7 @@ export class MaxBotCommandService {
     if (action.kind === 'roundSkipPhoto') return this.dialog.skipRoundPhoto(technician, action.runId);
     if (action.kind === 'roundCreateTicket') return this.dialog.createRoundTicket(technician, action.runId);
     if (action.kind === 'roundNext') return this.roundNextMessage(technician, action.runId);
-    return this.roundReportMessage(technician, action.runId);
+    return this.roundReportMessage(technician, action.runId, action.offset);
   }
 
   private async roundsListMessage(
@@ -397,11 +397,11 @@ export class MaxBotCommandService {
     );
   }
 
-  private async roundReportMessage(technician: ResolvedTechnician, runId: string) {
+  private async roundReportMessage(technician: ResolvedTechnician, runId: string, offset = 0) {
     if (!this.rounds) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
     const result = await this.rounds.report(technician, runId);
     if (!result.ok) return renderPersistentMenuMessage(result.message);
-    return renderRoundReportMessage(result.value);
+    return renderRoundReportMessage(result.value, offset);
   }
 
   private async myTicketsMessage(
