@@ -19,6 +19,7 @@ import {
   renderTechnicianTicketCardMessage,
   renderTicketUnavailableMessage,
 } from './max-technician-tickets';
+import { setTicketListBack } from './max-ticket-list-back';
 import { MaxTechnicianWorkplaceService } from './max-technician-workplace.service';
 import { MaxTechnicianRoundsService } from './max-technician-rounds.service';
 import {
@@ -66,6 +67,13 @@ export class MaxTechnicianDialog {
 
   keepsWait(kind: string) {
     return KEEP_WAIT.has(kind);
+  }
+
+  hasFindQuery(update: MaxBotUpdate) {
+    const maxUserId = extractMaxUserId(update);
+    if (!maxUserId) return false;
+    const pending = this.wait.get(maxUserId);
+    return Boolean(pending && pending.kind === 'find' && pending.query);
   }
 
   clear(update: MaxBotUpdate) {
@@ -267,12 +275,13 @@ export class MaxTechnicianDialog {
     }
     if (result.value.kind === 'card') {
       this.wait.delete(technician.maxUserId);
-      return renderTechnicianTicketCardMessage(result.value.card);
+      setTicketListBack(technician.maxUserId, 'find');
+      return renderTechnicianTicketCardMessage(result.value.card, 'find');
     }
     this.wait.set(technician.maxUserId, pending);
     return result.value.page.items.length === 0
       ? renderFindEmptyMessage()
-      : renderFindResultsMessage(result.value.page);
+      : renderFindResultsMessage(result.value.page, offset);
   }
 
   private async saveComment(

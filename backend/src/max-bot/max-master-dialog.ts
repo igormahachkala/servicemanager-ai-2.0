@@ -1,5 +1,6 @@
 import { extractMaxUserId, MaxIdentity } from './max-identity.service';
 import { MaxBotCommandResponse, MaxBotUpdate } from './max-bot.types';
+import { getMasterLinkedClient } from './max-master-client-scope';
 import { renderMasterCommentPrompt, renderMasterCommentSaved } from './max-master-tickets';
 import { MaxMasterWorkplaceService } from './max-master-workplace.service';
 import { renderPersistentMenuMessage } from './max-menu.builder';
@@ -31,7 +32,9 @@ export class MaxMasterDialog {
     const comment = text.trim();
     if (!comment) return renderMasterCommentPrompt(state.ticketId, state.ticketNumber, state.mention);
     if (!this.workplace) return renderPersistentMenuMessage(FAILED);
-    const result = await this.workplace.comment(identity, state.ticketId, comment);
+    const linked = getMasterLinkedClient(identity.maxUserId);
+    if (!linked) return renderPersistentMenuMessage(FAILED);
+    const result = await this.workplace.comment(identity, state.ticketId, comment, linked);
     this.wait.delete(identity.maxUserId);
     if (!result.ok) return renderPersistentMenuMessage(result.message);
     return renderMasterCommentSaved(state.ticketId, result.value.ticketNumber);

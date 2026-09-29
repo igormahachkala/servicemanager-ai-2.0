@@ -12,9 +12,9 @@ function callbackButton(text: string, payload: string): MaxBotInlineKeyboardButt
   return { type: 'callback', text, payload };
 }
 
-function chunk3(buttons: MaxBotInlineKeyboardButton[]) {
+function chunk2(buttons: MaxBotInlineKeyboardButton[]) {
   const rows: MaxBotInlineKeyboardButton[][] = [];
-  for (let i = 0; i < buttons.length; i += 3) rows.push(buttons.slice(i, i + 3));
+  for (let i = 0; i < buttons.length; i += 2) rows.push(buttons.slice(i, i + 2));
   return rows;
 }
 
@@ -76,12 +76,17 @@ export function renderFindEmptyMessage(): MaxBotCommandResponse {
   ]);
 }
 
-export function renderFindResultsMessage(page: TechnicianTicketListPage): MaxBotCommandResponse {
+export function renderFindResultsMessage(
+  page: TechnicianTicketListPage,
+  listOffset = 0,
+): MaxBotCommandResponse {
   if (page.items.length === 0) return renderFindEmptyMessage();
   const text = ['Поиск заявки', '', page.items.map(formatListCard).join('\n\n')].join('\n');
-  const opens = page.items.map((item) => callbackButton(`#${item.ticketNumber}`, `tk:${item.id}`));
+  const opens = page.items.map((item) =>
+    callbackButton(`#${item.ticketNumber}`, `tk:${item.id}:fn:${listOffset}`),
+  );
   return withKeyboard(text, [
-    ...chunk3(opens),
+    ...chunk2(opens),
     ...paginationRows(
       page.prevOffset !== null ? `fn:${page.prevOffset}` : null,
       page.nextOffset !== null ? `fn:${page.nextOffset}` : null,

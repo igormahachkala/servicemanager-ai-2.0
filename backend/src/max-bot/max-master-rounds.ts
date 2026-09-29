@@ -2,10 +2,12 @@ import { MaxBotCommandResponse } from './max-bot.types';
 import {
   MASTER_ROUND_PAGE_SIZE,
   callbackButton,
-  chunk3,
+  chunk2,
   masterPaginationRows,
   withKeyboard,
 } from './max-master-menu';
+
+export const MASTER_ROUND_REPORT_PAGE_SIZE = 6;
 
 export type MasterRoundListItem = {
   runId: string | null;
@@ -61,7 +63,7 @@ export function renderMasterRoundListMessage(page: MasterRoundListPage): MaxBotC
     ),
   );
   return withKeyboard(`Обходы сегодня\n\n${body}`, [
-    ...chunk3(opens),
+    ...opens.map((button) => [button]),
     ...masterPaginationRows(
       page.prevOffset !== null ? `mr:${page.prevOffset}` : null,
       page.nextOffset !== null ? `mr:${page.nextOffset}` : null,
@@ -86,7 +88,10 @@ export function renderMasterRoundNotStartedMessage(locationName: string): MaxBot
   return withKeyboard(`Обход на объекте ${locationName} ещё не начат.`, []);
 }
 
-export function renderMasterRoundReportMessage(report: MasterRoundReportView): MaxBotCommandResponse {
+export function renderMasterRoundReportMessage(
+  report: MasterRoundReportView,
+  offset = 0,
+): MaxBotCommandResponse {
   const lines = report.items.map((item) => {
     if (item.status === 'ok') return `${item.title}: норма`;
     if (item.status === 'skipped') return `${item.title}: пропущен`;
@@ -96,9 +101,21 @@ export function renderMasterRoundReportMessage(report: MasterRoundReportView): M
   });
   const ticketButtons = report.items
     .filter((item) => item.ticketId && item.ticketNumber)
-    .slice(0, 3)
     .map((item) => callbackButton(`Открыть #${item.ticketNumber}`, `mk:${item.ticketId}`));
-  return withKeyboard(['Итог обхода', '', ...lines].join('\n'), [...chunk3(ticketButtons)]);
+  const start = Number.isFinite(offset) && offset > 0 ? Math.floor(offset) : 0;
+  const pageButtons = ticketButtons.slice(start, start + MASTER_ROUND_REPORT_PAGE_SIZE);
+  const prevOffset = start > 0 ? Math.max(0, start - MASTER_ROUND_REPORT_PAGE_SIZE) : null;
+  const nextOffset =
+    start + MASTER_ROUND_REPORT_PAGE_SIZE < ticketButtons.length
+      ? start + MASTER_ROUND_REPORT_PAGE_SIZE
+      : null;
+  return withKeyboard(['Итог обхода', '', ...lines].join('\n'), [
+    ...chunk2(pageButtons),
+    ...masterPaginationRows(
+      prevOffset !== null ? `mz:${report.runId}:${prevOffset}` : null,
+      nextOffset !== null ? `mz:${report.runId}:${nextOffset}` : null,
+    ),
+  ]);
 }
 
 export function toMasterRoundListPage(items: MasterRoundListItem[], offset = 0): MasterRoundListPage {

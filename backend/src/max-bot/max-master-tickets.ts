@@ -6,7 +6,7 @@ import {
   MASTER_HISTORY_PAGE_SIZE,
   MASTER_PAGE_SIZE,
   callbackButton,
-  chunk3,
+  chunk2,
   masterPaginationRows,
   withKeyboard,
 } from './max-master-menu';
@@ -32,6 +32,7 @@ export type MasterTicketListPage = {
   items: MasterTicketListItem[];
   prevOffset: number | null;
   nextOffset: number | null;
+  currentOffset: number;
   extra?: string;
 };
 
@@ -67,11 +68,8 @@ const TICKET_ID_RE =
 
 export function renderMasterTicketFilterMessage(): MaxBotCommandResponse {
   return withKeyboard('Какие заявки показать', [
-    [
-      callbackButton('Новые', 'mf:new'),
-      callbackButton('В работе', 'mf:work'),
-      callbackButton('Просрочено', 'mf:sla'),
-    ],
+    [callbackButton('Новые', 'mf:new')],
+    [callbackButton('В работе', 'mf:work'), callbackButton('Просрочено', 'mf:sla')],
   ]);
 }
 
@@ -86,7 +84,15 @@ export function renderMasterTicketListMessage(page: MasterTicketListPage): MaxBo
     page.items.length === 0
       ? empty
       : page.items.map(formatListCard).join('\n\n');
-  const opens = page.items.map((item) => callbackButton(`#${item.ticketNumber}`, `mk:${item.id}`));
+  const listOffset = page.currentOffset;
+  const openPayload = (id: string) => {
+    if (page.filter === 'tech') return `mk:${id}:t:${page.extra || '0'}:${listOffset}`;
+    if (page.filter === 'unassigned') return `mk:${id}:u:${listOffset}`;
+    if (page.filter === 'sla') return `mk:${id}:s:${listOffset}`;
+    if (page.filter === 'work') return `mk:${id}:w:${listOffset}`;
+    return `mk:${id}:n:${listOffset}`;
+  };
+  const opens = page.items.map((item) => callbackButton(`#${item.ticketNumber}`, openPayload(item.id)));
   const assigns =
     page.filter === 'unassigned' || page.filter === 'sla'
       ? page.items.map((item) =>
@@ -111,18 +117,21 @@ export function renderMasterTicketListMessage(page: MasterTicketListPage): MaxBo
         : `${pageKey}:${page.nextOffset}`
       : null;
   const backToFilter =
-    page.filter === 'new' || page.filter === 'work' || page.filter === 'sla'
-      ? [[callbackButton('Отмена', 'tickets')]]
+    page.filter === 'new' || page.filter === 'work'
+      ? [[callbackButton('Меню', 'menu'), callbackButton('Отмена', 'tickets')]]
       : [];
   return withKeyboard([page.title, '', body].join('\n'), [
-    ...chunk3(opens),
-    ...chunk3(assigns),
+    ...chunk2(opens),
+    ...chunk2(assigns),
     ...masterPaginationRows(prev, next),
     ...backToFilter,
   ]);
 }
 
-export function renderMasterTicketCardMessage(card: MasterTicketCardView): MaxBotCommandResponse {
+export function renderMasterTicketCardMessage(
+  card: MasterTicketCardView,
+  backPayload?: string | null,
+): MaxBotCommandResponse {
   const text = [
     `Заявка #${card.ticketNumber}`,
     '',
@@ -134,22 +143,18 @@ export function renderMasterTicketCardMessage(card: MasterTicketCardView): MaxBo
   ]
     .filter(Boolean)
     .join('\n');
-  const actions: ReturnType<typeof callbackButton>[] = [];
+  const rows: ReturnType<typeof callbackButton>[][] = [];
+  const first: ReturnType<typeof callbackButton>[] = [];
   if (card.canAssign) {
-    actions.push(callbackButton(card.hasAssignee ? 'Переназначить' : 'Назначить', `ma:${card.id}:k`));
+    first.push(callbackButton(card.hasAssignee ? 'Переназначить' : 'Назначить', `ma:${card.id}:k`));
   }
-  actions.push(callbackButton('Комментарий', `mm:${card.id}:c`));
-  actions.push(callbackButton('Упомянуть', `mm:${card.id}:m`));
-  const second: ReturnType<typeof callbackButton>[] = [
-    callbackButton('Вложения', `mw:${card.id}`),
-    callbackButton('История', `mh:${card.id}:0`),
-  ];
-  if (card.sourceRunId) second.push(callbackButton('Обход', `mp:${card.sourceRunId}`));
-  return withKeyboard(text, [
-    chunk3(actions)[0] || [],
-    chunk3(second)[0] || [],
-    [callbackButton('Меню', 'menu')],
-  ].filter((row) => row.length > 0));
+  first.push(callbackButton('Упомянуть', `mm:${card.id}:m`));
+  rows.push(first);
+  rows.push([callbackButton('Комментарий', `mm:${card.id}:c`)]);
+  rows.push([callbackButton('Вложения', `mw:${card.id}`), callbackButton('История', `mh:${card.id}:0`)]);
+  if (card.sourceRunId) rows.push([callbackButton('Обход', `mp:${card.sourceRunId}`)]);
+  if (backPayload) rows.push([callbackButton('Назад', backPayload)]);
+  return withKeyboard(text, rows);
 }
 
 export function renderMasterCommentPrompt(ticketId: string, ticketNumber: number, mention: boolean): MaxBotCommandResponse {
@@ -201,6 +206,7 @@ export function toMasterTicketListPage(
     filter,
     extra,
     items: slice,
+    currentOffset: start,
     prevOffset: start > 0 ? Math.max(0, start - size) : null,
     nextOffset: start + size < items.length ? start + size : null,
   };

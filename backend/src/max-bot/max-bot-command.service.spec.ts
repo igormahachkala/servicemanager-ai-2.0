@@ -119,16 +119,35 @@ describe('MaxBotCommandService — entry points', () => {
 });
 
 describe('MaxBotCommandService — unknown input is never silent', () => {
-  it('unknown command returns Меню instead of reprinting the main keyboard', async () => {
+  it('unknown command without binding opens the login screen', async () => {
     const res = await makeService().handleUpdate(msg('/wat'));
     expect(res).not.toBeNull();
-    expect(res?.text).toBe('Не понял запрос.');
-    expect(buttonsOf(res)).toEqual([expect.objectContaining({ type: 'callback', text: 'Меню', payload: 'menu' })]);
+    expect(res?.text).toContain('Откройте приложение и войдите в ServiceManager');
+    expect(res?.text).not.toBe('Не понял запрос.');
+    expect(buttonsOf(res)).toContainEqual(
+      expect.objectContaining({ type: 'open_app', text: 'Открыть ServiceManager' }),
+    );
   });
 
-  it('free text returns Меню', async () => {
+  it('free text without binding opens the login screen', async () => {
     const res = await makeService().handleUpdate(msg('привет'));
     expect(res).not.toBeNull();
+    expect(res?.text).toContain('Откройте приложение и войдите в ServiceManager');
+    expect(res?.text).not.toBe('Не понял запрос.');
+  });
+
+  it('bound technician still gets Не понял запрос for free text', async () => {
+    const identity = {
+      resolve: jest.fn().mockResolvedValue({
+        resolved: true,
+        userId: 'tech-1',
+        companyId: 'company-1',
+        role: UserRole.TECHNICIAN,
+        maxUserId: '4242',
+      }),
+    };
+    const service = new MaxBotCommandService(makeForbiddenPrisma(), identity as any);
+    const res = await service.handleUpdate(msg('привет'));
     expect(res?.text).toBe('Не понял запрос.');
     expect(buttonsOf(res).map((button) => button.text)).toEqual(['Меню']);
   });
@@ -218,11 +237,11 @@ describe('MaxBotCommandService — unbound identity leaks nothing', () => {
     expect(res?.text).toContain('Выберите действие');
     expect(buttonsOf(res).map((button) => button.text)).toEqual([
       'Сегодня',
+      'Просрочено',
       'Заявки',
       'Без исполнителя',
       'Техники',
       'Обходы',
-      'Просрочено',
     ]);
     expect(res?.text).not.toContain('Мои заявки');
     expect(res?.text).not.toContain('Бот не показывает данные заявок без входа.');
@@ -565,10 +584,10 @@ describe('MaxBotCommandService — technician chat menu', () => {
     expect(start?.text).toContain('Выберите действие');
     expect(buttonsOf(start).map((button) => button.text)).toEqual([
       'Сегодня',
+      'Моя смена',
       'Мои заявки',
       'Доступные',
       'Обходы',
-      'Моя смена',
       'Поиск заявки',
     ]);
     expect(buttonsOf(start).every((button) => button.type === 'callback')).toBe(true);
@@ -610,10 +629,10 @@ describe('MaxBotCommandService — technician chat menu', () => {
     const res = await service.handleUpdate(callback('menu'));
     expect(buttonsOf(res).map((button) => button.text)).toEqual([
       'Сегодня',
+      'Моя смена',
       'Мои заявки',
       'Доступные',
       'Обходы',
-      'Моя смена',
       'Поиск заявки',
     ]);
   });
@@ -641,8 +660,8 @@ describe('MaxBotCommandService — technician chat menu', () => {
     expect(workplace.startMyTicket).toHaveBeenCalled();
     expect(started?.text).toContain('Статус: В работе');
     expect(buttonsOf(started).map((button) => button.text)).toEqual([
-      'Комментарий',
       'Фото',
+      'Комментарий',
       'История',
       'Завершить',
       'Меню',
@@ -694,7 +713,7 @@ describe('MaxBotCommandService — technician chat menu', () => {
     const started = await service.handleUpdate(callback('rst:11111111-1111-4111-8111-111111111111'));
     expect(rounds.start).toHaveBeenCalled();
     expect(started?.text).toContain('Пункт 1 из 2');
-    expect(buttonsOf(started).map((button) => button.text)).toEqual(['Норма', 'Проблема', 'Критично', 'Отмена']);
+    expect(buttonsOf(started).map((button) => button.text)).toEqual(['👍 Норма', '⚠️ Проблема', '🟥 Критично', 'Отмена']);
   });
 
   it('unbound user sending Мои заявки does not get ticket rows', async () => {
@@ -739,6 +758,10 @@ function makeMasterWorkplace() {
     slaLabel: '21.09, 12:00',
   };
   return {
+    listLinkedClients: jest.fn().mockResolvedValue({
+      ok: true,
+      value: [{ id: 'client_company_01', name: 'Макс-бот клиент', role: 'PRIMARY' }],
+    }),
     today: jest.fn().mockResolvedValue({
       ok: true,
       value: {
@@ -752,15 +775,37 @@ function makeMasterWorkplace() {
     }),
     listTickets: jest.fn().mockResolvedValue({
       ok: true,
-      value: { title: 'Новые', filter: 'new', items: [ticket], prevOffset: null, nextOffset: null },
+      value: {
+        title: 'Новые',
+        filter: 'new',
+        items: [ticket],
+        currentOffset: 0,
+        prevOffset: null,
+        nextOffset: null,
+      },
     }),
     unassigned: jest.fn().mockResolvedValue({
       ok: true,
-      value: { title: 'Без исполнителя', filter: 'unassigned', items: [ticket], prevOffset: null, nextOffset: null },
+      value: {
+        title: 'Без исполнителя',
+        filter: 'unassigned',
+        items: [ticket],
+        currentOffset: 0,
+        prevOffset: null,
+        nextOffset: null,
+      },
     }),
     technicianTickets: jest.fn().mockResolvedValue({
       ok: true,
-      value: { title: 'Заявки техника', filter: 'tech', extra: TECH_ID, items: [ticket], prevOffset: null, nextOffset: null },
+      value: {
+        title: 'Заявки техника',
+        filter: 'tech',
+        extra: TECH_ID,
+        items: [ticket],
+        currentOffset: 0,
+        prevOffset: null,
+        nextOffset: null,
+      },
     }),
     card: jest.fn().mockResolvedValue({
       ok: true,
@@ -874,6 +919,12 @@ function makeMasterService(role: UserRole = UserRole.MASTER) {
 }
 
 describe('MaxBotCommandService — master chat menu', () => {
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { resetMasterLinkedClientsForTests } = require('./max-master-client-scope');
+    resetMasterLinkedClientsForTests();
+  });
+
   it('/start and /menu show the six coordinator sections', async () => {
     const { service, identity } = makeMasterService();
     const start = await service.handleUpdate({ message: { text: '/start', sender: { user_id: 4242 } } });
@@ -882,11 +933,11 @@ describe('MaxBotCommandService — master chat menu', () => {
     expect(start).toEqual(menu);
     expect(buttonsOf(start).map((button) => button.text)).toEqual([
       'Сегодня',
+      'Просрочено',
       'Заявки',
       'Без исполнителя',
       'Техники',
       'Обходы',
-      'Просрочено',
     ]);
   });
 
@@ -955,11 +1006,45 @@ describe('MaxBotCommandService — master chat menu', () => {
   it('Техники and Обходы stay on the master workplace', async () => {
     const { service, workplace } = makeMasterService();
     const techs = await service.handleUpdate(callback('techs'));
-    expect(workplace.technicians).toHaveBeenCalled();
+    expect(workplace.technicians).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'master-1' }),
+      0,
+      'client_company_01',
+    );
     expect(techs?.text).toContain('Техники на смене');
     const rounds = await service.handleUpdate(callback('rounds'));
     expect(workplace.rounds).toHaveBeenCalled();
     expect(rounds?.text).toContain('Обходы сегодня');
     expect(rounds?.text).toContain('не начат');
+  });
+
+  it('several linked clients open picker before menu', async () => {
+    const { service, workplace } = makeMasterService();
+    workplace.listLinkedClients.mockResolvedValue({
+      ok: true,
+      value: [
+        { id: 'client_company_01', name: 'Макс-бот клиент', role: 'PRIMARY' },
+        { id: 'client_company_02', name: 'Второй', role: 'PRIMARY' },
+      ],
+    });
+    const start = await service.handleUpdate({ message: { text: '/start', sender: { user_id: 4242 } } });
+    expect(start?.text).toContain('Выберите клиента');
+    expect(buttonsOf(start).map((button) => button.text)).toEqual(['Макс-бот клиент', 'Второй']);
+    const picked = await service.handleUpdate(callback('mcl:client_company_01'));
+    expect(buttonsOf(picked).map((button) => button.text)).toContain('Сменить клиента');
+    expect(workplace.today).not.toHaveBeenCalled();
+    const overdue = await service.handleUpdate(callback('sla'));
+    expect(workplace.listTickets).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'master-1' }),
+      'sla',
+      0,
+      'client_company_01',
+    );
+  });
+
+  it('today passes linkedClientCompanyId after single-client auto select', async () => {
+    const { service, workplace } = makeMasterService();
+    await service.handleUpdate(callback('today'));
+    expect(workplace.today).toHaveBeenCalledWith(expect.objectContaining({ userId: 'master-1' }), 'client_company_01');
   });
 });

@@ -46,6 +46,10 @@ describe('max-technician-available', () => {
     expect(res.text).toContain('Доступные');
     expect(res.text).not.toContain('7999');
     expect(labelsOf(res)).toEqual(['Взять #12', 'Подробнее', 'Меню']);
+    expect(res.attachments?.[0]?.payload.buttons[0]).toEqual([
+      { type: 'callback', text: 'Взять #12', payload: `avc:${ID}` },
+      { type: 'callback', text: 'Подробнее', payload: `tk:${ID}:av:0` },
+    ]);
   });
 
   it('hides claim when the kernel did not allow it', () => {
@@ -77,9 +81,10 @@ describe('max-technician-available', () => {
       location: { name: 'Склад' },
       meta: { availableActions: { canStart: true, canComplete: false }, availableStatusTransitions: [] },
     });
-    const claimed = renderAvailableClaimedMessage(card!, renderTechnicianTicketCardMessage(card!));
+    const claimed = renderAvailableClaimedMessage(card!, renderTechnicianTicketCardMessage(card!, 'av:0'));
     expect(claimed.text).toContain('Заявка #12 назначена вам.');
     expect(claimed.text).toContain('Заявка #12');
+    expect(labelsOf(claimed)).toContain('Назад');
 
     const taken = renderAvailableTakenMessage({ items: [], prevOffset: null, nextOffset: null });
     expect(taken.text).toContain('Заявку уже взяли.');

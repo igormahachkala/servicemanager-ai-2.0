@@ -2,7 +2,7 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { TicketStatus, UserRole } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { MaxIdentity, MaxIdentityService } from './max-identity.service';
+import { MaxIdentity, MaxIdentityService, extractMaxUserId } from './max-identity.service';
 import { MaxMasterCommandService } from './max-master-command.service';
 import {
   isMasterMenuRole,
@@ -37,6 +37,7 @@ import {
   renderTicketHistoryMessage,
   renderTicketStatusPickerMessage,
   renderTicketUnavailableMessage,
+  technicianTicketListBackPayload,
   type TechnicianTicketAction,
 } from './max-technician-tickets';
 import { extractMaxIncomingMedia, MaxFileClient } from './max-file.client';
@@ -47,6 +48,11 @@ import {
   renderAvailableTakenMessage,
   renderAvailableTicketsMessage,
 } from './max-technician-available';
+import {
+  clearTicketListBack,
+  getTicketListBack,
+  setTicketListBack,
+} from './max-ticket-list-back';
 import {
   parseTechnicianRoundAction,
   renderRoundAfterItem,
@@ -159,6 +165,8 @@ export class MaxBotCommandService {
       if (cmd === '/start' || cmd === '/menu') {
         this.dialog.clear(update);
         this.master?.clearDialog(update);
+        const maxUserId = extractMaxUserId(update);
+        if (maxUserId) clearTicketListBack(maxUserId);
         return this.handleParsedCommand(cmd, this.menuMessage(update));
       }
       if (cmd === '/help') {
@@ -193,7 +201,7 @@ export class MaxBotCommandService {
       },
       'max_bot_command_fallback',
     );
-    return this.unknownInputMessage();
+    return this.unknownInputMessage(update);
   }
 
   private async menuMessage(update: MaxBotUpdate): Promise<MaxBotCommandResponse> {
@@ -205,11 +213,21 @@ export class MaxBotCommandService {
     }
     this.logger.log({ role: identity.role }, 'max_bot_identity_resolved');
     if (identity.role === UserRole.TECHNICIAN) return renderTechnicianMenuMessage();
-    if (isMasterMenuRole(identity.role)) return renderMasterMenuMessage();
+    if (isMasterMenuRole(identity.role)) {
+      const master = await this.resolvedMaster(update);
+      if (master && this.master) return this.master.entryMenu(master);
+      return renderMasterMenuMessage();
+    }
     return renderBoundRoleStubMessage();
   }
 
-  private unknownInputMessage(): MaxBotCommandResponse {
+  /** Unbound users get the login screen; bound users keep «Не понял запрос.» */
+  private async unknownInputMessage(update: MaxBotUpdate): Promise<MaxBotCommandResponse> {
+    if (!this.identity) return renderMenuMessage(buildUnboundMenuModel(), this.botUsername);
+    const identity = await this.identity.resolve(update);
+    if (!identity.resolved) {
+      return renderMenuMessage(buildUnboundMenuModel(), this.botUsername);
+    }
     return renderPersistentMenuMessage('Не понял запрос.');
   }
 
@@ -254,11 +272,18 @@ export class MaxBotCommandService {
     }
     const ticketAction = parseTechnicianTicketAction(payload);
     const roundAction = parseTechnicianRoundAction(payload);
+    const keepFindForCard =
+      ticketAction?.kind === 'card' && ticketAction.back === 'fn' && this.dialog.hasFindQuery(update);
     if (
+      !keepFindForCard &&
       (!ticketAction || !this.dialog.keepsWait(ticketAction.kind)) &&
       (!roundAction || !this.dialog.keepsWait(roundAction.kind))
     ) {
       this.dialog.clear(update);
+    }
+    if (payload === 'menu') {
+      const maxUserId = extractMaxUserId(update);
+      if (maxUserId) clearTicketListBack(maxUserId);
     }
     if (isTechnicianSectionPayload(payload)) {
       return this.technicianSection(update, payload);
@@ -323,7 +348,15 @@ export class MaxBotCommandService {
     if (action.kind === 'availList') return this.availableTicketsMessage(technician, action.offset);
     if (action.kind === 'claim') return this.claimAvailableMessage(technician, action.ticketId);
     if (action.kind === 'findPage') return this.dialog.pageFind(technician, action.offset);
-    if (action.kind === 'card') return this.ticketCardMessage(technician, action.ticketId);
+    if (action.kind === 'card') {
+      if (action.back) {
+        setTicketListBack(
+          technician.maxUserId,
+          technicianTicketListBackPayload(action.back, action.backOffset ?? 0),
+        );
+      }
+      return this.ticketCardMessage(technician, action.ticketId);
+    }
     if (action.kind === 'start') return this.startTicketMessage(technician, action.ticketId);
     if (action.kind === 'status') return this.ticketStatusPickerMessage(technician, action.ticketId);
     if (action.kind === 'apply') return this.applyTicketStatusMessage(technician, action.ticketId, action.status);
@@ -356,7 +389,7 @@ export class MaxBotCommandService {
     if (action.kind === 'roundSkipPhoto') return this.dialog.skipRoundPhoto(technician, action.runId);
     if (action.kind === 'roundCreateTicket') return this.dialog.createRoundTicket(technician, action.runId);
     if (action.kind === 'roundNext') return this.roundNextMessage(technician, action.runId);
-    return this.roundReportMessage(technician, action.runId);
+    return this.roundReportMessage(technician, action.runId, action.offset);
   }
 
   private async roundsListMessage(
@@ -397,11 +430,11 @@ export class MaxBotCommandService {
     );
   }
 
-  private async roundReportMessage(technician: ResolvedTechnician, runId: string) {
+  private async roundReportMessage(technician: ResolvedTechnician, runId: string, offset = 0) {
     if (!this.rounds) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
     const result = await this.rounds.report(technician, runId);
     if (!result.ok) return renderPersistentMenuMessage(result.message);
-    return renderRoundReportMessage(result.value);
+    return renderRoundReportMessage(result.value, offset);
   }
 
   private async myTicketsMessage(
@@ -411,7 +444,7 @@ export class MaxBotCommandService {
     if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
     const result = await this.workplace.myTickets(technician, offset);
     if (!result.ok) return renderPersistentMenuMessage(result.message);
-    return renderTechnicianTicketsListMessage(result.value);
+    return renderTechnicianTicketsListMessage(result.value, offset);
   }
 
   private async availableTicketsMessage(
@@ -421,7 +454,7 @@ export class MaxBotCommandService {
     if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
     const result = await this.workplace.availableTickets(technician, offset);
     if (!result.ok) return renderPersistentMenuMessage(result.message);
-    return renderAvailableTicketsMessage(result.value);
+    return renderAvailableTicketsMessage(result.value, offset);
   }
 
   private async claimAvailableMessage(
@@ -432,7 +465,12 @@ export class MaxBotCommandService {
     const result = await this.workplace.claimAvailableTicket(technician, ticketId);
     if (!result.ok) return renderPersistentMenuMessage(result.message);
     if (result.value.kind === 'taken') return renderAvailableTakenMessage(result.value.page);
-    return renderAvailableClaimedMessage(result.value.card, renderTechnicianTicketCardMessage(result.value.card));
+    const back = technicianTicketListBackPayload('av', 0);
+    setTicketListBack(technician.maxUserId, back);
+    return renderAvailableClaimedMessage(
+      result.value.card,
+      renderTechnicianTicketCardMessage(result.value.card, back),
+    );
   }
 
   private async ticketCardMessage(
@@ -446,7 +484,7 @@ export class MaxBotCommandService {
         ? renderTicketUnavailableMessage()
         : renderPersistentMenuMessage(result.message);
     }
-    return renderTechnicianTicketCardMessage(result.value);
+    return renderTechnicianTicketCardMessage(result.value, getTicketListBack(technician.maxUserId));
   }
 
   private async startTicketMessage(
@@ -460,7 +498,7 @@ export class MaxBotCommandService {
         ? renderTicketUnavailableMessage()
         : renderPersistentMenuMessage(result.message);
     }
-    return renderTechnicianTicketCardMessage(result.value);
+    return renderTechnicianTicketCardMessage(result.value, getTicketListBack(technician.maxUserId));
   }
 
   private async ticketStatusPickerMessage(
@@ -475,7 +513,7 @@ export class MaxBotCommandService {
         : renderPersistentMenuMessage(result.message);
     }
     if (result.value.pickerTransitions.length === 0) {
-      return renderTechnicianTicketCardMessage(result.value);
+      return renderTechnicianTicketCardMessage(result.value, getTicketListBack(technician.maxUserId));
     }
     return renderTicketStatusPickerMessage(result.value);
   }
@@ -492,7 +530,7 @@ export class MaxBotCommandService {
         ? renderTicketUnavailableMessage()
         : renderPersistentMenuMessage(result.message);
     }
-    return renderTechnicianTicketCardMessage(result.value);
+    return renderTechnicianTicketCardMessage(result.value, getTicketListBack(technician.maxUserId));
   }
 
   private async ticketHistoryMessage(

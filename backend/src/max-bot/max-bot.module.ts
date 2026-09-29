@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { InspectionModule } from '../inspection/inspection.module';
 import { ProblemCategoriesModule } from '../problem-categories/problem-categories.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { ServiceContractsModule } from '../service-contracts/service-contracts.module';
 import { TicketsModule } from '../tickets/tickets.module';
 import { WorkforceModule } from '../workforce/workforce.module';
 
@@ -22,6 +23,7 @@ import { MaxTechnicianWorkplaceService } from './max-technician-workplace.servic
 @Module({
   imports: [
     PrismaModule,
+    ServiceContractsModule,
     forwardRef(() => TicketsModule),
     WorkforceModule,
     forwardRef(() => InspectionModule),
