@@ -191,9 +191,9 @@ export function MobileHome() {
     boardTab === 'done' && completedBoardQ.data
       ? completedBoardQ.data.meta.atRiskThresholdMinutes
       : boardQ.data?.meta.atRiskThresholdMinutes ?? 60
-  const activeBoardIsLoading = boardTab === 'done' ? completedBoardQ.isLoading : boardQ.isLoading
-  const activeBoardError = boardTab === 'done' ? completedBoardQ.error : boardQ.error
-  const activeBoardHasData = boardTab === 'done' ? !!completedBoardQ.data : !!boardQ.data
+  const baseBoardIsLoading = boardTab === 'done' ? completedBoardQ.isLoading : boardQ.isLoading
+  const baseBoardError = boardTab === 'done' ? completedBoardQ.error : boardQ.error
+  const baseBoardHasData = boardTab === 'done' ? !!completedBoardQ.data : !!boardQ.data
 
   const visibleTickets = useMemo(
     () => buildMobileHomeVisibleTickets({ cards, tab: boardTab, meId: meQ.data?.id, meRole: meQ.data?.role, chips: activeChips, searchQuery, atRiskThresholdMinutes }),
@@ -217,14 +217,64 @@ export function MobileHome() {
     () => (isReworkRole ? dedupeBoardCards(cards).filter((t) => t.status === 'IN_PROGRESS' && reworkTicketIds.has(t.id)).length : 0),
     [isReworkRole, cards, reworkTicketIds],
   )
+  /**
+   * SMA-120: срочные заявки.
+   *
+   * Счётчик берётся из ответа доски — база считает его по тому же
+   * разрешённому where, поэтому он точен и не зависит от take. Длина выдачи
+   * для счёта не годится: это страница, а не итог.
+   *
+   * Список по нажатию — отдельный запрос с серверным фильтром priority=URGENT.
+   * Фильтровать уже загруженную страницу на клиенте нельзя: за пределами take
+   * остались бы невидимые срочные заявки.
+   */
+  const urgentTotal = boardQ.data?.meta?.urgentTotal
+  const urgentBoardQ = useQuery({
+    queryKey: ['mobile-home-board-urgent', linkedClientCompanyId, companyId],
+    queryFn: () =>
+      api.board({
+        linkedClientCompanyId: pageScope.linkedClientCompanyId,
+        companyId: pageScope.companyId,
+        priority: 'URGENT',
+        take: 500,
+      }),
+    enabled: quickFilter === 'urgent' && isOnline,
+  })
+  /**
+   * SMA-129: пока ответа нет — список неизвестен, а не пуст.
+   *
+   * Прежде отсутствие данных превращалось в [], и отказ или загрузка
+   * выглядели как успешно полученный пустой результат: пользователь видел
+   * «заявок нет» там, где их просто не смогли получить.
+   */
+  const urgentCards = useMemo(
+    () =>
+      urgentBoardQ.data
+        ? dedupeBoardCards(urgentBoardQ.data.columns.flatMap((col) => col.cards || []))
+        : null,
+    [urgentBoardQ.data],
+  )
+
+  /*
+   * Состояние списка берётся у того запроса, который его сейчас наполняет.
+   * Ошибка срочных проходит по тому же пути, что и ошибка доски, поэтому
+   * отдельного механизма деградации не заводится, а главная остаётся живой.
+   */
+  const urgentListActive = quickFilter === 'urgent'
+  const activeBoardIsLoading = urgentListActive ? urgentBoardQ.isLoading : baseBoardIsLoading
+  const activeBoardError = urgentListActive ? urgentBoardQ.error : baseBoardError
+  const activeBoardHasData = urgentListActive ? !!urgentBoardQ.data : baseBoardHasData
+
   const quickTickets = useMemo(() => {
     if (!quickFilter) return null
     const list = dedupeBoardCards(cards)
+    if (quickFilter === 'urgent') return urgentCards
     if (quickFilter === 'awaiting') return list.filter(isAwaitingAcceptanceTicket)
     if (quickFilter === 'rework') return list.filter((t) => t.status === 'IN_PROGRESS' && reworkTicketIds.has(t.id))
     return list.filter((t) => ticketRequiresMyAction(t, meQ.data?.id, meQ.data?.role, canAssignProvider))
-  }, [quickFilter, cards, meQ.data?.id, meQ.data?.role, canAssignProvider, reworkTicketIds])
+  }, [quickFilter, cards, meQ.data?.id, meQ.data?.role, canAssignProvider, reworkTicketIds, urgentCards])
   const quickFilterLabel =
+    quickFilter === 'urgent' ? 'Срочные заявки' :
     quickFilter === 'awaiting' ? 'На приёмке' : quickFilter === 'myaction' ? 'Требует моего действия' : quickFilter === 'rework' ? 'Требуют доработки' : ''
 
   // При активной быстрой карте список показывает её выборку и обычные фильтры/вкладки очищаются.
@@ -520,10 +570,12 @@ export function MobileHome() {
       {showMobileHomeTicketBoard ? (
         <>
           <HomeQuickCards
+            urgentCount={urgentTotal}
             awaitingCount={awaitingCount}
             myActionCount={myActionCount}
             reworkCount={reworkCount}
             activeQuickFilter={quickFilter}
+            onToggleUrgent={() => activateQuickFilter('urgent')}
             onToggleAwaiting={() => activateQuickFilter('awaiting')}
             onToggleMyAction={() => activateQuickFilter('myaction')}
             onToggleRework={() => activateQuickFilter('rework')}

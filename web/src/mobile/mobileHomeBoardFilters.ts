@@ -24,7 +24,15 @@ export type MobileHomeBoardChipId = 'urgent' | 'overdue' | 'unassigned' | 'today
 export const MOBILE_HOME_BOARD_CHIP_IDS: MobileHomeBoardChipId[] = ['urgent', 'overdue', 'unassigned', 'today']
 
 export const MOBILE_HOME_BOARD_CHIP_LABELS: Record<MobileHomeBoardChipId, string> = {
-  urgent: 'Срочные',
+  /*
+   * SMA-120: подпись приведена к фактическому смыслу. Предикат чипа —
+   * getSlaState(...) === 'warning', то есть срок истекает в ближайший час,
+   * а не признак срочности заявки. Прежнее слово «Срочные» на том же экране
+   * теперь занято карточкой priority=URGENT, и два разных смысла под одним
+   * названием читались бы как одно. Идентификатор чипа не меняется: он лежит
+   * в сохранённом состоянии главной и в адресе.
+   */
+  urgent: 'Срок истекает',
   overdue: 'Просроченные',
   unassigned: 'Без исполнителя',
   today: 'Сегодня',

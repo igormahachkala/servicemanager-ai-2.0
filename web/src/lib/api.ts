@@ -718,6 +718,12 @@ export type BoardResponse = {
   }>
   meta: {
     totalTickets: number
+    /**
+     * SMA-120: точное число срочных (priority=URGENT) в разрешённом охвате.
+     * Считает база по тому же where, что отдаёт карточки, поэтому значение
+     * не зависит от take и не совпадает с длиной выдачи.
+     */
+    urgentTotal?: number
     atRiskThresholdMinutes: number
     limitedToLast: number
     scopeCompanyId?: string
@@ -3062,6 +3068,8 @@ export async function board(params?: {
   locationId?: string
   equipmentId?: string
   status?: TicketStatus
+  /** SMA-120: серверный фильтр срочности. Сужает уже разрешённый охват. */
+  priority?: TicketPriority
   includeArchived?: boolean
 }): Promise<BoardResponse> {
   const search = new URLSearchParams()
@@ -3083,6 +3091,9 @@ export async function board(params?: {
   }
   if (params?.status) {
     search.set('status', params.status)
+  }
+  if (params?.priority) {
+    search.set('priority', params.priority)
   }
   if (params?.includeArchived) {
     search.set('includeArchived', 'true')

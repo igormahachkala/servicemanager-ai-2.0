@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
 import {
   Prisma,
+  TicketPriority,
   ServiceContractRole,
   TicketStatus,
   UserRole,
@@ -604,6 +605,21 @@ export class TicketsQueryService {
         })
       : []
 
+    /**
+     * SMA-MOBILE-URGENT-TICKETS-CARD-120: точный счётчик срочных.
+     *
+     * Считает база по тому же safeBoardWhere, что отдаёт карточки, — то есть
+     * по уже разрешённому охвату, с priority=URGENT сверху. Длина выдачи для
+     * этого не годится: выдача ограничена take и является страницей, а не
+     * итогом. При отсутствии доступной выборки счётчик равен нулю, потому что
+     * нулю равна и сама выборка, а не потому, что произошёл отказ.
+     */
+    const urgentTotal = safeBoardWhere
+      ? await this.prisma.ticket.count({
+          where: { AND: [safeBoardWhere, { priority: TicketPriority.URGENT }] },
+        })
+      : 0
+
     const imageAttachmentSummaries = await loadBoardImageAttachmentSummaries(
       this.prisma,
       tickets.map((ticket) => ticket.id),
@@ -752,6 +768,7 @@ export class TicketsQueryService {
       columns,
       meta: {
         totalTickets: tickets.length,
+        urgentTotal,
         atRiskThresholdMinutes: decision.meta.atRiskThresholdMinutes,
         limitedToLast: decision.meta.limitedToLast,
         scopeCompanyId: scope.scopeCompanyId,
