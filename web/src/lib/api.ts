@@ -3502,6 +3502,7 @@ export type InspectionTemplateItem = {
   zoneName?: string | null
   zoneSortOrder: number
   checkpointSortOrder: number
+  defaultCategoryId?: string | null
   responseType: InspectionCheckpointResponseType
   numericMin?: number | null
   numericMax?: number | null
@@ -3555,6 +3556,8 @@ export type InspectionRunItem = {
   zoneName?: string | null
   zoneSortOrder: number
   checkpointSortOrder: number
+  defaultCategoryId?: string | null
+  defaultCategoryName?: string | null
   responseType: InspectionCheckpointResponseType
   numericMin?: number | null
   numericMax?: number | null
@@ -4135,6 +4138,7 @@ export type SaveInspectionTemplateInput = {
     zoneName?: string
     zoneSortOrder?: number
     checkpointSortOrder?: number
+    defaultCategoryId?: string | null
     responseType?: InspectionCheckpointResponseType
     numericMin?: number
     numericMax?: number
@@ -4417,6 +4421,8 @@ export type InspectionScheduleFilters = {
   assignedToUserId?: string
   frequency?: InspectionFrequency
   active?: boolean
+  /** 029: план на сегодня по поясу компании, включая просроченные. */
+  dueToday?: boolean
 }
 
 export async function getInspectionSchedules(
@@ -4429,8 +4435,34 @@ export async function getInspectionSchedules(
   if (filters?.assignedToUserId) search.set('assignedToUserId', filters.assignedToUserId)
   if (filters?.frequency) search.set('frequency', filters.frequency)
   if (filters?.active !== undefined) search.set('active', String(filters.active))
+  // 029: «сегодня» решает сервер по поясу компании, а не устройство.
+  if (filters?.dueToday) search.set('dueToday', 'true')
   const suffix = search.toString() ? '?' + search.toString() : ''
   return request<InspectionSchedule[]>('/inspection/schedules' + suffix)
+}
+
+/**
+ * SMA-ROUND-TECHNICIAN-ASSIGNMENT-025.
+ *
+ * Кандидаты на назначение обхода в точке. Список строит сервер тем же
+ * резолвером, которым назначаются заявки: договор, привязки к точке и правило
+ * исполнителя. Клиент правил доступа не повторяет и ничего не решает сам —
+ * сохранение всё равно проверяет кандидата заново.
+ */
+export type AssignableRoundTechnician = {
+  id: string
+  email: string
+  firstName?: string | null
+  lastName?: string | null
+  role: Role
+  activeLoad: number
+}
+
+export async function getAssignableRoundTechnicians(
+  locationId: string,
+): Promise<AssignableRoundTechnician[]> {
+  const qs = new URLSearchParams({ locationId })
+  return request<AssignableRoundTechnician[]>('/inspection/schedules/assignable-technicians?' + qs.toString())
 }
 
 export async function getInspectionSchedule(id: string): Promise<InspectionSchedule> {

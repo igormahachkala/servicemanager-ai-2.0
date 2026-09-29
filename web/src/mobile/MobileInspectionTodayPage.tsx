@@ -16,7 +16,6 @@ import {
   TODAY_COUNT_LABELS,
   groupOpenTicketCounts,
   resolveStartFailure,
-  todayWindow,
   toTodayVisitCards,
   type TodayVisitCard,
 } from './mobileInspectionToday'
@@ -55,11 +54,17 @@ export function MobileInspectionTodayPage() {
   const [notice, setNotice] = useState<string | null>(null)
   const [pendingScheduleId, setPendingScheduleId] = useState<string | null>(null)
 
-  /**
-   * Окно суток считается один раз на монтирование: пересчёт на каждом рендере
-   * менял бы ключ запроса и перезагружал список без причины.
+  /*
+   * SMA-ROUND-SCHEDULE-ADVANCE-029.
+   *
+   * Границу суток больше не считает устройство. Часовой пояс телефона —
+   * не источник правды о рабочем дне: техник в поездке видел бы чужой день,
+   * а тот же план в MAX выглядел бы иначе. Сервер решает по поясу компании.
+   *
+   * Просроченные активные планы теперь тоже видны: нижней границы нет.
+   * Прежнее окно {from, to} прятало вчерашний невыполненный визит, и он
+   * молча выпадал из работы.
    */
-  const window = useMemo(() => todayWindow(), [])
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
@@ -68,8 +73,8 @@ export function MobileInspectionTodayPage() {
    * намеренно. Клиентский фильтр здесь был бы не ограничением, а его имитацией.
    */
   const schedulesQ = useQuery({
-    queryKey: ['mobile-inspection-today', window.from, window.to],
-    queryFn: () => api.getInspectionSchedules({ from: window.from, to: window.to, active: true }),
+    queryKey: ['mobile-inspection-today', 'due-today'],
+    queryFn: () => api.getInspectionSchedules({ dueToday: true, active: true }),
   })
 
   /**
