@@ -1,4 +1,6 @@
 import 'reflect-metadata'
+import { RequestMethod } from '@nestjs/common'
+import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants'
 import { CompanyType, UserRole } from '@prisma/client'
 import { Reflector } from '@nestjs/core'
 
@@ -81,6 +83,26 @@ const WRITE_ROUTES: Array<keyof WorkforceController> = [
   'createShiftCorrection',
   'updateSettings',
 ]
+const WORKFORCE_ROUTES: Array<keyof WorkforceController> = [
+  'getMyState',
+  ...WRITE_ROUTES.slice(0, 4),
+  'list',
+  'createShiftCorrection',
+  'getShift',
+  'updateSettings',
+]
+
+function routeLabel(method: keyof WorkforceController) {
+  const handler = WorkforceController.prototype[method] as any
+  const controllerPath = Reflect.getMetadata(PATH_METADATA, WorkforceController) as string
+  const routePath = Reflect.getMetadata(PATH_METADATA, handler) as string
+  const requestMethod = Reflect.getMetadata(METHOD_METADATA, handler) as RequestMethod
+  return {
+    controllerMethod: method,
+    httpMethod: RequestMethod[requestMethod],
+    path: `/${[controllerPath, routePath].filter(Boolean).join('/')}`,
+  }
+}
 
 describe('122F CLIENT_ADMIN: чтение Workforce своей компании', () => {
   it('1. получает ровно одно право и только на чтение', () => {
@@ -100,6 +122,23 @@ describe('122F CLIENT_ADMIN: чтение Workforce своей компании'
   it('1. читающие маршруты Workforce открыты', () => {
     for (const route of READ_ROUTES) {
       expect({ route, reachable: canReachRoute(route, CLIENT_ADMIN) }).toEqual({ route, reachable: true })
+    }
+  })
+
+  it('1b. CLIENT_ADMIN входит в @Roles только двух read-маршрутов Workforce', () => {
+    const admitted = WORKFORCE_ROUTES.filter((route) =>
+      routeRequirements(route).roles.includes(UserRole.CLIENT_ADMIN),
+    ).map(routeLabel)
+
+    expect(admitted).toEqual([
+      { controllerMethod: 'list', httpMethod: 'GET', path: '/workforce/shifts' },
+      { controllerMethod: 'getShift', httpMethod: 'GET', path: '/workforce/shifts/:shiftId' },
+    ])
+
+    for (const route of WRITE_ROUTES) {
+      expect({ route, roles: routeRequirements(route).roles }).not.toMatchObject({
+        roles: expect.arrayContaining([UserRole.CLIENT_ADMIN]),
+      })
     }
   })
 })
