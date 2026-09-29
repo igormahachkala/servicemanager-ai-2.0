@@ -4145,6 +4145,65 @@ export async function updateInspectionTemplate(id: string, input: SaveInspection
   })
 }
 
+export type NotificationSettingsChannel = 'IN_APP'
+export type NotificationSettingsContour = 'CLIENT' | 'PRIMARY_PROVIDER' | 'SECONDARY_PROVIDER'
+export type NotificationSettingsState = 'INHERITED' | 'OFF'
+
+export type NotificationSettingsEvent = {
+  eventType: string
+  labelRu: string
+  descriptionRu: string
+  channel: NotificationSettingsChannel
+  state: NotificationSettingsState
+}
+
+export type NotificationSettingsGroup = {
+  key: string
+  titleRu: string
+  events: NotificationSettingsEvent[]
+}
+
+export type NotificationSettings = {
+  role: Role
+  channel: NotificationSettingsChannel
+  contours: Array<{
+    contour: NotificationSettingsContour
+    labelRu: string
+    groups: NotificationSettingsGroup[]
+  }>
+}
+
+export async function getNotificationSettings(): Promise<NotificationSettings> {
+  return request<NotificationSettings>('/notifications/preferences')
+}
+
+export async function setNotificationPreference(input: {
+  eventType: string
+  contour: NotificationSettingsContour
+  channel: NotificationSettingsChannel
+  enabled: false
+}): Promise<NotificationSettings> {
+  return request<NotificationSettings>('/notifications/preferences', {
+    method: 'PATCH',
+    body: input,
+  })
+}
+
+export async function clearNotificationPreference(input: {
+  eventType: string
+  contour: NotificationSettingsContour
+  channel: NotificationSettingsChannel
+}): Promise<NotificationSettings> {
+  const qs = new URLSearchParams({
+    eventType: input.eventType,
+    contour: input.contour,
+    channel: input.channel,
+  })
+  return request<NotificationSettings>('/notifications/preferences?' + qs.toString(), {
+    method: 'DELETE',
+  })
+}
+
 export async function getInspectionRuns(filter: InspectionRunsFilter = {}): Promise<InspectionRunListItem[]> {
   const qs = new URLSearchParams()
   for (const [key, value] of Object.entries(filter)) {
