@@ -185,31 +185,48 @@ function pickWindowClient(clientList) {
 // авторизованные ответы API в кэш Service Worker нельзя ещё и потому, что
 // он общий для всех, кто открывал браузер: на общем планшете следующий
 // техник увидел бы чужие данные.
-const APP_SHELL_CACHE = 'sma-app-shell-v1'
+const APP_SHELL_CACHE = 'sma-app-shell-v3'
 const APP_SHELL_URL = '/index.html'
+const BUILD_ASSET_MANIFEST_URL = '/asset-manifest.json'
+
+function manifestAssetUrls(manifest) {
+  const urls = new Set()
+  for (const entry of Object.values(manifest || {})) {
+    if (!entry || typeof entry !== 'object') continue
+    for (const value of [entry.file, ...(entry.css || []), ...(entry.assets || [])]) {
+      const path = safeString(value)
+      if (path) urls.add(path.startsWith('/') ? path : `/${path}`)
+    }
+  }
+  return [...urls]
+}
+
+async function precacheApplication() {
+  const cache = await caches.open(APP_SHELL_CACHE)
+  const manifestResponse = await fetch(BUILD_ASSET_MANIFEST_URL, { cache: 'no-store' })
+  if (!manifestResponse.ok) throw new Error('Build asset manifest is unavailable')
+  const manifest = await manifestResponse.json()
+  const urls = [APP_SHELL_URL, '/', '/m', BUILD_ASSET_MANIFEST_URL, ...manifestAssetUrls(manifest)]
+
+  // An incomplete cache must not take control: that recreates the physical
+  // iPhone failure where the shell opens but a lazy route crashes offline.
+  await Promise.all(urls.map(async (url) => {
+    const response = await fetch(url, { cache: 'no-store' })
+    if (!response.ok) throw new Error(`Unable to precache ${url}`)
+    await cache.put(url, response)
+  }))
+}
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches
-      .open(APP_SHELL_CACHE)
-      .then((cache) => cache.addAll([APP_SHELL_URL, '/']))
-      .catch(() => undefined),
-  )
-  // Не ждём — новый SW должен активироваться сразу же после обновления кода.
-  self.skipWaiting()
+  event.waitUntil(precacheApplication().then(() => self.skipWaiting()))
 })
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    Promise.all([
-      self.clients.claim(),
-      // Старые версии оболочки убираем, иначе после релиза техник получит
-      // вчерашний бандл.
-      caches.keys().then((keys) =>
-        Promise.all(keys.filter((k) => k.startsWith('sma-app-shell-') && k !== APP_SHELL_CACHE).map((k) => caches.delete(k))),
-      ),
-    ]),
-  )
+  // Do not delete the previous cache while an installed PWA page can still be
+  // executing its old HTML. Its not-yet-loaded hashed chunk must remain
+  // available until that client is reloaded. Hashed assets are immutable and
+  // caches.match() safely resolves the exact requested version.
+  event.waitUntil(self.clients.claim())
 })
 
 /**
@@ -261,26 +278,26 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return
   if (url.pathname.startsWith('/uploads/') || url.pathname.startsWith('/api/')) return
 
+  // Cold-start on iOS must not wait for a network request to time out. Return
+  // the installed shell immediately and refresh it in the background. If the
+  // shell is not installed yet, the same network promise becomes the first
+  // response and retains the explicit 503 fallback.
+  const network = fetch(request).then((response) => {
+    if (response && response.ok && response.type === 'basic') {
+      const copy = response.clone()
+      caches.open(APP_SHELL_CACHE).then((cache) => cache.put(APP_SHELL_URL, copy)).catch(() => undefined)
+    }
+    return response
+  })
+  event.waitUntil(network.then(() => undefined).catch(() => undefined))
   event.respondWith(
-    fetch(request)
-      .then((response) => {
-        // Свежую оболочку сохраняем, чтобы в следующий раз было что показать.
-        // Только успешный ответ: страницей 502 от упавшего прокси кэш затирать
-        // нельзя — она осталась бы там и после починки сервера.
-        if (response && response.ok && response.type === 'basic') {
-          const copy = response.clone()
-          caches.open(APP_SHELL_CACHE).then((cache) => cache.put(APP_SHELL_URL, copy)).catch(() => undefined)
-        }
-        return response
-      })
-      .catch(async () => {
-        const cached = await caches.match(APP_SHELL_URL)
-        if (cached) return cached
-        return new Response('Нет связи и нет сохранённой копии приложения.', {
-          status: 503,
-          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-        })
-      }),
+    caches.match(APP_SHELL_URL).then((cached) => {
+      if (cached) return cached
+      return network.catch(() => new Response('Нет связи и нет сохранённой копии приложения.', {
+        status: 503,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      }))
+    }),
   )
 })
 
