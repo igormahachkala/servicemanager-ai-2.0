@@ -46,6 +46,8 @@ const TicketPage = lazyExport(() => import('./views/TicketPage'), 'TicketPage')
 const CreateTicketPage = lazyExport(() => import('./views/CreateTicketPage'), 'CreateTicketPage')
 const EmployeesPage = lazyExport(() => import('./views/EmployeesPage'), 'EmployeesPage')
 const LocationsPage = lazyExport(() => import('./views/LocationsPage'), 'LocationsPage')
+// SMA-LOCATION-CARD-L1-098: карточка объекта, оболочка V1.
+const LocationPage = lazyExport(() => import('./views/LocationPage'), 'LocationPage')
 // SMA-EQUIPMENT-V2-110A: /equipment больше не заглушка.
 const EquipmentPage = lazyExport(() => import('./views/EquipmentPage'), 'EquipmentPage')
 const AnalyticsPage = lazyExport(() => import('./views/AnalyticsPage'), 'AnalyticsPage')
@@ -318,6 +320,7 @@ export function AppRoutes() {
         <Route path="tickets/new" element={<LazyRoute component={CreateTicketPage} />} />
         <Route path="tickets/:id" element={<LazyRoute component={TicketPage} />} />
         <Route path="locations" element={<LazyRoute component={LocationsPage} />} />
+        <Route path="locations/:id" element={<LazyRoute component={LocationPage} />} />
         <Route path="employees" element={<LazyRoute component={EmployeesPage} />} />
         <Route path="specializations" element={<LazyRoute component={SpecializationsPage} />} />
         <Route path="analytics" element={<LazyRoute component={AnalyticsPage} />} />
