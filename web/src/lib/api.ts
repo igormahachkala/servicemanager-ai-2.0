@@ -10,6 +10,7 @@
   snapshotStorageItems,
 } from './browserStorage'
 import { notifyRealtimeAuthChanged } from './realtimeSocket'
+import { reportApiReachability } from './apiReachability'
 export {
   currentInternalAppPath,
   getReturnToFromSearch,
@@ -2022,7 +2023,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       signal: controller?.signal,
     })
     text = await res.text()
+    // Any HTTP response proves reachability. Its application status is
+    // handled below and must never be disguised as an offline failure.
+    reportApiReachability(true)
   } catch (err) {
+    reportApiReachability(false)
     if (controller?.signal.aborted || isAbortError(err)) throw new ApiTimeoutError()
     throw err
   } finally {
@@ -2050,6 +2055,23 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   return data as T
+}
+
+/**
+ * Lightweight reachability probe for mobile/PWA connectivity state.
+ *
+ * This deliberately uses the canonical request client: a received HTTP
+ * response means the API is reachable even when its status is not 2xx,
+ * while timeout/transport failures mean it is not. No auth or product data
+ * is involved.
+ */
+export async function probeApiReachability(timeoutMs = 4_000): Promise<boolean> {
+  try {
+    await request('/health', { auth: false, timeoutMs })
+    return true
+  } catch (error) {
+    return error instanceof ApiRequestError
+  }
 }
 
 function normalizeArrayResponse<T>(payload: unknown, candidates: string[]): T[] {

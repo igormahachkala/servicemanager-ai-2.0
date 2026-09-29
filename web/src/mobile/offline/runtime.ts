@@ -22,6 +22,8 @@ import { SyncCoordinator } from './sync.js'
 import type { OfflineStore } from './store.js'
 import { identityFromToken } from './identity.js'
 import { OFFLINE_SYNC_LABEL, type OfflineQueueItem } from './types.js'
+import { reportApiReachability, subscribeApiReachability } from '../../lib/apiReachability.js'
+import { createReachabilityMonitor } from './reachabilityMonitor.js'
 
 export type OfflineStatus = {
   /** Хранилище доступно и офлайн-работа сохранится. */
@@ -45,6 +47,14 @@ let store: OfflineStore | null = null
 let coordinator: SyncCoordinator | null = null
 let identityKey: string | null = null
 let connectivityWatched = false
+const reachabilityMonitor = createReachabilityMonitor({
+  probe: async () => {
+    const api = await import('../../lib/api')
+    return api.probeApiReachability()
+  },
+  interfaceOnline: () => typeof navigator === 'undefined' || navigator.onLine !== false,
+  onResult: reportApiReachability,
+})
 
 /**
  * Поколение сессии. Растёт на каждом stopOffline — то есть при смене
@@ -98,8 +108,16 @@ function cancelRetry() {
   retryStep = 0
 }
 
+function canProbeConnectivity(): boolean {
+  if (status.online) return true
+  return typeof navigator !== 'undefined' && navigator.onLine !== false
+}
+
 function scheduleRetry() {
-  if (retryTimer || !coordinator || !status.online) return
+  // A failed API request is stronger evidence than navigator.onLine, but a
+  // still-up interface permits bounded probes so a queued operation is not
+  // stranded when iOS never emits a second online event.
+  if (retryTimer || !coordinator || !canProbeConnectivity()) return
   const delay = RETRY_STEPS_MS[Math.min(retryStep, RETRY_STEPS_MS.length - 1)]
   retryStep += 1
   retryTimer = setTimeout(() => {
@@ -126,17 +144,34 @@ let status: OfflineStatus = {
 function watchConnectivity() {
   if (connectivityWatched || typeof window === 'undefined') return
   connectivityWatched = true
+  subscribeApiReachability((reachable) => {
+    // navigator.onLine describes an interface, not whether the API can be
+    // reached. A real request result is the stronger signal.
+    const wasOnline = status.online
+    const online = reachable && navigator.onLine !== false
+    emit({ online })
+    if (!reachable) cancelRetry()
+    else if (!wasOnline && online) {
+      cancelRetry()
+      void syncNow()
+    }
+  })
   window.addEventListener('online', () => {
-    emit({ online: true })
-    // Счётчик пауз сбрасывается: это новый выход в зону покрытия.
+    // Do not claim "online" until an API request succeeds. The browser event
+    // only permits a sync attempt; mobile radios often emit it too early.
     cancelRetry()
-    void syncNow()
+    void reachabilityMonitor.probeNow()
   })
   window.addEventListener('offline', () => {
-    emit({ online: false })
+    reportApiReachability(false)
     // Без сети повторять нечего: следующий круг закажет событие `online`.
     cancelRetry()
   })
+  window.addEventListener('focus', () => { void reachabilityMonitor.probeNow() })
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') void reachabilityMonitor.probeNow()
+  })
+  reachabilityMonitor.start()
 }
 
 export function getOfflineStatus(): OfflineStatus {
@@ -225,9 +260,16 @@ export async function syncNow(): Promise<void> {
      * Круг, оборванный по личности или отмене, автоповтором не лечится —
      * его разблокирует вход нужным пользователем, а не время. Повторять
      * каждые четыре секунды значило бы крутить цикл впустую до конца сессии.
+     * Поэтому проверка владельца стоит первой: пока она не пройдена,
+     * планировать повтор нельзя вовсе.
+     *
+     * Если по личности всё чисто, условием повтора остаётся достижимость
+     * API, а не navigator.onLine. Событие `online` от радио приходит раньше
+     * связи, и повтор должен назначаться и тогда, когда интерфейс поднят,
+     * а первый запрос ещё падает.
      */
     if (stoppedReason) cancelRetry()
-    else if (status.online && status.pending > 0) scheduleRetry()
+    else if (status.pending > 0 && canProbeConnectivity()) scheduleRetry()
     else cancelRetry()
   }
 }
@@ -251,7 +293,10 @@ export async function queueOffline(input: Parameters<OfflineStore['enqueue']>[0]
   }
   const result = await s.enqueue(input)
   await refreshOfflineStatus()
-  if (result.ok && status.online) void syncNow()
+  if (result.ok) {
+    if (status.online) void syncNow()
+    else scheduleRetry()
+  }
   return result
 }
 
