@@ -1,4 +1,6 @@
-﻿import * as api from '../../lib/api'
+﻿import { Link } from 'react-router-dom'
+
+import * as api from '../../lib/api'
 import { LocationForm, type LocationFormValue } from './LocationForm'
 
 type Props = {
@@ -12,6 +14,12 @@ type Props = {
   onSubmitEdit: (event: React.FormEvent) => void
   onDelete?: (location: api.LocationListItem) => void
   onRestore?: (location: api.LocationListItem) => void
+  /**
+   * SMA-LOCATION-CARD-L1-098: область списка переносится в ссылку на карточку.
+   * У провайдера в linked-scope выбор клиента живёт в состоянии страницы, и без
+   * него карточка запросила бы точку от имени своей компании и получила 404.
+   */
+  scopeCompanyId?: string
 }
 
 export function LocationList({
@@ -25,6 +33,7 @@ export function LocationList({
   onSubmitEdit,
   onDelete,
   onRestore,
+  scopeCompanyId,
 }: Props) {
   if (locations.length === 0) {
     return (
@@ -40,12 +49,17 @@ export function LocationList({
       {locations.map((location) => {
         const isEditing = editingLocationId === location.id
         const isDeleted = !!location.deletedAt
+        const cardTo = scopeCompanyId
+          ? `/locations/${location.id}?companyId=${encodeURIComponent(scopeCompanyId)}`
+          : `/locations/${location.id}`
 
         return (
           <div key={location.id} className="panel" style={{ marginBottom: 0, opacity: isDeleted ? 0.65 : 1 }}>
             <div className="row" style={{ alignItems: 'flex-start' }}>
               <div>
-                <div style={{ fontWeight: 700 }}>{location.name}{isDeleted ? ' · Удалена' : ''}</div>
+                <div style={{ fontWeight: 700 }}>
+                  <Link to={cardTo}>{location.name}</Link>{isDeleted ? ' · Удалена' : ''}
+                </div>
                 <div className="muted small" style={{ marginTop: 4 }}>
                   Номер точки: {location.platformCode || '—'}
                 </div>
