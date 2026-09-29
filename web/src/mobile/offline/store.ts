@@ -30,6 +30,12 @@ export type EnqueueInput = {
   kind: OfflineOperationKind
   target: OfflineQueueItem['target']
   payload?: Record<string, unknown>
+  /**
+   * Ключ можно зарезервировать до первой online-попытки, если эта попытка
+   * может упасть в durable queue. Очередь по-прежнему владеет генерацией:
+   * значение получают через createOfflineIdempotencyKey().
+   */
+  idempotencyKey?: string
   blob?: Blob
   dependsOnId?: string
   producesTicketId?: boolean
@@ -57,10 +63,11 @@ function randomId(): string {
 }
 
 /**
- * Ключ идемпотентности. Генерируется здесь и только здесь — в момент создания
- * строки очереди. Повторная отправка берёт ключ из строки, а не создаёт новый.
+ * Ключ идемпотентности. Генерируется только этим helper: обычно при создании
+ * строки, а для online-first операции — перед первой попыткой, чтобы возможный
+ * fallback записал тот же ключ. Повторная отправка новый ключ не создаёт.
  */
-function newIdempotencyKey(kind: OfflineOperationKind): string {
+export function createOfflineIdempotencyKey(kind: OfflineOperationKind): string {
   return `${kind}:${randomId()}`
 }
 
@@ -160,7 +167,7 @@ export class OfflineStore {
     const item: OfflineQueueItem = {
       id,
       kind: input.kind,
-      idempotencyKey: newIdempotencyKey(input.kind),
+      idempotencyKey: input.idempotencyKey || createOfflineIdempotencyKey(input.kind),
       // Владелец фиксируется вместе со строкой и дальше не меняется.
       owner: this.namespace,
       target: input.target,

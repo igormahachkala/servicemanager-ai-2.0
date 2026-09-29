@@ -1218,7 +1218,8 @@ test('113D-17. неудачная попытка после возвращени
    * до нуля. Найдено живой приёмкой на Stage.
    */
   assert.match(runtime, /function scheduleRetry/, 'повтор назначается сам')
-  assert.match(runtime, /status\.online && status\.pending > 0\) scheduleRetry\(\)/, 'повтор назначается после неудачного круга')
+  assert.match(runtime, /status\.pending > 0 && canProbeConnectivity\(\)\) scheduleRetry\(\)/, 'повтор назначается после неудачного круга')
+  assert.match(runtime, /else scheduleRetry\(\)/, 'fallback при ложном online не остаётся без автоматического повтора')
   assert.match(runtime, /RETRY_STEPS_MS/, 'паузы нарастают')
   // Без сети и после выхода таймер обязан сниматься, иначе он будет будить
   // разбор очереди для чужой или уже закрытой сессии.
@@ -1632,4 +1633,83 @@ test('005-16. все пять поверхностей закрытия сесс
     const guards = (source.match(/offlineAwareLogout\(/g) || []).length
     assert.ok(guards >= clears, `${file}: сбросов токена ${clears}, вызовов политики ${guards}`)
   }
+})
+
+// ── B2. durable comment delivery ──────────────────────────────────────────
+
+test('B2-1. offline comment сохраняется с заранее выделенным ключом', async () => {
+  const { deliverTicketComment } = await import('./ticketCommentDelivery.js')
+  const { store } = makeStore()
+  const result = await deliverTicketComment({
+    reportedOnline: false,
+    queueInput: {
+      kind: 'ticket.comment',
+      target: { ticketId: 'tk-1' },
+      payload: { comment: 'офлайн' },
+    },
+    send: async () => {
+      throw new Error('send не должен вызываться офлайн')
+    },
+    enqueue: (input) => store.enqueue(input),
+  })
+  assert.equal(result.kind, 'queued')
+  if (result.kind !== 'queued') return
+  assert.ok(result.item.idempotencyKey.startsWith('ticket.comment:'))
+  assert.equal((await store.listQueue()).length, 1)
+})
+
+test('B2-2. transport failure после online кладёт comment с тем же ключом', async () => {
+  const { deliverTicketComment } = await import('./ticketCommentDelivery.js')
+  const { store } = makeStore()
+  const keys: string[] = []
+  const result = await deliverTicketComment({
+    reportedOnline: true,
+    queueInput: {
+      kind: 'ticket.comment',
+      target: { ticketId: 'tk-1' },
+      payload: { comment: 'обрыв' },
+    },
+    send: async (key) => {
+      keys.push(key)
+      throw new TypeError('Failed to fetch')
+    },
+    enqueue: (input) => {
+      keys.push(input.idempotencyKey || '')
+      return store.enqueue(input)
+    },
+  })
+  assert.equal(result.kind, 'queued')
+  assert.equal(keys.length, 2)
+  assert.equal(keys[0], keys[1], 'online и fallback используют один ключ')
+})
+
+test('B2-3. application HTTP error не кладёт comment в queue', async () => {
+  const { deliverTicketComment, isRetrySafeConnectivityFailure } = await import('./ticketCommentDelivery.js')
+  const { store } = makeStore()
+  const err = { name: 'ApiRequestError', status: 403, message: 'Forbidden' }
+  assert.equal(isRetrySafeConnectivityFailure(err), false)
+  await assert.rejects(
+    () => deliverTicketComment({
+      reportedOnline: true,
+      queueInput: {
+        kind: 'ticket.comment',
+        target: { ticketId: 'tk-1' },
+        payload: { comment: 'отказ' },
+      },
+      send: async () => { throw err },
+      enqueue: (input) => store.enqueue(input),
+    }),
+  )
+  assert.equal((await store.listQueue()).length, 0)
+})
+
+test('B2-4. Safari cross-realm TypeError считается transport failure', async () => {
+  const { isRetrySafeConnectivityFailure } = await import('./ticketCommentDelivery.js')
+  assert.equal(
+    isRetrySafeConnectivityFailure({
+      name: 'TypeError',
+      message: 'The Internet connection appears to be offline.',
+    }),
+    true,
+  )
 })

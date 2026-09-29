@@ -30,6 +30,7 @@ import {
 } from './offlineQueue'
 import { queueOffline, useOfflineStatus } from './offline/useOffline'
 import { listOfflineQueue } from './offline/runtime'
+import { deliverTicketComment } from './offline/ticketCommentDelivery'
 import { formatMobileMutationError } from './mobileActionErrors'
 import { mobilePath } from './mobileRoute'
 import {
@@ -1337,42 +1338,43 @@ export function MobileTicketPage() {
   async function handleChatSend() {
     const trimmed = chatText.trim()
     if (!trimmed || chatSending) return
-
-    if (!isOnline) {
-      // Ключ идемпотентности создаётся здесь, при постановке в очередь, и
-      // переживает перезагрузку: повтор после обрыва не продублирует запись.
-      const queued = await queueOffline({
-        kind: 'ticket.comment',
-        target: { ticketId },
-        payload: buildOfflineTicketCommentPayload(trimmed, ticketResourceScope, replyTarget),
-      })
-      if (!queued.ok) {
-        setChatSendError(`Не удалось сохранить на устройстве: ${queued.message}`)
-        return
-      }
-      setChatText('')
-      setReplyTarget(null)
-      setOfflinePendingComments((prev) => [
-        ...prev,
-        { queueId: queued.item.id, text: trimmed, at: queued.item.createdAt },
-      ])
-      return
-    }
-
     setChatSendError(null)
     setChatSending(true)
     try {
-      await api.addTicketComment(
-        ticketId,
-        trimmed,
-        ticketResourceScope,
-        buildAddTicketCommentOptions(replyTarget),
-      )
+      const replyOptions = buildAddTicketCommentOptions(replyTarget)
+      const delivery = await deliverTicketComment({
+        reportedOnline: isOnline,
+        queueInput: {
+          kind: 'ticket.comment',
+          target: { ticketId },
+          payload: buildOfflineTicketCommentPayload(trimmed, ticketResourceScope, replyTarget),
+        },
+        send: (idempotencyKey) => api.addTicketComment(
+          ticketId,
+          trimmed,
+          ticketResourceScope,
+          { ...replyOptions, idempotencyKey },
+        ),
+        enqueue: queueOffline,
+      })
+
+      if (delivery.kind === 'queue-failed') {
+        setChatSendError(`Не удалось сохранить на устройстве: ${delivery.message}`)
+        return
+      }
+
       setChatText('')
       // Цель снимается только после подтверждения: при отказе ответ не должен
       // превратиться в обычный комментарий незаметно для человека.
       setReplyTarget(null)
-      await invalidateTicketQueries()
+      if (delivery.kind === 'queued') {
+        setOfflinePendingComments((prev) => prev.some((item) => item.queueId === delivery.item.id)
+          ? prev
+          : [...prev, { queueId: delivery.item.id, text: trimmed, at: delivery.item.createdAt }])
+        setOfflineQueuedNotice('Сообщение сохранено. Отправим после восстановления связи.')
+      } else {
+        await invalidateTicketQueries()
+      }
     } catch (e: unknown) {
       setChatSendError(formatMobileMutationError(e, { operation: 'other' }))
     } finally {
