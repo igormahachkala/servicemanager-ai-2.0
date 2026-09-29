@@ -55,6 +55,7 @@ function makeSetup(opts: {
   txTicket?: ReturnType<typeof makeTxTicket>
   updatedStatus?: TicketStatus
   shiftPolicyService?: any
+  idempotency?: any
 } = {}) {
   const {
     companyType = 'PROVIDER',
@@ -71,11 +72,22 @@ function makeSetup(opts: {
       update: jest.fn().mockResolvedValue(updatedTicket),
     },
     ticketStatusHistory: {
-      create: jest.fn().mockResolvedValue({}),
+      create: jest.fn().mockResolvedValue({ id: 'history-1' }),
+      findUnique: jest.fn().mockResolvedValue({ id: 'history-1', ticketId: TICKET_ID, toStatus: TicketStatus.AWAITING_ACCEPTANCE }),
       count: jest.fn().mockResolvedValue(0),
     },
-    ticketAttachment: { count: jest.fn().mockResolvedValue(0) },
+    ticketAttachment: {
+      count: jest.fn().mockResolvedValue(0),
+      findMany: jest.fn().mockResolvedValue([]),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
     domainEvent: { count: jest.fn().mockResolvedValue(0) },
+    failureCause: {
+      findFirst: jest.fn().mockResolvedValue({ id: 'cause-1', name: 'Износ' }),
+    },
+    ticketFailureCauseAssessment: {
+      create: jest.fn().mockResolvedValue({ id: 'assessment-1' }),
+    },
     // 120H: комментарий стал отдельной строкой; отвечать здесь не на что.
     ticketComment: {
       create: jest.fn().mockResolvedValue({ id: 'tc-1' }),
@@ -88,6 +100,12 @@ function makeSetup(opts: {
     user: {
       findFirst: jest.fn().mockResolvedValue({ isExecutor }),
       findUnique: jest.fn().mockResolvedValue(null),
+    },
+    ticket: {
+      findFirst: jest.fn().mockResolvedValue(updatedTicket),
+    },
+    ticketStatusHistory: {
+      findUnique: jest.fn().mockResolvedValue({ id: 'history-1', ticketId: TICKET_ID, toStatus: TicketStatus.AWAITING_ACCEPTANCE }),
     },
     $transaction: jest.fn().mockImplementation(async (cb: any) => cb(tx)),
   } as any
@@ -108,6 +126,7 @@ function makeSetup(opts: {
     {} as any,
     notifications as any,
     opts.shiftPolicyService as any,
+    opts.idempotency as any,
   )
   return { svc, prisma, tx, timeline, notifications }
 }
@@ -277,9 +296,9 @@ describe('TicketsStatusService.updateStatus', () => {
     expect(notifications.onTicketAwaitingAcceptance).not.toHaveBeenCalled()
   })
 
-  it('maps technician completion DONE→AWAITING_ACCEPTANCE', async () => {
+  it('denies direct completion DONE→AWAITING_ACCEPTANCE without failure cause', async () => {
     const txTicket = makeTxTicket({ status: TicketStatus.IN_PROGRESS, companyId: PROVIDER_ID, assignedTechnicianId: TECH_ID })
-    const { svc, tx, notifications } = makeSetup({
+    const { svc, tx, timeline, notifications } = makeSetup({
       isExecutor: true,
       txTicket,
       updatedStatus: TicketStatus.AWAITING_ACCEPTANCE,
@@ -294,22 +313,17 @@ describe('TicketsStatusService.updateStatus', () => {
       }),
     )
 
-    await svc.updateStatus(PROVIDER_ID, { id: TECH_ID }, UserRole.TECHNICIAN, TICKET_ID, {
-      status: TicketStatus.DONE,
-    })
-
-    expect(tx.ticket.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ status: TicketStatus.AWAITING_ACCEPTANCE }) }),
-    )
-    expect(notifications.onTicketDone).not.toHaveBeenCalled()
-    expect(notifications.onTicketAwaitingAcceptance).toHaveBeenCalledWith(
-      expect.objectContaining({
-        ticketCompanyId: PROVIDER_ID,
-        actorUserId: TECH_ID,
-        ticketId: TICKET_ID,
-        ticketNumber: 42,
+    await expect(
+      svc.updateStatus(PROVIDER_ID, { id: TECH_ID }, UserRole.TECHNICIAN, TICKET_ID, {
+        status: TicketStatus.DONE,
       }),
-    )
+    ).rejects.toBeInstanceOf(BadRequestException)
+
+    expect(tx.ticket.update).not.toHaveBeenCalled()
+    expect(tx.ticketStatusHistory.create).not.toHaveBeenCalled()
+    expect(timeline.recordTx).not.toHaveBeenCalled()
+    expect(notifications.onTicketDone).not.toHaveBeenCalled()
+    expect(notifications.onTicketAwaitingAcceptance).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -385,17 +399,199 @@ describe('TicketsStatusService.updateStatus', () => {
     expect(mockResolveAccess).not.toHaveBeenCalled()
   })
 
-  it('rejects completion without work report photo or video (BadRequestException)', async () => {
+  it('rejects submit-acceptance without work report photo or video (BadRequestException)', async () => {
     const txTicket = makeTxTicket({ status: TicketStatus.IN_PROGRESS })
     const { svc, tx } = makeSetup({ txTicket, updatedStatus: TicketStatus.AWAITING_ACCEPTANCE })
     tx.ticketAttachment.count.mockResolvedValue(0)
     mockResolveAccess.mockResolvedValue(makeAccess())
 
     await expect(
-      svc.updateStatus(PROVIDER_ID, { id: USER_ID }, UserRole.ADMIN, TICKET_ID, {
-        status: TicketStatus.DONE,
+      svc.submitAcceptance(PROVIDER_ID, { id: USER_ID }, UserRole.ADMIN, TICKET_ID, {
+        failureCauseId: 'cause-1',
+        comment: 'Done',
       }),
     ).rejects.toBeInstanceOf(BadRequestException)
+  })
+
+  it('submit-acceptance writes status history and immutable failure-cause assessment', async () => {
+    const txTicket = makeTxTicket({ status: TicketStatus.IN_PROGRESS, assignedTechnicianId: TECH_ID })
+    const { svc, tx, timeline, notifications } = makeSetup({
+      isExecutor: true,
+      txTicket,
+      updatedStatus: TicketStatus.AWAITING_ACCEPTANCE,
+    })
+    tx.ticketAttachment.count.mockResolvedValue(1)
+    tx.domainEvent.count.mockResolvedValue(0)
+    mockResolveAccess.mockResolvedValue(
+      makeAccess({
+        ticket: { id: TICKET_ID, companyId: CLIENT_ID, assignedTechnicianId: TECH_ID },
+        operationCompanyId: PROVIDER_ID,
+        visibilityMode: 'provider_primary',
+      }),
+    )
+
+    const result = await svc.submitAcceptance(PROVIDER_ID, { id: TECH_ID }, UserRole.TECHNICIAN, TICKET_ID, {
+      failureCauseId: 'cause-1',
+      comment: 'Заменил деталь',
+    })
+
+    expect(result.status).toBe(TicketStatus.AWAITING_ACCEPTANCE)
+    expect(tx.ticketStatusHistory.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          ticketId: TICKET_ID,
+          fromStatus: TicketStatus.IN_PROGRESS,
+          toStatus: TicketStatus.AWAITING_ACCEPTANCE,
+          comment: 'Заменил деталь',
+          changedByUserId: TECH_ID,
+        }),
+      }),
+    )
+    expect(tx.ticketFailureCauseAssessment.create).toHaveBeenCalledWith({
+      data: {
+        companyId: CLIENT_ID,
+        ticketId: TICKET_ID,
+        ticketStatusHistoryId: 'history-1',
+        failureCauseId: 'cause-1',
+        failureCauseNameSnapshot: 'Износ',
+        actorUserId: TECH_ID,
+      },
+    })
+    expect(timeline.recordTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        event: 'STATUS_CHANGED',
+        payload: expect.objectContaining({
+          ticketStatusHistoryId: 'history-1',
+          failureCauseAssessmentId: 'assessment-1',
+          failureCauseNameSnapshot: 'Износ',
+        }),
+      }),
+    )
+    expect(notifications.onTicketAwaitingAcceptance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ticketCompanyId: CLIENT_ID,
+        actorUserId: TECH_ID,
+        ticketId: TICKET_ID,
+      }),
+    )
+  })
+
+  it('rejects inactive, foreign, or wrong-company cause before status writes', async () => {
+    const txTicket = makeTxTicket({ status: TicketStatus.IN_PROGRESS })
+    const { svc, tx, timeline } = makeSetup({ txTicket, updatedStatus: TicketStatus.AWAITING_ACCEPTANCE })
+    tx.ticketAttachment.count.mockResolvedValue(1)
+    tx.failureCause.findFirst.mockResolvedValue(null)
+    mockResolveAccess.mockResolvedValue(makeAccess())
+
+    await expect(
+      svc.submitAcceptance(PROVIDER_ID, { id: USER_ID }, UserRole.ADMIN, TICKET_ID, {
+        failureCauseId: 'foreign-cause',
+        comment: 'Done',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException)
+
+    expect(tx.failureCause.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'foreign-cause',
+        companyId: CLIENT_ID,
+        active: true,
+      },
+      select: { id: true, name: true },
+    })
+    expect(tx.ticket.update).not.toHaveBeenCalled()
+    expect(tx.ticketFailureCauseAssessment.create).not.toHaveBeenCalled()
+    expect(timeline.recordTx).not.toHaveBeenCalled()
+  })
+
+  it('rejects submit-acceptance without a comment when no historical comment exists', async () => {
+    const txTicket = makeTxTicket({ status: TicketStatus.IN_PROGRESS })
+    const { svc, tx } = makeSetup({ txTicket, updatedStatus: TicketStatus.AWAITING_ACCEPTANCE })
+    tx.ticketAttachment.count.mockResolvedValue(1)
+    tx.domainEvent.count.mockResolvedValue(0)
+    tx.ticketStatusHistory.count.mockResolvedValue(0)
+    mockResolveAccess.mockResolvedValue(makeAccess())
+
+    await expect(
+      svc.submitAcceptance(PROVIDER_ID, { id: USER_ID }, UserRole.ADMIN, TICKET_ID, {
+        failureCauseId: 'cause-1',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException)
+
+    expect(tx.ticket.update).not.toHaveBeenCalled()
+    expect(tx.ticketFailureCauseAssessment.create).not.toHaveBeenCalled()
+  })
+
+  it('resubmit after rejection creates a second assessment without mutating the first', async () => {
+    const txTicket = makeTxTicket({ status: TicketStatus.IN_PROGRESS })
+    const { svc, tx } = makeSetup({ txTicket, updatedStatus: TicketStatus.AWAITING_ACCEPTANCE })
+    tx.ticketAttachment.count.mockResolvedValue(1)
+    tx.ticketStatusHistory.create
+      .mockResolvedValueOnce({ id: 'history-1' })
+      .mockResolvedValueOnce({ id: 'history-2' })
+    tx.failureCause.findFirst
+      .mockResolvedValueOnce({ id: 'cause-1', name: 'Износ' })
+      .mockResolvedValueOnce({ id: 'cause-2', name: 'Ошибка эксплуатации' })
+    mockResolveAccess.mockResolvedValue(makeAccess())
+
+    await svc.submitAcceptance(PROVIDER_ID, { id: USER_ID }, UserRole.ADMIN, TICKET_ID, {
+      failureCauseId: 'cause-1',
+      comment: 'Первая попытка',
+    })
+    await svc.submitAcceptance(PROVIDER_ID, { id: USER_ID }, UserRole.ADMIN, TICKET_ID, {
+      failureCauseId: 'cause-2',
+      comment: 'Повторная попытка',
+    })
+
+    expect(tx.ticketFailureCauseAssessment.create).toHaveBeenCalledTimes(2)
+    expect(tx.ticketFailureCauseAssessment.create).toHaveBeenNthCalledWith(1, {
+      data: expect.objectContaining({
+        ticketStatusHistoryId: 'history-1',
+        failureCauseId: 'cause-1',
+        failureCauseNameSnapshot: 'Износ',
+      }),
+    })
+    expect(tx.ticketFailureCauseAssessment.create).toHaveBeenNthCalledWith(2, {
+      data: expect.objectContaining({
+        ticketStatusHistoryId: 'history-2',
+        failureCauseId: 'cause-2',
+        failureCauseNameSnapshot: 'Ошибка эксплуатации',
+      }),
+    })
+  })
+
+  it('submit-acceptance idempotency reuses the canonical key result', async () => {
+    const txTicket = makeTxTicket({ status: TicketStatus.IN_PROGRESS })
+    const idempotency = {
+      run: jest.fn().mockImplementation(async (_scope: any, _fingerprint: string, handlers: any) => {
+        const executed = await handlers.execute({ noteStorageKey: jest.fn() })
+        return { result: executed.result, executed: true }
+      }),
+    }
+    const { svc, tx } = makeSetup({
+      txTicket,
+      updatedStatus: TicketStatus.AWAITING_ACCEPTANCE,
+      idempotency,
+    })
+    tx.ticketAttachment.count.mockResolvedValue(1)
+    mockResolveAccess.mockResolvedValue(makeAccess())
+
+    await svc.submitAcceptance(PROVIDER_ID, { id: USER_ID }, UserRole.ADMIN, TICKET_ID, {
+      failureCauseId: 'cause-1',
+      comment: 'Done',
+    }, undefined, 'stable-key')
+
+    expect(idempotency.run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyId: PROVIDER_ID,
+        userId: USER_ID,
+        operationType: 'ticket_submit_acceptance',
+        key: 'stable-key',
+      }),
+      expect.any(String),
+      expect.any(Object),
+    )
+    expect(tx.ticketFailureCauseAssessment.create).toHaveBeenCalledTimes(1)
   })
 
   it('writes comment event to timeline when comment is provided', async () => {

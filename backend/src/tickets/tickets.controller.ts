@@ -36,11 +36,16 @@ import { BoardQueryDto } from './dto/board-query.dto'
 import { AddTicketCommentDto } from './dto/add-ticket-comment.dto'
 import { TicketAcceptanceDto } from './dto/ticket-acceptance.dto'
 import { RequestAssignmentDto } from './dto/request-assignment.dto'
+import { SubmitTicketAcceptanceDto } from './dto/submit-ticket-acceptance.dto'
+import { FailureCausesService } from '../failure-causes/failure-causes.service'
 
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsContextGuard, PermissionsGuard)
 @Controller('tickets')
 export class TicketsController {
-  constructor(private readonly svc: TicketsService) {}
+  constructor(
+    private readonly svc: TicketsService,
+    private readonly failureCauses: FailureCausesService,
+  ) {}
 
   @Post()
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER, UserRole.TECHNICIAN)
@@ -254,6 +259,37 @@ export class TicketsController {
     )
   }
 
+  @Get(':id/failure-causes')
+  @Roles(
+    UserRole.ADMIN,
+    UserRole.MASTER,
+    UserRole.DISPATCHER,
+    UserRole.NETWORK_DIRECTOR,
+    UserRole.TECHNICIAN,
+    UserRole.CLIENT,
+    UserRole.TERRITORIAL_MANAGER,
+    UserRole.PLATFORM_ADMIN,
+  )
+  @RequirePermission(PERMISSIONS.TICKETS_VIEW)
+  listFailureCausesForTicket(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Query('companyId') companyId?: string,
+    @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
+  ) {
+    return this.failureCauses.listActiveForTicket(
+      {
+        id: req.user.id,
+        role: req.user.role as UserRole,
+        companyId: req.user.companyId,
+        accessFlags: req.accessFlags,
+      },
+      id,
+      linkedClientCompanyId,
+      companyId,
+    )
+  }
+
   @Get(':id/attachments')
   @Roles(
     UserRole.ADMIN,
@@ -414,6 +450,27 @@ export class TicketsController {
     @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
   ) {
     return this.svc.updateStatus(req.user.companyId, req.user, req.user.role, id, dto, linkedClientCompanyId)
+  }
+
+  @Post(':id/submit-acceptance')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN)
+  @RequirePermission(PERMISSIONS.TICKETS_STATUS_CHANGE)
+  submitAcceptance(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: SubmitTicketAcceptanceDto,
+    @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.svc.submitAcceptance(
+      req.user.companyId,
+      req.user,
+      req.user.role,
+      id,
+      dto,
+      linkedClientCompanyId,
+      idempotencyKey,
+    )
   }
 
   @Post(':id/comments')

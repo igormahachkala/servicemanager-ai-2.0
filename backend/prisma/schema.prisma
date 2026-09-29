@@ -200,6 +200,8 @@ model Company {
   maxLocationThreads           MaxLocationThread[]
   specializations              Specialization[]
   problemCategories            ProblemCategory[]
+  failureCauses                FailureCause[]
+  ticketFailureCauseAssessments TicketFailureCauseAssessment[]
   tickets                      Ticket[]
   ticketComments               TicketComment[]
   ticketAttachments            TicketAttachment[]
@@ -250,6 +252,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   ticketStatusChanges         TicketStatusHistory[]      @relation("TicketStatusChangedBy")
+  ticketFailureCauseAssessments TicketFailureCauseAssessment[] @relation("TicketFailureCauseAssessmentActor")
   ticketComments              TicketComment[]            @relation("TicketCommentAuthor")
   technicianSpecializations   TechnicianSpecialization[]
   assignedTickets             Ticket[]                   @relation("AssignedTechnician")
@@ -528,6 +531,22 @@ model ProblemCategory {
   @@index([companyId, isActive])
 }
 
+model FailureCause {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  assessments TicketFailureCauseAssessment[]
+
+  @@unique([companyId, name])
+  @@index([companyId, active])
+}
+
 model ProblemCategorySpecialization {
   problemCategoryId String
   specializationId  String
@@ -773,6 +792,7 @@ model Ticket {
   status            TicketStatus          @default(NEW)
   statusUpdatedAt   DateTime              @default(now())
   statusHistory     TicketStatusHistory[]
+  failureCauseAssessments TicketFailureCauseAssessment[]
   comments          TicketComment[]
   attachments       TicketAttachment[]
   partsInstalled    InstalledPart[]       @relation("InstalledPartInstalledTicket")
@@ -945,10 +965,32 @@ model TicketStatusHistory {
 
   ticket    Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   changedBy User?  @relation("TicketStatusChangedBy", fields: [changedByUserId], references: [id], onDelete: SetNull)
+  failureCauseAssessment TicketFailureCauseAssessment?
 
   @@index([ticketId, createdAt])
   @@index([toStatus, createdAt])
   @@index([changedByUserId, createdAt])
+}
+
+model TicketFailureCauseAssessment {
+  id                    String   @id @default(uuid())
+  companyId             String
+  ticketId              String
+  ticketStatusHistoryId String   @unique
+  failureCauseId        String
+  failureCauseNameSnapshot String
+  actorUserId           String?
+  createdAt             DateTime @default(now())
+
+  company             Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ticket              Ticket              @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticketStatusHistory TicketStatusHistory @relation(fields: [ticketStatusHistoryId], references: [id], onDelete: Cascade)
+  failureCause        FailureCause        @relation(fields: [failureCauseId], references: [id], onDelete: Restrict)
+  actor               User?               @relation("TicketFailureCauseAssessmentActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([ticketId, createdAt])
+  @@index([failureCauseId, createdAt])
 }
 
 /// SMA-TICKET-REPLY-V1-BACKEND-FOUNDATION-120H.

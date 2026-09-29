@@ -8,6 +8,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { SpecializationsModule } from './specializations/specializations.module';
 import { ProblemCategoriesModule } from './problem-categories/problem-categories.module';
+import { FailureCausesModule } from './failure-causes/failure-causes.module';
 import { TechniciansModule } from './technicians/technicians.module';
 import { CompanyModule } from './company/company.module';
 import { LocationsModule } from './locations/locations.module';
@@ -40,6 +41,7 @@ import { WorkforceModule } from './workforce/workforce.module';
     UsersModule,
     SpecializationsModule,
     ProblemCategoriesModule,
+    FailureCausesModule,
     TechniciansModule,
     CompanyModule,
     LocationsModule,
