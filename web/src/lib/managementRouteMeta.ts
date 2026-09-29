@@ -104,6 +104,7 @@ export const MANAGEMENT_ROUTES: readonly ManagementRouteMeta[] = Object.freeze([
 
   // ── Объекты и оборудование ────────────────────────────────────────────────
   { path: '/locations', section: 'objects', pageLabel: 'Точки', breadcrumbLabel: 'Точки', parentPath: null, entity: null, primaryNav: true },
+  { path: '/locations/:id', section: 'objects', pageLabel: 'Объект', breadcrumbLabel: 'Объект', parentPath: '/locations', entity: 'location', primaryNav: false },
   { path: '/objects', section: 'objects', pageLabel: 'Точки', breadcrumbLabel: 'Точки', parentPath: null, entity: null, primaryNav: false },
   { path: '/equipment', section: 'objects', pageLabel: 'Оборудование', breadcrumbLabel: 'Оборудование', parentPath: null, entity: null, primaryNav: true },
   { path: '/map', section: 'objects', pageLabel: 'Карта', breadcrumbLabel: 'Карта', parentPath: null, entity: null, primaryNav: true },
