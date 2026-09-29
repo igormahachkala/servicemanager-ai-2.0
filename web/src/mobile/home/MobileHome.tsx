@@ -32,6 +32,8 @@ import {
 } from '../mobileHomeListUtils'
 import { formatMobileMutationError } from '../mobileActionErrors'
 import { getOnlineStatus, loadBoardCache, saveBoardCache, useOnlineStatus } from '../offlineQueue'
+import { queueOffline } from '../offline/useOffline'
+import { ONLINE_ONLY_ACTION_MESSAGE } from '../offline/onlineOnlyMessage'
 import { mobilePath } from '../mobileRoute'
 import { HomeHeader } from './HomeHeader'
 import { HomeTabs } from './HomeTabs'
@@ -99,7 +101,7 @@ export function MobileHome() {
   }, [meQ.data, linkedClientCompanyId, techBoundDefaultsQ.isSuccess, techBoundDefaultsQ.data, navigate, companyId, location.pathname, location.search])
 
   const boardQ = useQuery({
-    queryKey: ['mobile-home-board', linkedClientCompanyId, companyId],
+    queryKey: ['mobile-home-board', linkedClientCompanyId, companyId, isOnline],
     queryFn: async () => {
       if (!getOnlineStatus()) {
         const cached = loadBoardCache(pageScope)
@@ -409,8 +411,41 @@ export function MobileHome() {
     },
   })
 
+  async function handlePrimaryAction(ticket: api.TicketCard) {
+    // Claim и request assignment — только онлайн, как на detail.
+    if (!isOnline && ticket.status === 'NEW') {
+      setHomeActionErr(ONLINE_ONLY_ACTION_MESSAGE)
+      return
+    }
+    // Start — в очередь, как на detail (не online-only).
+    if (!isOnline && ticket.status === 'ASSIGNED') {
+      const role = meQ.data?.role
+      if (role !== 'TECHNICIAN' || ticket.assignedTechnician?.id !== meQ.data?.id) {
+        setHomeActionErr('Начать работу может только назначенный техник')
+        return
+      }
+      const queued = await queueOffline({
+        kind: 'ticket.status',
+        target: { ticketId: ticket.id },
+        payload: { status: 'IN_PROGRESS', scope: pageScope },
+      })
+      if (queued.ok) {
+        setHomeActionErr('')
+        setMobileActionToast('Сохранено на устройстве. Будет отправлено после восстановления сети.')
+      } else {
+        setHomeActionErr(queued.message)
+      }
+      return
+    }
+    actionM.mutate(ticket)
+  }
+
   const closeM = useMutation({
     mutationFn: async () => {
+      if (!getOnlineStatus()) {
+        setCloseModal((prev) => (prev ? { ...prev, err: ONLINE_ONLY_ACTION_MESSAGE } : prev))
+        throw new Error(ONLINE_ONLY_ACTION_MESSAGE)
+      }
       if (!closeModal) throw new Error('Нет данных для закрытия')
       if (!closeModal.file) throw new Error('Нужно фото или видео отчёта')
       const comment = closeModal.comment.trim()
@@ -431,6 +466,8 @@ export function MobileHome() {
       await queryClient.invalidateQueries({ queryKey: ['board'] })
     },
     onError: (e: unknown) => {
+      const raw = e instanceof Error ? e.message : ''
+      if (raw === ONLINE_ONLY_ACTION_MESSAGE) return
       setCloseModal((prev) => (prev ? { ...prev, err: formatMobileMutationError(e, { operation: 'close' }) } : prev))
     },
   })
@@ -580,7 +617,7 @@ export function MobileHome() {
             assignTicket={assignTicket}
             ticketHref={ticketHref}
             ticketLinkState={ticketLinkState}
-            onAction={(ticket) => actionM.mutate(ticket)}
+            onAction={handlePrimaryAction}
             setAssignErr={setAssignErr}
             setAssignTicket={setAssignTicket}
             assignCandidatesQ={assignCandidatesQ}
@@ -591,7 +628,14 @@ export function MobileHome() {
             assignM={assignM}
             canAcceptOnCard={canAcceptOnCard}
             acceptM={acceptM}
-            onAccept={(ticket) => { setHomeActionErr(''); acceptM.mutate(ticket) }}
+            onAccept={(ticket) => {
+              if (!isOnline) {
+                setHomeActionErr(ONLINE_ONLY_ACTION_MESSAGE)
+                return
+              }
+              setHomeActionErr('')
+              acceptM.mutate(ticket)
+            }}
             closeCameraInputRef={closeCameraInputRef}
             closeGalleryInputRef={closeGalleryInputRef}
             setCloseModal={setCloseModal}

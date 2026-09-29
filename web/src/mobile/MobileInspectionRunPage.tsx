@@ -6,6 +6,7 @@ import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZone
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
 import { mobilePath } from './mobileRoute'
 import { queueOffline, useOfflineStatus } from './offline/useOffline'
+import { ONLINE_ONLY_ACTION_MESSAGE } from './offline/onlineOnlyMessage'
 import { LOCAL_ID_PREFIX } from './offline/store'
 import { cacheRoundSnapshot, readPendingRoundTicketItemIds, readRoundSnapshot } from './offline/roundCache'
 import {
@@ -391,6 +392,10 @@ export function MobileInspectionRunPage() {
   }
 
   async function completeRun() {
+    if (!offline.online) {
+      flash('err', ONLINE_ONLY_ACTION_MESSAGE)
+      return
+    }
     setCompleteBusy(true)
     try {
       await api.completeInspectionRun(runId)
@@ -920,7 +925,7 @@ export function MobileInspectionRunPage() {
                     type="button"
                     className="mobileBtn mobileBtnSecondary"
                     onClick={() => setConfirmComplete(true)}
-                    disabled={completeBusy}
+                    disabled={completeBusy || !offline.online}
                   >
                     Завершить обход
                   </button>
@@ -929,13 +934,16 @@ export function MobileInspectionRunPage() {
                     <div style={{ fontSize: '0.88rem', color: '#374151' }}>
                       Завершить обход? Отменить нельзя. Незаполненные пункты останутся в статусе «Ожидает».
                     </div>
+                    {!offline.online ? (
+                      <div className="mobileNotice mobileNoticeError">{ONLINE_ONLY_ACTION_MESSAGE}</div>
+                    ) : null}
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button
                         type="button"
                         className="mobileBtn"
                         style={{ flex: 1 }}
                         onClick={completeRun}
-                        disabled={completeBusy}
+                        disabled={completeBusy || !offline.online}
                       >
                         {completeBusy ? 'Завершаем…' : 'Да, завершить'}
                       </button>

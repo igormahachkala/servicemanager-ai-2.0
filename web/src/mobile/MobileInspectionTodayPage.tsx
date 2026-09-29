@@ -6,6 +6,7 @@ import * as api from '../lib/api'
 import { safeRemoveItem } from '../lib/browserStorage'
 import { mobilePath } from './mobileRoute'
 import { useOfflineStatus } from './offline/useOffline'
+import { ONLINE_ONLY_ACTION_MESSAGE } from './offline/onlineOnlyMessage'
 import {
   ACTIVE_SHIFT_REQUIRED_FRIENDLY_MESSAGE,
   SHIFT_GATE_DISMISSAL_STORAGE_AREA,
@@ -142,7 +143,7 @@ export function MobileInspectionTodayPage() {
 
   function startVisit(card: TodayVisitCard) {
     if (!offline.online) {
-      setNotice('Начать новый обход можно только онлайн. Уже начатые обходы доступны офлайн.')
+      setNotice(ONLINE_ONLY_ACTION_MESSAGE)
       return
     }
     setNotice(null)

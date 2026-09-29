@@ -31,6 +31,7 @@ import {
 import { queueOffline, useOfflineStatus } from './offline/useOffline'
 import { listOfflineQueue } from './offline/runtime'
 import { deliverTicketComment } from './offline/ticketCommentDelivery'
+import { ONLINE_ONLY_ACTION_MESSAGE } from './offline/onlineOnlyMessage'
 import { formatMobileMutationError } from './mobileActionErrors'
 import { mobilePath } from './mobileRoute'
 import {
@@ -1406,10 +1407,19 @@ export function MobileTicketPage() {
         }
         return
       }
-      setTechActionErr('Нет соединения. Действие требует подключения к сети.')
+      setTechActionErr(ONLINE_ONLY_ACTION_MESSAGE)
       return
     }
     techActionM.mutate(mode)
+  }
+
+  function handleAssignmentRequest() {
+    if (showAssignmentRequestAck) return
+    if (!getOnlineStatus()) {
+      setAssignmentRequestErr(ONLINE_ONLY_ACTION_MESSAGE)
+      return
+    }
+    assignmentRequestM.mutate()
   }
 
   function openChatComposer() {
@@ -1865,7 +1875,7 @@ export function MobileTicketPage() {
                   className="mobileBtn mobileBtnSecondary"
                   style={{ width: '100%', marginTop: canShowTechClaimButton ? 8 : 0 }}
                   disabled={showAssignmentRequestAck || assignmentRequestM.isPending || techActionM.isPending}
-                  onClick={() => { if (showAssignmentRequestAck) return; assignmentRequestM.mutate() }}
+                  onClick={handleAssignmentRequest}
                 >
                   {showAssignmentRequestAck ? 'Запрос отправлен' : assignmentRequestM.isPending ? 'Отправляем запрос…' : 'Запросить назначение'}
                 </button>
@@ -2390,7 +2400,7 @@ export function MobileTicketPage() {
                       className="mobileBtn mobileBtnSecondary"
                       style={{ width: '100%', marginTop: canShowTechClaimButton ? 8 : 0 }}
                       disabled={showAssignmentRequestAck || assignmentRequestM.isPending || techActionM.isPending}
-                      onClick={() => { if (showAssignmentRequestAck) return; assignmentRequestM.mutate() }}
+                      onClick={handleAssignmentRequest}
                     >
                       {showAssignmentRequestAck ? 'Запрос отправлен' : assignmentRequestM.isPending ? 'Отправляем запрос…' : 'Запросить назначение'}
                     </button>
