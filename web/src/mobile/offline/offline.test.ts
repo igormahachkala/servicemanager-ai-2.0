@@ -601,12 +601,12 @@ test('24. Service Worker кэширует оболочку и не кэширу�
   assert.match(sw, /request\.mode !== 'navigate'/, 'кэшируется только навигация')
   assert.match(sw, /request\.method !== 'GET'/, 'мутации не кэшируются')
   assert.match(sw, /\/uploads\//, 'защищённая раздача исключена явно')
-  // Ответы API в кэш не кладутся. Записей в кэш ровно две, и обе безопасны:
-  // сама оболочка и сборочный файл, отобранный isBuildAsset. 113D добавил
-  // вторую — без неё экран, который техник не открывал до потери связи,
-  // не открывался вовсе.
+  // Ответы API в кэш не кладутся. Записи: manifest assets, оболочка и
+  // runtime build asset. Без precache hashed lazy chunk экран, который
+  // техник не открывал до потери связи, на iOS не открывается.
   const puts = sw.match(/cache\.put\([^)]*\)/g) ?? []
-  assert.equal(puts.length, 2, `в кэш пишутся только оболочка и сборочный файл, найдено: ${puts.length}`)
+  assert.equal(puts.length, 3, `в кэш пишутся только manifest assets, оболочка и сборочный файл, найдено: ${puts.length}`)
+  assert.ok(puts.some((p) => /\(url, response\)/.test(p)), 'manifest assets сохраняются по хэшированному URL')
   assert.ok(puts.some((p) => /APP_SHELL_URL/.test(p)), 'оболочка сохраняется')
   assert.ok(puts.some((p) => /\(request, copy\)/.test(p)), 'сборочный файл сохраняется по своему запросу')
 
@@ -614,6 +614,38 @@ test('24. Service Worker кэширует оболочку и не кэширу�
   // расширениями: под него не должен попасть ни один ответ с данными.
   assert.match(sw, /function isBuildAsset/, 'отбор сборочных файлов выделен явно')
   assert.match(sw, /url\.pathname\.startsWith\('\/assets\/'\)/, 'только каталог /assets/')
+  assert.match(sw, /sma-app-shell-v3/, 'полный precache отделён от прежнего cache поколения')
+  assert.match(sw, /BUILD_ASSET_MANIFEST_URL/, 'install читает build manifest')
+  assert.doesNotMatch(sw, /caches\.delete/, 'cache живой старой страницы не удаляется при activate')
+  assert.match(sw, /if \(cached\) return cached/, 'cold navigation не ждёт сеть при наличии оболочки')
+})
+
+test('24b. реальная недоступность API сильнее navigator.onLine=true', async () => {
+  const { createReachabilityMonitor } = await import('./reachabilityMonitor.js')
+  const results: boolean[] = []
+  const monitor = createReachabilityMonitor({
+    probe: async () => false,
+    interfaceOnline: () => true,
+    onResult: (reachable) => results.push(reachable),
+    setIntervalFn: (() => 1) as unknown as typeof setInterval,
+    clearIntervalFn: (() => undefined) as unknown as typeof clearInterval,
+  })
+  await monitor.probeNow()
+  assert.deepEqual(results, [false])
+})
+
+test('B3. ChunkLoad recovery не маскирует обычные ошибки', async () => {
+  const { readFileSync } = await import('node:fs')
+  const mod = readFileSync(new URL('../../../src/lib/lazyRouteFailure.ts', import.meta.url), 'utf8')
+  const router = readFileSync(new URL('../../../src/router.tsx', import.meta.url), 'utf8')
+  assert.match(mod, /isDynamicImportFailure/)
+  assert.match(mod, /ChunkLoadError/)
+  assert.match(router, /ErrorBoundary/)
+  assert.match(router, /LazyRouteFailure/)
+  assert.match(router, /isDynamicImportFailure\(error\)/)
+  assert.match(router, /window\.location\.reload\(\)/)
+  // Обычная ошибка пробрасывается дальше, не подменяется recovery UI.
+  assert.match(router, /if \(!isDynamicImportFailure\(error\)\) throw error/)
 })
 
 // ── дополнительные инварианты ─────────────────────────────────────────────
