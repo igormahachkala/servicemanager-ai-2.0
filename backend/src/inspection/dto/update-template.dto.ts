@@ -50,6 +50,10 @@ class UpdateTemplateItemDto {
   checkpointSortOrder?: number
 
   @IsOptional()
+  @IsString()
+  defaultCategoryId?: string | null
+
+  @IsOptional()
   @IsEnum(InspectionCheckpointResponseType)
   responseType?: InspectionCheckpointResponseType
 

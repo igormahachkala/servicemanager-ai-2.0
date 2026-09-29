@@ -32,6 +32,16 @@ const tenantDesktopNavItems: NavItem[] = [
   { id: 'locations', label: 'Точки', to: '/locations' },
   { id: 'analytics', label: 'Аналитика', to: '/analytics' },
   { id: 'map', label: 'Карта', to: '/map' },
+  /*
+   * SMA-ROUND-TECHNICIAN-ASSIGNMENT-025.
+   *
+   * План обходов был построен целиком — страница, маршрут и запись в
+   * managementRouteMeta с primaryNav: true, — но в меню его не было. Админ мог
+   * попасть на него только набрав адрес, и назначить обход технику оказалось
+   * некуда нажать. Порядок пунктов тот же, что в разделе rounds карты
+   * маршрутов: план, шаблоны, история.
+   */
+  { id: 'inspectionSchedules', label: 'План обходов', to: '/inspection/schedules' },
   { id: 'inspectionTemplates', label: 'Шаблоны обходов', to: '/inspection/templates' },
   { id: 'inspectionRuns', label: 'Обходы', to: '/inspection/runs' },
   { id: 'company', label: 'Компания', to: '/company' },

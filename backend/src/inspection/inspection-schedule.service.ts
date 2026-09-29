@@ -5,7 +5,9 @@ import { isExecutorEligible } from '../common/executor.utils'
 import { assertAllowed } from '../policy/policy.utils'
 import { InspectionPolicy, type InspectionUserCtx } from '../policy/inspection.policy'
 import { PrismaService } from '../prisma/prisma.service'
+import { endOfZonedDay } from '../common/zoned-time.utils'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
+import { AssignmentEligibilityResolver } from '../assignment/assignment-eligibility.resolver'
 
 import { CreateScheduleDto } from './dto/create-schedule.dto'
 import { ListSchedulesDto } from './dto/list-schedules.dto'
@@ -37,6 +39,11 @@ export class InspectionScheduleService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly serviceContracts: ServiceContractsService,
+    /**
+     * 025: кандидаты на назначение берутся тем же резолвером, что и у заявок.
+     * Своего отбора исполнителей планирование не заводит.
+     */
+    private readonly assignmentEligibility: AssignmentEligibilityResolver,
   ) {}
 
   // ── read ───────────────────────────────────────────────────────────────────
@@ -61,7 +68,9 @@ export class InspectionScheduleService {
     if (filters.frequency) where.frequency = filters.frequency
     if (filters.active !== undefined) where.isActive = filters.active === 'true'
 
-    const dueWindow = this.buildDueWindow(filters)
+    const dueWindow = filters.dueToday === 'true'
+      ? { lte: await this.endOfCompanyDay(user.companyId) }
+      : this.buildDueWindow(filters)
     if (dueWindow) where.nextDueAt = dueWindow
 
     const schedules = await this.prisma.inspectionSchedule.findMany({
@@ -75,6 +84,47 @@ export class InspectionScheduleService {
     // lapsed after the plan was made, so out-of-scope sites are dropped here.
     const visible = await this.filterByLocationScope(user, schedules)
     return visible.map(withLastRun)
+  }
+
+  /**
+   * SMA-ROUND-TECHNICIAN-ASSIGNMENT-025.
+   *
+   * Кто может выполнить обход в этой точке.
+   *
+   * До 025 выбор техника в плане предлагал всех активных сотрудников, а
+   * непригодность выяснялась только при сохранении: список кандидатов и
+   * правило назначения жили в разных местах. Теперь список строит тот же
+   * канонический резолвер, которым назначаются заявки, и сверху остаётся
+   * ровно то же правило исполнителя, что применяет resolveAssigneeId.
+   *
+   * Отбор здесь ничего не разрешает: сохранение по-прежнему проверяет
+   * кандидата заново, поэтому подставленный чужой идентификатор отклоняется
+   * независимо от того, что показал интерфейс.
+   */
+  async listAssignableTechnicians(user: InspectionUserCtx, locationId: string) {
+    assertAllowed(this.policy.canManageSchedule(user))
+    if (!locationId) throw new BadRequestException('locationId is required')
+
+    const location = await this.requireAccessibleLocation(user, locationId)
+
+    const candidates = await this.assignmentEligibility.listLocationAssignableExecutors({
+      // Планирует компания исполнителя: обход своей точки ведёт её же сотрудник.
+      employerCompanyId: user.companyId,
+      // Площадка принадлежит компании-владельцу, а не исполнителю.
+      scopeCompanyId: location.clientCompanyId,
+      locationId: location.id,
+    })
+
+    return candidates
+      .filter((candidate) => isExecutorEligible({ role: candidate.role, isExecutor: true }))
+      .map((candidate) => ({
+        id: candidate.id,
+        email: candidate.email,
+        firstName: candidate.firstName,
+        lastName: candidate.lastName,
+        role: candidate.role,
+        activeLoad: candidate.activeLoad,
+      }))
   }
 
   async get(user: InspectionUserCtx, scheduleId: string) {
@@ -102,7 +152,7 @@ export class InspectionScheduleService {
     const template = await this.requireOwnedTemplate(user, dto.templateId)
     const location = await this.requireAccessibleLocation(user, dto.locationId)
     const equipmentId = await this.resolveEquipmentId(dto.equipmentId, location)
-    const assignedToUserId = await this.resolveAssigneeId(user, dto.assignedToUserId)
+    const assignedToUserId = await this.resolveAssigneeId(user, dto.assignedToUserId, location)
 
     const startDate = this.parseStartDate(dto.startDate)
     const intervalDays = this.resolveIntervalDays(dto.frequency, dto.intervalDays)
@@ -167,8 +217,24 @@ export class InspectionScheduleService {
     }
 
     if (dto.assignedToUserId !== undefined) {
-      const assignedToUserId = await this.resolveAssigneeId(user, dto.assignedToUserId ?? undefined)
+      // Пригодность считается для действующей точки: если её меняют этим же
+      // запросом, проверять надо по новой, а не по прежней.
+      const assignedToUserId = await this.resolveAssigneeId(user, dto.assignedToUserId ?? undefined, location)
       data.assignedTo = assignedToUserId ? { connect: { id: assignedToUserId } } : { disconnect: true }
+    } else if (dto.locationId !== undefined && current.assignedToUserId) {
+      /**
+       * 039: точку сменили, а исполнителя не назвали.
+       *
+       * Прежний исполнитель мог потерять право работать на новой точке:
+       * у него может не быть привязки к ней, а у его компании — договора.
+       * Оставить такого назначенным нельзя, поэтому запрос отклоняется.
+       *
+       * Именно отклоняется, а не «молча снимается»: снятие назначения —
+       * решение человека, и подменять его тихой правкой нельзя. Планирующий
+       * увидит отказ и либо назовёт подходящего исполнителя, либо снимет
+       * назначение явно, передав assignedToUserId: null.
+       */
+      await this.resolveAssigneeId(user, current.assignedToUserId, location)
     }
 
     if (dto.name !== undefined) {
@@ -185,16 +251,23 @@ export class InspectionScheduleService {
       data.intervalDays = this.resolveIntervalDays(frequency, intervalDays)
     }
 
-    if (dto.startDate !== undefined) {
-      const startDate = this.parseStartDate(dto.startDate)
-      data.startDate = startDate
-      /**
-       * Moving the planned moment moves the next due moment — but only while nothing has been
-       * generated from this schedule yet. Once a generator has produced runs, `nextDueAt` is
-       * its cursor, and 098 has no business rewinding it.
-       */
-      if (!current.lastGeneratedAt) data.nextDueAt = startDate
-    }
+      if (dto.startDate !== undefined) {
+        const startDate = this.parseStartDate(dto.startDate)
+        data.startDate = startDate
+        /**
+         * SMA-ROUND-SCHEDULE-ADVANCE-029: перенос ближайшего визита.
+         *
+         * Запрет 098 снят намеренно. Раньше nextDueAt следовал за датой начала
+         * только пока по плану не было ни одного обхода, а после первого
+         * замораживался — и перенести действующий план становилось нечем:
+         * оставалось погасить его и завести новый, потеряв связь с историей.
+         *
+         * Теперь правка даты переносит именно ближайший визит. Прошлое при этом
+         * не переписывается: выполненные обходы остаются с теми датами, когда их
+         * действительно делали, — здесь их никто не трогает.
+         */
+        data.nextDueAt = startDate
+      }
 
     if (dto.leadTimeDays !== undefined) data.leadTimeDays = dto.leadTimeDays
     if (dto.graceDays !== undefined) data.graceDays = dto.graceDays
@@ -282,26 +355,57 @@ export class InspectionScheduleService {
     return equipment.id
   }
 
+  /**
+   * SMA-ROUND-ASSIGNEE-SAVE-ELIGIBILITY-HARDENING-039.
+   *
+   * Кого можно назначить на обход в этой точке.
+   *
+   * До 039 сохранение проверяло меньше, чем показывал выбор: компанию,
+   * активность и правило исполнителя — но не привязку к точке и не договор.
+   * Список сужал сильнее, чем валидировала запись, и подставленный
+   * идентификатор своего же сотрудника без привязки к точке сохранялся.
+   * Интерфейс границей доступа не является, поэтому закрыто на сервере.
+   *
+   * Пригодность решает тот же канонический dependency-light резолвер, которым
+   * пользуется назначение заявок. Второго набора правил здесь не появляется:
+   * договор и привязки к точке обязательны, а специализации применяются тем же
+   * резолвером только когда caller передаёт реальные requiredSpecializations.
+   * Для расписания обхода category requirements нет, поэтому проверяется
+   * принадлежность названного человека к location-eligible набору.
+   *
+   * Существование и владение проверяются отдельным запросом ради понятного
+   * 404: «нет такого сотрудника» и «сотрудник не может работать на этой
+   * точке» — разные ответы для человека, который планирует.
+   */
   private async resolveAssigneeId(
     user: InspectionUserCtx,
     assignedToUserId: string | undefined,
+    location: { id: string; clientCompanyId: string },
   ): Promise<string | null> {
     if (!assignedToUserId) return null
 
-    const candidate = await this.prisma.user.findFirst({
-      // Same company as the manager: a provider plans work for its own people. A technician of
-      // another provider is not a candidate even when both service the same client.
+    const exists = await this.prisma.user.findFirst({
+      // Та же компания, что у планирующего: провайдер планирует работу своим
+      // людям. Техник другого провайдера кандидатом не является, даже если
+      // оба обслуживают одного клиента.
       where: { id: assignedToUserId, companyId: user.companyId, isActive: true, deletedAt: null },
-      select: { id: true, role: true, isExecutor: true },
+      select: { id: true },
     })
-    if (!candidate) throw new NotFoundException('Assignee not found')
+    if (!exists) throw new NotFoundException('Assignee not found')
 
-    // Canonical executor rule, shared with ticket claiming and the assignment engine.
-    if (!isExecutorEligible({ role: candidate.role, isExecutor: candidate.isExecutor })) {
-      throw new BadRequestException('Assignee is not eligible to execute rounds')
+    const eligible = await this.assignmentEligibility.listLocationAssignableExecutors({
+      employerCompanyId: user.companyId,
+      scopeCompanyId: location.clientCompanyId,
+      locationId: location.id,
+    })
+
+    if (!eligible.some((candidate) => candidate.id === assignedToUserId)) {
+      throw new BadRequestException(
+        'Assignee is not eligible to execute rounds at this location',
+      )
     }
 
-    return candidate.id
+    return assignedToUserId
   }
 
   private parseStartDate(value: string) {
@@ -324,6 +428,21 @@ export class InspectionScheduleService {
     return null
   }
 
+  /**
+   * 029: конец сегодняшних суток в поясе компании.
+   *
+   * Источник правды о дне — компания, а не устройство. Телефон техника
+   * в поездке показывал бы чужой день, и «сегодня» на /m расходилось бы
+   * с «сегодня» в MAX и в планировщике.
+   */
+  private async endOfCompanyDay(companyId: string): Promise<Date> {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { timezone: true },
+    })
+    return endOfZonedDay(new Date(), company?.timezone)
+  }
+
   private buildDueWindow(filters: ListSchedulesDto) {
     const from = filters.from ? new Date(filters.from) : null
     const to = filters.to ? new Date(filters.to) : null
@@ -341,6 +460,8 @@ export class InspectionScheduleService {
         frequency: true,
         intervalDays: true,
         lastGeneratedAt: true,
+        // 039: нужен, чтобы при смене точки перепроверить уже назначенного.
+        assignedToUserId: true,
         location: { select: { id: true, clientCompanyId: true } },
         _count: { select: { runs: true } },
       },
