@@ -209,70 +209,76 @@ export function LocationPage() {
         <div className="muted small">Адрес: {location.address || '—'}</div>
       </div>
 
-      <div className="panel" style={{ marginTop: 12 }}>
-        <h3 style={{ marginBottom: 10 }}>Оборудование</h3>
-        {equipmentQ.isLoading ? (
-          <div className="muted small">Загружаем…</div>
-        ) : equipmentQ.isError ? null : equipment.total === 0 ? (
-          <div className="muted small">Нет оборудования</div>
-        ) : (
-          <>
-            <div className="muted small">
-              {equipment.total} {pluralizeRu(equipment.total, 'единица', 'единицы', 'единиц')}
-            </div>
-            <div className="muted small">В работе: {equipment.active}</div>
-            <div style={{ marginTop: 10 }}>
-              <Link to="/equipment">
-                <button className="ghost">Открыть оборудование</button>
-              </Link>
-            </div>
-          </>
-        )}
-      </div>
+      {equipmentQ.isError ? null : (
+        <div className="panel" style={{ marginTop: 12 }}>
+          <h3 style={{ marginBottom: 10 }}>Оборудование</h3>
+          {equipmentQ.isLoading ? (
+            <div className="muted small">Загружаем…</div>
+          ) : equipment.total === 0 ? (
+            <div className="muted small">Нет оборудования</div>
+          ) : (
+            <>
+              <div className="muted small">
+                {equipment.total} {pluralizeRu(equipment.total, 'единица', 'единицы', 'единиц')}
+              </div>
+              <div className="muted small">В работе: {equipment.active}</div>
+              <div style={{ marginTop: 10 }}>
+                <Link to="/equipment">
+                  <button className="ghost">Открыть оборудование</button>
+                </Link>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
-      <div className="panel" style={{ marginTop: 12 }}>
-        <h3 style={{ marginBottom: 10 }}>Заявки</h3>
-        {ticketsQ.isLoading ? (
-          <div className="muted small">Загружаем…</div>
-        ) : ticketsQ.isError ? null : tickets.inProgress === 0 && tickets.awaitingAcceptance === 0 ? (
-          <div className="muted small">Нет открытых заявок</div>
-        ) : (
-          <>
-            <div className="muted small">В работе: {tickets.inProgress}</div>
-            <div className="muted small">На приёмке: {tickets.awaitingAcceptance}</div>
-            <div style={{ marginTop: 10 }}>
-              <Link to={ticketsTo}>
-                <button className="ghost">Открыть заявки объекта</button>
-              </Link>
-            </div>
-          </>
-        )}
-      </div>
+      {ticketsQ.isError ? null : (
+        <div className="panel" style={{ marginTop: 12 }}>
+          <h3 style={{ marginBottom: 10 }}>Заявки</h3>
+          {ticketsQ.isLoading ? (
+            <div className="muted small">Загружаем…</div>
+          ) : tickets.inProgress === 0 && tickets.awaitingAcceptance === 0 ? (
+            <div className="muted small">Нет открытых заявок</div>
+          ) : (
+            <>
+              <div className="muted small">В работе: {tickets.inProgress}</div>
+              <div className="muted small">На приёмке: {tickets.awaitingAcceptance}</div>
+              <div style={{ marginTop: 10 }}>
+                <Link to={ticketsTo}>
+                  <button className="ghost">Открыть заявки объекта</button>
+                </Link>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
-      <div className="panel" style={{ marginTop: 12 }}>
-        <h3 style={{ marginBottom: 10 }}>Обходы</h3>
-        {schedulesQ.isLoading ? (
-          <div className="muted small">Загружаем…</div>
-        ) : schedulesQ.isError ? null : schedules.activeCount === 0 ? (
-          <div className="muted small">Нет запланированных обходов</div>
-        ) : (
-          <>
-            <div className="muted small">
-              Следующий: {schedules.next ? fmtDateTime(schedules.next.nextDueAt) : '—'}
-            </div>
-            <div className="muted small">
-              {schedules.activeCount}{' '}
-              {pluralizeRu(schedules.activeCount, 'активный план', 'активных плана', 'активных планов')}
-            </div>
-            <div style={{ marginTop: 10 }}>
-              {/* Маршрут планов фильтра по объекту не принимает: ссылка ведёт в раздел. */}
-              <Link to="/inspection/schedules">
-                <button className="ghost">Открыть планы</button>
-              </Link>
-            </div>
-          </>
-        )}
-      </div>
+      {schedulesQ.isError ? null : (
+        <div className="panel" style={{ marginTop: 12 }}>
+          <h3 style={{ marginBottom: 10 }}>Обходы</h3>
+          {schedulesQ.isLoading ? (
+            <div className="muted small">Загружаем…</div>
+          ) : schedules.activeCount === 0 ? (
+            <div className="muted small">Нет запланированных обходов</div>
+          ) : (
+            <>
+              <div className="muted small">
+                Следующий: {schedules.next ? fmtDateTime(schedules.next.nextDueAt) : '—'}
+              </div>
+              <div className="muted small">
+                {schedules.activeCount}{' '}
+                {pluralizeRu(schedules.activeCount, 'активный план', 'активных плана', 'активных планов')}
+              </div>
+              <div style={{ marginTop: 10 }}>
+                {/* Маршрут планов фильтра по объекту не принимает: ссылка ведёт в раздел. */}
+                <Link to="/inspection/schedules">
+                  <button className="ghost">Открыть планы</button>
+                </Link>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {showCoordinates ? (
         <div className="panel" style={{ marginTop: 12 }}>

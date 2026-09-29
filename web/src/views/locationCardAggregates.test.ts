@@ -276,8 +276,11 @@ describe('102/9 наследие L1 не сломано', () => {
   })
 
   it('9. отказ сводки не рисует ничего и не называет причину', () => {
-    // Каждый блок на ошибке возвращает null: чего у смотрящего нет — не сообщается.
+    // Каждый блок целиком возвращает null: даже пустой заголовок не раскрывает недоступный раздел.
     expect(pageCode.match(/isError \? null/g)?.length).toBe(3)
+    expect(pageCode).toMatch(/equipmentQ\.isError \? null : \(\s*<div className="panel"[\s\S]*?>Оборудование</)
+    expect(pageCode).toMatch(/ticketsQ\.isError \? null : \(\s*<div className="panel"[\s\S]*?>Заявки</)
+    expect(pageCode).toMatch(/schedulesQ\.isError \? null : \(\s*<div className="panel"[\s\S]*?>Обходы</)
   })
 })
 
