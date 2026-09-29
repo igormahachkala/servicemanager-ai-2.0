@@ -35,7 +35,7 @@ export class FailureCausesController {
 
   @Post()
   @ManagementSurface()
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.CLIENT_ADMIN)
   @RequirePermission(PERMISSIONS.COMPANY_SETTINGS_EDIT)
   create(@Req() req: any, @Body() dto: CreateFailureCauseDto) {
     return this.svc.create(req.user.companyId, dto)
@@ -43,7 +43,7 @@ export class FailureCausesController {
 
   @Patch(':id')
   @ManagementSurface()
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.CLIENT_ADMIN)
   @RequirePermission(PERMISSIONS.COMPANY_SETTINGS_EDIT)
   update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateFailureCauseDto) {
     return this.svc.update(req.user.companyId, id, dto)
@@ -51,7 +51,7 @@ export class FailureCausesController {
 
   @Patch(':id/status')
   @ManagementSurface()
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.CLIENT_ADMIN)
   @RequirePermission(PERMISSIONS.COMPANY_SETTINGS_EDIT)
   setStatus(@Req() req: any, @Param('id') id: string, @Body() body: { active: boolean }) {
     return this.svc.setStatus(req.user.companyId, id, !!body.active)

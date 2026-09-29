@@ -560,15 +560,23 @@ describe('TicketsStatusService.updateStatus', () => {
     })
   })
 
-  it('submit-acceptance idempotency reuses the canonical key result', async () => {
+  it('submit-acceptance idempotency replays the canonical result without duplicate business writes', async () => {
     const txTicket = makeTxTicket({ status: TicketStatus.IN_PROGRESS })
+    const replayStore = new Map<string, { fingerprint: string; entityId: string }>()
     const idempotency = {
-      run: jest.fn().mockImplementation(async (_scope: any, _fingerprint: string, handlers: any) => {
+      run: jest.fn().mockImplementation(async (scope: any, fingerprint: string, handlers: any) => {
+        const storeKey = `${scope.companyId}:${scope.userId}:${scope.operationType}:${scope.key}`
+        const existing = replayStore.get(storeKey)
+        if (existing) {
+          expect(existing.fingerprint).toBe(fingerprint)
+          return { result: await handlers.replay(existing.entityId), executed: false }
+        }
         const executed = await handlers.execute({ noteStorageKey: jest.fn() })
+        replayStore.set(storeKey, { fingerprint, entityId: executed.entityId })
         return { result: executed.result, executed: true }
       }),
     }
-    const { svc, tx } = makeSetup({
+    const { svc, prisma, tx, timeline, notifications } = makeSetup({
       txTicket,
       updatedStatus: TicketStatus.AWAITING_ACCEPTANCE,
       idempotency,
@@ -576,22 +584,102 @@ describe('TicketsStatusService.updateStatus', () => {
     tx.ticketAttachment.count.mockResolvedValue(1)
     mockResolveAccess.mockResolvedValue(makeAccess())
 
-    await svc.submitAcceptance(PROVIDER_ID, { id: USER_ID }, UserRole.ADMIN, TICKET_ID, {
+    const first = await svc.submitAcceptance(PROVIDER_ID, { id: USER_ID }, UserRole.ADMIN, TICKET_ID, {
+      failureCauseId: 'cause-1',
+      comment: 'Done',
+    }, undefined, 'stable-key')
+    const second = await svc.submitAcceptance(PROVIDER_ID, { id: USER_ID }, UserRole.ADMIN, TICKET_ID, {
       failureCauseId: 'cause-1',
       comment: 'Done',
     }, undefined, 'stable-key')
 
-    expect(idempotency.run).toHaveBeenCalledWith(
-      expect.objectContaining({
-        companyId: PROVIDER_ID,
-        userId: USER_ID,
-        operationType: 'ticket_submit_acceptance',
-        key: 'stable-key',
-      }),
-      expect.any(String),
-      expect.any(Object),
-    )
+    expect(first.status).toBe(TicketStatus.AWAITING_ACCEPTANCE)
+    expect(second.status).toBe(TicketStatus.AWAITING_ACCEPTANCE)
+    expect(idempotency.run).toHaveBeenCalledTimes(2)
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1)
+    expect(tx.ticketStatusHistory.create).toHaveBeenCalledTimes(1)
     expect(tx.ticketFailureCauseAssessment.create).toHaveBeenCalledTimes(1)
+    expect(timeline.recordTx).toHaveBeenCalledTimes(3)
+    expect(notifications.onTicketAwaitingAcceptance).toHaveBeenCalledTimes(1)
+    expect(prisma.ticketStatusHistory.findUnique).toHaveBeenCalledWith({
+      where: { id: 'history-1' },
+      select: { id: true, ticketId: true, toStatus: true },
+    })
+  })
+
+  it('rolls back submit-acceptance DB writes when assessment creation fails', async () => {
+    const txTicket = makeTxTicket({ status: TicketStatus.IN_PROGRESS, assignedTechnicianId: TECH_ID })
+    const { svc, prisma, tx, timeline, notifications } = makeSetup({
+      isExecutor: true,
+      txTicket,
+      updatedStatus: TicketStatus.AWAITING_ACCEPTANCE,
+    })
+    tx.ticketAttachment.count.mockResolvedValue(1)
+    mockResolveAccess.mockResolvedValue(
+      makeAccess({
+        ticket: { id: TICKET_ID, companyId: CLIENT_ID, assignedTechnicianId: TECH_ID },
+        operationCompanyId: PROVIDER_ID,
+        visibilityMode: 'provider_primary',
+      }),
+    )
+
+    const committed = {
+      status: TicketStatus.IN_PROGRESS,
+      histories: [] as any[],
+      assessments: [] as any[],
+      events: [] as any[],
+    }
+    let staged = {
+      status: committed.status,
+      histories: [] as any[],
+      assessments: [] as any[],
+      events: [] as any[],
+    }
+
+    tx.ticket.findFirst.mockImplementation(async () => ({ ...txTicket, status: committed.status }))
+    tx.ticket.update.mockImplementation(async ({ data }: any) => {
+      staged.status = data.status
+      return { ...txTicket, ...data }
+    })
+    tx.ticketStatusHistory.create.mockImplementation(async ({ data }: any) => {
+      staged.histories.push(data)
+      return { id: 'history-rollback' }
+    })
+    tx.ticketFailureCauseAssessment.create.mockImplementation(async ({ data }: any) => {
+      staged.assessments.push(data)
+      throw new Error('assessment write failed')
+    })
+    timeline.recordTx.mockImplementation(async (_tx: any, event: any) => {
+      staged.events.push(event)
+      return { id: `ev-${staged.events.length}` }
+    })
+    prisma.$transaction.mockImplementation(async (cb: any) => {
+      staged = {
+        status: committed.status,
+        histories: [],
+        assessments: [],
+        events: [],
+      }
+      const result = await cb(tx)
+      committed.status = staged.status
+      committed.histories.push(...staged.histories)
+      committed.assessments.push(...staged.assessments)
+      committed.events.push(...staged.events)
+      return result
+    })
+
+    await expect(
+      svc.submitAcceptance(PROVIDER_ID, { id: TECH_ID }, UserRole.TECHNICIAN, TICKET_ID, {
+        failureCauseId: 'cause-1',
+        comment: 'Готово',
+      }),
+    ).rejects.toThrow('assessment write failed')
+
+    expect(committed.status).toBe(TicketStatus.IN_PROGRESS)
+    expect(committed.histories).toHaveLength(0)
+    expect(committed.assessments).toHaveLength(0)
+    expect(committed.events).toHaveLength(0)
+    expect(notifications.onTicketAwaitingAcceptance).not.toHaveBeenCalled()
   })
 
   it('writes comment event to timeline when comment is provided', async () => {

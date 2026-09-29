@@ -177,6 +177,9 @@ export class TicketsStatusService {
   }) {
     const { companyId, user, role, ticketId, failureCauseId, comment, attachmentIds, access } = params;
 
+    // Atomicity boundary is the database transaction below. Access resolution
+    // follows the existing ticket pattern before it; notifications are emitted
+    // after commit and must not be treated as rollback-protected DB mutations.
     const statusResult = await this.prisma.$transaction(async (tx) => {
       const ticket = await tx.ticket.findFirst({
         where: { id: ticketId, companyId: access.ticket.companyId },
