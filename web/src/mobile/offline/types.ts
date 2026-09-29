@@ -189,6 +189,9 @@ export const OWNER_MISMATCH_REASON =
 export const NO_IDENTITY_REASON =
   'Нет активной сессии. Отправка остановлена, работа осталась на устройстве.'
 
+/** Отправка прервана сменой сессии или выходом. */
+export const DRAIN_CANCELLED_REASON = 'Отправка остановлена: сессия закрыта.'
+
 /** Коды 113B и HTTP-исходы, которые нельзя повторять вслепую. */
 export type SyncOutcome =
   | { kind: 'ok'; serverId?: string }

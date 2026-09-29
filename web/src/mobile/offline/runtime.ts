@@ -47,6 +47,14 @@ let identityKey: string | null = null
 let connectivityWatched = false
 
 /**
+ * Поколение сессии. Растёт на каждом stopOffline — то есть при смене
+ * пользователя, выходе и размонтировании оболочки. Координатор, запущенный
+ * в прошлом поколении, сравнивает своё число с этим и останавливается перед
+ * следующей строкой: обнулить его ссылки снаружи нельзя, он держит их сам.
+ */
+let generation = 0
+
+/**
  * Личность, которую предъявит запрос. Берётся из того же токена, каким
  * уйдёт очередь, — значит расхождения между «чья работа» и «от чьего имени
  * отправляем» быть не может.
@@ -176,8 +184,10 @@ export async function startOffline(identity: { id?: string | null; companyId?: s
 
   if (!opened.available || !store) return { store, status }
 
+  const startedAt = generation
   coordinator = new SyncCoordinator(store, createHttpSyncTransport(), {
     resolveIdentity: liveIdentityNamespace,
+    isCancelled: () => generation !== startedAt,
   })
 
   await refreshOfflineStatus()
@@ -188,6 +198,10 @@ export async function startOffline(identity: { id?: string | null; companyId?: s
 
 export function stopOffline() {
   cancelRetry()
+  // Сначала логическая отмена, потом обнуление ссылок. Обратный порядок
+  // оставил бы идущий круг без возможности узнать, что его уже не ждут.
+  generation += 1
+  coordinator?.cancel()
   coordinator = null
   store = null
   identityKey = null
@@ -208,8 +222,8 @@ export async function syncNow(): Promise<void> {
      * Осталась неотправленная работа — назначаем следующий круг сами.
      * Ждать второго события `online` нельзя: его может не быть.
      *
-     * Круг, оборванный по личности, автоповтором не лечится — его
-     * разблокирует вход нужным пользователем, а не время. Повторять
+     * Круг, оборванный по личности или отмене, автоповтором не лечится —
+     * его разблокирует вход нужным пользователем, а не время. Повторять
      * каждые четыре секунды значило бы крутить цикл впустую до конца сессии.
      */
     if (stoppedReason) cancelRetry()

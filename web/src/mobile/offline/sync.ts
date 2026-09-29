@@ -22,6 +22,7 @@ import type { OfflineStore } from './store.js'
 import {
   classifySyncFailure,
   queueItemOwner,
+  DRAIN_CANCELLED_REASON,
   NO_IDENTITY_REASON,
   OWNER_MISMATCH_REASON,
   type OfflineQueueItem,
@@ -76,6 +77,8 @@ export type SyncCoordinatorOptions = {
    * которые сети не касаются вовсе. Боевая сборка резолвер передаёт всегда.
    */
   resolveIdentity?: LiveIdentityResolver
+  /** Внешний признак отмены — смена сессии, выход, размонтирование. */
+  isCancelled?: () => boolean
 }
 
 export class SyncCoordinator {
@@ -85,6 +88,8 @@ export class SyncCoordinator {
   private readonly store: OfflineStore
   private readonly transport: SyncTransport
   private readonly options: SyncCoordinatorOptions
+  /** Круг, начатый до отмены, дальше текущей строки не идёт. */
+  private cancelled = false
 
   constructor(
     store: OfflineStore,
@@ -94,6 +99,20 @@ export class SyncCoordinator {
     this.store = store
     this.transport = transport
     this.options = options
+  }
+
+  /**
+   * Логическая отмена. Уже идущий круг остановится перед следующей
+   * строкой — он держит свои ссылки на хранилище и транспорт, и обнулить их
+   * снаружи нельзя. Ни одна строка при этом не портится: отмена случается
+   * между операциями, а не внутри отправки.
+   */
+  cancel(): void {
+    this.cancelled = true
+  }
+
+  private stopRequested(): boolean {
+    return this.cancelled || this.options.isCancelled?.() === true
   }
 
   get isRunning(): boolean {
@@ -188,6 +207,12 @@ export class SyncCoordinator {
       if (item.status === 'synced' || item.status === 'attention') continue
 
       /*
+       * Две проверки до сети, на каждой строке.
+       *
+       * Отмена: сессию закрыли, пока круг шёл. Останавливаемся здесь, между
+       * операциями, — прерывать начатую отправку нельзя, сервер о ней уже
+       * знает.
+       *
        * Владелец: работу поставил один человек, а предъявляется другой.
        * Такого запроса быть не должно вовсе, поэтому круг обрывается целиком,
        * а не помечает строку. Строка ни в чём не виновата: когда вернётся её
@@ -197,6 +222,11 @@ export class SyncCoordinator {
        * Сервер при этом остаётся последней инстанцией: проверка здесь ничего
        * не разрешает, она только запрещает отправку, которую нельзя делать.
        */
+      if (this.stopRequested()) {
+        report.stoppedReason = DRAIN_CANCELLED_REASON
+        break
+      }
+
       const guard = await this.assertOwnership(item)
       if (guard) {
         report.stoppedReason = guard
