@@ -217,14 +217,44 @@ export function MobileHome() {
     () => (isReworkRole ? dedupeBoardCards(cards).filter((t) => t.status === 'IN_PROGRESS' && reworkTicketIds.has(t.id)).length : 0),
     [isReworkRole, cards, reworkTicketIds],
   )
+  /**
+   * SMA-120: срочные заявки.
+   *
+   * Счётчик берётся из ответа доски — база считает его по тому же
+   * разрешённому where, поэтому он точен и не зависит от take. Длина выдачи
+   * для счёта не годится: это страница, а не итог.
+   *
+   * Список по нажатию — отдельный запрос с серверным фильтром priority=URGENT.
+   * Фильтровать уже загруженную страницу на клиенте нельзя: за пределами take
+   * остались бы невидимые срочные заявки.
+   */
+  const urgentTotal = boardQ.data?.meta?.urgentTotal
+  const urgentBoardQ = useQuery({
+    queryKey: ['mobile-home-board-urgent', linkedClientCompanyId, companyId],
+    queryFn: () =>
+      api.board({
+        linkedClientCompanyId: pageScope.linkedClientCompanyId,
+        companyId: pageScope.companyId,
+        priority: 'URGENT',
+        take: 500,
+      }),
+    enabled: quickFilter === 'urgent' && isOnline,
+  })
+  const urgentCards = useMemo(
+    () => dedupeBoardCards(urgentBoardQ.data?.columns.flatMap((col) => col.cards || []) || []),
+    [urgentBoardQ.data],
+  )
+
   const quickTickets = useMemo(() => {
     if (!quickFilter) return null
     const list = dedupeBoardCards(cards)
+    if (quickFilter === 'urgent') return urgentCards
     if (quickFilter === 'awaiting') return list.filter(isAwaitingAcceptanceTicket)
     if (quickFilter === 'rework') return list.filter((t) => t.status === 'IN_PROGRESS' && reworkTicketIds.has(t.id))
     return list.filter((t) => ticketRequiresMyAction(t, meQ.data?.id, meQ.data?.role, canAssignProvider))
-  }, [quickFilter, cards, meQ.data?.id, meQ.data?.role, canAssignProvider, reworkTicketIds])
+  }, [quickFilter, cards, meQ.data?.id, meQ.data?.role, canAssignProvider, reworkTicketIds, urgentCards])
   const quickFilterLabel =
+    quickFilter === 'urgent' ? 'Срочные заявки' :
     quickFilter === 'awaiting' ? 'На приёмке' : quickFilter === 'myaction' ? 'Требует моего действия' : quickFilter === 'rework' ? 'Требуют доработки' : ''
 
   // При активной быстрой карте список показывает её выборку и обычные фильтры/вкладки очищаются.
@@ -520,10 +550,12 @@ export function MobileHome() {
       {showMobileHomeTicketBoard ? (
         <>
           <HomeQuickCards
+            urgentCount={urgentTotal}
             awaitingCount={awaitingCount}
             myActionCount={myActionCount}
             reworkCount={reworkCount}
             activeQuickFilter={quickFilter}
+            onToggleUrgent={() => activateQuickFilter('urgent')}
             onToggleAwaiting={() => activateQuickFilter('awaiting')}
             onToggleMyAction={() => activateQuickFilter('myaction')}
             onToggleRework={() => activateQuickFilter('rework')}

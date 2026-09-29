@@ -1,4 +1,4 @@
-﻿import { TicketStatus } from '@prisma/client'
+﻿import { TicketPriority, TicketStatus } from '@prisma/client'
 import { Transform, Type } from 'class-transformer'
 import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator'
 
@@ -49,6 +49,17 @@ export class BoardQueryDto {
   @IsOptional()
   @IsEnum(['breached', 'atRisk', 'ok'] as const)
   sla?: BoardSlaBucket
+
+  /**
+   * SMA-MOBILE-URGENT-TICKETS-CARD-120.
+   *
+   * Срочность доски — это priority. Именно он задаёт окно SLA (URGENT — 2 часа,
+   * NORMAL — сутки), тогда как urgency остаётся пометкой заявителя и ни на что
+   * в расчётах не влияет. Фильтр только сужает уже разрешённую выборку.
+   */
+  @IsOptional()
+  @IsEnum(TicketPriority)
+  priority?: TicketPriority
 
   @IsOptional()
   @IsString()

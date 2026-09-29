@@ -48,6 +48,8 @@ function makePrisma(
     ticket: {
       findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn().mockResolvedValue(null),
+      // 120: доска считает срочные отдельным count по тому же where.
+      count: jest.fn().mockResolvedValue(0),
     },
     domainEvent: { findMany: jest.fn().mockResolvedValue([]) },
     user: {

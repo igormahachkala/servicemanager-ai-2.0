@@ -97,6 +97,7 @@ export class TicketsController {
         statuses,
         assigneeId: q.assigneeId,
         sla: q.sla,
+        priority: q.priority,
         q: q.q,
         take: q.take,
         locationId: q.locationId,

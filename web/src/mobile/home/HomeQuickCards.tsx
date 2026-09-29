@@ -1,10 +1,18 @@
-export type MobileHomeQuickFilter = 'awaiting' | 'myaction' | 'rework' | null
+export type MobileHomeQuickFilter = 'urgent' | 'awaiting' | 'myaction' | 'rework' | null
 
 type Props = {
+  /**
+   * SMA-120: точное число срочных из ответа доски (meta.urgentTotal).
+   * undefined означает «неизвестно» — счётчик не пришёл. Это не ноль:
+   * карточка в таком случае не рисуется вовсе, чтобы не заявлять,
+   * будто срочных нет.
+   */
+  urgentCount: number | undefined
   awaitingCount: number
   myActionCount: number
   reworkCount: number
   activeQuickFilter: MobileHomeQuickFilter
+  onToggleUrgent: () => void
   onToggleAwaiting: () => void
   onToggleMyAction: () => void
   onToggleRework: () => void
@@ -13,20 +21,51 @@ type Props = {
 
 /** Быстрые карты главной (Figma HomeScreen): Требуют доработки / На приёмке / Требует действия / Планирование. Иконки — Tabler SVG, без эмодзи. */
 export function HomeQuickCards({
+  urgentCount,
   awaitingCount,
   myActionCount,
   reworkCount,
   activeQuickFilter,
+  onToggleUrgent,
   onToggleAwaiting,
   onToggleMyAction,
   onToggleRework,
   onPlanning,
 }: Props) {
   const myActionActive = activeQuickFilter === 'myaction'
+  const urgentActive = activeQuickFilter === 'urgent'
   const reworkActive = activeQuickFilter === 'rework'
   return (
     <div className="mobileHomeQuickCards">
       {/* E2: «Требуют доработки» — заявки, возвращённые на доработку (только для техника/мастера; count=0 → скрыта) */}
+      {/*
+        SMA-120: «Срочные заявки» — priority=URGENT в уже разрешённом охвате.
+        Счётчик приходит с сервера; при count 0 карточка скрыта, как и соседние,
+        и ложной тревоги не создаёт. При неизвестном счётчике её тоже нет —
+        нарисовать «0 срочных» значило бы соврать о том, чего мы не знаем.
+      */}
+      {typeof urgentCount === 'number' && urgentCount > 0 ? (
+        <button
+          type="button"
+          className={`mobileHomeQuickCard mobileHomeQuickCard--rose${urgentActive ? ' mobileHomeQuickCard--roseActive' : ''}`}
+          onClick={onToggleUrgent}
+        >
+          <span className="mobileHomeQuickCardIcon" aria-hidden>
+            {/* Tabler alert-triangle */}
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 9v4" />
+              <path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z" />
+              <path d="M12 16h.01" />
+            </svg>
+          </span>
+          <span className="mobileHomeQuickCardBody">
+            <span className="mobileHomeQuickCardTitle">Срочные заявки</span>
+            <span className="mobileHomeQuickCardSub">{urgentCount} в работе</span>
+          </span>
+          <span className="mobileHomeQuickCardBadge">{urgentCount}</span>
+        </button>
+      ) : null}
+
       {reworkCount > 0 ? (
         <button
           type="button"

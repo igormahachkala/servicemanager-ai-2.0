@@ -1,4 +1,4 @@
-﻿import { Prisma, TicketStatus, UserRole } from '@prisma/client';
+﻿import { Prisma, TicketPriority, TicketStatus, UserRole } from '@prisma/client';
 
 import { buildSpecializationLinksSomeWhereInput } from '../tickets/ticket-specialization-match.utils'
 import { allow, deny, PolicyDecision } from './policy.types';
@@ -43,6 +43,8 @@ export type BoardQueryInput = {
   statuses?: TicketStatus[];
   assigneeId?: string | null;
   sla?: SlaBucket;
+  /** 120: срочность доски — priority. Условие только сужает разрешённый where. */
+  priority?: TicketPriority;
   q?: string;
   take?: number;
   locationId?: string;
@@ -143,6 +145,18 @@ export class TicketsPolicy {
 
     if (input.locationId && input.locationId.trim().length > 0) {
       extraAnd.push({ locationId: input.locationId.trim() });
+    }
+
+    /**
+     * SMA-MOBILE-URGENT-TICKETS-CARD-120.
+     *
+     * Срочность кладётся в extraAnd рядом с остальными фильтрами — то есть
+     * пересечением с уже вычисленным охватом, и только им. Обратный порядок
+     * (срочность как основа, охват поверх) дал бы выборку по всему тенанту,
+     * поэтому условие никогда не уходит выше baseReadScope.
+     */
+    if (input.priority) {
+      extraAnd.push({ priority: input.priority });
     }
 
     if (input.equipmentId && input.equipmentId.trim().length > 0) {
