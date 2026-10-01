@@ -441,13 +441,19 @@ export function MobileTicketPage() {
       if (isLocalId(ticketId)) {
         const queue = await listOfflineQueue()
         const localTicket = buildLocalTicketFromQueue(ticketId, queue)
-        if (localTicket) return localTicket as unknown as api.TicketGetOne
+        if (localTicket) return localTicket as api.TicketGetOne
         throw new Error('Локальная заявка не найдена в очереди на устройстве.')
       }
 
       if (!getOnlineStatus()) {
         const cached =
-          (await loadTicketDetailCache(ticketId, scopeNorm)) ?? (await loadAnyTicketDetailCache(ticketId))
+          (await loadTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+            ticketId,
+            scopeNorm,
+          )) ??
+          (await loadAnyTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+            ticketId,
+          ))
         if (cached?.data?.ticket) return cached.data.ticket
         const idbTicket = await readTicketSnapshot<api.TicketGetOne>(ticketId)
         if (idbTicket) return idbTicket
@@ -575,9 +581,17 @@ export function MobileTicketPage() {
 
       if (!getOnlineStatus()) {
         const cached =
-          (await loadTicketDetailCache(ticketId, ticketResourceScope)) ??
-          (await loadTicketDetailCache(ticketId, scopeNorm)) ??
-          (await loadAnyTicketDetailCache(ticketId))
+          (await loadTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+            ticketId,
+            ticketResourceScope,
+          )) ??
+          (await loadTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+            ticketId,
+            scopeNorm,
+          )) ??
+          (await loadAnyTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+            ticketId,
+          ))
         if (cached?.data) return cached.data.attachments
         throw new Error('Нет сохранённых вложений для офлайна.')
       }
@@ -624,7 +638,13 @@ export function MobileTicketPage() {
       if (isLocalId(ticketId)) return null
       if (!getOnlineStatus()) {
         const cached =
-          (await loadTicketDetailCache(ticketId, scopeNorm)) ?? (await loadAnyTicketDetailCache(ticketId))
+          (await loadTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+            ticketId,
+            scopeNorm,
+          )) ??
+          (await loadAnyTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+            ticketId,
+          ))
         if (cached?.data) return cached.data.timeline ?? null
         throw new Error('Нет сохранённой истории для офлайна.')
       }

@@ -105,12 +105,12 @@ export function MobileHome() {
     queryKey: ['mobile-home-board', linkedClientCompanyId, companyId, isOnline],
     queryFn: async () => {
       if (!getOnlineStatus()) {
-        const cached = await loadBoardCache(pageScope)
+        const cached = await loadBoardCache<api.BoardResponse>(pageScope)
         if (cached?.data) return cached.data
         throw new Error('Нет сохранённых заявок. Откройте главную при подключении к сети хотя бы раз.')
       }
       const data = await api.board({ linkedClientCompanyId: pageScope.linkedClientCompanyId, companyId: pageScope.companyId, take: 500 })
-      await saveBoardCache(pageScope, data)
+      await saveBoardCache<api.BoardResponse>(pageScope, data)
       return data
     },
     // Техник без контура (субподрядчик SECONDARY: bound-contexts=[], [0] нет) тоже грузит board —

@@ -328,7 +328,9 @@ describe('121G source contract мобильного экрана', () => {
 
   it('13. отказ сохраняет и текст, и цель', () => {
     const source = page()
-    const send = source.slice(source.indexOf('async function handleChatSend'), source.indexOf('async function handleChatSend') + 1800)
+    const start = source.indexOf('async function handleChatSend')
+    const end = source.indexOf('async function handleTechActionWithOfflineSupport', start)
+    const send = source.slice(start, end > start ? end : start + 4000)
     const failure = send.slice(send.indexOf('} catch (e: unknown) {'))
     expect(failure).toMatch(/setChatSendError/)
     // В ветке отказа нет ни очистки текста, ни снятия цели.
