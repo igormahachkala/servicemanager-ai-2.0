@@ -7,7 +7,7 @@ import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications'
 import { registerAppShellServiceWorker } from './offline/appShell'
 import { identityFromToken } from './offline/identity'
 import { startOffline, stopOffline } from './offline/runtime'
-import { syncNow, useOfflineStatus } from './offline/useOffline'
+import { formatPendingActionsLabel, offlinePendingBannerText, syncNow, useOfflineStatus } from './offline/useOffline'
 import { getOfflineStatus } from './offline/runtime'
 import { MobileGuidedTour } from './MobileGuidedTour'
 import { MobileShiftGatePrompt } from './MobileShiftGatePrompt'
@@ -111,6 +111,15 @@ export function MobileShell() {
   useEffect(() => {
     void registerAppShellServiceWorker()
   }, [])
+  /**
+   * Chunk профиля заранее тянется при живой сети. Иначе первый заход в
+   * `/m/profile` без сети падает на dynamic import: SW мог ещё не успеть
+   * положить этот файл в оболочку, а техник уже ушёл в поле.
+   */
+  useEffect(() => {
+    if (!offline.online || !meQ.data) return
+    void import('./MobileProfile')
+  }, [offline.online, meQ.data?.id])
   useEffect(() => {
     if (!meQ.data) return
     void syncMaxChatBinding()
@@ -343,7 +352,7 @@ export function MobileShell() {
             className="mobileOfflineBanner mobileOfflineBannerWarning mobileOfflineBannerLink"
             to={mobilePath(location.pathname, '/offline-queue')}
           >
-            <div>Нет сети · Сохранено на устройстве: {offline.pending}</div>
+            <div>{offlinePendingBannerText(offline.pending)}</div>
           </Link>
         ) : !offline.online ? (
           <div className="mobileOfflineBanner mobileOfflineBannerWarning">
@@ -355,7 +364,7 @@ export function MobileShell() {
           </div>
         ) : offline.pending > 0 ? (
           <div className="mobileOfflineBanner mobileOfflineBannerPending">
-            <div>Ожидает отправки: {offline.pending}</div>
+            <div>{formatPendingActionsLabel(offline.pending)}</div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 type="button"

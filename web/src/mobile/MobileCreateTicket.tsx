@@ -17,6 +17,7 @@ import {
   ticketMediaKind,
   validateTicketMediaFile,
 } from '../lib/ticketAttachmentMedia'
+import { cacheLocationSnapshot } from './offline/locationCache'
 
 /** Единый текст: нет загруженного доказательства проблемы. */
 const PHOTO_REQUIRED_MSG = 'Фото или видео обязательно для создания заявки. Сначала загрузите файл.'
@@ -194,6 +195,12 @@ export function MobileCreateTicket() {
     if (isTechnician) return (selectedTechnicianContext?.locations || []).filter((row) => row.isActive !== false)
     return (locationsQ.data || []).filter((row) => row.isActive !== false)
   }, [isTechnician, locationsQ.data, selectedTechnicianContext])
+
+  useEffect(() => {
+    for (const loc of activeLocations) {
+      if (loc?.id) void cacheLocationSnapshot(loc as { id: string } & Record<string, unknown>)
+    }
+  }, [activeLocations])
 
   const [locationId, setLocationId] = useState('')
   const [equipmentId, setEquipmentId] = useState('')

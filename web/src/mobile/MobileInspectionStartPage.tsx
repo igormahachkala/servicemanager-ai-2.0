@@ -7,6 +7,7 @@ import { groupInspectionItemsByZone, responseTypeLabel } from '../lib/inspection
 import { mobileInspectionStartErrorMessage } from './mobileInspectionStartError'
 import { mobilePath } from './mobileRoute'
 import { useOfflineStatus } from './offline/useOffline'
+import { ONLINE_ONLY_ACTION_MESSAGE } from './offline/onlineOnlyMessage'
 
 const LINKED_CLIENT_DIRECTORY_ROLES = new Set<api.Role>([
   'ADMIN',
@@ -141,7 +142,7 @@ export function MobileInspectionStartPage() {
   })
 
   function startRun() {
-    if (!offline.online) return setError('Начать новый обход можно только онлайн. Уже начатые обходы доступны офлайн.')
+    if (!offline.online) return setError(ONLINE_ONLY_ACTION_MESSAGE)
     if (!templateId) return setError('Выберите тип обхода')
     if (isProviderContext && !clientCompanyId) return setError('Выберите клиентский контур')
     if (!locationId) return setError('Выберите локацию')

@@ -6,6 +6,8 @@ import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZone
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
 import { mobilePath } from './mobileRoute'
 import { queueOffline, useOfflineStatus } from './offline/useOffline'
+import { deliverCheckpointAttachment } from './offline/attachmentDelivery'
+import { ONLINE_ONLY_ACTION_MESSAGE } from './offline/onlineOnlyMessage'
 import { LOCAL_ID_PREFIX } from './offline/store'
 import { cacheRoundSnapshot, readPendingRoundTicketItemIds, readRoundSnapshot } from './offline/roundCache'
 import {
@@ -195,23 +197,33 @@ export function MobileInspectionRunPage() {
   })
 
   const uploadM = useMutation({
-    // Причина та же, что у updateM: снимок сохраняется на устройстве сам,
-    // пауза по отсутствию сети отменила бы это.
+    // B2-09: online-first для фото чек-поинта. Ключ до сети, transport → queue.
     networkMode: 'always',
     mutationFn: async (input: { itemId: string; file: File }) => {
-      if (!offline.online) {
-        const queued = await queueOffline({
+      const delivery = await deliverCheckpointAttachment({
+        reportedOnline: offline.online,
+        queueInput: {
           kind: 'checkpoint.attachment',
           target: { roundId: runId, checkpointId: input.itemId },
           blob: input.file,
-        })
-        if (!queued.ok) throw new Error(`Не удалось сохранить на устройстве: ${queued.message}`)
-        return null
+        },
+        send: (idempotencyKey) => api.uploadInspectionRunItemAttachment(
+          runId,
+          input.itemId,
+          input.file,
+          idempotencyKey,
+        ),
+        enqueue: queueOffline,
+      })
+      if (delivery.kind === 'queue-failed') {
+        throw new Error(`Не удалось сохранить на устройстве: ${delivery.message}`)
       }
-      return api.uploadInspectionRunItemAttachment(runId, input.itemId, input.file)
+      return delivery.kind
     },
     onSuccess: (result) => {
-      if (result === null) flash('ok', 'Снимок сохранён на устройстве. Отправим после восстановления связи.')
+      if (result === 'queued') {
+        flash('ok', 'Снимок сохранён на устройстве. Отправим после восстановления связи.')
+      }
     },
   })
 
@@ -391,6 +403,10 @@ export function MobileInspectionRunPage() {
   }
 
   async function completeRun() {
+    if (!offline.online) {
+      flash('err', ONLINE_ONLY_ACTION_MESSAGE)
+      return
+    }
     setCompleteBusy(true)
     try {
       await api.completeInspectionRun(runId)
@@ -711,10 +727,22 @@ export function MobileInspectionRunPage() {
                       </div>
                     ) : null}
 
-                    {/* Ссылки нет намеренно: заявки на сервере ещё не существует. */}
+                    {/* После offline-создания открываем local: карточку для комментария/фото. */}
                     {ticketQueuedOffline && !createdTicketId ? (
-                      <div style={{ fontSize: '0.8rem', color: '#92400e', fontWeight: 600 }}>
-                        Заявка сохранена на устройстве · ожидает отправки
+                      <div style={{ display: 'grid', gap: 6 }}>
+                        <div style={{ fontSize: '0.8rem', color: '#92400e', fontWeight: 600 }}>
+                          Заявка сохранена на устройстве · ожидает отправки
+                        </div>
+                        <div className="mobilePatrolItemActions">
+                          <Link
+                            to={linkedTicketHref(`${LOCAL_ID_PREFIX}${runId}:${item.id}`)}
+                            state={mobileTicketNavState('home', targetClientCompanyId || run?.companyId)}
+                            className="mobileBtn mobileBtnSecondary"
+                            style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
+                          >
+                            Добавить комментарий или фото
+                          </Link>
+                        </div>
                       </div>
                     ) : null}
 
@@ -920,7 +948,7 @@ export function MobileInspectionRunPage() {
                     type="button"
                     className="mobileBtn mobileBtnSecondary"
                     onClick={() => setConfirmComplete(true)}
-                    disabled={completeBusy}
+                    disabled={completeBusy || !offline.online}
                   >
                     Завершить обход
                   </button>
@@ -929,13 +957,16 @@ export function MobileInspectionRunPage() {
                     <div style={{ fontSize: '0.88rem', color: '#374151' }}>
                       Завершить обход? Отменить нельзя. Незаполненные пункты останутся в статусе «Ожидает».
                     </div>
+                    {!offline.online ? (
+                      <div className="mobileNotice mobileNoticeError">{ONLINE_ONLY_ACTION_MESSAGE}</div>
+                    ) : null}
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button
                         type="button"
                         className="mobileBtn"
                         style={{ flex: 1 }}
                         onClick={completeRun}
-                        disabled={completeBusy}
+                        disabled={completeBusy || !offline.online}
                       >
                         {completeBusy ? 'Завершаем…' : 'Да, завершить'}
                       </button>

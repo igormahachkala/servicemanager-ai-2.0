@@ -22,14 +22,24 @@ import {
   MOBILE_HOME_TAB_LABELS,
   type MobileHomeBoardChipId,
 } from './mobileHomeBoardFilters'
+import { getOnlineStatus } from './offlineQueue'
+import { queueOffline, useOfflineStatus } from './offline/useOffline'
+import { listOfflineQueue } from './offline/runtime'
+import { deliverTicketComment } from './offline/ticketCommentDelivery'
+import { deliverTicketAttachment } from './offline/attachmentDelivery'
+import { cacheTicketSnapshot, readTicketSnapshot } from './offline/ticketCache'
+import { cacheLocationSnapshot } from './offline/locationCache'
 import {
-  getOnlineStatus,
   loadAnyTicketDetailCache,
   loadTicketDetailCache,
   saveTicketDetailCache,
-} from './offlineQueue'
-import { queueOffline, useOfflineStatus } from './offline/useOffline'
-import { listOfflineQueue } from './offline/runtime'
+} from './offline/ticketDetailCache'
+import { isLocalId } from './offline/store'
+import {
+  buildLocalTicketFromQueue,
+  findParentFromRoundQueueId,
+} from './offline/localTicket'
+import { ONLINE_ONLY_ACTION_MESSAGE, OFFLINE_TICKET_NOT_CACHED_MESSAGE } from './offline/onlineOnlyMessage'
 import { formatMobileMutationError } from './mobileActionErrors'
 import { mobilePath } from './mobileRoute'
 import {
@@ -408,6 +418,7 @@ export function MobileTicketPage() {
   // Один источник состояния связи на приложение — офлайн-слой.
   const offline = useOfflineStatus()
   const isOnline = offline.online
+  const isLocalTicket = isLocalId(ticketId)
 
   const ticketQ = useQuery({
     enabled: !!ticketId,
@@ -419,14 +430,34 @@ export function MobileTicketPage() {
       navTicketOwnerCompanyId,
       meQ.data?.id,
       meQ.data?.role,
+      offline.pending,
+      offline.attention,
+      offline.ready,
     ],
     queryFn: async () => {
       if (!ticketId) throw new Error('Нет идентификатора заявки')
 
+      // local: заявки на сервере ещё нет — карточка только из очереди ticket.fromRound.
+      if (isLocalId(ticketId)) {
+        const queue = await listOfflineQueue()
+        const localTicket = buildLocalTicketFromQueue(ticketId, queue)
+        if (localTicket) return localTicket as api.TicketGetOne
+        throw new Error('Локальная заявка не найдена в очереди на устройстве.')
+      }
+
       if (!getOnlineStatus()) {
-        const cached = loadTicketDetailCache(ticketId, scopeNorm) ?? loadAnyTicketDetailCache(ticketId)
+        const cached =
+          (await loadTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+            ticketId,
+            scopeNorm,
+          )) ??
+          (await loadAnyTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+            ticketId,
+          ))
         if (cached?.data?.ticket) return cached.data.ticket
-        throw new Error('Нет сохранённой заявки. Откройте заявку при подключении к сети хотя бы раз.')
+        const idbTicket = await readTicketSnapshot<api.TicketGetOne>(ticketId)
+        if (idbTicket) return idbTicket
+        throw new Error(OFFLINE_TICKET_NOT_CACHED_MESSAGE)
       }
 
       const urlCo = (searchParams.get('companyId') || '').trim()
@@ -545,12 +576,22 @@ export function MobileTicketPage() {
     ],
     queryFn: async () => {
       if (!ticket) return [] as api.TicketAttachmentItem[]
+      // У local: заявки серверных вложений нет — только очередь на устройстве.
+      if (isLocalId(ticketId)) return [] as api.TicketAttachmentItem[]
 
       if (!getOnlineStatus()) {
         const cached =
-          loadTicketDetailCache(ticketId, ticketResourceScope) ??
-          loadTicketDetailCache(ticketId, scopeNorm) ??
-          loadAnyTicketDetailCache(ticketId)
+          (await loadTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+            ticketId,
+            ticketResourceScope,
+          )) ??
+          (await loadTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+            ticketId,
+            scopeNorm,
+          )) ??
+          (await loadAnyTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+            ticketId,
+          ))
         if (cached?.data) return cached.data.attachments
         throw new Error('Нет сохранённых вложений для офлайна.')
       }
@@ -594,8 +635,16 @@ export function MobileTicketPage() {
       ticketResourceScope.linkedClientCompanyId,
     ],
     queryFn: async () => {
+      if (isLocalId(ticketId)) return null
       if (!getOnlineStatus()) {
-        const cached = loadTicketDetailCache(ticketId, scopeNorm) ?? loadAnyTicketDetailCache(ticketId)
+        const cached =
+          (await loadTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+            ticketId,
+            scopeNorm,
+          )) ??
+          (await loadAnyTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+            ticketId,
+          ))
         if (cached?.data) return cached.data.timeline ?? null
         throw new Error('Нет сохранённой истории для офлайна.')
       }
@@ -609,13 +658,19 @@ export function MobileTicketPage() {
     if (!attachmentsQ.isSuccess) return
     if (timelineQ.isError) return
     if (!timelineQ.isFetched) return
-    saveTicketDetailCache({
+    void saveTicketDetailCache({
       ticketId,
       scope: ticketResourceScope,
       ticket: ticketQ.data,
       attachments: attachmentsQ.data ?? [],
       timeline: timelineQ.data ?? null,
     })
+    // Entity-кэш заявки и площадки — для холодного показа без детального среза.
+    void cacheTicketSnapshot(ticketQ.data as { id: string } & Record<string, unknown>)
+    const loc = ticketQ.data.location
+    if (loc?.id) {
+      void cacheLocationSnapshot(loc as { id: string } & Record<string, unknown>)
+    }
   }, [
     ticketId,
     ticketResourceScope.companyId,
@@ -896,46 +951,61 @@ export function MobileTicketPage() {
       setTicketAddPhotoError('Недостаточно прав для загрузки')
       return
     }
-    // SMA-MOBILE-OFFLINE-INTEGRATION-113D: в офлайне снимок больше не
-    // отклоняется. Blob ложится в IndexedDB и уходит на сервер при связи
-    // с тем же ключом идемпотентности, поэтому повтор не создаёт дубля.
-    if (!isOnline) {
-      setTicketAddPhotoError(null)
-      setTicketAddPhotoProgress({ current: 0, total: files.length })
-      let saved = 0
-      let failure = ''
-      for (let i = 0; i < files.length; i++) {
-        setTicketAddPhotoProgress({ current: i + 1, total: files.length })
-        const queued = await queueOffline({
-          kind: 'ticket.attachment',
-          target: { ticketId },
-          payload: { scope: ticketResourceScope },
-          blob: files[i],
-        })
-        if (queued.ok) saved += 1
-        // Отказ хранилища не выдаём за успех: техник должен знать, что
-        // снимок не сохранён, и сделать его заново.
-        else failure = queued.message
-      }
-      setTicketAddPhotoProgress(null)
-      clearTicketAddPhotoInputs()
-      setTicketAddPhotoError(
-        failure
-          ? `Не удалось сохранить на устройстве: ${failure}`
-          : saved > 0
-            ? `Сохранено на устройстве: ${saved}. Отправим, когда появится сеть.`
-            : '',
-      )
-      return
-    }
+    // B2-09: тот же online-first контракт, что у комментария. Ключ до сети,
+    // transport failure → очередь с тем же ключом, HTTP 4xx/5xx не в queue.
+    // local: заявки на сервере нет — только очередь с dependsOnId на ticket.fromRound.
     setTicketAddPhotoError(null)
     setTicketAddPhotoProgress({ current: 0, total: files.length })
+    let saved = 0
+    let sent = 0
+    let failure = ''
     try {
+      const dependsOnId = isLocalId(ticketId)
+        ? findParentFromRoundQueueId(ticketId, await listOfflineQueue())
+        : undefined
       for (let i = 0; i < files.length; i++) {
         setTicketAddPhotoProgress({ current: i + 1, total: files.length })
-        await api.uploadTicketAttachment(ticketId, files[i], ticketResourceScope)
+        const file = files[i]
+        const delivery = await deliverTicketAttachment({
+          reportedOnline: isLocalId(ticketId) ? false : isOnline,
+          queueInput: {
+            kind: 'ticket.attachment',
+            target: { ticketId },
+            payload: { scope: ticketResourceScope },
+            blob: file,
+            dependsOnId,
+          },
+          send: (idempotencyKey) => api.uploadTicketAttachment(
+            ticketId,
+            file,
+            ticketResourceScope,
+            idempotencyKey,
+          ),
+          enqueue: queueOffline,
+        })
+        if (delivery.kind === 'queue-failed') {
+          failure = delivery.message
+          break
+        }
+        if (delivery.kind === 'queued') saved += 1
+        else sent += 1
       }
-      await invalidateTicketQueries()
+      if (failure) {
+        setTicketAddPhotoError(`Не удалось сохранить на устройстве: ${failure}`)
+      } else if (saved > 0 && (sent === 0 || isLocalId(ticketId))) {
+        setTicketAddPhotoError(
+          isLocalId(ticketId)
+            ? `Сохранено на устройстве: ${saved}. Отправим после создания заявки.`
+            : `Сохранено на устройстве: ${saved}. Отправим, когда появится сеть.`,
+        )
+      } else if (saved > 0 && sent > 0) {
+        setTicketAddPhotoError(
+          `Отправлено: ${sent}. Сохранено на устройстве: ${saved}.`,
+        )
+        await invalidateTicketQueries()
+      } else if (sent > 0) {
+        await invalidateTicketQueries()
+      }
     } catch (e: unknown) {
       setTicketAddPhotoError(formatMobileMutationError(e, { operation: 'upload_attachment' }))
     } finally {
@@ -1337,42 +1407,51 @@ export function MobileTicketPage() {
   async function handleChatSend() {
     const trimmed = chatText.trim()
     if (!trimmed || chatSending) return
-
-    if (!isOnline) {
-      // Ключ идемпотентности создаётся здесь, при постановке в очередь, и
-      // переживает перезагрузку: повтор после обрыва не продублирует запись.
-      const queued = await queueOffline({
-        kind: 'ticket.comment',
-        target: { ticketId },
-        payload: buildOfflineTicketCommentPayload(trimmed, ticketResourceScope, replyTarget),
-      })
-      if (!queued.ok) {
-        setChatSendError(`Не удалось сохранить на устройстве: ${queued.message}`)
-        return
-      }
-      setChatText('')
-      setReplyTarget(null)
-      setOfflinePendingComments((prev) => [
-        ...prev,
-        { queueId: queued.item.id, text: trimmed, at: queued.item.createdAt },
-      ])
-      return
-    }
-
     setChatSendError(null)
     setChatSending(true)
     try {
-      await api.addTicketComment(
-        ticketId,
-        trimmed,
-        ticketResourceScope,
-        buildAddTicketCommentOptions(replyTarget),
-      )
+      const replyOptions = buildAddTicketCommentOptions(replyTarget)
+      const dependsOnId = isLocalId(ticketId)
+        ? findParentFromRoundQueueId(ticketId, await listOfflineQueue())
+        : undefined
+      const delivery = await deliverTicketComment({
+        reportedOnline: isLocalId(ticketId) ? false : isOnline,
+        queueInput: {
+          kind: 'ticket.comment',
+          target: { ticketId },
+          payload: buildOfflineTicketCommentPayload(trimmed, ticketResourceScope, replyTarget),
+          dependsOnId,
+        },
+        send: (idempotencyKey) => api.addTicketComment(
+          ticketId,
+          trimmed,
+          ticketResourceScope,
+          { ...replyOptions, idempotencyKey },
+        ),
+        enqueue: queueOffline,
+      })
+
+      if (delivery.kind === 'queue-failed') {
+        setChatSendError(`Не удалось сохранить на устройстве: ${delivery.message}`)
+        return
+      }
+
       setChatText('')
       // Цель снимается только после подтверждения: при отказе ответ не должен
       // превратиться в обычный комментарий незаметно для человека.
       setReplyTarget(null)
-      await invalidateTicketQueries()
+      if (delivery.kind === 'queued') {
+        setOfflinePendingComments((prev) => prev.some((item) => item.queueId === delivery.item.id)
+          ? prev
+          : [...prev, { queueId: delivery.item.id, text: trimmed, at: delivery.item.createdAt }])
+        setOfflineQueuedNotice(
+          isLocalId(ticketId)
+            ? 'Сохранено на устройстве. Отправим после создания заявки.'
+            : 'Сообщение сохранено. Отправим после восстановления связи.',
+        )
+      } else {
+        await invalidateTicketQueries()
+      }
     } catch (e: unknown) {
       setChatSendError(formatMobileMutationError(e, { operation: 'other' }))
     } finally {
@@ -1404,10 +1483,19 @@ export function MobileTicketPage() {
         }
         return
       }
-      setTechActionErr('Нет соединения. Действие требует подключения к сети.')
+      setTechActionErr(ONLINE_ONLY_ACTION_MESSAGE)
       return
     }
     techActionM.mutate(mode)
+  }
+
+  function handleAssignmentRequest() {
+    if (showAssignmentRequestAck) return
+    if (!getOnlineStatus()) {
+      setAssignmentRequestErr(ONLINE_ONLY_ACTION_MESSAGE)
+      return
+    }
+    assignmentRequestM.mutate()
   }
 
   function openChatComposer() {
@@ -1538,11 +1626,23 @@ export function MobileTicketPage() {
         </div>
       ) : null}
 
-      {ticketQ.isLoading ? <div className="mobileCard mobileMeta">Загрузка…</div> : null}
-      {ticketQ.isError ? (
-        <div className="mobileNotice mobileNoticeError">
-          {formatMobileMutationError(ticketQ.error, { operation: 'other' })}
+      {isLocalTicket && ticket ? (
+        <div className="mobileStaleDataBanner" role="status">
+          Заявка сохранена на устройстве. Комментарии и фото уйдут после создания заявки на сервере.
         </div>
+      ) : null}
+
+      {ticketQ.isLoading ? <div className="mobileCard mobileMeta">Загрузка…</div> : null}
+      {ticketQ.isError && !ticket ? (
+        !isOnline ? (
+          <div className="mobileNotice mobileNoticeError" role="alert">
+            {OFFLINE_TICKET_NOT_CACHED_MESSAGE}
+          </div>
+        ) : (
+          <div className="mobileNotice mobileNoticeError">
+            {formatMobileMutationError(ticketQ.error, { operation: 'other' })}
+          </div>
+        )
       ) : null}
 
       {ticket ? (
@@ -1863,7 +1963,7 @@ export function MobileTicketPage() {
                   className="mobileBtn mobileBtnSecondary"
                   style={{ width: '100%', marginTop: canShowTechClaimButton ? 8 : 0 }}
                   disabled={showAssignmentRequestAck || assignmentRequestM.isPending || techActionM.isPending}
-                  onClick={() => { if (showAssignmentRequestAck) return; assignmentRequestM.mutate() }}
+                  onClick={handleAssignmentRequest}
                 >
                   {showAssignmentRequestAck ? 'Запрос отправлен' : assignmentRequestM.isPending ? 'Отправляем запрос…' : 'Запросить назначение'}
                 </button>
@@ -2388,7 +2488,7 @@ export function MobileTicketPage() {
                       className="mobileBtn mobileBtnSecondary"
                       style={{ width: '100%', marginTop: canShowTechClaimButton ? 8 : 0 }}
                       disabled={showAssignmentRequestAck || assignmentRequestM.isPending || techActionM.isPending}
-                      onClick={() => { if (showAssignmentRequestAck) return; assignmentRequestM.mutate() }}
+                      onClick={handleAssignmentRequest}
                     >
                       {showAssignmentRequestAck ? 'Запрос отправлен' : assignmentRequestM.isPending ? 'Отправляем запрос…' : 'Запросить назначение'}
                     </button>

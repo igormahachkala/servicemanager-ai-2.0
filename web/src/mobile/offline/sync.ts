@@ -19,7 +19,15 @@
  */
 
 import type { OfflineStore } from './store.js'
-import { classifySyncFailure, type OfflineQueueItem, type SyncOutcome } from './types.js'
+import {
+  classifySyncFailure,
+  queueItemOwner,
+  DRAIN_CANCELLED_REASON,
+  NO_IDENTITY_REASON,
+  OWNER_MISMATCH_REASON,
+  type OfflineQueueItem,
+  type SyncOutcome,
+} from './types.js'
 import { isLocalId } from './store.js'
 
 export type SyncTransport = {
@@ -38,10 +46,40 @@ export type SyncReport = {
   skipped: number
   /** true, если запуск отклонён: обработчик уже идёт. */
   alreadyRunning?: boolean
+  /**
+   * Круг оборван до сети. Строки остались нетронутыми — ни одна не ушла
+   * и ни одна не удалена. Причина по-русски, её показывает интерфейс.
+   */
+  stoppedReason?: string
 }
+
+/**
+ * Кто предъявляется серверу прямо сейчас — в виде `companyId:userId`.
+ *
+ * Значение берётся из того же токена, которым уйдёт запрос, поэтому сверка
+ * «чья работа» и «от чьего имени отправляем» смотрит на одно и то же.
+ * `null` означает «личности нет»: без сессии отправлять не от кого.
+ *
+ * Резолвер асинхронный намеренно: слой очереди собирается отдельным узким
+ * tsconfig и подключает `lib/api` лениво — как это уже делает транспорт.
+ */
+export type LiveIdentityResolver = () => Promise<string | null> | string | null
 
 /** Сколько раз пытаемся автоматически, прежде чем показать «Ошибка отправки». */
 const MAX_AUTO_ATTEMPTS = 5
+
+export type SyncCoordinatorOptions = {
+  lockName?: string
+  useWebLocks?: boolean
+  /**
+   * Личность, предъявляемая серверу. Если резолвер не передан, сверка
+   * владельца не выполняется — так остаются рабочими узкие тесты координатора,
+   * которые сети не касаются вовсе. Боевая сборка резолвер передаёт всегда.
+   */
+  resolveIdentity?: LiveIdentityResolver
+  /** Внешний признак отмены — смена сессии, выход, размонтирование. */
+  isCancelled?: () => boolean
+}
 
 export class SyncCoordinator {
   private running = false
@@ -49,16 +87,32 @@ export class SyncCoordinator {
 
   private readonly store: OfflineStore
   private readonly transport: SyncTransport
-  private readonly options: { lockName?: string; useWebLocks?: boolean }
+  private readonly options: SyncCoordinatorOptions
+  /** Круг, начатый до отмены, дальше текущей строки не идёт. */
+  private cancelled = false
 
   constructor(
     store: OfflineStore,
     transport: SyncTransport,
-    options: { lockName?: string; useWebLocks?: boolean } = {},
+    options: SyncCoordinatorOptions = {},
   ) {
     this.store = store
     this.transport = transport
     this.options = options
+  }
+
+  /**
+   * Логическая отмена. Уже идущий круг остановится перед следующей
+   * строкой — он держит свои ссылки на хранилище и транспорт, и обнулить их
+   * снаружи нельзя. Ни одна строка при этом не портится: отмена случается
+   * между операциями, а не внутри отправки.
+   */
+  cancel(): void {
+    this.cancelled = true
+  }
+
+  private stopRequested(): boolean {
+    return this.cancelled || this.options.isCancelled?.() === true
   }
 
   get isRunning(): boolean {
@@ -116,6 +170,11 @@ export class SyncCoordinator {
         total.failed += round.failed
         total.attention += round.attention
         total.skipped += round.skipped
+        if (round.stoppedReason) total.stoppedReason = round.stoppedReason
+
+        // Круг оборван — повторять его незачем и нельзя. Причина уже
+        // в отчёте, а строки остались на месте.
+        if (round.stoppedReason) break
 
         const dependenciesUnblocked = round.skipped > 0 && round.synced > 0
         if (!this.rerunRequested && !dependenciesUnblocked) break
@@ -128,12 +187,51 @@ export class SyncCoordinator {
     return total
   }
 
+  /**
+   * Можно ли отправлять именно эту строку прямо сейчас.
+   * Возвращает причину отказа либо null, если отправка допустима.
+   */
+  private async assertOwnership(item: OfflineQueueItem): Promise<string | null> {
+    const resolve = this.options.resolveIdentity
+    if (!resolve) return null
+    const live = await resolve()
+    if (!live) return NO_IDENTITY_REASON
+    return live === queueItemOwner(item, this.store.namespace) ? null : OWNER_MISMATCH_REASON
+  }
+
   private async drainOnce(): Promise<SyncReport> {
     const report: SyncReport = { processed: 0, synced: 0, failed: 0, attention: 0, skipped: 0 }
     const items = await this.store.listQueue()
 
     for (const item of items) {
       if (item.status === 'synced' || item.status === 'attention') continue
+
+      /*
+       * Две проверки до сети, на каждой строке.
+       *
+       * Отмена: сессию закрыли, пока круг шёл. Останавливаемся здесь, между
+       * операциями, — прерывать начатую отправку нельзя, сервер о ней уже
+       * знает.
+       *
+       * Владелец: работу поставил один человек, а предъявляется другой.
+       * Такого запроса быть не должно вовсе, поэтому круг обрывается целиком,
+       * а не помечает строку. Строка ни в чём не виновата: когда вернётся её
+       * автор, она уйдёт обычным порядком. Отмечать её «Требует внимания»
+       * значило бы звать человека чинить то, что не сломано.
+       *
+       * Сервер при этом остаётся последней инстанцией: проверка здесь ничего
+       * не разрешает, она только запрещает отправку, которую нельзя делать.
+       */
+      if (this.stopRequested()) {
+        report.stoppedReason = DRAIN_CANCELLED_REASON
+        break
+      }
+
+      const guard = await this.assertOwnership(item)
+      if (guard) {
+        report.stoppedReason = guard
+        break
+      }
 
       // Причинный порядок: пока родитель не подтверждён сервером, зависимую
       // операцию отправлять некуда — у заявки ещё нет настоящего id.

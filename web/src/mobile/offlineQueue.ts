@@ -30,20 +30,6 @@ export type OfflineQueueRetryResult = {
   failed: number
 }
 
-type OfflineBoardCacheEntry = {
-  savedAt: string
-  data: api.BoardResponse
-}
-
-type OfflineTicketDetailCacheEntry = {
-  savedAt: string
-  data: {
-    ticket: api.TicketGetOne
-    attachments: api.TicketAttachmentItem[]
-    timeline: api.TimelineResponse | null
-  }
-}
-
 const OFFLINE_QUEUE_KEY = 'sm_mobile_offline_queue_v1'
 const OFFLINE_BOARD_CACHE_KEY = 'sm_mobile_board_cache_v1'
 const OFFLINE_TICKET_CACHE_KEY = 'sm_mobile_ticket_cache_v1'
@@ -65,10 +51,6 @@ function scopeKey(scope?: api.TicketScopeParams): string {
   return JSON.stringify(normalizeScope(scope))
 }
 
-function ticketDetailKey(ticketId: string, scope?: api.TicketScopeParams): string {
-  return `${ticketId}::${scopeKey(scope)}`
-}
-
 function safeReadJson<T>(key: string, fallback: T): T {
   return readBrowserStorageJson('local', key, fallback)
 }
@@ -80,14 +62,13 @@ function safeWriteJson(key: string, value: unknown) {
 /**
  * SMA-MOBILE-OFFLINE-INTEGRATION-113D: очистка прежних кэшей при выходе.
  *
- * Доска и карточки заявок здесь лежат в localStorage без разделения по
- * пользователю. На общем планшете это значит, что следующий техник открыл бы
- * приложение без сети и увидел заявки предыдущего. Очередь из этого же
- * хранилища переносится в IndexedDB миграцией 113C, но если перенос не
- * состоялся, оставлять её чужому пользователю тем более нельзя.
+ * Очередь и UI-кэши раньше лежали в localStorage без разделения по
+ * пользователю. Рабочий путь уже пишет доску и детальную карточку в
+ * IndexedDB namespace, но legacy-ключи могут остаться после незавершённого
+ * migrate — на общем планшете их надо снять при выходе.
  *
- * Новый офлайн-слой этой проблемы не имеет: он открывает отдельную базу на
- * связку компания+пользователь и стирает её при выходе.
+ * Новый офлайн-слой открывает отдельную базу на связку компания+пользователь
+ * и стирает её при выходе (`store.destroy`).
  */
 export function clearLegacyOfflineCaches() {
   for (const key of [OFFLINE_QUEUE_KEY, OFFLINE_BOARD_CACHE_KEY, OFFLINE_TICKET_CACHE_KEY]) {
@@ -321,54 +302,4 @@ export function retryOfflineQueue(): Promise<OfflineQueueRetryResult> {
     })
   }
   return retryInFlight
-}
-
-export function saveBoardCache(scope: api.TicketScopeParams | undefined, data: api.BoardResponse) {
-  const current = safeReadJson<Record<string, OfflineBoardCacheEntry>>(OFFLINE_BOARD_CACHE_KEY, {})
-  current[scopeKey(scope)] = {
-    savedAt: new Date().toISOString(),
-    data,
-  }
-  safeWriteJson(OFFLINE_BOARD_CACHE_KEY, current)
-}
-
-export function loadBoardCache(scope?: api.TicketScopeParams): OfflineBoardCacheEntry | null {
-  const current = safeReadJson<Record<string, OfflineBoardCacheEntry>>(OFFLINE_BOARD_CACHE_KEY, {})
-  return current[scopeKey(scope)] || null
-}
-
-export function saveTicketDetailCache(params: {
-  ticketId: string
-  scope?: api.TicketScopeParams
-  ticket: api.TicketGetOne
-  attachments: api.TicketAttachmentItem[]
-  timeline: api.TimelineResponse | null
-}) {
-  const current = safeReadJson<Record<string, OfflineTicketDetailCacheEntry>>(OFFLINE_TICKET_CACHE_KEY, {})
-  current[ticketDetailKey(params.ticketId, params.scope)] = {
-    savedAt: new Date().toISOString(),
-    data: {
-      ticket: params.ticket,
-      attachments: params.attachments,
-      timeline: params.timeline,
-    },
-  }
-  safeWriteJson(OFFLINE_TICKET_CACHE_KEY, current)
-}
-
-export function loadTicketDetailCache(ticketId: string, scope?: api.TicketScopeParams): OfflineTicketDetailCacheEntry | null {
-  const current = safeReadJson<Record<string, OfflineTicketDetailCacheEntry>>(OFFLINE_TICKET_CACHE_KEY, {})
-  return current[ticketDetailKey(ticketId, scope)] || null
-}
-
-/** Любой сохранённый срез заявки по id (разные scope в ключе). Только для офлайн-чтения кэша. */
-export function loadAnyTicketDetailCache(ticketId: string): OfflineTicketDetailCacheEntry | null {
-  const id = (ticketId || '').trim()
-  if (!id) return null
-  const current = safeReadJson<Record<string, OfflineTicketDetailCacheEntry>>(OFFLINE_TICKET_CACHE_KEY, {})
-  const prefix = `${id}::`
-  for (const [key, entry] of Object.entries(current)) {
-    if (key.startsWith(prefix)) return entry
-  }
-  return null
 }

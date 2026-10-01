@@ -463,27 +463,54 @@ test('22b. сирота-Blob не остаётся, если строка оче
 
 // ── 23. перенос из localStorage ───────────────────────────────────────────
 
-test('23. очередь из localStorage переносится и не дублируется', async () => {
+test('23. очередь из localStorage переносится только с доказуемым owner', async () => {
   const { store } = makeStore()
   const legacy = [
-    { id: 'l1', type: 'comment', ticketId: 'tk-1', payload: { comment: 'старый' }, status: 'pending', createdAt: '2026-09-01T00:00:00Z' },
-    { id: 'l2', type: 'status', ticketId: 'tk-2', payload: { status: 'IN_PROGRESS' }, status: 'failed', createdAt: '2026-09-01T00:01:00Z' },
-    { id: 'l3', type: 'comment', ticketId: 'tk-3', payload: { comment: 'уже ушёл' }, status: 'synced', createdAt: '2026-09-01T00:02:00Z' },
+    {
+      id: 'l1',
+      type: 'comment',
+      ticketId: 'tk-1',
+      owner: 'co-1:user-1',
+      payload: { comment: 'старый' },
+      status: 'pending',
+      createdAt: '2026-09-01T00:00:00Z',
+    },
+    {
+      id: 'l2',
+      type: 'status',
+      ticketId: 'tk-2',
+      scope: { companyId: 'co-1', userId: 'user-1' },
+      payload: { status: 'IN_PROGRESS' },
+      status: 'failed',
+      createdAt: '2026-09-01T00:01:00Z',
+    },
+    {
+      id: 'l3',
+      type: 'comment',
+      ticketId: 'tk-3',
+      owner: 'co-1:user-1',
+      payload: { comment: 'уже ушёл' },
+      status: 'synced',
+      createdAt: '2026-09-01T00:02:00Z',
+    },
   ]
   let removed = false
   const storage = {
     getItem: (k: string) => (k === LEGACY_QUEUE_KEY && !removed ? JSON.stringify(legacy) : null),
     removeItem: () => { removed = true },
+    setItem: () => {},
   }
 
   const first = await migrateLegacyQueue(store, storage)
-  assert.equal(first.migrated, 2, 'перенесены незавершённые')
+  assert.equal(first.migrated, 2, 'перенесены незавершённые с доказуемым owner')
   assert.equal(first.skipped, 1, 'уже отправленная пропущена')
+  assert.equal(first.ownerDenied, 0)
   assert.equal(removed, true, 'исходный ключ очищен после успешного переноса')
 
   const items = await store.listQueue()
   assert.equal(items.length, 2)
   assert.ok(items.every((i) => i.idempotencyKey), 'перенесённым строкам выдан ключ идемпотентности')
+  assert.ok(items.every((i) => i.owner === 'co-1:user-1'))
   assert.equal(items.find((i) => i.kind === 'ticket.status')?.status, 'failed')
 
   // Повторный запуск ничего не дублирует.
@@ -492,9 +519,38 @@ test('23. очередь из localStorage переносится и не дуб
   assert.equal((await store.listQueue()).length, 2)
 })
 
+test('23a. без доказуемого owner legacy не переносится под текущего пользователя', async () => {
+  const { store } = makeStore()
+  const legacy = [
+    { id: 'l1', type: 'comment', ticketId: 'tk-1', payload: { comment: 'сирота' }, status: 'pending' },
+    { id: 'l2', type: 'status', ticketId: 'tk-2', scope: { companyId: 'co-1' }, payload: { status: 'IN_PROGRESS' }, status: 'pending' },
+  ]
+  let removed = false
+  let written: string | null = null
+  const storage = {
+    getItem: () => (removed ? null : written ?? JSON.stringify(legacy)),
+    removeItem: () => { removed = true },
+    setItem: (_k: string, value: string) => { written = value },
+  }
+
+  const report = await migrateLegacyQueue(store, storage)
+  assert.equal(report.migrated, 0)
+  assert.equal(report.ownerDenied, 2)
+  assert.equal(report.sourceKept, true)
+  assert.equal(removed, false, 'сиротская очередь не удаляется')
+  assert.equal((await store.listQueue()).length, 0)
+})
+
 test('23b. при отказе записи исходная очередь не удаляется', async () => {
   const { driver, store } = makeStore()
-  const legacy = [{ id: 'l1', type: 'comment', ticketId: 'tk-1', payload: { comment: 'важное' }, status: 'pending' }]
+  const legacy = [{
+    id: 'l1',
+    type: 'comment',
+    ticketId: 'tk-1',
+    owner: 'co-1:user-1',
+    payload: { comment: 'важное' },
+    status: 'pending',
+  }]
   let removed = false
   const storage = {
     getItem: () => (removed ? null : JSON.stringify(legacy)),
@@ -506,6 +562,30 @@ test('23b. при отказе записи исходная очередь не
   assert.equal(report.migrated, 0)
   assert.equal(report.sourceKept, true)
   assert.equal(removed, false, 'работа техника не осиротела')
+})
+
+test('23c. чужой owner не мигрирует, свой уходит, сирота остаётся', async () => {
+  const { store } = makeStore('co-1:user-1')
+  const legacy = [
+    { id: 'mine', type: 'comment', ticketId: 'tk-1', owner: 'co-1:user-1', payload: { comment: 'моё' }, status: 'pending' },
+    { id: 'theirs', type: 'comment', ticketId: 'tk-2', owner: 'co-1:user-2', payload: { comment: 'чужое' }, status: 'pending' },
+    { id: 'orphan', type: 'comment', ticketId: 'tk-3', payload: { comment: 'без владельца' }, status: 'pending' },
+  ]
+  let stored = JSON.stringify(legacy)
+  const storage = {
+    getItem: () => stored,
+    removeItem: () => { stored = '' },
+    setItem: (_k: string, value: string) => { stored = value },
+  }
+
+  const report = await migrateLegacyQueue(store, storage)
+  assert.equal(report.migrated, 1)
+  assert.equal(report.ownerDenied, 2)
+  assert.equal(report.sourceKept, true)
+  assert.equal((await store.listQueue()).length, 1)
+  const left = JSON.parse(stored)
+  assert.equal(left.length, 2)
+  assert.deepEqual(left.map((row: { id: string }) => row.id).sort(), ['orphan', 'theirs'])
 })
 
 // ── 24. оболочка приложения офлайн ────────────────────────────────────────
@@ -521,12 +601,12 @@ test('24. Service Worker кэширует оболочку и не кэширу�
   assert.match(sw, /request\.mode !== 'navigate'/, 'кэшируется только навигация')
   assert.match(sw, /request\.method !== 'GET'/, 'мутации не кэшируются')
   assert.match(sw, /\/uploads\//, 'защищённая раздача исключена явно')
-  // Ответы API в кэш не кладутся. Записей в кэш ровно две, и обе безопасны:
-  // сама оболочка и сборочный файл, отобранный isBuildAsset. 113D добавил
-  // вторую — без неё экран, который техник не открывал до потери связи,
-  // не открывался вовсе.
+  // Ответы API в кэш не кладутся. Записи: manifest assets, оболочка и
+  // runtime build asset. Без precache hashed lazy chunk экран, который
+  // техник не открывал до потери связи, на iOS не открывается.
   const puts = sw.match(/cache\.put\([^)]*\)/g) ?? []
-  assert.equal(puts.length, 2, `в кэш пишутся только оболочка и сборочный файл, найдено: ${puts.length}`)
+  assert.equal(puts.length, 3, `в кэш пишутся только manifest assets, оболочка и сборочный файл, найдено: ${puts.length}`)
+  assert.ok(puts.some((p) => /\(url, response\)/.test(p)), 'manifest assets сохраняются по хэшированному URL')
   assert.ok(puts.some((p) => /APP_SHELL_URL/.test(p)), 'оболочка сохраняется')
   assert.ok(puts.some((p) => /\(request, copy\)/.test(p)), 'сборочный файл сохраняется по своему запросу')
 
@@ -534,6 +614,38 @@ test('24. Service Worker кэширует оболочку и не кэширу�
   // расширениями: под него не должен попасть ни один ответ с данными.
   assert.match(sw, /function isBuildAsset/, 'отбор сборочных файлов выделен явно')
   assert.match(sw, /url\.pathname\.startsWith\('\/assets\/'\)/, 'только каталог /assets/')
+  assert.match(sw, /sma-app-shell-v3/, 'полный precache отделён от прежнего cache поколения')
+  assert.match(sw, /BUILD_ASSET_MANIFEST_URL/, 'install читает build manifest')
+  assert.doesNotMatch(sw, /caches\.delete/, 'cache живой старой страницы не удаляется при activate')
+  assert.match(sw, /if \(cached\) return cached/, 'cold navigation не ждёт сеть при наличии оболочки')
+})
+
+test('24b. реальная недоступность API сильнее navigator.onLine=true', async () => {
+  const { createReachabilityMonitor } = await import('./reachabilityMonitor.js')
+  const results: boolean[] = []
+  const monitor = createReachabilityMonitor({
+    probe: async () => false,
+    interfaceOnline: () => true,
+    onResult: (reachable) => results.push(reachable),
+    setIntervalFn: (() => 1) as unknown as typeof setInterval,
+    clearIntervalFn: (() => undefined) as unknown as typeof clearInterval,
+  })
+  await monitor.probeNow()
+  assert.deepEqual(results, [false])
+})
+
+test('B3. ChunkLoad recovery не маскирует обычные ошибки', async () => {
+  const { readFileSync } = await import('node:fs')
+  const mod = readFileSync(new URL('../../../src/lib/lazyRouteFailure.ts', import.meta.url), 'utf8')
+  const router = readFileSync(new URL('../../../src/router.tsx', import.meta.url), 'utf8')
+  assert.match(mod, /isDynamicImportFailure/)
+  assert.match(mod, /ChunkLoadError/)
+  assert.match(router, /ErrorBoundary/)
+  assert.match(router, /LazyRouteFailure/)
+  assert.match(router, /isDynamicImportFailure\(error\)/)
+  assert.match(router, /window\.location\.reload\(\)/)
+  // Обычная ошибка пробрасывается дальше, не подменяется recovery UI.
+  assert.match(router, /if \(!isDynamicImportFailure\(error\)\) throw error/)
 })
 
 // ── дополнительные инварианты ─────────────────────────────────────────────
@@ -1023,9 +1135,18 @@ test('113D-12. выход уносит и прежние кэши на localStor
   for (const key of ['sm_mobile_offline_queue_v1', 'sm_mobile_board_cache_v1', 'sm_mobile_ticket_cache_v1']) {
     assert.ok(legacy.includes(key), `ключ ${key} обязан быть известен очистке`)
   }
-  assert.match(profile, /clearLegacyOfflineCaches\(\)/, 'выход вызывает очистку')
-  assert.match(profile, /wipeOfflineOnLogout\(/, 'выход стирает базу текущего пользователя')
-  assert.match(profile, /hasUnsentWork\(\)/, 'о несинхронизированной работе предупреждают до удаления')
+  /*
+   * Порядок уборки переехал из экрана в единую политику
+   * lib/offlineSessionLogout -> offline/logout.ts. Проверяем там, где он
+   * теперь живёт: экран обязан её звать, а политика — делать все три вещи.
+   */
+  const bridge = readFileSync(new URL('../../../src/lib/offlineSessionLogout.ts', import.meta.url), 'utf8')
+  const policy = readFileSync(new URL('../../../src/mobile/offline/logout.ts', import.meta.url), 'utf8')
+  assert.match(profile, /offlineAwareLogout\('user_initiated'/, 'выход профиля идёт через единую политику')
+  assert.match(bridge, /clearLegacyCaches: clearLegacyOfflineCaches/, 'политика очищает прежние кэши')
+  assert.match(bridge, /wipe: wipeOfflineOnLogout/, 'политика стирает базу текущего пользователя')
+  assert.match(bridge, /hasUnsentWork/, 'политика знает о несинхронизированной работе')
+  assert.match(policy, /unsentWorkWarning/, 'о несинхронизированной работе предупреждают до удаления')
 })
 
 test('113D-13. мутации с офлайн-веткой не ставятся на паузу react-query', async () => {
@@ -1129,7 +1250,8 @@ test('113D-17. неудачная попытка после возвращени
    * до нуля. Найдено живой приёмкой на Stage.
    */
   assert.match(runtime, /function scheduleRetry/, 'повтор назначается сам')
-  assert.match(runtime, /status\.online && status\.pending > 0\) scheduleRetry\(\)/, 'повтор назначается после неудачного круга')
+  assert.match(runtime, /status\.pending > 0 && canProbeConnectivity\(\)\) scheduleRetry\(\)/, 'повтор назначается после неудачного круга')
+  assert.match(runtime, /else scheduleRetry\(\)/, 'fallback при ложном online не остаётся без автоматического повтора')
   assert.match(runtime, /RETRY_STEPS_MS/, 'паузы нарастают')
   // Без сети и после выхода таймер обязан сниматься, иначе он будет будить
   // разбор очереди для чужой или уже закрытой сессии.
@@ -1198,4 +1320,913 @@ test('113D-20. отказ сети не считается недействит�
   assert.match(guard, /navigator\.onLine !== false/, 'ожидание привязано к наличию связи')
   assert.match(guard, /meQ\.isPending && connected/, 'без сети оболочка рендерится сразу')
   assert.doesNotMatch(guard, /meQ\.isLoading \|\| meQ\.isError/, 'прежнее безусловное ожидание убрано')
+})
+
+// ── 005. владелец строки очереди и сверка личности перед отправкой ────────
+//
+// Инвариант задачи: операция никогда не уходит от имени личности, отличной
+// от той, что её создала. Проверяется до сети, на стороне очереди. Сервер
+// при этом остаётся последней инстанцией — здесь ничего не разрешается,
+// здесь только запрещается отправка, которой быть не должно.
+
+function recordingTransport(): { transport: SyncTransport; sent: string[] } {
+  const sent: string[] = []
+  return {
+    sent,
+    transport: {
+      async send(item) {
+        sent.push(item.id)
+        return { kind: 'ok' }
+      },
+    },
+  }
+}
+
+async function seedQueue(store: OfflineStore, count: number) {
+  for (let i = 0; i < count; i += 1) {
+    const r = await store.enqueue({
+      kind: 'ticket.comment',
+      target: { ticketId: `tk-${i}` },
+      payload: { comment: `текст ${i}` },
+    })
+    assert.equal(r.ok, true)
+  }
+}
+
+test('005-1. владелец фиксируется при постановке и равен пространству имён', async () => {
+  const { store } = makeStore('co-1:user-1')
+  const r = await store.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-1' }, payload: {} })
+  assert.equal(r.ok, true)
+  assert.equal(r.ok && r.item.owner, 'co-1:user-1')
+
+  // Смена статуса владельца не трогает: у строки один автор.
+  await store.setStatus(r.ok ? r.item.id : '', 'failed', { attempts: 3 })
+  const [after] = await store.listQueue()
+  assert.equal(after.owner, 'co-1:user-1')
+})
+
+test('005-2. строка без владельца получает его из базы, в которой лежит', async () => {
+  const driver = new MemoryDriver()
+  const store = new OfflineStore(driver, 'co-1:user-1')
+  await store.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-1' }, payload: {} })
+
+  // Запись «до 005»: поле владельца отсутствует.
+  const [row] = await store.listQueue()
+  const legacy = { ...row }
+  delete (legacy as { owner?: string }).owner
+  await driver.put('queue', row.id, legacy)
+
+  const [restored] = await store.listQueue()
+  assert.equal(restored.owner, 'co-1:user-1', 'владелец выводится из имени базы, миграция не нужна')
+  const single = await store.getQueueItem(row.id)
+  assert.equal(single?.owner, 'co-1:user-1')
+})
+
+test('005-3. чужая личность в той же компании: не уходит ни одна строка', async () => {
+  const { store } = makeStore('co-1:user-1')
+  await seedQueue(store, 3)
+  const { transport, sent } = recordingTransport()
+
+  const coordinator = new SyncCoordinator(store, transport, {
+    useWebLocks: false,
+    resolveIdentity: () => 'co-1:user-2',
+  })
+  const report = await coordinator.run()
+
+  assert.equal(sent.length, 0, 'ни одна операция не ушла под чужой личностью')
+  assert.equal(report.synced, 0)
+  assert.match(String(report.stoppedReason), /другой учётной записи/)
+
+  // Строки целы: ни удаления, ни «требует внимания» — работа не виновата.
+  const items = await store.listQueue()
+  assert.equal(items.length, 3)
+  assert.deepEqual([...new Set(items.map((i) => i.status))], ['pending'])
+})
+
+test('005-4. другая компания: не уходит ни одна строка', async () => {
+  const { store } = makeStore('co-1:user-1')
+  await seedQueue(store, 2)
+  const { transport, sent } = recordingTransport()
+
+  const report = await new SyncCoordinator(store, transport, {
+    useWebLocks: false,
+    resolveIdentity: () => 'co-2:user-1',
+  }).run()
+
+  assert.equal(sent.length, 0, 'межтенантная отправка невозможна')
+  assert.match(String(report.stoppedReason), /другой учётной записи/)
+  assert.equal((await store.listQueue()).length, 2)
+})
+
+test('005-5. без личности не отправляем вовсе', async () => {
+  const { store } = makeStore('co-1:user-1')
+  await seedQueue(store, 1)
+  const { transport, sent } = recordingTransport()
+
+  const report = await new SyncCoordinator(store, transport, {
+    useWebLocks: false,
+    resolveIdentity: () => null,
+  }).run()
+
+  assert.equal(sent.length, 0)
+  assert.match(String(report.stoppedReason), /Нет активной сессии/)
+  assert.equal((await store.listQueue())[0].status, 'pending', 'работа осталась на устройстве')
+})
+
+test('005-6. свой пользователь отправляет как раньше', async () => {
+  const { store } = makeStore('co-1:user-1')
+  await seedQueue(store, 3)
+  const { transport, sent } = recordingTransport()
+
+  const report = await new SyncCoordinator(store, transport, {
+    useWebLocks: false,
+    resolveIdentity: () => 'co-1:user-1',
+  }).run()
+
+  assert.equal(sent.length, 3)
+  assert.equal(report.synced, 3)
+  assert.equal(report.stoppedReason, undefined)
+  assert.equal((await store.listQueue()).length, 0, 'отправленное убрано из очереди')
+})
+
+test('005-7. смена личности посреди круга: остаток не уходит', async () => {
+  const { store } = makeStore('co-1:user-1')
+  await seedQueue(store, 4)
+  const { transport, sent } = recordingTransport()
+
+  // Личность меняется ровно после первой отправки — как если бы в соседней
+  // вкладке вошёл другой человек, пока круг уже шёл.
+  let identity = 'co-1:user-1'
+  const coordinator = new SyncCoordinator(store, {
+    async send(item) {
+      const outcome = await transport.send(item, { blob: null })
+      identity = 'co-1:user-2'
+      return outcome
+    },
+  }, { useWebLocks: false, resolveIdentity: () => identity })
+
+  const report = await coordinator.run()
+  assert.equal(sent.length, 1, 'ушла только та строка, что уже была в полёте')
+  assert.match(String(report.stoppedReason), /другой учётной записи/)
+  assert.equal((await store.listQueue()).length, 3, 'остальные три целы')
+})
+
+test('005-8. отмена круга останавливает разбор перед следующей строкой', async () => {
+  const { store } = makeStore('co-1:user-1')
+  await seedQueue(store, 4)
+  const { transport, sent } = recordingTransport()
+
+  const coordinator: SyncCoordinator = new SyncCoordinator(store, {
+    async send(item) {
+      const outcome = await transport.send(item, { blob: null })
+      coordinator.cancel()
+      return outcome
+    },
+  }, { useWebLocks: false, resolveIdentity: () => 'co-1:user-1' })
+
+  const report = await coordinator.run()
+  assert.equal(sent.length, 1)
+  assert.match(String(report.stoppedReason), /сессия закрыта/)
+  assert.equal((await store.listQueue()).length, 3)
+})
+
+test('005-9. внешний признак отмены: поколение сессии сменилось', async () => {
+  const { store } = makeStore('co-1:user-1')
+  await seedQueue(store, 2)
+  const { transport, sent } = recordingTransport()
+
+  let generation = 1
+  const startedAt = generation
+  const coordinator = new SyncCoordinator(store, transport, {
+    useWebLocks: false,
+    resolveIdentity: () => 'co-1:user-1',
+    isCancelled: () => generation !== startedAt,
+  })
+  generation = 2
+
+  const report = await coordinator.run()
+  assert.equal(sent.length, 0)
+  assert.match(String(report.stoppedReason), /сессия закрыта/)
+})
+
+test('005-10. общий токен на две вкладки: чужая очередь не уходит', async () => {
+  // Две вкладки одного браузера: `sm_token` общий, а хранилище у каждой своё.
+  let sharedToken = 'co-1:user-1'
+  const resolveIdentity = () => sharedToken
+
+  const a = makeStore('co-1:user-1')
+  const b = makeStore('co-1:user-2')
+  await seedQueue(a.store, 2)
+  await seedQueue(b.store, 2)
+
+  const tabA = recordingTransport()
+  const tabB = recordingTransport()
+  const coordA = new SyncCoordinator(a.store, tabA.transport, { useWebLocks: false, resolveIdentity })
+  const coordB = new SyncCoordinator(b.store, tabB.transport, { useWebLocks: false, resolveIdentity })
+
+  // Во второй вкладке вошёл другой человек — токен в localStorage перезаписан.
+  sharedToken = 'co-1:user-2'
+
+  const reportA = await coordA.run()
+  const reportB = await coordB.run()
+
+  assert.equal(tabA.sent.length, 0, 'вкладка прежнего пользователя ничего не отправила')
+  assert.match(String(reportA.stoppedReason), /другой учётной записи/)
+  assert.equal(tabB.sent.length, 2, 'вкладка текущего пользователя работает обычным порядком')
+  assert.equal(reportB.stoppedReason, undefined)
+  assert.equal((await a.store.listQueue()).length, 2, 'работа первого пользователя цела')
+})
+
+test('005-11. ключ идемпотентности от сверки не меняется', async () => {
+  const { store } = makeStore('co-1:user-1')
+  await seedQueue(store, 1)
+  const before = (await store.listQueue())[0].idempotencyKey
+
+  // Круг, оборванный по личности, ключа не трогает.
+  await new SyncCoordinator(store, recordingTransport().transport, {
+    useWebLocks: false,
+    resolveIdentity: () => 'co-2:user-9',
+  }).run()
+  assert.equal((await store.listQueue())[0].idempotencyKey, before)
+
+  // И отправка своим пользователем уходит с тем же ключом.
+  const keys: string[] = []
+  await new SyncCoordinator(store, {
+    async send(item) {
+      keys.push(item.idempotencyKey)
+      return { kind: 'ok' }
+    },
+  }, { useWebLocks: false, resolveIdentity: () => 'co-1:user-1' }).run()
+  assert.deepEqual(keys, [before])
+})
+
+test('005-12. отозванный доступ по-прежнему уводит строку в «Требует внимания»', async () => {
+  for (const status of [403, 404]) {
+    const { store } = makeStore('co-1:user-1')
+    await seedQueue(store, 1)
+    const report = await new SyncCoordinator(store, {
+      async send() {
+        return classifySyncFailure({ status })
+      },
+    }, { useWebLocks: false, resolveIdentity: () => 'co-1:user-1' }).run()
+
+    assert.equal(report.attention, 1, `HTTP ${status} обязан звать человека`)
+    const [item] = await store.listQueue()
+    assert.equal(item.status, 'attention')
+    assert.ok(item.attentionReason, 'причина объясняется по-русски')
+    assert.equal(report.stoppedReason, undefined, 'это отказ сервера, а не обрыв круга')
+  }
+})
+
+test('005-13. истёкший токен по-прежнему повторяется, а не уходит в отказ', async () => {
+  const { store } = makeStore('co-1:user-1')
+  await seedQueue(store, 1)
+  const report = await new SyncCoordinator(store, {
+    async send() {
+      return classifySyncFailure({ status: 401 })
+    },
+  }, { useWebLocks: false, resolveIdentity: () => 'co-1:user-1' }).run()
+
+  assert.equal(report.failed, 1)
+  const [item] = await store.listQueue()
+  assert.equal(item.status, 'pending', '401 — повтор, работа не теряется')
+  assert.equal(item.attempts, 1)
+})
+
+test('005-14. политика выхода: осознанный выход спрашивает и стирает', async () => {
+  const { runOfflineLogout, unsentWorkWarning } = await import('./logout.js')
+  const calls: string[] = []
+  const deps = {
+    identity: { id: 'user-1', companyId: 'co-1' },
+    hasUnsentWork: async () => ({ unsent: 2, attention: 1 }),
+    wipe: async () => { calls.push('wipe') },
+    stop: () => { calls.push('stop') },
+    clearLegacyCaches: () => { calls.push('legacy') },
+  }
+
+  // Отказ человека останавливает выход и ничего не удаляет.
+  const declined = await runOfflineLogout('user_initiated', { ...deps, confirm: () => false })
+  assert.equal(declined.proceed, false)
+  assert.equal(declined.wiped, false)
+  assert.deepEqual(calls, ['stop'], 'разбор очереди остановлен, но база цела')
+
+  calls.length = 0
+  const accepted = await runOfflineLogout('user_initiated', { ...deps, confirm: () => true })
+  assert.equal(accepted.proceed, true)
+  assert.equal(accepted.wiped, true)
+  assert.deepEqual(calls, ['stop', 'wipe', 'legacy'])
+
+  assert.match(unsentWorkWarning(2, 1), /не отправлено записей: 2/)
+  assert.match(unsentWorkWarning(2, 1), /требует внимания: 1/)
+})
+
+test('005-15. политика выхода: потеря сессии не удаляет чужую работу', async () => {
+  const { runOfflineLogout } = await import('./logout.js')
+  const calls: string[] = []
+  let asked = false
+  const result = await runOfflineLogout('session_lost', {
+    identity: { id: 'user-1', companyId: 'co-1' },
+    hasUnsentWork: async () => { asked = true; return { unsent: 5, attention: 0 } },
+    wipe: async () => { calls.push('wipe') },
+    stop: () => { calls.push('stop') },
+    confirm: () => { asked = true; return true },
+  })
+
+  assert.equal(result.proceed, true)
+  assert.equal(result.wiped, false, 'истёкший токен не повод удалять рабочий день')
+  assert.deepEqual(calls, ['stop'], 'останавливаем разбор, данные оставляем владельцу')
+  assert.equal(asked, false, 'спрашивать некого: человек ничего не выбирал')
+})
+
+test('005-16. все пять поверхностей закрытия сессии идут через одну политику', async () => {
+  const { readFileSync } = await import('node:fs')
+  const read = (rel: string) => readFileSync(new URL(`../../../src/${rel}`, import.meta.url), 'utf8')
+
+  const surfaces: Array<[string, string]> = [
+    ['mobile/MobileProfile.tsx', 'user_initiated'],
+    ['ui/Shell.tsx', 'user_initiated'],
+    ['views/WorkspaceSelectorPage.tsx', 'user_initiated'],
+    ['router.tsx', 'session_lost'],
+    ['max/MaxApp.tsx', 'session_lost'],
+  ]
+
+  for (const [file, mode] of surfaces) {
+    const source = read(file)
+    assert.match(source, /offlineAwareLogout\(/, `${file} обязан звать единую политику`)
+    assert.ok(source.includes(`offlineAwareLogout('${mode}'`), `${file}: режим ${mode}`)
+    // Своей копии политики быть не должно ни у одной поверхности.
+    assert.ok(!source.includes('wipeOfflineSession('), `${file}: без собственной уборки`)
+  }
+
+  // Каждый сброс токена сопровождается остановкой очереди.
+  for (const file of ['router.tsx', 'max/MaxApp.tsx', 'views/WorkspaceSelectorPage.tsx', 'ui/Shell.tsx']) {
+    const source = read(file)
+    const clears = (source.match(/api\.clearToken\(\)/g) || []).length
+    const guards = (source.match(/offlineAwareLogout\(/g) || []).length
+    assert.ok(guards >= clears, `${file}: сбросов токена ${clears}, вызовов политики ${guards}`)
+  }
+})
+
+// ── B2. durable comment delivery ──────────────────────────────────────────
+
+test('B2-1. offline comment сохраняется с заранее выделенным ключом', async () => {
+  const { deliverTicketComment } = await import('./ticketCommentDelivery.js')
+  const { store } = makeStore()
+  const result = await deliverTicketComment({
+    reportedOnline: false,
+    queueInput: {
+      kind: 'ticket.comment',
+      target: { ticketId: 'tk-1' },
+      payload: { comment: 'офлайн' },
+    },
+    send: async () => {
+      throw new Error('send не должен вызываться офлайн')
+    },
+    enqueue: (input) => store.enqueue(input),
+  })
+  assert.equal(result.kind, 'queued')
+  if (result.kind !== 'queued') return
+  assert.ok(result.item.idempotencyKey.startsWith('ticket.comment:'))
+  assert.equal((await store.listQueue()).length, 1)
+})
+
+test('B2-2. transport failure после online кладёт comment с тем же ключом', async () => {
+  const { deliverTicketComment } = await import('./ticketCommentDelivery.js')
+  const { store } = makeStore()
+  const keys: string[] = []
+  const result = await deliverTicketComment({
+    reportedOnline: true,
+    queueInput: {
+      kind: 'ticket.comment',
+      target: { ticketId: 'tk-1' },
+      payload: { comment: 'обрыв' },
+    },
+    send: async (key) => {
+      keys.push(key)
+      throw new TypeError('Failed to fetch')
+    },
+    enqueue: (input) => {
+      keys.push(input.idempotencyKey || '')
+      return store.enqueue(input)
+    },
+  })
+  assert.equal(result.kind, 'queued')
+  assert.equal(keys.length, 2)
+  assert.equal(keys[0], keys[1], 'online и fallback используют один ключ')
+})
+
+test('B2-3. application HTTP error не кладёт comment в queue', async () => {
+  const { deliverTicketComment, isRetrySafeConnectivityFailure } = await import('./ticketCommentDelivery.js')
+  const { store } = makeStore()
+  const err = { name: 'ApiRequestError', status: 403, message: 'Forbidden' }
+  assert.equal(isRetrySafeConnectivityFailure(err), false)
+  await assert.rejects(
+    () => deliverTicketComment({
+      reportedOnline: true,
+      queueInput: {
+        kind: 'ticket.comment',
+        target: { ticketId: 'tk-1' },
+        payload: { comment: 'отказ' },
+      },
+      send: async () => { throw err },
+      enqueue: (input) => store.enqueue(input),
+    }),
+  )
+  assert.equal((await store.listQueue()).length, 0)
+})
+
+test('B2-4. Safari cross-realm TypeError считается transport failure', async () => {
+  const { isRetrySafeConnectivityFailure } = await import('./ticketCommentDelivery.js')
+  assert.equal(
+    isRetrySafeConnectivityFailure({
+      name: 'TypeError',
+      message: 'The Internet connection appears to be offline.',
+    }),
+    true,
+  )
+})
+
+test('B2-09-1. offline ticket.attachment сохраняется с заранее выделенным ключом', async () => {
+  const { deliverTicketAttachment } = await import('./attachmentDelivery.js')
+  const { store } = makeStore()
+  const result = await deliverTicketAttachment({
+    reportedOnline: false,
+    queueInput: {
+      kind: 'ticket.attachment',
+      target: { ticketId: 'tk-1' },
+      blob: new Blob(['photo']),
+    },
+    send: async () => {
+      throw new Error('send не должен вызываться офлайн')
+    },
+    enqueue: (input) => store.enqueue(input),
+  })
+  assert.equal(result.kind, 'queued')
+  if (result.kind !== 'queued') return
+  assert.ok(result.item.idempotencyKey.startsWith('ticket.attachment:'))
+  assert.equal((await store.listQueue()).length, 1)
+})
+
+test('B2-09-2. transport failure после online кладёт ticket.attachment с тем же ключом', async () => {
+  const { deliverTicketAttachment } = await import('./attachmentDelivery.js')
+  const { store } = makeStore()
+  const keys: string[] = []
+  const result = await deliverTicketAttachment({
+    reportedOnline: true,
+    queueInput: {
+      kind: 'ticket.attachment',
+      target: { ticketId: 'tk-1' },
+      blob: new Blob(['photo']),
+    },
+    send: async (key) => {
+      keys.push(key)
+      throw new TypeError('Failed to fetch')
+    },
+    enqueue: (input) => {
+      keys.push(input.idempotencyKey || '')
+      return store.enqueue(input)
+    },
+  })
+  assert.equal(result.kind, 'queued')
+  assert.equal(keys.length, 2)
+  assert.equal(keys[0], keys[1], 'online и fallback используют один ключ')
+})
+
+test('B2-09-3. application HTTP error не кладёт ticket.attachment в queue', async () => {
+  const { deliverTicketAttachment } = await import('./attachmentDelivery.js')
+  const { store } = makeStore()
+  const err = { name: 'ApiRequestError', status: 500, message: 'Server Error' }
+  await assert.rejects(
+    () => deliverTicketAttachment({
+      reportedOnline: true,
+      queueInput: {
+        kind: 'ticket.attachment',
+        target: { ticketId: 'tk-1' },
+        blob: new Blob(['photo']),
+      },
+      send: async () => { throw err },
+      enqueue: (input) => store.enqueue(input),
+    }),
+  )
+  assert.equal((await store.listQueue()).length, 0)
+})
+
+test('B2-09-4. offline checkpoint.attachment сохраняется с заранее выделенным ключом', async () => {
+  const { deliverCheckpointAttachment } = await import('./attachmentDelivery.js')
+  const { store } = makeStore()
+  const result = await deliverCheckpointAttachment({
+    reportedOnline: false,
+    queueInput: {
+      kind: 'checkpoint.attachment',
+      target: { roundId: 'r-1', checkpointId: 'c-1' },
+      blob: new Blob(['cp']),
+    },
+    send: async () => {
+      throw new Error('send не должен вызываться офлайн')
+    },
+    enqueue: (input) => store.enqueue(input),
+  })
+  assert.equal(result.kind, 'queued')
+  if (result.kind !== 'queued') return
+  assert.ok(result.item.idempotencyKey.startsWith('checkpoint.attachment:'))
+  assert.equal((await store.listQueue()).length, 1)
+})
+
+test('B2-09-5. transport failure после online кладёт checkpoint.attachment с тем же ключом', async () => {
+  const { deliverCheckpointAttachment } = await import('./attachmentDelivery.js')
+  const { store } = makeStore()
+  const keys: string[] = []
+  const result = await deliverCheckpointAttachment({
+    reportedOnline: true,
+    queueInput: {
+      kind: 'checkpoint.attachment',
+      target: { roundId: 'r-1', checkpointId: 'c-1' },
+      blob: new Blob(['cp']),
+    },
+    send: async (key) => {
+      keys.push(key)
+      throw new TypeError('Failed to fetch')
+    },
+    enqueue: (input) => {
+      keys.push(input.idempotencyKey || '')
+      return store.enqueue(input)
+    },
+  })
+  assert.equal(result.kind, 'queued')
+  assert.equal(keys.length, 2)
+  assert.equal(keys[0], keys[1], 'online и fallback используют один ключ')
+})
+
+test('B2-09-6. экраны вложений идут через deliver-хелперы', async () => {
+  const { readFileSync } = await import('node:fs')
+  const ticketPage = readFileSync(
+    new URL('../../../src/mobile/MobileTicketPage.tsx', import.meta.url),
+    'utf8',
+  )
+  const runPage = readFileSync(
+    new URL('../../../src/mobile/MobileInspectionRunPage.tsx', import.meta.url),
+    'utf8',
+  )
+  assert.match(ticketPage, /deliverTicketAttachment\(/)
+  assert.match(runPage, /deliverCheckpointAttachment\(/)
+})
+
+test('entity cache helpers: ticket и location пишутся и читаются', async () => {
+  const { cacheTicketSnapshot, readTicketSnapshot } = await import('./ticketCache.js')
+  const { cacheLocationSnapshot, readLocationSnapshot } = await import('./locationCache.js')
+  setOfflineDriverFactory(() => new MemoryDriver())
+  await openOfflineSession({ id: 'user-1', companyId: 'co-1' }, { legacyStorage: null })
+
+  await cacheTicketSnapshot({ id: 'tk-42', problemText: 'течь', status: 'IN_PROGRESS' })
+  await cacheLocationSnapshot({ id: 'loc-9', name: 'Склад' })
+
+  const ticket = await readTicketSnapshot<{ id: string; problemText: string }>('tk-42')
+  const location = await readLocationSnapshot<{ id: string; name: string }>('loc-9')
+  assert.equal(ticket?.problemText, 'течь')
+  assert.equal(location?.name, 'Склад')
+
+  await wipeOfflineSession({ id: 'user-1', companyId: 'co-1' })
+  setOfflineDriverFactory(null)
+})
+
+test('entity cache: MobileTicketPage пишет ticket/location и читает IDB fallback', async () => {
+  const { readFileSync } = await import('node:fs')
+  const page = readFileSync(
+    new URL('../../../src/mobile/MobileTicketPage.tsx', import.meta.url),
+    'utf8',
+  )
+  assert.match(page, /cacheTicketSnapshot\(/)
+  assert.match(page, /cacheLocationSnapshot\(/)
+  assert.match(page, /readTicketSnapshot/)
+})
+
+test('план 3. board и ticket detail пишутся и читаются в IDB', async () => {
+  const { saveBoardCache, loadBoardCache } = await import('./boardCache.js')
+  const {
+    saveTicketDetailCache,
+    loadTicketDetailCache,
+    loadAnyTicketDetailCache,
+  } = await import('./ticketDetailCache.js')
+
+  setOfflineDriverFactory(() => new MemoryDriver())
+  await openOfflineSession({ id: 'user-1', companyId: 'co-1' }, { legacyStorage: null })
+
+  const scope = { linkedClientCompanyId: 'client-1' }
+  await saveBoardCache(scope, { columns: [{ id: 'NEW', cards: [{ id: 'tk-1' }] }] })
+  const board = await loadBoardCache<{ columns: Array<{ id: string }> }>(scope)
+  assert.equal(board?.data.columns[0]?.id, 'NEW')
+
+  await saveTicketDetailCache({
+    ticketId: 'tk-1',
+    scope,
+    ticket: { id: 'tk-1', problemText: 'течь' },
+    attachments: [{ id: 'att-1' }],
+    timeline: { items: [] },
+  })
+  const detail = await loadTicketDetailCache('tk-1', scope)
+  assert.equal((detail?.data.ticket as { problemText?: string })?.problemText, 'течь')
+  assert.equal(detail?.data.attachments.length, 1)
+
+  const any = await loadAnyTicketDetailCache('tk-1')
+  assert.equal((any?.data.ticket as { id?: string })?.id, 'tk-1')
+
+  await wipeOfflineSession({ id: 'user-1', companyId: 'co-1' })
+  setOfflineDriverFactory(null)
+})
+
+test('план 3. два namespace не делят board/ticket detail', async () => {
+  const { saveBoardCache, loadBoardCache } = await import('./boardCache.js')
+  const { saveTicketDetailCache, loadTicketDetailCache } = await import('./ticketDetailCache.js')
+
+  const drivers = new Map<string, MemoryDriver>()
+  setOfflineDriverFactory((name) => {
+    if (!drivers.has(name)) drivers.set(name, new MemoryDriver())
+    return drivers.get(name)!
+  })
+
+  await openOfflineSession({ id: 'user-1', companyId: 'co-1' }, { legacyStorage: null })
+  await saveBoardCache(undefined, { columns: [{ id: 'SECRET', cards: [] }] })
+  await saveTicketDetailCache({
+    ticketId: 'tk-secret',
+    scope: undefined,
+    ticket: { id: 'tk-secret', problemText: 'чужое' },
+    attachments: [],
+    timeline: null,
+  })
+
+  await openOfflineSession({ id: 'user-2', companyId: 'co-1' }, { legacyStorage: null })
+  assert.equal(await loadBoardCache(undefined), null)
+  assert.equal(await loadTicketDetailCache('tk-secret'), null)
+
+  await wipeOfflineSession({ id: 'user-2', companyId: 'co-1' })
+  await wipeOfflineSession({ id: 'user-1', companyId: 'co-1' })
+  setOfflineDriverFactory(null)
+})
+
+test('план 3. write-path MobileHome/MobileTicketPage не пишет legacy localStorage-ключи', async () => {
+  const { readFileSync } = await import('node:fs')
+  const home = readFileSync(new URL('../../../src/mobile/home/MobileHome.tsx', import.meta.url), 'utf8')
+  const ticket = readFileSync(new URL('../../../src/mobile/MobileTicketPage.tsx', import.meta.url), 'utf8')
+  const queue = readFileSync(new URL('../../../src/mobile/offlineQueue.ts', import.meta.url), 'utf8')
+
+  assert.match(home, /from '\.\.\/offline\/boardCache'/)
+  assert.match(ticket, /from '\.\/offline\/ticketDetailCache'/)
+  assert.doesNotMatch(home, /sm_mobile_board_cache_v1/)
+  assert.doesNotMatch(ticket, /sm_mobile_ticket_cache_v1/)
+  assert.doesNotMatch(queue, /export function saveBoardCache/)
+  assert.doesNotMatch(queue, /export function saveTicketDetailCache/)
+  assert.doesNotMatch(queue, /safeWriteJson\(OFFLINE_BOARD_CACHE_KEY/)
+  assert.doesNotMatch(queue, /safeWriteJson\(OFFLINE_TICKET_CACHE_KEY/)
+})
+
+test('план 3. migrate переносит legacy board/ticket cache в IDB и снимает ключи', async () => {
+  const {
+    migrateLegacyUiCaches,
+    LEGACY_BOARD_CACHE_KEY,
+    LEGACY_TICKET_CACHE_KEY,
+  } = await import('./legacyUiCacheMigration.js')
+  const { loadBoardCache } = await import('./boardCache.js')
+  const { loadTicketDetailCache } = await import('./ticketDetailCache.js')
+  const { boardCacheScopeKey, ticketDetailCacheKey } = await import('./cacheKeys.js')
+
+  const scope = { companyId: 'co-obs' }
+  const memory = new Map<string, string>()
+  memory.set(
+    LEGACY_BOARD_CACHE_KEY,
+    JSON.stringify({
+      [boardCacheScopeKey(scope)]: {
+        savedAt: '2026-01-01T00:00:00.000Z',
+        data: { columns: [{ id: 'NEW', cards: [] }] },
+      },
+    }),
+  )
+  memory.set(
+    LEGACY_TICKET_CACHE_KEY,
+    JSON.stringify({
+      [ticketDetailCacheKey('tk-9', scope)]: {
+        savedAt: '2026-01-01T00:00:00.000Z',
+        data: {
+          ticket: { id: 'tk-9', problemText: 'legacy' },
+          attachments: [],
+          timeline: null,
+        },
+      },
+    }),
+  )
+  const storage = {
+    getItem: (key: string) => memory.get(key) ?? null,
+    removeItem: (key: string) => {
+      memory.delete(key)
+    },
+    setItem: (key: string, value: string) => {
+      memory.set(key, value)
+    },
+  }
+
+  setOfflineDriverFactory(() => new MemoryDriver())
+  const opened = await openOfflineSession({ id: 'user-1', companyId: 'co-1' }, { legacyStorage: storage })
+  assert.ok(opened.store)
+  // openOfflineSession уже вызвал migrate — проверяем результат.
+  assert.equal(opened.uiCacheMigration?.boardEntries, 1)
+  assert.equal(opened.uiCacheMigration?.ticketEntries, 1)
+  assert.equal(memory.has(LEGACY_BOARD_CACHE_KEY), false)
+  assert.equal(memory.has(LEGACY_TICKET_CACHE_KEY), false)
+
+  const board = await loadBoardCache<{ columns: Array<{ id: string }> }>(scope)
+  assert.equal(board?.data.columns[0]?.id, 'NEW')
+  const detail = await loadTicketDetailCache('tk-9', scope)
+  assert.equal((detail?.data.ticket as { problemText?: string })?.problemText, 'legacy')
+
+  const second = await migrateLegacyUiCaches(opened.store!, storage)
+  assert.equal(second.alreadyDone, true)
+
+  await wipeOfflineSession({ id: 'user-1', companyId: 'co-1' })
+  setOfflineDriverFactory(null)
+})
+
+test('баннер очереди: склонение действий', async () => {
+  const { formatPendingActionsLabel, offlinePendingBannerText } = await import('./useOffline.js')
+  assert.equal(formatPendingActionsLabel(1), '1 действие ожидает отправки')
+  assert.equal(formatPendingActionsLabel(2), '2 действия ожидают отправки')
+  assert.equal(formatPendingActionsLabel(4), '4 действия ожидают отправки')
+  assert.equal(formatPendingActionsLabel(5), '5 действий ожидают отправки')
+  assert.equal(formatPendingActionsLabel(21), '21 действие ожидает отправки')
+  assert.equal(
+    offlinePendingBannerText(4),
+    'Нет сети · 4 действия ожидают отправки',
+  )
+})
+
+test('текст незакэшированной заявки offline зафиксирован', async () => {
+  const { OFFLINE_TICKET_NOT_CACHED_MESSAGE } = await import('./onlineOnlyMessage.js')
+  assert.equal(
+    OFFLINE_TICKET_NOT_CACHED_MESSAGE,
+    'Заявка не подгружена! Для отображения необходимо стабильное интернет-соединение.',
+  )
+  const ticketPage = (await import('node:fs')).readFileSync(
+    new URL('../../../src/mobile/MobileTicketPage.tsx', import.meta.url),
+    'utf8',
+  )
+  assert.match(ticketPage, /OFFLINE_TICKET_NOT_CACHED_MESSAGE/)
+})
+
+test('корневой ErrorFallback перезагружает страницу', async () => {
+  const app = (await import('node:fs')).readFileSync(
+    new URL('../../../src/App.tsx', import.meta.url),
+    'utf8',
+  )
+  assert.match(app, /window\.location\.reload\(\)/)
+  assert.match(app, /Перезагрузить экран/)
+})
+
+test('оболочка заранее тянет chunk профиля', async () => {
+  const shell = (await import('node:fs')).readFileSync(
+    new URL('../../../src/mobile/MobileShell.tsx', import.meta.url),
+    'utf8',
+  )
+  assert.match(shell, /import\('\.\/MobileProfile'\)/)
+})
+
+// ── План 4. dependsOnId UI chain ───────────────────────────────────────────
+
+test('план 4. findParentFromRoundQueueId находит pending ticket.fromRound', async () => {
+  const { findParentFromRoundQueueId, buildLocalTicketFromQueue } = await import('./localTicket.js')
+  const { store } = makeStore()
+  const localTicketId = `${LOCAL_ID_PREFIX}run-1:cp-1`
+  const parent = await store.enqueue({
+    kind: 'ticket.fromRound',
+    target: { ticketId: localTicketId, roundId: 'run-1', checkpointId: 'cp-1' },
+    payload: { categoryId: 'cat-1', title: 'Течь', urgency: 'URGENT' },
+    producesTicketId: true,
+  })
+  assert.equal(parent.ok, true)
+  const queue = await store.listQueue()
+  assert.equal(findParentFromRoundQueueId(localTicketId, queue), parent.ok ? parent.item.id : undefined)
+  assert.equal(findParentFromRoundQueueId('server-tk', queue), undefined)
+  assert.equal(findParentFromRoundQueueId(`${LOCAL_ID_PREFIX}other`, queue), undefined)
+
+  const stub = buildLocalTicketFromQueue(localTicketId, queue)
+  assert.ok(stub)
+  assert.equal(stub?.id, localTicketId)
+  assert.equal(stub?.problemText, 'Течь')
+  assert.equal(stub?.urgency, 'URGENT')
+  assert.equal(stub?.status, 'NEW')
+})
+
+test('план 4. findParentFromRoundQueueId игнорирует failed/attention', async () => {
+  const { findParentFromRoundQueueId } = await import('./localTicket.js')
+  const { store } = makeStore()
+  const localTicketId = `${LOCAL_ID_PREFIX}run-1:cp-2`
+  const parent = await store.enqueue({
+    kind: 'ticket.fromRound',
+    target: { ticketId: localTicketId },
+    payload: { categoryId: 'cat-1' },
+    producesTicketId: true,
+  })
+  assert.equal(parent.ok, true)
+  if (!parent.ok) return
+  await store.setStatus(parent.item.id, 'attention', { attentionReason: 'доступ отозван' })
+  assert.equal(findParentFromRoundQueueId(localTicketId, await store.listQueue()), undefined)
+})
+
+test('план 4. child comment enqueue несёт dependsOnId родителя', async () => {
+  const { findParentFromRoundQueueId } = await import('./localTicket.js')
+  const { deliverTicketComment } = await import('./ticketCommentDelivery.js')
+  const { store } = makeStore()
+  const localTicketId = `${LOCAL_ID_PREFIX}run-1:cp-3`
+  const parent = await store.enqueue({
+    kind: 'ticket.fromRound',
+    target: { ticketId: localTicketId, roundId: 'run-1', checkpointId: 'cp-3' },
+    payload: { categoryId: 'cat-1', title: 'Шум' },
+    producesTicketId: true,
+  })
+  assert.equal(parent.ok, true)
+  const dependsOnId = findParentFromRoundQueueId(localTicketId, await store.listQueue())
+  assert.equal(dependsOnId, parent.ok ? parent.item.id : undefined)
+
+  const result = await deliverTicketComment({
+    reportedOnline: false,
+    queueInput: {
+      kind: 'ticket.comment',
+      target: { ticketId: localTicketId },
+      payload: { comment: 'фото позже' },
+      dependsOnId,
+    },
+    send: async () => {
+      throw new Error('send не должен вызываться для local:')
+    },
+    enqueue: (input) => store.enqueue(input),
+  })
+  assert.equal(result.kind, 'queued')
+  if (result.kind !== 'queued') return
+  assert.equal(result.item.dependsOnId, dependsOnId)
+  assert.equal(result.item.target.ticketId, localTicketId)
+
+  const seen: string[] = []
+  const transport: SyncTransport = {
+    async send(item) {
+      seen.push(item.kind)
+      return item.kind === 'ticket.fromRound'
+        ? { kind: 'ok', serverId: 'tk-server-3' }
+        : { kind: 'ok' }
+    },
+  }
+  await new SyncCoordinator(store, transport, { useWebLocks: false }).run()
+  assert.deepEqual(seen, ['ticket.fromRound', 'ticket.comment'])
+})
+
+test('план 4. child attachment enqueue несёт dependsOnId родителя', async () => {
+  const { findParentFromRoundQueueId } = await import('./localTicket.js')
+  const { deliverTicketAttachment } = await import('./attachmentDelivery.js')
+  const { store } = makeStore()
+  const localTicketId = `${LOCAL_ID_PREFIX}run-1:cp-4`
+  const parent = await store.enqueue({
+    kind: 'ticket.fromRound',
+    target: { ticketId: localTicketId },
+    payload: { categoryId: 'cat-1' },
+    producesTicketId: true,
+  })
+  assert.equal(parent.ok, true)
+  const dependsOnId = findParentFromRoundQueueId(localTicketId, await store.listQueue())
+
+  const result = await deliverTicketAttachment({
+    reportedOnline: false,
+    queueInput: {
+      kind: 'ticket.attachment',
+      target: { ticketId: localTicketId },
+      payload: {},
+      blob: new Blob(['pic'], { type: 'image/jpeg' }),
+      dependsOnId,
+    },
+    send: async () => {
+      throw new Error('send не должен вызываться для local:')
+    },
+    enqueue: (input) => store.enqueue(input),
+  })
+  assert.equal(result.kind, 'queued')
+  if (result.kind !== 'queued') return
+  assert.equal(result.item.dependsOnId, dependsOnId)
+  assert.ok(result.item.blobId)
+})
+
+test('план 4. MobileTicketPage и InspectionRun передают dependsOnId для local:', async () => {
+  const { readFileSync } = await import('node:fs')
+  const ticketPage = readFileSync(
+    new URL('../../../src/mobile/MobileTicketPage.tsx', import.meta.url),
+    'utf8',
+  )
+  const runPage = readFileSync(
+    new URL('../../../src/mobile/MobileInspectionRunPage.tsx', import.meta.url),
+    'utf8',
+  )
+
+  assert.match(ticketPage, /findParentFromRoundQueueId/)
+  assert.match(ticketPage, /dependsOnId/)
+  assert.match(ticketPage, /buildLocalTicketFromQueue/)
+  assert.match(ticketPage, /isLocalId\(ticketId\) \? false : isOnline/)
+  assert.match(ticketPage, /Сохранено на устройстве\. Отправим после создания заявки\./)
+
+  assert.match(runPage, /LOCAL_ID_PREFIX\}?\$\{runId\}:\$\{item\.id\}/)
+  assert.match(runPage, /Добавить комментарий или фото/)
+  assert.match(runPage, /ticket\.fromRound/)
 })

@@ -24,6 +24,8 @@ export type StoreName =
   | 'locations'
   | 'blobs'
   | 'meta'
+  | 'boardCache'
+  | 'ticketDetailCache'
 
 export const STORE_NAMES: StoreName[] = [
   'queue',
@@ -33,7 +35,16 @@ export const STORE_NAMES: StoreName[] = [
   'locations',
   'blobs',
   'meta',
+  'boardCache',
+  'ticketDetailCache',
 ]
+
+/**
+ * Версия схемы IndexedDB. Повышение открывает onupgradeneeded и создаёт
+ * недостающие object store, не трогая уже лежащие данные (очередь, снимки).
+ * v2 — boardCache и ticketDetailCache (план 3).
+ */
+export const OFFLINE_IDB_SCHEMA_VERSION = 2
 
 /** Запись всегда возвращает результат, а не бросает: отказ — это состояние. */
 export type WriteResult =
@@ -44,6 +55,8 @@ export interface OfflineDriver {
   readonly available: boolean
   get<T>(store: StoreName, key: string): Promise<T | null>
   getAll<T>(store: StoreName): Promise<T[]>
+  /** Ключи object store — для поиска снимка заявки по любому scope. */
+  getAllKeys(store: StoreName): Promise<string[]>
   put(store: StoreName, key: string, value: unknown): Promise<WriteResult>
   delete(store: StoreName, key: string): Promise<WriteResult>
   clear(store: StoreName): Promise<WriteResult>
@@ -77,6 +90,9 @@ export class UnavailableDriver implements OfflineDriver {
     return null
   }
   async getAll<T>(): Promise<T[]> {
+    return []
+  }
+  async getAllKeys(): Promise<string[]> {
     return []
   }
   async put(): Promise<WriteResult> {
@@ -120,6 +136,10 @@ export class MemoryDriver implements OfflineDriver {
     return Array.from(this.bucket(store).values()) as T[]
   }
 
+  async getAllKeys(store: StoreName): Promise<string[]> {
+    return Array.from(this.bucket(store).keys())
+  }
+
   async put(store: StoreName, key: string, value: unknown): Promise<WriteResult> {
     if (this.failNextWrite) {
       const r = this.failNextWrite
@@ -153,7 +173,7 @@ export class IndexedDbDriver implements OfflineDriver {
   private readonly dbName: string
   private readonly version: number
 
-  constructor(dbName: string, version = 1) {
+  constructor(dbName: string, version = OFFLINE_IDB_SCHEMA_VERSION) {
     this.dbName = dbName
     this.version = version
   }
@@ -202,6 +222,15 @@ export class IndexedDbDriver implements OfflineDriver {
   async getAll<T>(store: StoreName): Promise<T[]> {
     try {
       return (await this.run<T[]>(store, 'readonly', (s) => s.getAll())) ?? []
+    } catch {
+      return []
+    }
+  }
+
+  async getAllKeys(store: StoreName): Promise<string[]> {
+    try {
+      const keys = await this.run<IDBValidKey[]>(store, 'readonly', (s) => s.getAllKeys())
+      return (keys ?? []).map(String)
     } catch {
       return []
     }

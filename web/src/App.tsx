@@ -5,6 +5,7 @@ import { AppRoutes } from './router'
 import { AppToastHost } from './components/AppToastHost'
 import { PushServiceWorkerBridge } from './components/PushServiceWorkerBridge'
 import { ApiRequestError } from './lib/api'
+import { isDynamicImportFailure, MOBILE_CHUNK_RECOVERY_MESSAGE } from './lib/lazyRouteFailure'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -20,12 +21,31 @@ const queryClient = new QueryClient({
 })
 
 function ErrorFallback(props: FallbackProps) {
+  const chunkFailure = isDynamicImportFailure(props.error)
   return (
     <div className="page">
       <div className="card">
         <h1>Интерфейс упал</h1>
-        <div className="alert">{props.error instanceof Error ? props.error.message : String(props.error)}</div>
-        <button onClick={props.resetErrorBoundary} style={{ marginTop: 12 }}>
+        <div className="alert">
+          {chunkFailure
+            ? MOBILE_CHUNK_RECOVERY_MESSAGE
+            : props.error instanceof Error
+              ? props.error.message
+              : String(props.error)}
+        </div>
+        {/*
+          resetErrorBoundary только перемонтирует React-дерево. После падения
+          dynamic import или битого состояния маршрута этого мало: /auth/me
+          снова уходит, а экран остаётся пустым. Полная перезагрузка поднимает
+          приложение заново, как кнопка «Повторить» у LazyRouteFailure.
+        */}
+        <button
+          type="button"
+          onClick={() => {
+            window.location.reload()
+          }}
+          style={{ marginTop: 12 }}
+        >
           Перезагрузить экран
         </button>
       </div>
