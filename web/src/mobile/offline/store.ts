@@ -30,6 +30,12 @@ export type EnqueueInput = {
   kind: OfflineOperationKind
   target: OfflineQueueItem['target']
   payload?: Record<string, unknown>
+  /**
+   * Ключ можно зарезервировать до первой online-попытки, если эта попытка
+   * может упасть в durable queue. Очередь по-прежнему владеет генерацией:
+   * значение получают через createOfflineIdempotencyKey().
+   */
+  idempotencyKey?: string
   blob?: Blob
   dependsOnId?: string
   producesTicketId?: boolean
@@ -57,10 +63,11 @@ function randomId(): string {
 }
 
 /**
- * Ключ идемпотентности. Генерируется здесь и только здесь — в момент создания
- * строки очереди. Повторная отправка берёт ключ из строки, а не создаёт новый.
+ * Ключ идемпотентности. Генерируется только этим helper: обычно при создании
+ * строки, а для online-first операции — перед первой попыткой, чтобы возможный
+ * fallback записал тот же ключ. Повторная отправка новый ключ не создаёт.
  */
-function newIdempotencyKey(kind: OfflineOperationKind): string {
+export function createOfflineIdempotencyKey(kind: OfflineOperationKind): string {
   return `${kind}:${randomId()}`
 }
 
@@ -84,13 +91,27 @@ export class OfflineStore {
 
   // ── очередь ─────────────────────────────────────────────────────────────
 
+  /**
+   * Владелец проставляется на чтении, если строка записана до появления поля.
+   * Миграции базы для этого не нужно — владелец известен из самого факта,
+   * что строка лежит в базе этого пространства имён. Отдельная запись на диск
+   * ради поля тоже не нужна: значение выводится однозначно и каждый раз
+   * одинаково.
+   */
+  private withOwner(item: OfflineQueueItem): OfflineQueueItem {
+    return item.owner ? item : { ...item, owner: this.namespace }
+  }
+
   async listQueue(): Promise<OfflineQueueItem[]> {
     const items = await this.driver.getAll<OfflineQueueItem>('queue')
-    return items.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+    return items
+      .map((item) => this.withOwner(item))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
   }
 
   async getQueueItem(id: string): Promise<OfflineQueueItem | null> {
-    return this.driver.get<OfflineQueueItem>('queue', id)
+    const item = await this.driver.get<OfflineQueueItem>('queue', id)
+    return item ? this.withOwner(item) : null
   }
 
   /**
@@ -146,7 +167,9 @@ export class OfflineStore {
     const item: OfflineQueueItem = {
       id,
       kind: input.kind,
-      idempotencyKey: newIdempotencyKey(input.kind),
+      idempotencyKey: input.idempotencyKey || createOfflineIdempotencyKey(input.kind),
+      // Владелец фиксируется вместе со строкой и дальше не меняется.
+      owner: this.namespace,
       target: input.target,
       payload: input.payload ?? {},
       blobId,
@@ -167,10 +190,13 @@ export class OfflineStore {
     return { ok: true, item }
   }
 
-  /** Обновление строки. Ключ идемпотентности не перезаписывается никогда. */
+  /**
+   * Обновление строки. Ключ идемпотентности не перезаписывается никогда.
+   * Владелец — тоже: у строки один автор, и смена статуса его не меняет.
+   */
   async updateQueueItem(
     id: string,
-    patch: Partial<Omit<OfflineQueueItem, 'id' | 'idempotencyKey' | 'createdAt'>>,
+    patch: Partial<Omit<OfflineQueueItem, 'id' | 'idempotencyKey' | 'createdAt' | 'owner'>>,
   ): Promise<OfflineQueueItem | null> {
     const current = await this.getQueueItem(id)
     if (!current) return null
@@ -179,6 +205,7 @@ export class OfflineStore {
       ...patch,
       id: current.id,
       idempotencyKey: current.idempotencyKey,
+      owner: current.owner ?? this.namespace,
       createdAt: current.createdAt,
       updatedAt: new Date().toISOString(),
     }
@@ -252,6 +279,27 @@ export class OfflineStore {
   }
   async readLocation<T>(id: string): Promise<T | null> {
     return this.driver.get<T>('locations', id)
+  }
+
+  // ── кэш доски и детальной карточки (план 3) ─────────────────────────────
+  //
+  // Ключ доски — JSON scope. Ключ заявки — `ticketId::scope`, как в legacy
+  // localStorage. Хранилище привязано к namespace пользователя.
+
+  async cacheBoardEntry(key: string, entry: { savedAt: string; data: unknown }) {
+    return this.driver.put('boardCache', key, entry)
+  }
+  async readBoardEntry<T>(key: string): Promise<T | null> {
+    return this.driver.get<T>('boardCache', key)
+  }
+  async cacheTicketDetailEntry(key: string, entry: { savedAt: string; data: unknown }) {
+    return this.driver.put('ticketDetailCache', key, entry)
+  }
+  async readTicketDetailEntry<T>(key: string): Promise<T | null> {
+    return this.driver.get<T>('ticketDetailCache', key)
+  }
+  async listTicketDetailKeys(): Promise<string[]> {
+    return this.driver.getAllKeys('ticketDetailCache')
   }
 
   // ── метаданные синхронизации ────────────────────────────────────────────

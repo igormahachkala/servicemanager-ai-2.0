@@ -10,6 +10,7 @@
   snapshotStorageItems,
 } from './browserStorage'
 import { notifyRealtimeAuthChanged } from './realtimeSocket'
+import { reportApiReachability } from './apiReachability'
 export {
   currentInternalAppPath,
   getReturnToFromSearch,
@@ -22,6 +23,7 @@ export {
 } from './returnToNavigation'
 import { readMaxInitData } from '../max/maxBridge'
 import { runSmaLogout } from './smaLogout'
+import { clearMeCache, readMeCache, writeMeCache } from '../mobile/offline/meCache'
 
 export type Role =
   | 'PLATFORM_ADMIN'
@@ -1579,6 +1581,7 @@ export function clearToken() {
   // Явная очистка дефолта осталась: снятие галочки «по умолчанию» (clearPersistedScope),
   // hard-reset /logout (LogoutAndRedirect) и QA `?clear=1` чистят только известные SMA-ключи.
   clearImpersonationState()
+  clearMeCache()
 }
 
 export function persistLoginSession(result: LoginResponse) {
@@ -2022,7 +2025,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       signal: controller?.signal,
     })
     text = await res.text()
+    // Any HTTP response proves reachability. Its application status is
+    // handled below and must never be disguised as an offline failure.
+    reportApiReachability(true)
   } catch (err) {
+    reportApiReachability(false)
     if (controller?.signal.aborted || isAbortError(err)) throw new ApiTimeoutError()
     throw err
   } finally {
@@ -2050,6 +2057,23 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   return data as T
+}
+
+/**
+ * Lightweight reachability probe for mobile/PWA connectivity state.
+ *
+ * This deliberately uses the canonical request client: a received HTTP
+ * response means the API is reachable even when its status is not 2xx,
+ * while timeout/transport failures mean it is not. No auth or product data
+ * is involved.
+ */
+export async function probeApiReachability(timeoutMs = 4_000): Promise<boolean> {
+  try {
+    await request('/health', { auth: false, timeoutMs })
+    return true
+  } catch (error) {
+    return error instanceof ApiRequestError
+  }
 }
 
 function normalizeArrayResponse<T>(payload: unknown, candidates: string[]): T[] {
@@ -2130,11 +2154,33 @@ export async function impersonate(companyId: string): Promise<ImpersonateRespons
 }
 
 export async function me(): Promise<Me> {
-  return request<Me>('/auth/me')
+  try {
+    const data = await request<Me>('/auth/me')
+    writeMeCache(data)
+    return data
+  } catch (error) {
+    // Без сети и при транспортных сбоях отдаём последний успешный снимок.
+    // 401/403 кэшем не маскируем: сессия отвергнута сервером.
+    if (!isSessionRejected(error)) {
+      const cached = readMeCache()
+      if (cached) return cached
+    }
+    throw error
+  }
 }
 
 export async function meWithTimeout(timeoutMs: number): Promise<Me> {
-  return request<Me>('/auth/me', { timeoutMs })
+  try {
+    const data = await request<Me>('/auth/me', { timeoutMs })
+    writeMeCache(data)
+    return data
+  } catch (error) {
+    if (!isSessionRejected(error)) {
+      const cached = readMeCache()
+      if (cached) return cached
+    }
+    throw error
+  }
 }
 
 export async function fetchNotifications(): Promise<NotificationsListResponse> {

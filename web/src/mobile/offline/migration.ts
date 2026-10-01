@@ -1,5 +1,5 @@
 /**
- * SMA-MOBILE-OFFLINE-MODE-V1-113C.
+ * SMA-MOBILE-OFFLINE-MODE-V1-113C + legacy owner policy.
  *
  * Перенос уже стоящей в очереди работы из localStorage в новое хранилище.
  *
@@ -11,7 +11,16 @@
  *
  * Перенос идемпотентен: отметка в `meta` не даёт продублировать строки при
  * повторном запуске, а исходный ключ localStorage удаляется только после
- * подтверждённой записи всех строк.
+ * подтверждённой записи всех строк, которые можно безопасно забрать.
+ *
+ * Политика владельца (продуктовое решение B, 2026-09-29).
+ *
+ * Глобальный ключ не разделён по пользователю. Нельзя брать правило
+ * «кто открыл — тот владелец»: на общем планшете чужая очередь ушла бы
+ * на сервер под чужим токеном. Строка переносится только если у неё есть
+ * доказуемый owner и он совпадает с namespace текущего хранилища
+ * (`companyId:userId`). Строки без доказуемого owner остаются в
+ * localStorage и автоматически не синхронизируются.
  */
 
 import type { OfflineStore } from './store.js'
@@ -20,24 +29,33 @@ import type { OfflineQueueItem, OfflineQueueStatus } from './types.js'
 export const LEGACY_QUEUE_KEY = 'sm_mobile_offline_queue_v1'
 const MIGRATION_FLAG = 'legacyQueueMigrated:v1'
 
-/** Форма строки из 113A/прежней реализации. */
+/** Форма строки из 113A/прежней реализации (+ опциональные поля владельца). */
 type LegacyItem = {
   id?: string
   type?: string
   ticketId?: string
-  scope?: unknown
-  payload?: { status?: string; comment?: string }
+  scope?: { companyId?: string; userId?: string; linkedClientCompanyId?: string } | unknown
+  payload?: { status?: string; comment?: string; userId?: string }
   createdAt?: string
   status?: string
   lastError?: string
+  /** Явный владелец, если когда-либо записывался. */
+  owner?: string
+  userId?: string
+  companyId?: string
 }
+
+export type LegacyStorage = Pick<Storage, 'getItem' | 'removeItem'> &
+  Partial<Pick<Storage, 'setItem'>>
 
 export type MigrationReport = {
   migrated: number
   skipped: number
-  /** true — перенос уже выполнялся раньше, повторно ничего не делали. */
+  /** Строки оставлены в localStorage: владельца доказать нельзя или он чужой. */
+  ownerDenied: number
+  /** true — перенос для этого namespace уже выполнялся раньше. */
   alreadyDone: boolean
-  /** Исходные данные оставлены на месте: часть строк записать не удалось. */
+  /** Исходные данные оставлены на месте (orphans и/или отказ записи). */
   sourceKept: boolean
 }
 
@@ -57,11 +75,41 @@ function mapLegacyKind(type?: string): OfflineQueueItem['kind'] | null {
   return null
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object') return null
+  return value as Record<string, unknown>
+}
+
+/**
+ * Владелец legacy-строки, если его можно доказать из самих данных.
+ * Без userId + companyId (или явного owner) доказательств нет — null.
+ */
+export function provableLegacyOwner(row: LegacyItem): string | null {
+  const explicit = (row.owner || '').trim()
+  if (explicit.includes(':')) return explicit
+
+  const scope = asRecord(row.scope)
+  const companyId = String(
+    row.companyId ?? scope?.companyId ?? '',
+  ).trim()
+  const userId = String(
+    row.userId ?? scope?.userId ?? row.payload?.userId ?? '',
+  ).trim()
+  if (!companyId || !userId) return null
+  return `${companyId}:${userId}`
+}
+
 export async function migrateLegacyQueue(
   store: OfflineStore,
-  storage: Pick<Storage, 'getItem' | 'removeItem'> | null,
+  storage: LegacyStorage | null,
 ): Promise<MigrationReport> {
-  const report: MigrationReport = { migrated: 0, skipped: 0, alreadyDone: false, sourceKept: false }
+  const report: MigrationReport = {
+    migrated: 0,
+    skipped: 0,
+    ownerDenied: 0,
+    alreadyDone: false,
+    sourceKept: false,
+  }
 
   if (await store.getMeta<boolean>(MIGRATION_FLAG)) {
     report.alreadyDone = true
@@ -92,14 +140,26 @@ export async function migrateLegacyQueue(
     return report
   }
 
-  let allWritten = true
-  for (const row of legacy) {
+  const remaining: LegacyItem[] = []
+  let allOwnedWritten = true
+
+  for (let i = 0; i < legacy.length; i += 1) {
+    const row = legacy[i]
     const kind = mapLegacyKind(row.type)
     const status = mapLegacyStatus(row.status)
 
-    // Уже отправленные переносить незачем.
+    // Уже отправленные и бессмысленные переносить незачем.
     if (!kind || status === 'synced' || !row.ticketId) {
       report.skipped += 1
+      continue
+    }
+
+    const owner = provableLegacyOwner(row)
+    if (!owner || owner !== store.namespace) {
+      // Без доказуемого совпадения с текущим пользователем строку не берём:
+      // она останется в localStorage для владельца или явной уборки.
+      report.ownerDenied += 1
+      remaining.push(row)
       continue
     }
 
@@ -114,7 +174,9 @@ export async function migrateLegacyQueue(
       payload,
     })
     if (!result.ok) {
-      allWritten = false
+      // Источник не трогаем: иначе при отказе записи очередь разъедется
+      // с IndexedDB. Отметку о завершении не ставим — повторим позже.
+      allOwnedWritten = false
       break
     }
     // Прежние строки не имели ключа идемпотентности: он создаётся сейчас,
@@ -125,17 +187,30 @@ export async function migrateLegacyQueue(
     report.migrated += 1
   }
 
-  if (allWritten) {
-    await store.setMeta(MIGRATION_FLAG, true)
+  if (!allOwnedWritten) {
+    report.sourceKept = true
+    return report
+  }
+
+  // Для этого namespace перенос сделан: чужие/бездонные строки не наши.
+  await store.setMeta(MIGRATION_FLAG, true)
+
+  if (remaining.length === 0) {
     try {
       storage.removeItem(LEGACY_QUEUE_KEY)
     } catch {
       report.sourceKept = true
     }
-  } else {
-    // Хотя бы одна строка не записалась — источник оставляем нетронутым,
-    // чтобы не потерять работу. Отметку о завершении не ставим.
-    report.sourceKept = true
+    return report
+  }
+
+  report.sourceKept = true
+  if (typeof storage.setItem === 'function') {
+    try {
+      storage.setItem(LEGACY_QUEUE_KEY, JSON.stringify(remaining))
+    } catch {
+      // Исходник целиком уже на месте — хуже не стало.
+    }
   }
 
   return report

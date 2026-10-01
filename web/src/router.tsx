@@ -1,7 +1,10 @@
 ﻿import React, { Suspense, lazy, type ComponentType } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { ErrorBoundary, type FallbackProps } from 'react-error-boundary'
 import * as api from './lib/api'
+import { offlineAwareLogout } from './lib/offlineSessionLogout'
+import { isDynamicImportFailure, MOBILE_CHUNK_RECOVERY_MESSAGE } from './lib/lazyRouteFailure'
 import { IT_COMPANY_ROUTES } from './it-company/routes'
 import { LoginPage } from './views/LoginPage'
 import { VhodPage } from './views/VhodPage'
@@ -18,6 +21,21 @@ function RouteFallback() {
   )
 }
 
+function LazyRouteFailure({ error }: FallbackProps) {
+  if (!isDynamicImportFailure(error)) throw error
+  return (
+    <div className="mobileSection" role="alert">
+      <div className="mobileNotice mobileNoticeError">
+        {MOBILE_CHUNK_RECOVERY_MESSAGE}
+      </div>
+      <button type="button" className="mobileBtn" onClick={() => window.location.reload()}>
+        Повторить
+      </button>
+    </div>
+  )
+}
+
+
 function LazyRoute<P extends object>({
   component: Comp,
   props,
@@ -25,10 +43,13 @@ function LazyRoute<P extends object>({
   component: ComponentType<P>
   props?: P
 }) {
+  const location = useLocation()
   return (
-    <Suspense fallback={<RouteFallback />}>
-      <Comp {...((props ?? {}) as P)} />
-    </Suspense>
+    <ErrorBoundary FallbackComponent={LazyRouteFailure} resetKeys={[location.pathname, location.search]}>
+      <Suspense fallback={<RouteFallback />}>
+        <Comp {...((props ?? {}) as P)} />
+      </Suspense>
+    </ErrorBoundary>
   )
 }
 
@@ -123,6 +144,11 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     if (!sessionRejected) return
+    // Сессия отвергнута сервером, человек ничего не выбирал. Разбор
+    // очереди останавливаем, базу не трогаем: удалять чужую работу без спроса
+    // нельзя, а от отправки под другой личностью защищает сверка владельца
+    // в координаторе.
+    void offlineAwareLogout('session_lost')
     api.clearToken()
     queryClient.clear()
     navigate(api.loginPathWithReturnTo(`${location.pathname}${location.search}${location.hash}`), {
@@ -164,6 +190,11 @@ function RequireManagementAccess({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     if (!meQ.isError) return
+    // Сессия отвергнута сервером, человек ничего не выбирал. Разбор
+    // очереди останавливаем, базу не трогаем: удалять чужую работу без спроса
+    // нельзя, а от отправки под другой личностью защищает сверка владельца
+    // в координаторе.
+    void offlineAwareLogout('session_lost')
     api.clearToken()
     queryClient.clear()
     navigate(api.loginPathWithReturnTo(`${location.pathname}${location.search}${location.hash}`), {
