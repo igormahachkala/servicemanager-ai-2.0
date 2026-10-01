@@ -31,6 +31,7 @@ import {
 import { queueOffline, useOfflineStatus } from './offline/useOffline'
 import { listOfflineQueue } from './offline/runtime'
 import { deliverTicketComment } from './offline/ticketCommentDelivery'
+import { deliverTicketAttachment } from './offline/attachmentDelivery'
 import { ONLINE_ONLY_ACTION_MESSAGE, OFFLINE_TICKET_NOT_CACHED_MESSAGE } from './offline/onlineOnlyMessage'
 import { formatMobileMutationError } from './mobileActionErrors'
 import { mobilePath } from './mobileRoute'
@@ -898,46 +899,54 @@ export function MobileTicketPage() {
       setTicketAddPhotoError('Недостаточно прав для загрузки')
       return
     }
-    // SMA-MOBILE-OFFLINE-INTEGRATION-113D: в офлайне снимок больше не
-    // отклоняется. Blob ложится в IndexedDB и уходит на сервер при связи
-    // с тем же ключом идемпотентности, поэтому повтор не создаёт дубля.
-    if (!isOnline) {
-      setTicketAddPhotoError(null)
-      setTicketAddPhotoProgress({ current: 0, total: files.length })
-      let saved = 0
-      let failure = ''
-      for (let i = 0; i < files.length; i++) {
-        setTicketAddPhotoProgress({ current: i + 1, total: files.length })
-        const queued = await queueOffline({
-          kind: 'ticket.attachment',
-          target: { ticketId },
-          payload: { scope: ticketResourceScope },
-          blob: files[i],
-        })
-        if (queued.ok) saved += 1
-        // Отказ хранилища не выдаём за успех: техник должен знать, что
-        // снимок не сохранён, и сделать его заново.
-        else failure = queued.message
-      }
-      setTicketAddPhotoProgress(null)
-      clearTicketAddPhotoInputs()
-      setTicketAddPhotoError(
-        failure
-          ? `Не удалось сохранить на устройстве: ${failure}`
-          : saved > 0
-            ? `Сохранено на устройстве: ${saved}. Отправим, когда появится сеть.`
-            : '',
-      )
-      return
-    }
+    // B2-09: тот же online-first контракт, что у комментария. Ключ до сети,
+    // transport failure → очередь с тем же ключом, HTTP 4xx/5xx не в queue.
     setTicketAddPhotoError(null)
     setTicketAddPhotoProgress({ current: 0, total: files.length })
+    let saved = 0
+    let sent = 0
+    let failure = ''
     try {
       for (let i = 0; i < files.length; i++) {
         setTicketAddPhotoProgress({ current: i + 1, total: files.length })
-        await api.uploadTicketAttachment(ticketId, files[i], ticketResourceScope)
+        const file = files[i]
+        const delivery = await deliverTicketAttachment({
+          reportedOnline: isOnline,
+          queueInput: {
+            kind: 'ticket.attachment',
+            target: { ticketId },
+            payload: { scope: ticketResourceScope },
+            blob: file,
+          },
+          send: (idempotencyKey) => api.uploadTicketAttachment(
+            ticketId,
+            file,
+            ticketResourceScope,
+            idempotencyKey,
+          ),
+          enqueue: queueOffline,
+        })
+        if (delivery.kind === 'queue-failed') {
+          failure = delivery.message
+          break
+        }
+        if (delivery.kind === 'queued') saved += 1
+        else sent += 1
       }
-      await invalidateTicketQueries()
+      if (failure) {
+        setTicketAddPhotoError(`Не удалось сохранить на устройстве: ${failure}`)
+      } else if (saved > 0 && sent === 0) {
+        setTicketAddPhotoError(
+          `Сохранено на устройстве: ${saved}. Отправим, когда появится сеть.`,
+        )
+      } else if (saved > 0 && sent > 0) {
+        setTicketAddPhotoError(
+          `Отправлено: ${sent}. Сохранено на устройстве: ${saved}.`,
+        )
+        await invalidateTicketQueries()
+      } else if (sent > 0) {
+        await invalidateTicketQueries()
+      }
     } catch (e: unknown) {
       setTicketAddPhotoError(formatMobileMutationError(e, { operation: 'upload_attachment' }))
     } finally {

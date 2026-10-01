@@ -1746,6 +1746,131 @@ test('B2-4. Safari cross-realm TypeError считается transport failure', 
   )
 })
 
+test('B2-09-1. offline ticket.attachment сохраняется с заранее выделенным ключом', async () => {
+  const { deliverTicketAttachment } = await import('./attachmentDelivery.js')
+  const { store } = makeStore()
+  const result = await deliverTicketAttachment({
+    reportedOnline: false,
+    queueInput: {
+      kind: 'ticket.attachment',
+      target: { ticketId: 'tk-1' },
+      blob: new Blob(['photo']),
+    },
+    send: async () => {
+      throw new Error('send не должен вызываться офлайн')
+    },
+    enqueue: (input) => store.enqueue(input),
+  })
+  assert.equal(result.kind, 'queued')
+  if (result.kind !== 'queued') return
+  assert.ok(result.item.idempotencyKey.startsWith('ticket.attachment:'))
+  assert.equal((await store.listQueue()).length, 1)
+})
+
+test('B2-09-2. transport failure после online кладёт ticket.attachment с тем же ключом', async () => {
+  const { deliverTicketAttachment } = await import('./attachmentDelivery.js')
+  const { store } = makeStore()
+  const keys: string[] = []
+  const result = await deliverTicketAttachment({
+    reportedOnline: true,
+    queueInput: {
+      kind: 'ticket.attachment',
+      target: { ticketId: 'tk-1' },
+      blob: new Blob(['photo']),
+    },
+    send: async (key) => {
+      keys.push(key)
+      throw new TypeError('Failed to fetch')
+    },
+    enqueue: (input) => {
+      keys.push(input.idempotencyKey || '')
+      return store.enqueue(input)
+    },
+  })
+  assert.equal(result.kind, 'queued')
+  assert.equal(keys.length, 2)
+  assert.equal(keys[0], keys[1], 'online и fallback используют один ключ')
+})
+
+test('B2-09-3. application HTTP error не кладёт ticket.attachment в queue', async () => {
+  const { deliverTicketAttachment } = await import('./attachmentDelivery.js')
+  const { store } = makeStore()
+  const err = { name: 'ApiRequestError', status: 500, message: 'Server Error' }
+  await assert.rejects(
+    () => deliverTicketAttachment({
+      reportedOnline: true,
+      queueInput: {
+        kind: 'ticket.attachment',
+        target: { ticketId: 'tk-1' },
+        blob: new Blob(['photo']),
+      },
+      send: async () => { throw err },
+      enqueue: (input) => store.enqueue(input),
+    }),
+  )
+  assert.equal((await store.listQueue()).length, 0)
+})
+
+test('B2-09-4. offline checkpoint.attachment сохраняется с заранее выделенным ключом', async () => {
+  const { deliverCheckpointAttachment } = await import('./attachmentDelivery.js')
+  const { store } = makeStore()
+  const result = await deliverCheckpointAttachment({
+    reportedOnline: false,
+    queueInput: {
+      kind: 'checkpoint.attachment',
+      target: { roundId: 'r-1', checkpointId: 'c-1' },
+      blob: new Blob(['cp']),
+    },
+    send: async () => {
+      throw new Error('send не должен вызываться офлайн')
+    },
+    enqueue: (input) => store.enqueue(input),
+  })
+  assert.equal(result.kind, 'queued')
+  if (result.kind !== 'queued') return
+  assert.ok(result.item.idempotencyKey.startsWith('checkpoint.attachment:'))
+  assert.equal((await store.listQueue()).length, 1)
+})
+
+test('B2-09-5. transport failure после online кладёт checkpoint.attachment с тем же ключом', async () => {
+  const { deliverCheckpointAttachment } = await import('./attachmentDelivery.js')
+  const { store } = makeStore()
+  const keys: string[] = []
+  const result = await deliverCheckpointAttachment({
+    reportedOnline: true,
+    queueInput: {
+      kind: 'checkpoint.attachment',
+      target: { roundId: 'r-1', checkpointId: 'c-1' },
+      blob: new Blob(['cp']),
+    },
+    send: async (key) => {
+      keys.push(key)
+      throw new TypeError('Failed to fetch')
+    },
+    enqueue: (input) => {
+      keys.push(input.idempotencyKey || '')
+      return store.enqueue(input)
+    },
+  })
+  assert.equal(result.kind, 'queued')
+  assert.equal(keys.length, 2)
+  assert.equal(keys[0], keys[1], 'online и fallback используют один ключ')
+})
+
+test('B2-09-6. экраны вложений идут через deliver-хелперы', async () => {
+  const { readFileSync } = await import('node:fs')
+  const ticketPage = readFileSync(
+    new URL('../../../src/mobile/MobileTicketPage.tsx', import.meta.url),
+    'utf8',
+  )
+  const runPage = readFileSync(
+    new URL('../../../src/mobile/MobileInspectionRunPage.tsx', import.meta.url),
+    'utf8',
+  )
+  assert.match(ticketPage, /deliverTicketAttachment\(/)
+  assert.match(runPage, /deliverCheckpointAttachment\(/)
+})
+
 test('баннер очереди: склонение действий', async () => {
   const { formatPendingActionsLabel, offlinePendingBannerText } = await import('./useOffline.js')
   assert.equal(formatPendingActionsLabel(1), '1 действие ожидает отправки')
