@@ -32,6 +32,8 @@ import { queueOffline, useOfflineStatus } from './offline/useOffline'
 import { listOfflineQueue } from './offline/runtime'
 import { deliverTicketComment } from './offline/ticketCommentDelivery'
 import { deliverTicketAttachment } from './offline/attachmentDelivery'
+import { cacheTicketSnapshot, readTicketSnapshot } from './offline/ticketCache'
+import { cacheLocationSnapshot } from './offline/locationCache'
 import { ONLINE_ONLY_ACTION_MESSAGE, OFFLINE_TICKET_NOT_CACHED_MESSAGE } from './offline/onlineOnlyMessage'
 import { formatMobileMutationError } from './mobileActionErrors'
 import { mobilePath } from './mobileRoute'
@@ -429,6 +431,8 @@ export function MobileTicketPage() {
       if (!getOnlineStatus()) {
         const cached = loadTicketDetailCache(ticketId, scopeNorm) ?? loadAnyTicketDetailCache(ticketId)
         if (cached?.data?.ticket) return cached.data.ticket
+        const idbTicket = await readTicketSnapshot<api.TicketGetOne>(ticketId)
+        if (idbTicket) return idbTicket
         throw new Error(OFFLINE_TICKET_NOT_CACHED_MESSAGE)
       }
 
@@ -619,6 +623,13 @@ export function MobileTicketPage() {
       attachments: attachmentsQ.data ?? [],
       timeline: timelineQ.data ?? null,
     })
+    // Entity-кэш в IDB по пользователю. Детальный localStorage-срез пока
+    // остаётся (план 3). Location из ответа заявки — путь записи площадки.
+    void cacheTicketSnapshot(ticketQ.data as { id: string } & Record<string, unknown>)
+    const loc = ticketQ.data.location
+    if (loc?.id) {
+      void cacheLocationSnapshot(loc as { id: string } & Record<string, unknown>)
+    }
   }, [
     ticketId,
     ticketResourceScope.companyId,

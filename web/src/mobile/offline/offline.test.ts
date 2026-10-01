@@ -1871,6 +1871,35 @@ test('B2-09-6. экраны вложений идут через deliver-хел�
   assert.match(runPage, /deliverCheckpointAttachment\(/)
 })
 
+test('entity cache helpers: ticket и location пишутся и читаются', async () => {
+  const { cacheTicketSnapshot, readTicketSnapshot } = await import('./ticketCache.js')
+  const { cacheLocationSnapshot, readLocationSnapshot } = await import('./locationCache.js')
+  setOfflineDriverFactory(() => new MemoryDriver())
+  await openOfflineSession({ id: 'user-1', companyId: 'co-1' }, { legacyStorage: null })
+
+  await cacheTicketSnapshot({ id: 'tk-42', problemText: 'течь', status: 'IN_PROGRESS' })
+  await cacheLocationSnapshot({ id: 'loc-9', name: 'Склад' })
+
+  const ticket = await readTicketSnapshot<{ id: string; problemText: string }>('tk-42')
+  const location = await readLocationSnapshot<{ id: string; name: string }>('loc-9')
+  assert.equal(ticket?.problemText, 'течь')
+  assert.equal(location?.name, 'Склад')
+
+  await wipeOfflineSession({ id: 'user-1', companyId: 'co-1' })
+  setOfflineDriverFactory(null)
+})
+
+test('entity cache: MobileTicketPage пишет ticket/location и читает IDB fallback', async () => {
+  const { readFileSync } = await import('node:fs')
+  const page = readFileSync(
+    new URL('../../../src/mobile/MobileTicketPage.tsx', import.meta.url),
+    'utf8',
+  )
+  assert.match(page, /cacheTicketSnapshot\(/)
+  assert.match(page, /cacheLocationSnapshot\(/)
+  assert.match(page, /readTicketSnapshot/)
+})
+
 test('баннер очереди: склонение действий', async () => {
   const { formatPendingActionsLabel, offlinePendingBannerText } = await import('./useOffline.js')
   assert.equal(formatPendingActionsLabel(1), '1 действие ожидает отправки')
