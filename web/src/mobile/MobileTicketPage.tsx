@@ -31,7 +31,7 @@ import {
 import { queueOffline, useOfflineStatus } from './offline/useOffline'
 import { listOfflineQueue } from './offline/runtime'
 import { deliverTicketComment } from './offline/ticketCommentDelivery'
-import { ONLINE_ONLY_ACTION_MESSAGE } from './offline/onlineOnlyMessage'
+import { ONLINE_ONLY_ACTION_MESSAGE, OFFLINE_TICKET_NOT_CACHED_MESSAGE } from './offline/onlineOnlyMessage'
 import { formatMobileMutationError } from './mobileActionErrors'
 import { mobilePath } from './mobileRoute'
 import {
@@ -428,7 +428,7 @@ export function MobileTicketPage() {
       if (!getOnlineStatus()) {
         const cached = loadTicketDetailCache(ticketId, scopeNorm) ?? loadAnyTicketDetailCache(ticketId)
         if (cached?.data?.ticket) return cached.data.ticket
-        throw new Error('Нет сохранённой заявки. Откройте заявку при подключении к сети хотя бы раз.')
+        throw new Error(OFFLINE_TICKET_NOT_CACHED_MESSAGE)
       }
 
       const urlCo = (searchParams.get('companyId') || '').trim()
@@ -1551,10 +1551,16 @@ export function MobileTicketPage() {
       ) : null}
 
       {ticketQ.isLoading ? <div className="mobileCard mobileMeta">Загрузка…</div> : null}
-      {ticketQ.isError ? (
-        <div className="mobileNotice mobileNoticeError">
-          {formatMobileMutationError(ticketQ.error, { operation: 'other' })}
-        </div>
+      {ticketQ.isError && !ticket ? (
+        !isOnline ? (
+          <div className="mobileNotice mobileNoticeError" role="alert">
+            {OFFLINE_TICKET_NOT_CACHED_MESSAGE}
+          </div>
+        ) : (
+          <div className="mobileNotice mobileNoticeError">
+            {formatMobileMutationError(ticketQ.error, { operation: 'other' })}
+          </div>
+        )
       ) : null}
 
       {ticket ? (

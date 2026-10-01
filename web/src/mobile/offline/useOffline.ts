@@ -23,11 +23,34 @@ export function useOfflineStatus(): OfflineStatus {
 }
 
 /**
+ * Склонение «N действие/действия/действий» для баннера очереди.
+ * Число 0 не показывается: вызывающий код рисует баннер только при pending > 0.
+ */
+export function formatPendingActionsLabel(count: number): string {
+  const n = Math.max(0, Math.floor(count))
+  const mod10 = n % 10
+  const mod100 = n % 100
+  if (mod10 === 1 && mod100 !== 11) return `${n} действие ожидает отправки`
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return `${n} действия ожидают отправки`
+  }
+  return `${n} действий ожидают отправки`
+}
+
+/** Баннер шапки при отсутствии сети и непустой очереди. */
+export function offlinePendingBannerText(count: number): string {
+  return `Нет сети · ${formatPendingActionsLabel(count)}`
+}
+
+/**
  * Подпись общего состояния для шапки. Порядок ветвей — по важности для
  * техника: сначала то, что требует его вмешательства.
  */
 export function offlineHeadline(status: OfflineStatus): { state: OfflineSyncState | 'offline'; text: string } | null {
   if (!status.online) {
+    if (status.pending > 0) {
+      return { state: 'offline', text: offlinePendingBannerText(status.pending) }
+    }
     return { state: 'offline', text: 'Нет сети' }
   }
   if (status.attention > 0) {
@@ -37,7 +60,7 @@ export function offlineHeadline(status: OfflineStatus): { state: OfflineSyncStat
     return { state: 'syncing', text: OFFLINE_SYNC_LABEL.syncing }
   }
   if (status.pending > 0) {
-    return { state: 'pending', text: `${OFFLINE_SYNC_LABEL.pending}: ${status.pending}` }
+    return { state: 'pending', text: formatPendingActionsLabel(status.pending) }
   }
   return null
 }

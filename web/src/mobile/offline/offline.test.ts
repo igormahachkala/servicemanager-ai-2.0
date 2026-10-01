@@ -1745,3 +1745,46 @@ test('B2-4. Safari cross-realm TypeError считается transport failure', 
     true,
   )
 })
+
+test('баннер очереди: склонение действий', async () => {
+  const { formatPendingActionsLabel, offlinePendingBannerText } = await import('./useOffline.js')
+  assert.equal(formatPendingActionsLabel(1), '1 действие ожидает отправки')
+  assert.equal(formatPendingActionsLabel(2), '2 действия ожидают отправки')
+  assert.equal(formatPendingActionsLabel(4), '4 действия ожидают отправки')
+  assert.equal(formatPendingActionsLabel(5), '5 действий ожидают отправки')
+  assert.equal(formatPendingActionsLabel(21), '21 действие ожидает отправки')
+  assert.equal(
+    offlinePendingBannerText(4),
+    'Нет сети · 4 действия ожидают отправки',
+  )
+})
+
+test('текст незакэшированной заявки offline зафиксирован', async () => {
+  const { OFFLINE_TICKET_NOT_CACHED_MESSAGE } = await import('./onlineOnlyMessage.js')
+  assert.equal(
+    OFFLINE_TICKET_NOT_CACHED_MESSAGE,
+    'Заявка не подгружена! Для отображения необходимо стабильное интернет-соединение.',
+  )
+  const ticketPage = (await import('node:fs')).readFileSync(
+    new URL('../../../src/mobile/MobileTicketPage.tsx', import.meta.url),
+    'utf8',
+  )
+  assert.match(ticketPage, /OFFLINE_TICKET_NOT_CACHED_MESSAGE/)
+})
+
+test('корневой ErrorFallback перезагружает страницу', async () => {
+  const app = (await import('node:fs')).readFileSync(
+    new URL('../../../src/App.tsx', import.meta.url),
+    'utf8',
+  )
+  assert.match(app, /window\.location\.reload\(\)/)
+  assert.match(app, /Перезагрузить экран/)
+})
+
+test('оболочка заранее тянет chunk профиля', async () => {
+  const shell = (await import('node:fs')).readFileSync(
+    new URL('../../../src/mobile/MobileShell.tsx', import.meta.url),
+    'utf8',
+  )
+  assert.match(shell, /import\('\.\/MobileProfile'\)/)
+})

@@ -23,6 +23,7 @@ export {
 } from './returnToNavigation'
 import { readMaxInitData } from '../max/maxBridge'
 import { runSmaLogout } from './smaLogout'
+import { clearMeCache, readMeCache, writeMeCache } from '../mobile/offline/meCache'
 
 export type Role =
   | 'PLATFORM_ADMIN'
@@ -1580,6 +1581,7 @@ export function clearToken() {
   // Явная очистка дефолта осталась: снятие галочки «по умолчанию» (clearPersistedScope),
   // hard-reset /logout (LogoutAndRedirect) и QA `?clear=1` чистят только известные SMA-ключи.
   clearImpersonationState()
+  clearMeCache()
 }
 
 export function persistLoginSession(result: LoginResponse) {
@@ -2152,11 +2154,33 @@ export async function impersonate(companyId: string): Promise<ImpersonateRespons
 }
 
 export async function me(): Promise<Me> {
-  return request<Me>('/auth/me')
+  try {
+    const data = await request<Me>('/auth/me')
+    writeMeCache(data)
+    return data
+  } catch (error) {
+    // Без сети и при транспортных сбоях отдаём последний успешный снимок.
+    // 401/403 кэшем не маскируем: сессия отвергнута сервером.
+    if (!isSessionRejected(error)) {
+      const cached = readMeCache()
+      if (cached) return cached
+    }
+    throw error
+  }
 }
 
 export async function meWithTimeout(timeoutMs: number): Promise<Me> {
-  return request<Me>('/auth/me', { timeoutMs })
+  try {
+    const data = await request<Me>('/auth/me', { timeoutMs })
+    writeMeCache(data)
+    return data
+  } catch (error) {
+    if (!isSessionRejected(error)) {
+      const cached = readMeCache()
+      if (cached) return cached
+    }
+    throw error
+  }
 }
 
 export async function fetchNotifications(): Promise<NotificationsListResponse> {

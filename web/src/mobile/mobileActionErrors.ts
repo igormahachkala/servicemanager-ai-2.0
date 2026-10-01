@@ -52,6 +52,7 @@ function isNetworkError(msg: string): boolean {
   if (m.includes('fetch') && m.includes('aborted')) return true
   if (typeof navigator !== 'undefined' && !navigator.onLine && (m.includes('fetch') || m === '')) return true
   if (/нет сохранённых заявок/i.test(msg)) return true
+  if (/заявка не подгружена/i.test(msg)) return true
   return false
 }
 
