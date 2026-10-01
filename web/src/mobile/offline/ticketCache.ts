@@ -1,9 +1,8 @@
 /**
  * Снимок заявки в IndexedDB (namespace пользователя).
  *
- * Не заменяет детальный localStorage-кэш (ticket+attachments+timeline) —
- * тот переносится в плане 3. Здесь entity `tickets` для холодного показа
- * карточки, когда legacy-среза ещё нет.
+ * Детальный срез (ticket+attachments+timeline) живёт в `ticketDetailCache`.
+ * Здесь entity `tickets` — холодный показ карточки, когда детального среза нет.
  */
 
 import { offlineStore } from './runtime.js'

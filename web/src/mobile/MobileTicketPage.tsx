@@ -22,18 +22,18 @@ import {
   MOBILE_HOME_TAB_LABELS,
   type MobileHomeBoardChipId,
 } from './mobileHomeBoardFilters'
-import {
-  getOnlineStatus,
-  loadAnyTicketDetailCache,
-  loadTicketDetailCache,
-  saveTicketDetailCache,
-} from './offlineQueue'
+import { getOnlineStatus } from './offlineQueue'
 import { queueOffline, useOfflineStatus } from './offline/useOffline'
 import { listOfflineQueue } from './offline/runtime'
 import { deliverTicketComment } from './offline/ticketCommentDelivery'
 import { deliverTicketAttachment } from './offline/attachmentDelivery'
 import { cacheTicketSnapshot, readTicketSnapshot } from './offline/ticketCache'
 import { cacheLocationSnapshot } from './offline/locationCache'
+import {
+  loadAnyTicketDetailCache,
+  loadTicketDetailCache,
+  saveTicketDetailCache,
+} from './offline/ticketDetailCache'
 import { ONLINE_ONLY_ACTION_MESSAGE, OFFLINE_TICKET_NOT_CACHED_MESSAGE } from './offline/onlineOnlyMessage'
 import { formatMobileMutationError } from './mobileActionErrors'
 import { mobilePath } from './mobileRoute'
@@ -429,7 +429,8 @@ export function MobileTicketPage() {
       if (!ticketId) throw new Error('Нет идентификатора заявки')
 
       if (!getOnlineStatus()) {
-        const cached = loadTicketDetailCache(ticketId, scopeNorm) ?? loadAnyTicketDetailCache(ticketId)
+        const cached =
+          (await loadTicketDetailCache(ticketId, scopeNorm)) ?? (await loadAnyTicketDetailCache(ticketId))
         if (cached?.data?.ticket) return cached.data.ticket
         const idbTicket = await readTicketSnapshot<api.TicketGetOne>(ticketId)
         if (idbTicket) return idbTicket
@@ -555,9 +556,9 @@ export function MobileTicketPage() {
 
       if (!getOnlineStatus()) {
         const cached =
-          loadTicketDetailCache(ticketId, ticketResourceScope) ??
-          loadTicketDetailCache(ticketId, scopeNorm) ??
-          loadAnyTicketDetailCache(ticketId)
+          (await loadTicketDetailCache(ticketId, ticketResourceScope)) ??
+          (await loadTicketDetailCache(ticketId, scopeNorm)) ??
+          (await loadAnyTicketDetailCache(ticketId))
         if (cached?.data) return cached.data.attachments
         throw new Error('Нет сохранённых вложений для офлайна.')
       }
@@ -602,7 +603,8 @@ export function MobileTicketPage() {
     ],
     queryFn: async () => {
       if (!getOnlineStatus()) {
-        const cached = loadTicketDetailCache(ticketId, scopeNorm) ?? loadAnyTicketDetailCache(ticketId)
+        const cached =
+          (await loadTicketDetailCache(ticketId, scopeNorm)) ?? (await loadAnyTicketDetailCache(ticketId))
         if (cached?.data) return cached.data.timeline ?? null
         throw new Error('Нет сохранённой истории для офлайна.')
       }
@@ -616,15 +618,14 @@ export function MobileTicketPage() {
     if (!attachmentsQ.isSuccess) return
     if (timelineQ.isError) return
     if (!timelineQ.isFetched) return
-    saveTicketDetailCache({
+    void saveTicketDetailCache({
       ticketId,
       scope: ticketResourceScope,
       ticket: ticketQ.data,
       attachments: attachmentsQ.data ?? [],
       timeline: timelineQ.data ?? null,
     })
-    // Entity-кэш в IDB по пользователю. Детальный localStorage-срез пока
-    // остаётся (план 3). Location из ответа заявки — путь записи площадки.
+    // Entity-кэш заявки и площадки — для холодного показа без детального среза.
     void cacheTicketSnapshot(ticketQ.data as { id: string } & Record<string, unknown>)
     const loc = ticketQ.data.location
     if (loc?.id) {

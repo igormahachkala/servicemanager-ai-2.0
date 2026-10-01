@@ -281,6 +281,27 @@ export class OfflineStore {
     return this.driver.get<T>('locations', id)
   }
 
+  // ── кэш доски и детальной карточки (план 3) ─────────────────────────────
+  //
+  // Ключ доски — JSON scope. Ключ заявки — `ticketId::scope`, как в legacy
+  // localStorage. Хранилище привязано к namespace пользователя.
+
+  async cacheBoardEntry(key: string, entry: { savedAt: string; data: unknown }) {
+    return this.driver.put('boardCache', key, entry)
+  }
+  async readBoardEntry<T>(key: string): Promise<T | null> {
+    return this.driver.get<T>('boardCache', key)
+  }
+  async cacheTicketDetailEntry(key: string, entry: { savedAt: string; data: unknown }) {
+    return this.driver.put('ticketDetailCache', key, entry)
+  }
+  async readTicketDetailEntry<T>(key: string): Promise<T | null> {
+    return this.driver.get<T>('ticketDetailCache', key)
+  }
+  async listTicketDetailKeys(): Promise<string[]> {
+    return this.driver.getAllKeys('ticketDetailCache')
+  }
+
   // ── метаданные синхронизации ────────────────────────────────────────────
 
   async getMeta<T>(key: string): Promise<T | null> {

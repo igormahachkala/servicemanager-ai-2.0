@@ -16,6 +16,7 @@
 import { createDriver, MemoryDriver, UnavailableDriver, type OfflineDriver } from './driver.js'
 import { OfflineStore } from './store.js'
 import { migrateLegacyQueue, type MigrationReport } from './migration.js'
+import { migrateLegacyUiCaches, type UiCacheMigrationReport } from './legacyUiCacheMigration.js'
 import { offlineDatabaseName, offlineNamespace } from './types.js'
 
 export type OfflineIdentity = { id?: string | null; companyId?: string | null } | null | undefined
@@ -25,6 +26,7 @@ export type OpenResult = {
   namespace: string | null
   available: boolean
   migration?: MigrationReport
+  uiCacheMigration?: UiCacheMigrationReport
   /** Русское объяснение, если офлайн-режим недоступен. */
   unavailableReason?: string
 }
@@ -90,8 +92,9 @@ export async function openOfflineSession(
         ? window.localStorage
         : null
   const migration = await migrateLegacyQueue(store, legacyStorage)
+  const uiCacheMigration = await migrateLegacyUiCaches(store, legacyStorage)
 
-  return { store, namespace, available: true, migration }
+  return { store, namespace, available: true, migration, uiCacheMigration }
 }
 
 /**

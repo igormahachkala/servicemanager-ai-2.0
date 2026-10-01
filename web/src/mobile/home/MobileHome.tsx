@@ -31,7 +31,8 @@ import {
   writePersistedMobileHomeBoardUi,
 } from '../mobileHomeListUtils'
 import { formatMobileMutationError } from '../mobileActionErrors'
-import { getOnlineStatus, loadBoardCache, saveBoardCache, useOnlineStatus } from '../offlineQueue'
+import { getOnlineStatus, useOnlineStatus } from '../offlineQueue'
+import { loadBoardCache, saveBoardCache } from '../offline/boardCache'
 import { queueOffline } from '../offline/useOffline'
 import { ONLINE_ONLY_ACTION_MESSAGE } from '../offline/onlineOnlyMessage'
 import { mobilePath } from '../mobileRoute'
@@ -104,12 +105,12 @@ export function MobileHome() {
     queryKey: ['mobile-home-board', linkedClientCompanyId, companyId, isOnline],
     queryFn: async () => {
       if (!getOnlineStatus()) {
-        const cached = loadBoardCache(pageScope)
+        const cached = await loadBoardCache(pageScope)
         if (cached?.data) return cached.data
         throw new Error('Нет сохранённых заявок. Откройте главную при подключении к сети хотя бы раз.')
       }
       const data = await api.board({ linkedClientCompanyId: pageScope.linkedClientCompanyId, companyId: pageScope.companyId, take: 500 })
-      saveBoardCache(pageScope, data)
+      await saveBoardCache(pageScope, data)
       return data
     },
     // Техник без контура (субподрядчик SECONDARY: bound-contexts=[], [0] нет) тоже грузит board —

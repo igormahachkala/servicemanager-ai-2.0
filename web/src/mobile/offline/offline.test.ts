@@ -1900,6 +1900,150 @@ test('entity cache: MobileTicketPage пишет ticket/location и читает 
   assert.match(page, /readTicketSnapshot/)
 })
 
+test('план 3. board и ticket detail пишутся и читаются в IDB', async () => {
+  const { saveBoardCache, loadBoardCache } = await import('./boardCache.js')
+  const {
+    saveTicketDetailCache,
+    loadTicketDetailCache,
+    loadAnyTicketDetailCache,
+  } = await import('./ticketDetailCache.js')
+
+  setOfflineDriverFactory(() => new MemoryDriver())
+  await openOfflineSession({ id: 'user-1', companyId: 'co-1' }, { legacyStorage: null })
+
+  const scope = { linkedClientCompanyId: 'client-1' }
+  await saveBoardCache(scope, { columns: [{ id: 'NEW', cards: [{ id: 'tk-1' }] }] })
+  const board = await loadBoardCache<{ columns: Array<{ id: string }> }>(scope)
+  assert.equal(board?.data.columns[0]?.id, 'NEW')
+
+  await saveTicketDetailCache({
+    ticketId: 'tk-1',
+    scope,
+    ticket: { id: 'tk-1', problemText: 'течь' },
+    attachments: [{ id: 'att-1' }],
+    timeline: { items: [] },
+  })
+  const detail = await loadTicketDetailCache('tk-1', scope)
+  assert.equal((detail?.data.ticket as { problemText?: string })?.problemText, 'течь')
+  assert.equal(detail?.data.attachments.length, 1)
+
+  const any = await loadAnyTicketDetailCache('tk-1')
+  assert.equal((any?.data.ticket as { id?: string })?.id, 'tk-1')
+
+  await wipeOfflineSession({ id: 'user-1', companyId: 'co-1' })
+  setOfflineDriverFactory(null)
+})
+
+test('план 3. два namespace не делят board/ticket detail', async () => {
+  const { saveBoardCache, loadBoardCache } = await import('./boardCache.js')
+  const { saveTicketDetailCache, loadTicketDetailCache } = await import('./ticketDetailCache.js')
+
+  const drivers = new Map<string, MemoryDriver>()
+  setOfflineDriverFactory((name) => {
+    if (!drivers.has(name)) drivers.set(name, new MemoryDriver())
+    return drivers.get(name)!
+  })
+
+  await openOfflineSession({ id: 'user-1', companyId: 'co-1' }, { legacyStorage: null })
+  await saveBoardCache(undefined, { columns: [{ id: 'SECRET', cards: [] }] })
+  await saveTicketDetailCache({
+    ticketId: 'tk-secret',
+    scope: undefined,
+    ticket: { id: 'tk-secret', problemText: 'чужое' },
+    attachments: [],
+    timeline: null,
+  })
+
+  await openOfflineSession({ id: 'user-2', companyId: 'co-1' }, { legacyStorage: null })
+  assert.equal(await loadBoardCache(undefined), null)
+  assert.equal(await loadTicketDetailCache('tk-secret'), null)
+
+  await wipeOfflineSession({ id: 'user-2', companyId: 'co-1' })
+  await wipeOfflineSession({ id: 'user-1', companyId: 'co-1' })
+  setOfflineDriverFactory(null)
+})
+
+test('план 3. write-path MobileHome/MobileTicketPage не пишет legacy localStorage-ключи', async () => {
+  const { readFileSync } = await import('node:fs')
+  const home = readFileSync(new URL('../../../src/mobile/home/MobileHome.tsx', import.meta.url), 'utf8')
+  const ticket = readFileSync(new URL('../../../src/mobile/MobileTicketPage.tsx', import.meta.url), 'utf8')
+  const queue = readFileSync(new URL('../../../src/mobile/offlineQueue.ts', import.meta.url), 'utf8')
+
+  assert.match(home, /from '\.\.\/offline\/boardCache'/)
+  assert.match(ticket, /from '\.\/offline\/ticketDetailCache'/)
+  assert.doesNotMatch(home, /sm_mobile_board_cache_v1/)
+  assert.doesNotMatch(ticket, /sm_mobile_ticket_cache_v1/)
+  assert.doesNotMatch(queue, /export function saveBoardCache/)
+  assert.doesNotMatch(queue, /export function saveTicketDetailCache/)
+  assert.doesNotMatch(queue, /safeWriteJson\(OFFLINE_BOARD_CACHE_KEY/)
+  assert.doesNotMatch(queue, /safeWriteJson\(OFFLINE_TICKET_CACHE_KEY/)
+})
+
+test('план 3. migrate переносит legacy board/ticket cache в IDB и снимает ключи', async () => {
+  const {
+    migrateLegacyUiCaches,
+    LEGACY_BOARD_CACHE_KEY,
+    LEGACY_TICKET_CACHE_KEY,
+  } = await import('./legacyUiCacheMigration.js')
+  const { loadBoardCache } = await import('./boardCache.js')
+  const { loadTicketDetailCache } = await import('./ticketDetailCache.js')
+  const { boardCacheScopeKey, ticketDetailCacheKey } = await import('./cacheKeys.js')
+
+  const scope = { companyId: 'co-obs' }
+  const memory = new Map<string, string>()
+  memory.set(
+    LEGACY_BOARD_CACHE_KEY,
+    JSON.stringify({
+      [boardCacheScopeKey(scope)]: {
+        savedAt: '2026-01-01T00:00:00.000Z',
+        data: { columns: [{ id: 'NEW', cards: [] }] },
+      },
+    }),
+  )
+  memory.set(
+    LEGACY_TICKET_CACHE_KEY,
+    JSON.stringify({
+      [ticketDetailCacheKey('tk-9', scope)]: {
+        savedAt: '2026-01-01T00:00:00.000Z',
+        data: {
+          ticket: { id: 'tk-9', problemText: 'legacy' },
+          attachments: [],
+          timeline: null,
+        },
+      },
+    }),
+  )
+  const storage = {
+    getItem: (key: string) => memory.get(key) ?? null,
+    removeItem: (key: string) => {
+      memory.delete(key)
+    },
+    setItem: (key: string, value: string) => {
+      memory.set(key, value)
+    },
+  }
+
+  setOfflineDriverFactory(() => new MemoryDriver())
+  const opened = await openOfflineSession({ id: 'user-1', companyId: 'co-1' }, { legacyStorage: storage })
+  assert.ok(opened.store)
+  // openOfflineSession уже вызвал migrate — проверяем результат.
+  assert.equal(opened.uiCacheMigration?.boardEntries, 1)
+  assert.equal(opened.uiCacheMigration?.ticketEntries, 1)
+  assert.equal(memory.has(LEGACY_BOARD_CACHE_KEY), false)
+  assert.equal(memory.has(LEGACY_TICKET_CACHE_KEY), false)
+
+  const board = await loadBoardCache<{ columns: Array<{ id: string }> }>(scope)
+  assert.equal(board?.data.columns[0]?.id, 'NEW')
+  const detail = await loadTicketDetailCache('tk-9', scope)
+  assert.equal((detail?.data.ticket as { problemText?: string })?.problemText, 'legacy')
+
+  const second = await migrateLegacyUiCaches(opened.store!, storage)
+  assert.equal(second.alreadyDone, true)
+
+  await wipeOfflineSession({ id: 'user-1', companyId: 'co-1' })
+  setOfflineDriverFactory(null)
+})
+
 test('баннер очереди: склонение действий', async () => {
   const { formatPendingActionsLabel, offlinePendingBannerText } = await import('./useOffline.js')
   assert.equal(formatPendingActionsLabel(1), '1 действие ожидает отправки')
