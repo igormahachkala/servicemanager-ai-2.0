@@ -727,10 +727,22 @@ export function MobileInspectionRunPage() {
                       </div>
                     ) : null}
 
-                    {/* Ссылки нет намеренно: заявки на сервере ещё не существует. */}
+                    {/* После offline-создания открываем local: карточку для комментария/фото. */}
                     {ticketQueuedOffline && !createdTicketId ? (
-                      <div style={{ fontSize: '0.8rem', color: '#92400e', fontWeight: 600 }}>
-                        Заявка сохранена на устройстве · ожидает отправки
+                      <div style={{ display: 'grid', gap: 6 }}>
+                        <div style={{ fontSize: '0.8rem', color: '#92400e', fontWeight: 600 }}>
+                          Заявка сохранена на устройстве · ожидает отправки
+                        </div>
+                        <div className="mobilePatrolItemActions">
+                          <Link
+                            to={linkedTicketHref(`${LOCAL_ID_PREFIX}${runId}:${item.id}`)}
+                            state={mobileTicketNavState('home', targetClientCompanyId || run?.companyId)}
+                            className="mobileBtn mobileBtnSecondary"
+                            style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
+                          >
+                            Добавить комментарий или фото
+                          </Link>
+                        </div>
                       </div>
                     ) : null}
 

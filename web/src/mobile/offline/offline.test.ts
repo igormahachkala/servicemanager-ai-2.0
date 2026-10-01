@@ -2086,3 +2086,147 @@ test('оболочка заранее тянет chunk профиля', async ()
   )
   assert.match(shell, /import\('\.\/MobileProfile'\)/)
 })
+
+// ── План 4. dependsOnId UI chain ───────────────────────────────────────────
+
+test('план 4. findParentFromRoundQueueId находит pending ticket.fromRound', async () => {
+  const { findParentFromRoundQueueId, buildLocalTicketFromQueue } = await import('./localTicket.js')
+  const { store } = makeStore()
+  const localTicketId = `${LOCAL_ID_PREFIX}run-1:cp-1`
+  const parent = await store.enqueue({
+    kind: 'ticket.fromRound',
+    target: { ticketId: localTicketId, roundId: 'run-1', checkpointId: 'cp-1' },
+    payload: { categoryId: 'cat-1', title: 'Течь', urgency: 'URGENT' },
+    producesTicketId: true,
+  })
+  assert.equal(parent.ok, true)
+  const queue = await store.listQueue()
+  assert.equal(findParentFromRoundQueueId(localTicketId, queue), parent.ok ? parent.item.id : undefined)
+  assert.equal(findParentFromRoundQueueId('server-tk', queue), undefined)
+  assert.equal(findParentFromRoundQueueId(`${LOCAL_ID_PREFIX}other`, queue), undefined)
+
+  const stub = buildLocalTicketFromQueue(localTicketId, queue)
+  assert.ok(stub)
+  assert.equal(stub?.id, localTicketId)
+  assert.equal(stub?.problemText, 'Течь')
+  assert.equal(stub?.urgency, 'URGENT')
+  assert.equal(stub?.status, 'NEW')
+})
+
+test('план 4. findParentFromRoundQueueId игнорирует failed/attention', async () => {
+  const { findParentFromRoundQueueId } = await import('./localTicket.js')
+  const { store } = makeStore()
+  const localTicketId = `${LOCAL_ID_PREFIX}run-1:cp-2`
+  const parent = await store.enqueue({
+    kind: 'ticket.fromRound',
+    target: { ticketId: localTicketId },
+    payload: { categoryId: 'cat-1' },
+    producesTicketId: true,
+  })
+  assert.equal(parent.ok, true)
+  if (!parent.ok) return
+  await store.setStatus(parent.item.id, 'attention', { attentionReason: 'доступ отозван' })
+  assert.equal(findParentFromRoundQueueId(localTicketId, await store.listQueue()), undefined)
+})
+
+test('план 4. child comment enqueue несёт dependsOnId родителя', async () => {
+  const { findParentFromRoundQueueId } = await import('./localTicket.js')
+  const { deliverTicketComment } = await import('./ticketCommentDelivery.js')
+  const { store } = makeStore()
+  const localTicketId = `${LOCAL_ID_PREFIX}run-1:cp-3`
+  const parent = await store.enqueue({
+    kind: 'ticket.fromRound',
+    target: { ticketId: localTicketId, roundId: 'run-1', checkpointId: 'cp-3' },
+    payload: { categoryId: 'cat-1', title: 'Шум' },
+    producesTicketId: true,
+  })
+  assert.equal(parent.ok, true)
+  const dependsOnId = findParentFromRoundQueueId(localTicketId, await store.listQueue())
+  assert.equal(dependsOnId, parent.ok ? parent.item.id : undefined)
+
+  const result = await deliverTicketComment({
+    reportedOnline: false,
+    queueInput: {
+      kind: 'ticket.comment',
+      target: { ticketId: localTicketId },
+      payload: { comment: 'фото позже' },
+      dependsOnId,
+    },
+    send: async () => {
+      throw new Error('send не должен вызываться для local:')
+    },
+    enqueue: (input) => store.enqueue(input),
+  })
+  assert.equal(result.kind, 'queued')
+  if (result.kind !== 'queued') return
+  assert.equal(result.item.dependsOnId, dependsOnId)
+  assert.equal(result.item.target.ticketId, localTicketId)
+
+  const seen: string[] = []
+  const transport: SyncTransport = {
+    async send(item) {
+      seen.push(item.kind)
+      return item.kind === 'ticket.fromRound'
+        ? { kind: 'ok', serverId: 'tk-server-3' }
+        : { kind: 'ok' }
+    },
+  }
+  await new SyncCoordinator(store, transport, { useWebLocks: false }).run()
+  assert.deepEqual(seen, ['ticket.fromRound', 'ticket.comment'])
+})
+
+test('план 4. child attachment enqueue несёт dependsOnId родителя', async () => {
+  const { findParentFromRoundQueueId } = await import('./localTicket.js')
+  const { deliverTicketAttachment } = await import('./attachmentDelivery.js')
+  const { store } = makeStore()
+  const localTicketId = `${LOCAL_ID_PREFIX}run-1:cp-4`
+  const parent = await store.enqueue({
+    kind: 'ticket.fromRound',
+    target: { ticketId: localTicketId },
+    payload: { categoryId: 'cat-1' },
+    producesTicketId: true,
+  })
+  assert.equal(parent.ok, true)
+  const dependsOnId = findParentFromRoundQueueId(localTicketId, await store.listQueue())
+
+  const result = await deliverTicketAttachment({
+    reportedOnline: false,
+    queueInput: {
+      kind: 'ticket.attachment',
+      target: { ticketId: localTicketId },
+      payload: {},
+      blob: new Blob(['pic'], { type: 'image/jpeg' }),
+      dependsOnId,
+    },
+    send: async () => {
+      throw new Error('send не должен вызываться для local:')
+    },
+    enqueue: (input) => store.enqueue(input),
+  })
+  assert.equal(result.kind, 'queued')
+  if (result.kind !== 'queued') return
+  assert.equal(result.item.dependsOnId, dependsOnId)
+  assert.ok(result.item.blobId)
+})
+
+test('план 4. MobileTicketPage и InspectionRun передают dependsOnId для local:', async () => {
+  const { readFileSync } = await import('node:fs')
+  const ticketPage = readFileSync(
+    new URL('../../../src/mobile/MobileTicketPage.tsx', import.meta.url),
+    'utf8',
+  )
+  const runPage = readFileSync(
+    new URL('../../../src/mobile/MobileInspectionRunPage.tsx', import.meta.url),
+    'utf8',
+  )
+
+  assert.match(ticketPage, /findParentFromRoundQueueId/)
+  assert.match(ticketPage, /dependsOnId/)
+  assert.match(ticketPage, /buildLocalTicketFromQueue/)
+  assert.match(ticketPage, /isLocalId\(ticketId\) \? false : isOnline/)
+  assert.match(ticketPage, /Сохранено на устройстве\. Отправим после создания заявки\./)
+
+  assert.match(runPage, /LOCAL_ID_PREFIX\}?\$\{runId\}:\$\{item\.id\}/)
+  assert.match(runPage, /Добавить комментарий или фото/)
+  assert.match(runPage, /ticket\.fromRound/)
+})
