@@ -20,6 +20,8 @@ type Props = {
   actionLabel?: HomePrimaryActionLabel
   onAction?: (ticket: api.TicketCard) => void
   actionProgressLabel?: string | null
+  statusLabelOverride?: string | null
+  statusClassOverride?: string | null
   assignFooter?: { onOpen: () => void; disabled: boolean } | null
   /** E4: быстрая приёмка на карте (accept одним тапом) — только клиент-приёмщик для AWAITING_ACCEPTANCE. */
   acceptFooter?: { onAccept: () => void; busy: boolean } | null
@@ -58,6 +60,8 @@ export function TicketCard({
   actionLabel = null,
   onAction,
   actionProgressLabel = null,
+  statusLabelOverride = null,
+  statusClassOverride = null,
   assignFooter = null,
   acceptFooter = null,
 }: Props) {
@@ -70,8 +74,9 @@ export function TicketCard({
   })
   const urgent = mobileTicketPriorityIsUrgent(ticket.priority ?? 'NORMAL') || ticket.urgency === 'URGENT'
   const overdue = ticket.slaBreached
-  const statusClass = `mobileTicketStatus mobileTicketStatus--${ticket.status}`
-  const cardClass = ['mobileCard', 'mobileTicketCard', `mobileTicketCard--${ticket.status}`, overdue ? 'mobileTicketCardSlaOverdue' : '']
+  const statusKey = statusClassOverride || ticket.status
+  const statusClass = `mobileTicketStatus mobileTicketStatus--${statusKey}`
+  const cardClass = ['mobileCard', 'mobileTicketCard', `mobileTicketCard--${statusKey}`, overdue ? 'mobileTicketCardSlaOverdue' : '']
     .filter(Boolean)
     .join(' ')
 
@@ -111,7 +116,7 @@ export function TicketCard({
                 {urgent ? <span className="mobileSlaUrgentPill" style={{ marginLeft: 6 }}>Срочно</span> : null}
                 {slaLine ? <span className="mobileTicketSlaCountdown" style={{ marginLeft: 6 }}>{slaLine}</span> : null}
               </span>
-              <span className={statusClass}>{mobileTicketStatusLabelRu(ticket.status)}</span>
+              <span className={statusClass}>{statusLabelOverride || mobileTicketStatusLabelRu(ticket.status)}</span>
             </div>
 
             {ticket.assignmentRequestedByCurrentUser ? (

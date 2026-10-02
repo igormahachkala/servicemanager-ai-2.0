@@ -31,9 +31,10 @@ import {
   writePersistedMobileHomeBoardUi,
 } from '../mobileHomeListUtils'
 import { formatMobileMutationError } from '../mobileActionErrors'
-import { getOnlineStatus, useOnlineStatus } from '../offlineQueue'
+import { getOnlineStatus } from '../offlineQueue'
 import { loadBoardCache, saveBoardCache } from '../offline/boardCache'
-import { queueOffline } from '../offline/useOffline'
+import { queueOffline, useOfflineStatus } from '../offline/useOffline'
+import { deliverTicketStatus } from '../offline/statusDelivery'
 import { ONLINE_ONLY_ACTION_MESSAGE } from '../offline/onlineOnlyMessage'
 import { mobilePath } from '../mobileRoute'
 import { HomeHeader } from './HomeHeader'
@@ -53,7 +54,10 @@ export function MobileHome() {
     queryFn: () => api.company(),
     enabled: !!meQ.data && meQ.data.role !== 'CLIENT' && meQ.data.role !== 'TECHNICIAN',
   })
-  const isOnline = useOnlineStatus()
+  const offline = useOfflineStatus()
+  const isOnline = offline.online
+  const liveApiAllowed = offline.liveApiAllowed
+  const [startQueuedIds, setStartQueuedIds] = useState<Set<string>>(() => new Set())
   const linkedClientCompanyId = (search.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
   const companyId = (search.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
   const pageScope = { linkedClientCompanyId: linkedClientCompanyId || undefined, companyId: companyId || undefined }
@@ -413,29 +417,39 @@ export function MobileHome() {
   })
 
   async function handlePrimaryAction(ticket: api.TicketCard) {
-    // Claim и request assignment — только онлайн, как на detail.
-    if (!isOnline && ticket.status === 'NEW') {
+    // Claim и request assignment — только при liveApiAllowed.
+    if (!liveApiAllowed && ticket.status === 'NEW') {
       setHomeActionErr(ONLINE_ONLY_ACTION_MESSAGE)
       return
     }
-    // Start — в очередь, как на detail (не online-only).
-    if (!isOnline && ticket.status === 'ASSIGNED') {
+    if (ticket.status === 'ASSIGNED') {
       const role = meQ.data?.role
       if (role !== 'TECHNICIAN' || ticket.assignedTechnician?.id !== meQ.data?.id) {
         setHomeActionErr('Начать работу может только назначенный техник')
         return
       }
-      const queued = await queueOffline({
-        kind: 'ticket.status',
-        target: { ticketId: ticket.id },
-        payload: { status: 'IN_PROGRESS', scope: pageScope },
+      const delivery = await deliverTicketStatus({
+        reportedOnline: liveApiAllowed,
+        queueInput: {
+          kind: 'ticket.status',
+          target: { ticketId: ticket.id },
+          payload: { status: 'IN_PROGRESS', scope: pageScope },
+        },
+        send: async () => api.updateTicketStatus(ticket.id, { status: 'IN_PROGRESS' }, pageScope),
+        enqueue: queueOffline,
       })
-      if (queued.ok) {
-        setHomeActionErr('')
-        setMobileActionToast('Сохранено на устройстве. Будет отправлено после восстановления сети.')
-      } else {
-        setHomeActionErr(queued.message)
+      if (delivery.kind === 'queue-failed') {
+        setHomeActionErr(delivery.message)
+        return
       }
+      if (delivery.kind === 'queued') {
+        setHomeActionErr('')
+        setStartQueuedIds((prev) => new Set(prev).add(ticket.id))
+        setMobileActionToast('Сохранено на устройстве. Будет отправлено после восстановления сети.')
+        return
+      }
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
       return
     }
     actionM.mutate(ticket)
@@ -619,6 +633,7 @@ export function MobileHome() {
             ticketHref={ticketHref}
             ticketLinkState={ticketLinkState}
             onAction={handlePrimaryAction}
+            startQueuedIds={startQueuedIds}
             setAssignErr={setAssignErr}
             setAssignTicket={setAssignTicket}
             assignCandidatesQ={assignCandidatesQ}
@@ -630,7 +645,7 @@ export function MobileHome() {
             canAcceptOnCard={canAcceptOnCard}
             acceptM={acceptM}
             onAccept={(ticket) => {
-              if (!isOnline) {
+              if (!liveApiAllowed) {
                 setHomeActionErr(ONLINE_ONLY_ACTION_MESSAGE)
                 return
               }

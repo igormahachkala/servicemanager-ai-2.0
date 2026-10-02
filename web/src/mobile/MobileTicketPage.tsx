@@ -27,6 +27,7 @@ import { queueOffline, useOfflineStatus } from './offline/useOffline'
 import { listOfflineQueue } from './offline/runtime'
 import { deliverTicketComment } from './offline/ticketCommentDelivery'
 import { deliverTicketAttachment } from './offline/attachmentDelivery'
+import { deliverTicketStatus } from './offline/statusDelivery'
 import { cacheTicketSnapshot, readTicketSnapshot } from './offline/ticketCache'
 import { cacheLocationSnapshot } from './offline/locationCache'
 import {
@@ -342,6 +343,8 @@ export function MobileTicketPage() {
   const queryClient = useQueryClient()
 
   const [operationalToast, setOperationalToast] = useState('')
+  /** Offline «Начать работу» принято в queue — UI отличается от «Назначена». */
+  const [startQueuedLocally, setStartQueuedLocally] = useState(false)
   const [closeModal, setCloseModal] = useState<TicketCloseModalState>(null)
   const closeModalCameraRef = useRef<HTMLInputElement | null>(null)
   const closeModalGalleryRef = useRef<HTMLInputElement | null>(null)
@@ -365,6 +368,14 @@ export function MobileTicketPage() {
       { replace: true, state: Object.keys(next).length ? next : null },
     )
   }, [location.key, location.pathname, location.search, navigate])
+
+  useEffect(() => {
+    if (ticket?.status === 'IN_PROGRESS') setStartQueuedLocally(false)
+  }, [ticket?.status])
+
+  useEffect(() => {
+    setStartQueuedLocally(false)
+  }, [ticketId])
 
   useEffect(() => {
     if (!operationalToast) return
@@ -418,6 +429,7 @@ export function MobileTicketPage() {
   // Один источник состояния связи на приложение — офлайн-слой.
   const offline = useOfflineStatus()
   const isOnline = offline.online
+  const liveApiAllowed = offline.liveApiAllowed
   const isLocalTicket = isLocalId(ticketId)
 
   const ticketQ = useQuery({
@@ -713,6 +725,7 @@ export function MobileTicketPage() {
   const isSelfAssigned = !!meQ.data?.id && assigneeIdForMe === meQ.data.id
   const canShowTechStart =
     !!ticket &&
+    !startQueuedLocally &&
     ticket.status !== 'AWAITING_ACCEPTANCE' &&
     (
       (meQ.data?.role === 'TECHNICIAN' && (aa ? aa.canStart : techPrimary === 'start')) ||
@@ -720,6 +733,14 @@ export function MobileTicketPage() {
         (ticket.status === 'ASSIGNED' || ticket.status === 'NEW') &&
         (aa ? aa.canStart : false))
     )
+  /** Статус на экране после offline start: не «Назначена», но и не факт сервера. */
+  const ticketStatusLabelOnScreen = startQueuedLocally && ticket && ticket.status !== 'IN_PROGRESS'
+    ? 'В работе · на устройстве'
+    : ticket
+      ? mobileTicketStatusLabelRu(ticket.status)
+      : ''
+  const ticketStatusClassOnScreen =
+    startQueuedLocally && ticket && ticket.status !== 'IN_PROGRESS' ? 'IN_PROGRESS' : ticket?.status || ''
   const canShowComplete =
     !!ticket &&
     ticket.status === 'IN_PROGRESS' &&
@@ -967,7 +988,7 @@ export function MobileTicketPage() {
         setTicketAddPhotoProgress({ current: i + 1, total: files.length })
         const file = files[i]
         const delivery = await deliverTicketAttachment({
-          reportedOnline: isLocalId(ticketId) ? false : isOnline,
+          reportedOnline: isLocalId(ticketId) ? false : liveApiAllowed,
           queueInput: {
             kind: 'ticket.attachment',
             target: { ticketId },
@@ -1415,7 +1436,7 @@ export function MobileTicketPage() {
         ? findParentFromRoundQueueId(ticketId, await listOfflineQueue())
         : undefined
       const delivery = await deliverTicketComment({
-        reportedOnline: isLocalId(ticketId) ? false : isOnline,
+        reportedOnline: isLocalId(ticketId) ? false : liveApiAllowed,
         queueInput: {
           kind: 'ticket.comment',
           target: { ticketId },
@@ -1469,24 +1490,38 @@ export function MobileTicketPage() {
    * запрещает выдавать несохранённое за сохранённое.
    */
   async function handleTechActionWithOfflineSupport(mode: 'claim' | 'start') {
-    if (!getOnlineStatus()) {
-      if (mode === 'start' && ticket) {
-        const queued = await queueOffline({
-          kind: 'ticket.status',
-          target: { ticketId: ticket.id },
-          payload: { status: 'IN_PROGRESS', scope: ticketResourceScope },
-        })
-        if (queued.ok) {
-          setOfflineQueuedNotice('Сохранено на устройстве. Будет отправлено после восстановления сети.')
-        } else {
-          setTechActionErr(queued.message)
-        }
+    if (mode === 'claim') {
+      if (!liveApiAllowed) {
+        setTechActionErr(ONLINE_ONLY_ACTION_MESSAGE)
         return
       }
-      setTechActionErr(ONLINE_ONLY_ACTION_MESSAGE)
+      techActionM.mutate(mode)
       return
     }
-    techActionM.mutate(mode)
+
+    if (!ticket) return
+    const delivery = await deliverTicketStatus({
+      reportedOnline: liveApiAllowed,
+      queueInput: {
+        kind: 'ticket.status',
+        target: { ticketId: ticket.id },
+        payload: { status: 'IN_PROGRESS', scope: ticketResourceScope },
+      },
+      send: async () => api.updateTicketStatus(ticket.id, { status: 'IN_PROGRESS' }, ticketResourceScope),
+      enqueue: queueOffline,
+    })
+    if (delivery.kind === 'queue-failed') {
+      setTechActionErr(delivery.message)
+      return
+    }
+    if (delivery.kind === 'queued') {
+      setStartQueuedLocally(true)
+      setOfflineQueuedNotice('Сохранено на устройстве. Будет отправлено после восстановления сети.')
+      return
+    }
+    setTechActionErr('')
+    await invalidateTicketQueries()
+    await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
   }
 
   function handleAssignmentRequest() {
@@ -1581,7 +1616,7 @@ export function MobileTicketPage() {
           <div className="mobileTicketHeaderInfo">
             <div className="mobileTicketHeaderTop">
               <span className="mobileTicketHeaderNumber">{mobileTicketNumberTitle(ticket.ticketNumber)}</span>
-              <span className={`mobileTicketStatus mobileTicketStatus--${ticket.status}`}>{mobileTicketStatusLabelRu(ticket.status)}</span>
+              <span className={`mobileTicketStatus mobileTicketStatus--${ticketStatusClassOnScreen}`}>{ticketStatusLabelOnScreen}</span>
             </div>
             {(() => {
               const sub = [ticket.problemCategory?.name, ticket.location?.name || ticket.pointName].map((s) => (s || '').trim()).filter(Boolean).join(' · ')
@@ -1716,8 +1751,8 @@ export function MobileTicketPage() {
           >
             {/* Status badge + number */}
             <div className="mobileRow" style={{ marginBottom: 4 }}>
-              <span className={`mobileTicketStatusLarge mobileTicketStatusLarge--${ticket.status}`}>
-                {mobileTicketStatusLabelRu(ticket.status)}
+              <span className={`mobileTicketStatusLarge mobileTicketStatusLarge--${ticketStatusClassOnScreen}`}>
+                {ticketStatusLabelOnScreen}
               </span>
               <span style={{ fontSize: '0.78rem', color: '#9ca3af', fontFamily: 'var(--font-mono)' }}>
                 {mobileTicketNumberTitle(ticket.ticketNumber)}

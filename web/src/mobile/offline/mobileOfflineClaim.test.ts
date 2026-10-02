@@ -12,8 +12,8 @@ const router = readFileSync(new URL('../../router.tsx', import.meta.url), 'utf8'
 describe('physical iPhone offline claim guard', () => {
   it('keeps claim online-only with a Russian local refusal', () => {
     expect(onlineOnly).toContain("ONLINE_ONLY_ACTION_MESSAGE = 'Для этого действия нужен интернет.'")
-    expect(ticketPage).toMatch(/if \(!getOnlineStatus\(\)\)[\s\S]*ONLINE_ONLY_ACTION_MESSAGE/)
-    expect(homePage).toMatch(/if \(!isOnline && ticket\.status === 'NEW'\)[\s\S]*ONLINE_ONLY_ACTION_MESSAGE/)
+    expect(ticketPage).toMatch(/if \(!liveApiAllowed\)[\s\S]*ONLINE_ONLY_ACTION_MESSAGE/)
+    expect(homePage).toMatch(/if \(!liveApiAllowed && ticket\.status === 'NEW'\)[\s\S]*ONLINE_ONLY_ACTION_MESSAGE/)
   })
 
   it('guards request assignment offline on detail', () => {
