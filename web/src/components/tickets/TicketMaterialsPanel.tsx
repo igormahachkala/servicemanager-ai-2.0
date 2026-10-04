@@ -1,217 +1,139 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../../lib/api'
-import { compactIdentityLabel, presentActorIdentity } from '../../lib/ticketActorIdentity'
+import { formatMaterialQuantity, materialName, materialUnit, materialUserName } from '../../lib/materials'
 import {
   EMPTY_MATERIAL_USAGE_DRAFT,
   canConsumeMaterials,
-  formatQuantity,
   maxQuantityFor,
   selectableBalances,
   validateMaterialUsage,
   type MaterialUsageDraft,
 } from '../../lib/ticketMaterials'
 
-/**
- * SMA-MATERIALS-V0-TICKET-USAGE.
- *
- * Блок «Материалы» в карточке заявки: что списано на эту заявку и, для
- * техника, форма списания из того, что у него на руках.
- *
- * Остаток приходит с сервера и правится только списанием — поля для ручной
- * правки здесь нет намеренно. Решения о допустимости вынесены в
- * lib/ticketMaterials: окружение тестов node, и правила должны проверяться
- * исполнением, а не через разметку.
- */
-
-type Props = {
+export function TicketMaterialsPanel(props: {
   ticketId: string
-  role: api.Role | undefined
-  scope?: api.TicketScopeParams
-}
-
-export function TicketMaterialsPanel({ ticketId, role, scope }: Props) {
+  role?: api.Role | null
+  scope?: string | api.TicketScopeParams
+  canMutate?: boolean
+}) {
+  const { ticketId, role, scope, canMutate = true } = props
   const qc = useQueryClient()
-  const canConsume = canConsumeMaterials(role)
-
-  const [formOpen, setFormOpen] = useState(false)
   const [draft, setDraft] = useState<MaterialUsageDraft>(EMPTY_MATERIAL_USAGE_DRAFT)
-  const [submitError, setSubmitError] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const canAdd = canMutate && canConsumeMaterials(role)
 
   const usageQ = useQuery({
-    queryKey: ['ticket-materials', ticketId, scope?.companyId, scope?.linkedClientCompanyId],
-    queryFn: () => api.ticketMaterials(ticketId, scope),
+    queryKey: ['ticket-material-consumptions', ticketId, scope],
+    queryFn: () => api.ticketMaterialConsumptions(ticketId, scope),
     enabled: !!ticketId,
   })
-
-  /* Остатки нужны только тому, кто списывает: лишнего запроса у остальных ролей нет. */
   const balancesQ = useQuery({
-    queryKey: ['technician-material-balances', scope?.companyId, scope?.linkedClientCompanyId],
-    queryFn: () => api.technicianMaterialBalances(scope),
-    enabled: canConsume && formOpen,
+    queryKey: ['my-material-balances'],
+    queryFn: api.myMaterialBalances,
+    enabled: canAdd,
   })
-
-  const balances = useMemo(() => selectableBalances(balancesQ.data?.items), [balancesQ.data])
-  const validation = useMemo(() => validateMaterialUsage(draft, balances), [draft, balances])
-  const selectedBalance = balances.find((item) => item.materialId === draft.materialId)
+  const balances = useMemo(() => selectableBalances(balancesQ.data), [balancesQ.data])
 
   const consumeM = useMutation({
-    mutationFn: async () => {
-      if (!validation.ok) throw new Error(validation.message)
-      return api.consumeTicketMaterial(ticketId, validation.payload, scope)
+    mutationFn: async (payload: { materialId: string; quantity: string; comment?: string }) => {
+      const linkedClientCompanyId =
+        typeof scope === 'object' && scope ? scope.linkedClientCompanyId || undefined : undefined
+      return api.consumeTicketMaterial({ ticketId, ...payload, ...(linkedClientCompanyId ? { linkedClientCompanyId } : {}) })
     },
     onSuccess: async () => {
-      /*
-       * Обновляются обе выборки: список материалов заявки и остатки техника.
-       * Остаток пересчитывает сервер, поэтому он именно перезапрашивается,
-       * а не правится на месте — иначе интерфейс начал бы вести свой учёт.
-       */
       setDraft(EMPTY_MATERIAL_USAGE_DRAFT)
-      setSubmitError('')
-      setFormOpen(false)
+      setError(null)
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['ticket-materials', ticketId] }),
-        qc.invalidateQueries({ queryKey: ['technician-material-balances'] }),
+        qc.invalidateQueries({ queryKey: ['ticket-material-consumptions', ticketId] }),
+        qc.invalidateQueries({ queryKey: ['my-material-balances'] }),
+        qc.invalidateQueries({ queryKey: ['mobile-my-material-balances'] }),
       ])
-    },
-    onError: (err: unknown) => {
-      // Отказ остаётся отказом: форма не закрывается и черновик не теряется.
-      setSubmitError((err as any)?.message || 'Не удалось списать материал')
     },
   })
 
-  const usages = usageQ.data?.items ?? null
+  function submit(event: FormEvent) {
+    event.preventDefault()
+    const validation = validateMaterialUsage(draft, balances)
+    if (!validation.ok) {
+      setError(validation.message)
+      return
+    }
+    consumeM.mutate(validation.payload)
+  }
 
   return (
-    <div className="panel" style={{ marginBottom: 12 }}>
-      <div className="row" style={{ alignItems: 'flex-start', marginBottom: 8 }}>
-        <h3 style={{ marginBottom: 0 }}>Материалы</h3>
-        {canConsume && !formOpen ? (
-          <button type="button" className="ghost" onClick={() => setFormOpen(true)}>
-            + Добавить материал
-          </button>
-        ) : null}
+    <section className="materialsPanel">
+      <div className="materialsPanelHeader">
+        <h3>Материалы</h3>
+        <span className="muted small">{usageQ.data?.length ? `Позиций: ${usageQ.data.length}` : 'Пока не списывались'}</span>
       </div>
 
-      {usageQ.isLoading ? (
-        <div className="muted small">Загружаем материалы…</div>
-      ) : usageQ.isError ? (
-        <div className="alert">
-          {(usageQ.error as any)?.message || 'Не удалось загрузить материалы'}
-        </div>
-      ) : !usages || usages.length === 0 ? (
-        <div className="muted small">Материалы не списывались</div>
-      ) : (
-        <div style={{ display: 'grid', gap: 10 }}>
-          {usages.map((usage) => {
-            const who = compactIdentityLabel(presentActorIdentity(usage.usedBy ?? null))
-            return (
-              <div key={usage.id}>
-                <div style={{ fontWeight: 600 }}>
-                  {usage.name} — {formatQuantity(usage.quantity)} {usage.unit}
-                </div>
-                <div className="muted small">{who}</div>
-                <div className="muted small">{api.formatNotificationDateTime(usage.usedAt)}</div>
-                {usage.comment ? <div className="muted small">{usage.comment}</div> : null}
+      {usageQ.isLoading ? <div className="muted small">Загружаем материалы…</div> : null}
+      {usageQ.isError ? <div className="alert">{(usageQ.error as Error).message}</div> : null}
+      {usageQ.data?.length ? (
+        <div className="materialsHistory">
+          {usageQ.data.map((item) => (
+            <div className="materialsHistoryRow" key={item.id}>
+              <div>
+                <div className="materialsName">{materialName(item.material)}</div>
+                {item.comment ? <div className="muted small">{item.comment}</div> : null}
+                {item.fromUser ? <div className="muted small">{materialUserName(item.fromUser)}</div> : null}
               </div>
-            )
-          })}
+              <div style={{ textAlign: 'right' }}>
+                <div className="materialsQty">{formatMaterialQuantity(item.quantity, materialUnit(item.material))}</div>
+                <div className="muted small">{new Date(item.createdAt).toLocaleString('ru-RU')}</div>
+              </div>
+            </div>
+          ))}
         </div>
-      )}
+      ) : null}
 
-      {canConsume && formOpen ? (
-        <form
-          style={{ marginTop: 12, display: 'grid', gap: 8 }}
-          onSubmit={(event) => {
-            event.preventDefault()
-            setSubmitError('')
-            if (!validation.ok) {
-              setSubmitError(validation.message)
-              return
-            }
-            consumeM.mutate()
-          }}
-        >
-          <label className="muted small" htmlFor="materialId">
+      {canAdd ? (
+        <form className="materialsForm" onSubmit={submit}>
+          {(error || consumeM.isError || balancesQ.isError) ? (
+            <div className="alert">{error || (consumeM.error as Error | null)?.message || (balancesQ.error as Error | null)?.message}</div>
+          ) : null}
+          <label>
             Материал
-          </label>
-          <select
-            id="materialId"
-            value={draft.materialId}
-            onChange={(event) => setDraft((prev) => ({ ...prev, materialId: event.target.value, quantity: '' }))}
-          >
-            <option value="">Выберите материал</option>
-            {balances.map((item) => (
-              <option key={item.materialId} value={item.materialId}>
-                {item.name} ({formatQuantity(item.available)} {item.unit})
-              </option>
-            ))}
-          </select>
-
-          {balancesQ.isLoading ? <div className="muted small">Загружаем остатки…</div> : null}
-          {balancesQ.isError ? (
-            <div className="alert">
-              {(balancesQ.error as any)?.message || 'Не удалось загрузить остатки'}
-            </div>
-          ) : null}
-          {!balancesQ.isLoading && !balancesQ.isError && balances.length === 0 ? (
-            <div className="muted small">На руках нет материалов</div>
-          ) : null}
-
-          {selectedBalance ? (
-            /* Остаток только показывается: изменить его можно лишь списанием. */
-            <div className="muted small">
-              Доступно: {formatQuantity(selectedBalance.available)} {selectedBalance.unit}
-            </div>
-          ) : null}
-
-          <label className="muted small" htmlFor="materialQuantity">
-            Количество
-          </label>
-          <input
-            id="materialQuantity"
-            type="number"
-            inputMode="decimal"
-            min="0"
-            step="any"
-            max={maxQuantityFor(draft.materialId, balances)}
-            value={draft.quantity}
-            onChange={(event) => setDraft((prev) => ({ ...prev, quantity: event.target.value }))}
-          />
-
-          <label className="muted small" htmlFor="materialComment">
-            Комментарий
-          </label>
-          <input
-            id="materialComment"
-            value={draft.comment}
-            onChange={(event) => setDraft((prev) => ({ ...prev, comment: event.target.value }))}
-          />
-
-          {!validation.ok && draft.materialId && draft.quantity ? (
-            <div className="muted small">{validation.message}</div>
-          ) : null}
-          {submitError ? <div className="alert">{submitError}</div> : null}
-
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button type="submit" disabled={!validation.ok || consumeM.isPending}>
-              {consumeM.isPending ? 'Списываем…' : 'Списать'}
-            </button>
-            <button
-              type="button"
-              className="ghost"
-              onClick={() => {
-                setFormOpen(false)
-                setDraft(EMPTY_MATERIAL_USAGE_DRAFT)
-                setSubmitError('')
-              }}
+            <select
+              value={draft.materialId}
+              onChange={(e) => setDraft((current) => ({ ...current, materialId: e.target.value }))}
+              disabled={consumeM.isPending || balancesQ.isLoading}
             >
-              Отмена
-            </button>
-          </div>
+              <option value="">Выберите материал</option>
+              {balances.map((item) => (
+                <option key={item.id} value={item.materialId}>
+                  {materialName(item.material)} · {formatMaterialQuantity(item.quantity, materialUnit(item.material))}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Количество
+            <input
+              inputMode="decimal"
+              max={maxQuantityFor(draft.materialId, balances)}
+              value={draft.quantity}
+              onChange={(e) => setDraft((current) => ({ ...current, quantity: e.target.value }))}
+              disabled={consumeM.isPending}
+            />
+          </label>
+          <label>
+            Комментарий
+            <textarea
+              rows={2}
+              value={draft.comment}
+              onChange={(e) => setDraft((current) => ({ ...current, comment: e.target.value }))}
+              disabled={consumeM.isPending}
+            />
+          </label>
+          <button type="submit" disabled={consumeM.isPending || balancesQ.isLoading}>
+            {consumeM.isPending ? 'Сохраняем…' : '+ Добавить материал'}
+          </button>
         </form>
       ) : null}
-    </div>
+    </section>
   )
 }

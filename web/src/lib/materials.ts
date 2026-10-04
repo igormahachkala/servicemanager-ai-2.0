@@ -1,65 +1,65 @@
-export type MaterialDirectoryItem = {
+export type MaterialHolderType = 'COMPANY_STOCK' | 'TECHNICIAN'
+
+export type MaterialMovementType =
+  | 'PURCHASE'
+  | 'ISSUE'
+  | 'CONSUMPTION'
+  | 'RETURN'
+  | 'TRANSFER'
+  | 'ADJUSTMENT_PLUS'
+  | 'ADJUSTMENT_MINUS'
+
+export type Material = {
   id: string
+  companyId: string
   name: string
   unit: string
-  sku?: string | null
-  category?: string | null
-  active?: boolean
+  sku: string | null
+  category: string | null
+  active: boolean
+  createdAt: string
+  updatedAt: string
 }
 
-export type TechnicianMaterialBalance = {
+export type MaterialBalance = {
+  id: string
+  companyId: string
   materialId: string
-  materialName: string
-  unit: string
-  balance: number
+  holderType: MaterialHolderType
+  holderUserId: string | null
+  quantity: string
+  updatedAt: string
+  material?: Material
 }
 
-export type MaterialMovementType = 'PURCHASE' | 'USAGE' | 'ISSUE' | 'ADJUSTMENT'
+export type MaterialUserSummary = {
+  id: string
+  firstName?: string | null
+  lastName?: string | null
+  role?: string
+}
 
 export type MaterialMovement = {
   id: string
+  companyId: string
   materialId: string
-  materialName: string
-  unit: string
-  quantity: number
   type: MaterialMovementType
+  quantity: string
+  fromHolderType: MaterialHolderType | null
+  fromUserId: string | null
+  toHolderType: MaterialHolderType | null
+  toUserId: string | null
+  ticketId: string | null
+  actorUserId: string
+  unitPrice: string | null
+  totalAmount: string | null
+  comment: string | null
   createdAt: string
-  ticketId?: string | null
-  ticketNumber?: number | null
-  actorName?: string | null
-  comment?: string | null
-  cost?: number | null
-}
-
-export type TicketMaterialUsage = {
-  id: string
-  materialId: string
-  materialName: string
-  unit: string
-  quantity: number
-  createdAt: string
-  technicianName?: string | null
-  comment?: string | null
-}
-
-export type SelfPurchaseInput = {
-  materialId: string
-  quantity: number
-  cost?: number | null
-  comment?: string | null
-  receiptAttachmentId?: string | null
-}
-
-export type TicketMaterialUsageInput = {
-  materialId: string
-  quantity: number
-  comment?: string | null
-}
-
-export type ManagerIssueMaterialInput = {
-  materialId: string
-  quantity: number
-  comment?: string | null
+  material?: Material
+  actor?: MaterialUserSummary
+  fromUser?: MaterialUserSummary
+  toUser?: MaterialUserSummary
+  ticket?: { id: string; ticketNumber: number }
 }
 
 export type CreateMaterialInput = {
@@ -67,86 +67,133 @@ export type CreateMaterialInput = {
   unit: string
   sku?: string | null
   category?: string | null
-  active?: boolean
 }
 
-export function normalizeMaterialText(value: string): string {
-  return value.trim().replace(/\s+/g, ' ')
+export type UpdateMaterialInput = Partial<CreateMaterialInput> & { active?: boolean }
+export type StockReceiptInput = { materialId: string; quantity: string; comment?: string }
+export type IssueMaterialInput = StockReceiptInput & { technicianId: string }
+export type PurchaseMaterialInput = StockReceiptInput & {
+  unitPrice?: string
+  totalAmount?: string
+}
+export type ConsumeMaterialInput = StockReceiptInput & {
+  ticketId: string
+  linkedClientCompanyId?: string
 }
 
-export function formatMaterialQuantity(quantity: number, unit: string): string {
-  const safeQuantity = Number.isFinite(quantity) ? quantity : 0
-  return `${safeQuantity.toLocaleString('ru-RU', { maximumFractionDigits: 3 })} ${unit || ''}`.trim()
+export type MaterialMutationResult = {
+  balance: MaterialBalance
+  movement: MaterialMovement
 }
 
-export function materialBalanceLabel(balance: TechnicianMaterialBalance): string {
-  return formatMaterialQuantity(balance.balance, balance.unit)
+export type MaterialIssueResult = {
+  stock: MaterialBalance
+  technicianBalance: MaterialBalance
+  movement: MaterialMovement
 }
 
-export function activeMaterials(materials: MaterialDirectoryItem[]): MaterialDirectoryItem[] {
-  return materials.filter((item) => item.active !== false)
+export type ValidationResult = { ok: true } | { ok: false; error: string }
+
+export function parseMaterialQuantity(raw: string): number | null {
+  const normalized = raw.trim().replace(',', '.')
+  if (!normalized || !/^\d*\.?\d+$/.test(normalized)) return null
+  const value = Number(normalized)
+  return Number.isFinite(value) ? value : null
 }
 
-export function findMaterialBalance(
-  balances: TechnicianMaterialBalance[],
-  materialId: string,
-): TechnicianMaterialBalance | null {
-  return balances.find((item) => item.materialId === materialId) || null
+export function normalizeDecimalInput(raw: string): string | null {
+  const value = parseMaterialQuantity(raw)
+  return value === null ? null : String(value)
 }
 
-function positiveQuantityError(quantity: number): string | null {
-  if (!Number.isFinite(quantity) || quantity <= 0) return 'Количество должно быть больше 0'
-  return null
+export function formatMaterialQuantity(quantity: string, unit = ''): string {
+  const value = Number(quantity)
+  const formatted = Number.isFinite(value)
+    ? value.toLocaleString('ru-RU', { maximumFractionDigits: 3 })
+    : quantity
+  return `${formatted} ${unit}`.trim()
 }
 
-export function validateSelfPurchaseInput(input: SelfPurchaseInput): string | null {
-  if (!input.materialId.trim()) return 'Выберите материал'
-  const quantityError = positiveQuantityError(input.quantity)
-  if (quantityError) return quantityError
-  if (input.cost != null && (!Number.isFinite(input.cost) || input.cost < 0)) {
-    return 'Стоимость не может быть отрицательной'
-  }
-  return null
+export function materialName(material?: Material): string {
+  return material?.name || 'Материал'
 }
 
-export function validateTicketMaterialUsageInput(
-  input: TicketMaterialUsageInput,
-  balances: TechnicianMaterialBalance[],
-): string | null {
-  if (!input.materialId.trim()) return 'Выберите материал'
-  const quantityError = positiveQuantityError(input.quantity)
-  if (quantityError) return quantityError
-
-  const balance = findMaterialBalance(balances, input.materialId)
-  if (!balance) return 'Материал отсутствует в текущих остатках'
-  if (input.quantity > balance.balance) {
-    return `Доступно только ${materialBalanceLabel(balance)}`
-  }
-  return null
+export function materialUnit(material?: Material): string {
+  return material?.unit || ''
 }
 
-export function validateManagerIssueMaterialInput(input: ManagerIssueMaterialInput): string | null {
-  if (!input.materialId.trim()) return 'Выберите материал'
-  return positiveQuantityError(input.quantity)
-}
-
-export function validateCreateMaterialInput(input: CreateMaterialInput): string | null {
-  if (normalizeMaterialText(input.name).length < 2) return 'Название: минимум 2 символа'
-  if (!normalizeMaterialText(input.unit)) return 'Укажите единицу измерения'
-  return null
+export function materialUserName(user?: MaterialUserSummary): string {
+  if (!user) return ''
+  return [user.firstName, user.lastName].filter(Boolean).join(' ').trim()
 }
 
 export function movementTypeLabel(type: MaterialMovementType): string {
-  switch (type) {
-    case 'PURCHASE':
-      return 'Покупка'
-    case 'USAGE':
-      return 'Списано в заявку'
-    case 'ISSUE':
-      return 'Выдано'
-    case 'ADJUSTMENT':
-      return 'Корректировка'
-    default:
-      return type
+  const labels: Record<MaterialMovementType, string> = {
+    PURCHASE: 'Покупка',
+    ISSUE: 'Выдано',
+    CONSUMPTION: 'Списано в заявку',
+    RETURN: 'Возврат',
+    TRANSFER: 'Перемещение',
+    ADJUSTMENT_PLUS: 'Поступление',
+    ADJUSTMENT_MINUS: 'Корректировка расхода',
   }
+  return labels[type]
+}
+
+export function activeMaterials(materials: readonly Material[]): Material[] {
+  return materials.filter((item) => item.active)
+}
+
+export function positiveQuantityValidation(raw: string): ValidationResult {
+  const value = parseMaterialQuantity(raw)
+  if (value === null || value <= 0) {
+    return { ok: false, error: 'Количество должно быть больше нуля' }
+  }
+  return { ok: true }
+}
+
+export function validateMaterialInput(input: Partial<CreateMaterialInput>): ValidationResult {
+  if (!(input.name ?? '').trim()) return { ok: false, error: 'Укажите название материала' }
+  if (!(input.unit ?? '').trim()) return { ok: false, error: 'Укажите единицу измерения' }
+  return { ok: true }
+}
+
+export function validatePurchaseInput(input: {
+  materialId: string
+  quantity: string
+  unitPrice?: string
+  totalAmount?: string
+}): ValidationResult {
+  if (!input.materialId) return { ok: false, error: 'Выберите материал' }
+  const quantity = positiveQuantityValidation(input.quantity)
+  if (!quantity.ok) return quantity
+  for (const value of [input.unitPrice, input.totalAmount]) {
+    if (value && (parseMaterialQuantity(value) === null || Number(value.replace(',', '.')) < 0)) {
+      return { ok: false, error: 'Стоимость должна быть неотрицательной' }
+    }
+  }
+  return { ok: true }
+}
+
+export function validateIssueInput(input: { materialId: string; quantity: string }): ValidationResult {
+  if (!input.materialId) return { ok: false, error: 'Выберите материал' }
+  return positiveQuantityValidation(input.quantity)
+}
+
+export function validateConsumptionInput(
+  input: { materialId: string; quantity: string },
+  balances: readonly MaterialBalance[],
+): ValidationResult {
+  if (!input.materialId) return { ok: false, error: 'Выберите материал' }
+  const quantity = positiveQuantityValidation(input.quantity)
+  if (!quantity.ok) return quantity
+  const balance = balances.find((item) => item.materialId === input.materialId)
+  if (!balance) return { ok: false, error: 'Материала нет в текущих остатках' }
+  if (Number(input.quantity.replace(',', '.')) > Number(balance.quantity)) {
+    return {
+      ok: false,
+      error: `Доступно ${formatMaterialQuantity(balance.quantity, materialUnit(balance.material))}`,
+    }
+  }
+  return { ok: true }
 }

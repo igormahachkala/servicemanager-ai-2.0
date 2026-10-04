@@ -65,7 +65,7 @@ import { useProtectedUploadSrcs } from '../ui/useProtectedUploadSrc'
 import { MobileTicketPhotoGallery } from './MobileTicketPhotoGallery'
 import { MobileTicketActionsSheet, type TicketSheetAction } from './MobileTicketActionsSheet'
 import { MobileModalBackdrop } from './MobileModalBackdrop'
-import { TicketMaterialsPanel } from '../components/materials/MaterialsPanels'
+import { TicketMaterialsPanel } from '../components/tickets/TicketMaterialsPanel'
 import { compactIdentityLabel, identityLines, presentActorIdentity, presentTicketAssignee, presentTicketCreator } from '../lib/ticketActorIdentity'
 import { MobileTicketWorkTimer } from './MobileTicketWorkTimer'
 import { canOfferTicketClaimAction, readBackendCanClaim } from '../lib/ticketActionCapabilities'
@@ -651,33 +651,6 @@ export function MobileTicketPage() {
         throw new Error('Нет сохранённой истории для офлайна.')
       }
       return api.timeline(ticketId, ticketResourceScope)
-    },
-  })
-
-  const ticketMaterialsQ = useQuery({
-    enabled: !!ticketId && !!ticket && !isLocalTicket && isRegularMobileTicketRoute,
-    queryKey: [
-      'mobile-ticket-materials',
-      ticketId,
-      ticketResourceScope.companyId,
-      ticketResourceScope.linkedClientCompanyId,
-    ],
-    queryFn: () => api.ticketMaterials(ticketId, ticketResourceScope),
-  })
-
-  const mobileMaterialBalancesQ = useQuery({
-    enabled: !!ticketId && !!ticket && meQ.data?.role === 'TECHNICIAN' && !isLocalTicket && isRegularMobileTicketRoute,
-    queryKey: ['mobile-my-material-balances'],
-    queryFn: api.myMaterialBalances,
-  })
-
-  const addTicketMaterialM = useMutation({
-    mutationFn: (input: api.TicketMaterialUsageInput) => api.useTicketMaterial(ticketId, input, ticketResourceScope),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['mobile-ticket-materials', ticketId] }),
-        queryClient.invalidateQueries({ queryKey: ['mobile-my-material-balances'] }),
-      ])
     },
   })
 
@@ -1837,28 +1810,14 @@ export function MobileTicketPage() {
             enabled={isSelfAssigned && ticket.status !== 'DONE' && ticket.status !== 'CANCELED'}
           />
 
-          {isRegularMobileTicketRoute ? (
+          {isRegularMobileTicketRoute && !isLocalTicket ? (
             <div className="mobileCard" style={{ marginTop: 8 }}>
-              {ticketMaterialsQ.isError ? (
-                <div className="mobileNotice mobileNoticeError" style={{ marginBottom: 10 }}>
-                  {(ticketMaterialsQ.error as { message?: string } | null)?.message || String(ticketMaterialsQ.error)}
-                </div>
-              ) : null}
-              {addTicketMaterialM.isError ? (
-                <div className="mobileNotice mobileNoticeError" style={{ marginBottom: 10 }}>
-                  {(addTicketMaterialM.error as { message?: string } | null)?.message || String(addTicketMaterialM.error)}
-                </div>
-              ) : null}
-              {ticketMaterialsQ.isLoading ? <div className="mobileMeta">Загружаем материалы…</div> : null}
-              {!ticketMaterialsQ.isLoading ? (
-                <TicketMaterialsPanel
-                  usedMaterials={ticketMaterialsQ.data || []}
-                  balances={mobileMaterialBalancesQ.data || []}
-                  canAdd={meQ.data?.role === 'TECHNICIAN' && isOnline && !isLocalTicket}
-                  submitting={addTicketMaterialM.isPending}
-                  onAdd={(input) => addTicketMaterialM.mutate(input)}
-                />
-              ) : null}
+              <TicketMaterialsPanel
+                ticketId={ticket.id}
+                role={meQ.data?.role}
+                scope={ticketResourceScope}
+                canMutate={isOnline}
+              />
             </div>
           ) : null}
 

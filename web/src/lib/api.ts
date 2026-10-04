@@ -12,14 +12,17 @@
 import { notifyRealtimeAuthChanged } from './realtimeSocket'
 import { reportApiReachability } from './apiReachability'
 import type {
+  ConsumeMaterialInput,
   CreateMaterialInput,
-  ManagerIssueMaterialInput,
-  MaterialDirectoryItem,
+  IssueMaterialInput,
+  Material,
+  MaterialBalance,
+  MaterialIssueResult,
   MaterialMovement,
-  SelfPurchaseInput,
-  TechnicianMaterialBalance,
-  TicketMaterialUsage,
-  TicketMaterialUsageInput,
+  MaterialMutationResult,
+  PurchaseMaterialInput,
+  StockReceiptInput,
+  UpdateMaterialInput,
 } from './materials'
 export {
   currentInternalAppPath,
@@ -35,10 +38,17 @@ import { readMaxInitData } from '../max/maxBridge'
 import { runSmaLogout } from './smaLogout'
 import { clearMeCache, readMeCache, writeMeCache } from '../mobile/offline/meCache'
 
-import type { TechnicianMaterialBalance, TicketMaterialUsage } from './ticketMaterials'
-
-/** SMA-MATERIALS-V0: строки материалов живут рядом с правилами, здесь только реэкспорт. */
-export type { TechnicianMaterialBalance, TicketMaterialUsage }
+export type {
+  ConsumeMaterialInput,
+  CreateMaterialInput,
+  IssueMaterialInput,
+  Material,
+  MaterialBalance,
+  MaterialMovement,
+  PurchaseMaterialInput,
+  StockReceiptInput,
+  UpdateMaterialInput,
+} from './materials'
 
 export type Role =
   | 'PLATFORM_ADMIN'
@@ -2365,6 +2375,80 @@ export async function deleteSpecialization(id: string): Promise<void> {
   })
 }
 
+export const MATERIALS_API = {
+  list: '/materials',
+  byId: (id: string) => `/materials/${id}`,
+  myBalances: '/materials/me/balances',
+  myMovements: '/materials/me/movements',
+  purchases: '/materials/me/purchases',
+  consumptions: '/materials/me/consumptions',
+  technicianBalances: (id: string) => `/materials/technicians/${id}/balances`,
+  technicianMovements: (id: string) => `/materials/technicians/${id}/movements`,
+  issues: '/materials/issues',
+  stockReceipts: '/materials/stock/receipts',
+  ticketConsumptions: (ticketId: string) => `/materials/tickets/${ticketId}/consumptions`,
+} as const
+
+export function materials(): Promise<Material[]> {
+  return request<Material[]>(MATERIALS_API.list)
+}
+
+export function createMaterial(input: CreateMaterialInput): Promise<Material> {
+  return request<Material>(MATERIALS_API.list, { method: 'POST', body: input })
+}
+
+export function updateMaterial(id: string, input: UpdateMaterialInput): Promise<Material> {
+  return request<Material>(MATERIALS_API.byId(id), { method: 'PATCH', body: input })
+}
+
+export function setMaterialStatus(id: string, active: boolean): Promise<Material> {
+  return updateMaterial(id, { active })
+}
+
+export function myMaterialBalances(): Promise<MaterialBalance[]> {
+  return request<MaterialBalance[]>(MATERIALS_API.myBalances)
+}
+
+export function myMaterialMovements(): Promise<MaterialMovement[]> {
+  return request<MaterialMovement[]>(MATERIALS_API.myMovements)
+}
+
+export function recordMaterialSelfPurchase(input: PurchaseMaterialInput): Promise<MaterialMutationResult> {
+  return request<MaterialMutationResult>(MATERIALS_API.purchases, { method: 'POST', body: input })
+}
+
+export function technicianMaterialBalances(technicianId: string): Promise<MaterialBalance[]> {
+  return request<MaterialBalance[]>(MATERIALS_API.technicianBalances(technicianId))
+}
+
+export function technicianMaterialMovements(technicianId: string): Promise<MaterialMovement[]> {
+  return request<MaterialMovement[]>(MATERIALS_API.technicianMovements(technicianId))
+}
+
+export function issueMaterialToTechnician(input: IssueMaterialInput): Promise<MaterialIssueResult> {
+  return request<MaterialIssueResult>(MATERIALS_API.issues, { method: 'POST', body: input })
+}
+
+export function recordCompanyStockReceipt(input: StockReceiptInput): Promise<MaterialMutationResult> {
+  return request<MaterialMutationResult>(MATERIALS_API.stockReceipts, { method: 'POST', body: input })
+}
+
+export function ticketMaterialConsumptions(
+  ticketId: string,
+  scope?: string | TicketScopeParams,
+): Promise<MaterialMovement[]> {
+  return request<MaterialMovement[]>(
+    MATERIALS_API.ticketConsumptions(ticketId) + buildTicketScopeSuffix(scope),
+  )
+}
+
+export function consumeTicketMaterial(
+  input: ConsumeMaterialInput,
+): Promise<MaterialMutationResult> {
+  return request<MaterialMutationResult>(MATERIALS_API.consumptions, { method: 'POST', body: input })
+}
+
+
 /** `companyId` — query для GET /problem-categories: tenant, чьи категории нужны (у провайдера в linked-scope это id клиента). */
 export async function problemCategories(companyId?: string): Promise<ProblemCategoryListItem[]> {
   const search = new URLSearchParams()
@@ -2414,109 +2498,6 @@ export async function setProblemCategorySpecializations(
     method: 'PUT',
     body: { specializationIds },
   })
-}
-
-// ── Materials V0 frontend seam ─────────────────────────────────────────────
-// Backend is being implemented in parallel. Keep endpoint names isolated here:
-// UI screens import functions, not literal paths, so contract reconciliation is
-// a small API-layer patch and does not create a second Materials subsystem.
-export const MATERIALS_API_ENDPOINTS = {
-  materials: '/materials',
-  myBalances: '/materials/my/balances',
-  myHistory: '/materials/my/history',
-  selfPurchase: '/materials/my/purchases',
-  technicianBalances: (userId: string) => `/users/${userId}/materials/balances`,
-  technicianHistory: (userId: string) => `/users/${userId}/materials/history`,
-  technicianIssue: (userId: string) => `/users/${userId}/materials/issues`,
-  ticketMaterials: (ticketId: string) => `/tickets/${ticketId}/materials`,
-} as const
-
-export type {
-  CreateMaterialInput,
-  ManagerIssueMaterialInput,
-  MaterialDirectoryItem,
-  MaterialMovement,
-  SelfPurchaseInput,
-  TechnicianMaterialBalance,
-  TicketMaterialUsage,
-  TicketMaterialUsageInput,
-}
-
-export async function materials(): Promise<MaterialDirectoryItem[]> {
-  const response = await request<unknown>(MATERIALS_API_ENDPOINTS.materials)
-  return normalizeArrayResponse<MaterialDirectoryItem>(response, ['items', 'materials', 'data'])
-}
-
-export async function createMaterial(input: CreateMaterialInput): Promise<MaterialDirectoryItem> {
-  return request<MaterialDirectoryItem>(MATERIALS_API_ENDPOINTS.materials, {
-    method: 'POST',
-    body: input,
-  })
-}
-
-export async function setMaterialStatus(id: string, active: boolean): Promise<MaterialDirectoryItem> {
-  return request<MaterialDirectoryItem>(`${MATERIALS_API_ENDPOINTS.materials}/${id}/status`, {
-    method: 'PATCH',
-    body: { active },
-  })
-}
-
-export async function myMaterialBalances(): Promise<TechnicianMaterialBalance[]> {
-  const response = await request<unknown>(MATERIALS_API_ENDPOINTS.myBalances)
-  return normalizeArrayResponse<TechnicianMaterialBalance>(response, ['items', 'balances', 'data'])
-}
-
-export async function myMaterialHistory(): Promise<MaterialMovement[]> {
-  const response = await request<unknown>(MATERIALS_API_ENDPOINTS.myHistory)
-  return normalizeArrayResponse<MaterialMovement>(response, ['items', 'movements', 'data'])
-}
-
-export async function recordMaterialSelfPurchase(input: SelfPurchaseInput): Promise<MaterialMovement> {
-  return request<MaterialMovement>(MATERIALS_API_ENDPOINTS.selfPurchase, {
-    method: 'POST',
-    body: input,
-  })
-}
-
-export async function technicianMaterialBalances(userId: string): Promise<TechnicianMaterialBalance[]> {
-  const response = await request<unknown>(MATERIALS_API_ENDPOINTS.technicianBalances(userId))
-  return normalizeArrayResponse<TechnicianMaterialBalance>(response, ['items', 'balances', 'data'])
-}
-
-export async function technicianMaterialHistory(userId: string): Promise<MaterialMovement[]> {
-  const response = await request<unknown>(MATERIALS_API_ENDPOINTS.technicianHistory(userId))
-  return normalizeArrayResponse<MaterialMovement>(response, ['items', 'movements', 'data'])
-}
-
-export async function issueTechnicianMaterial(userId: string, input: ManagerIssueMaterialInput): Promise<MaterialMovement> {
-  return request<MaterialMovement>(MATERIALS_API_ENDPOINTS.technicianIssue(userId), {
-    method: 'POST',
-    body: input,
-  })
-}
-
-export async function ticketMaterials(
-  ticketId: string,
-  scope?: string | TicketScopeParams,
-): Promise<TicketMaterialUsage[]> {
-  const response = await request<unknown>(
-    `${MATERIALS_API_ENDPOINTS.ticketMaterials(ticketId)}${buildTicketScopeSuffix(scope)}`,
-  )
-  return normalizeArrayResponse<TicketMaterialUsage>(response, ['items', 'materials', 'usages', 'data'])
-}
-
-export async function useTicketMaterial(
-  ticketId: string,
-  input: TicketMaterialUsageInput,
-  scope?: string | TicketScopeParams,
-): Promise<TicketMaterialUsage> {
-  return request<TicketMaterialUsage>(
-    `${MATERIALS_API_ENDPOINTS.ticketMaterials(ticketId)}${buildTicketScopeSuffix(scope)}`,
-    {
-      method: 'POST',
-      body: input,
-    },
-  )
 }
 
 export async function technicians(): Promise<TechnicianItem[]> {
@@ -4105,68 +4086,6 @@ export async function getEquipmentHistory(
   if (page?.cursor) search.set('cursor', page.cursor)
   const suffix = search.toString() ? `?${search.toString()}` : ''
   return request<EquipmentHistoryResponse>('/equipment/' + id + '/history' + suffix)
-}
-
-/**
- * SMA-MATERIALS-V0-TICKET-USAGE — стык с бэкендом.
- *
- * Бэкенд проектируется параллельно, поэтому обёрток ровно три и все пути
- * собраны здесь: когда контракт подтвердят, править нужно только эти
- * константы и, если разойдутся имена полей, типы в lib/ticketMaterials.
- * Шире API не выдумывается: закупок, выдачи, склада и поставщиков в срезе нет.
- *
- * Ожидаемый контракт (подлежит подтверждению backend-агентом):
- *   GET  /tickets/:id/materials      -> { items: TicketMaterialUsage[] }
- *   GET  /materials/my-balances      -> { items: TechnicianMaterialBalance[] }
- *   POST /tickets/:id/materials      -> TicketMaterialUsage
- *                                       body { materialId, quantity, comment? }
- *
- * quantity — строка: на сервере это Decimal, дробные единицы (м, л) обязаны
- * доезжать без потерь, поэтому number здесь не используется.
- */
-export const MATERIALS_API_PATHS = {
-  ticketUsage: (ticketId: string) => `/tickets/${ticketId}/materials`,
-  technicianBalances: '/materials/my-balances',
-} as const
-
-export type TicketMaterialUsageResponse = { items: TicketMaterialUsage[] }
-export type TechnicianMaterialBalancesResponse = { items: TechnicianMaterialBalance[] }
-
-/** История материалов, списанных на заявку. Область — та же, что у остальных чтений заявки. */
-export async function ticketMaterials(
-  ticketId: string,
-  scope?: string | TicketScopeParams,
-): Promise<TicketMaterialUsageResponse> {
-  return request<TicketMaterialUsageResponse>(
-    MATERIALS_API_PATHS.ticketUsage(ticketId) + buildTicketScopeSuffix(scope),
-  )
-}
-
-/** Остатки материалов на руках у текущего техника. Актор берётся из токена. */
-export async function technicianMaterialBalances(
-  scope?: string | TicketScopeParams,
-): Promise<TechnicianMaterialBalancesResponse> {
-  return request<TechnicianMaterialBalancesResponse>(
-    MATERIALS_API_PATHS.technicianBalances + buildTicketScopeSuffix(scope),
-  )
-}
-
-export type ConsumeTicketMaterialInput = {
-  materialId: string
-  quantity: string
-  comment?: string
-}
-
-/** Списание материала на заявку. Остаток пересчитывает сервер. */
-export async function consumeTicketMaterial(
-  ticketId: string,
-  input: ConsumeTicketMaterialInput,
-  scope?: string | TicketScopeParams,
-): Promise<TicketMaterialUsage> {
-  return request<TicketMaterialUsage>(
-    MATERIALS_API_PATHS.ticketUsage(ticketId) + buildTicketScopeSuffix(scope),
-    { method: 'POST', body: input },
-  )
 }
 
 export async function getEquipmentParts(id: string, companyId?: string): Promise<EquipmentPartsResponse> {

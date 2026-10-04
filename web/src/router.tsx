@@ -357,11 +357,11 @@ export function AppRoutes() {
         <Route path="locations/:id" element={<LazyRoute component={LocationPage} />} />
         <Route path="employees" element={<LazyRoute component={EmployeesPage} />} />
         <Route path="specializations" element={<LazyRoute component={SpecializationsPage} />} />
+        <Route path="materials" element={<LazyRoute component={MaterialsPage} />} />
         <Route path="analytics" element={<LazyRoute component={AnalyticsPage} />} />
         <Route path="workforce" element={<LazyRoute component={WorkforcePage} />} />
         <Route path="analytics/locations" element={<LazyRoute component={LocationAnalyticsPage} />} />
         <Route path="settings" element={<LazyRoute component={SettingsPage} />} />
-        <Route path="materials" element={<LazyRoute component={MaterialsPage} />} />
         <Route path="company" element={<LazyRoute component={CompanyPage} />} />
         <Route path="platform/permissions" element={<LazyRoute component={PermissionsPage} />} />
         <Route path="platform/access-constructor" element={<LazyRoute component={AccessConstructorPage} />} />

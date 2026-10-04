@@ -1989,3 +1989,33 @@ button.toastItem:active {
     display: none !important;
   }
 }
+
+/* SMA-MATERIALS-V0: раздел материалов техника. Приход и расход различаются
+   цветом, чтобы выдача/покупка/расход по заявке читались на глаз. */
+.materialsBalanceList,
+.materialsMovementList {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.materialsMovementRow {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+.materialsMovementAmount {
+  font-weight: 700;
+  min-width: 72px;
+}
+.materialsMovementRow--positive .materialsMovementAmount {
+  color: #15803d;
+}
+.materialsMovementRow--negative .materialsMovementAmount {
+  color: #b91c1c;
+}
+.materialsMovementRow--neutral .materialsMovementAmount {
+  color: inherit;
+}
