@@ -1,5 +1,6 @@
 ﻿import type { Role } from './api'
 import { canViewITCompany } from '../it-company/access'
+import { MANAGEMENT_SECTION_LABELS } from './managementRouteMeta'
 
 export type NavItem = {
   id: string
@@ -45,20 +46,76 @@ const tenantDesktopNavItems: NavItem[] = [
 
 const tenantNavById = Object.fromEntries(tenantDesktopNavItems.map((item) => [item.id, item])) as Record<string, NavItem>
 
+function navItems(ids: readonly string[]): NavItem[] {
+  return ids.map((id) => tenantNavById[id]).filter(Boolean)
+}
+
+/**
+ * Management Navigation V2: меняем только информационную архитектуру меню.
+ * Набор пунктов остаётся тем же, что и в прежнем плоском меню; права и роли
+ * по-прежнему фильтрует Shell.isNavItemVisible. Поэтому группировка не даёт
+ * ни одной новой возможности и не меняет стартовый маршрут.
+ */
+const tenantSidebarCoreSections: NavSection[] = [
+  {
+    id: 'tickets',
+    label: MANAGEMENT_SECTION_LABELS.tickets,
+    items: navItems(['board', 'tickets', 'archive', 'ticketsNew']),
+  },
+  {
+    id: 'rounds',
+    label: MANAGEMENT_SECTION_LABELS.rounds,
+    items: navItems(['inspectionTemplates', 'inspectionRuns']),
+  },
+  {
+    id: 'objects',
+    label: MANAGEMENT_SECTION_LABELS.objects,
+    items: navItems(['locations', 'map']),
+  },
+  {
+    id: 'workforce',
+    label: MANAGEMENT_SECTION_LABELS.workforce,
+    items: navItems(['employees', 'workforce']),
+  },
+  {
+    id: 'analytics',
+    label: MANAGEMENT_SECTION_LABELS.analytics,
+    items: navItems(['analytics']),
+  },
+  {
+    id: 'settings',
+    label: MANAGEMENT_SECTION_LABELS.settings,
+    items: navItems([
+      'accessConstructor',
+      'specializations',
+      'materials',
+      'problemCategories',
+      'company',
+      'settings',
+    ]),
+  },
+]
+
+const tenantSystemSection: NavSection = {
+  id: 'platform',
+  label: MANAGEMENT_SECTION_LABELS.platform,
+  items: navItems(['itCompany', 'engineeringAgent']),
+}
+
 const tenantTopbarIds = ['board', 'archive', 'tickets', 'analytics', 'settings'] as const
 
 export const platformNavigation: ShellNavigationConfig = {
   sidebar: [
     {
-      id: 'main',
-      label: 'Меню',
-      items: [{ id: 'companies', label: 'Компании', to: '/companies' }, ...tenantDesktopNavItems],
-    },
-    {
       id: 'platform',
-      label: 'Платформа',
-      items: [{ id: 'permissions', label: 'Роли и права', to: '/platform/permissions' }],
+      label: MANAGEMENT_SECTION_LABELS.platform,
+      items: [
+        { id: 'companies', label: 'Компании', to: '/companies' },
+        { id: 'permissions', label: 'Роли и права', to: '/platform/permissions' },
+        ...navItems(['itCompany', 'engineeringAgent']),
+      ],
     },
+    ...tenantSidebarCoreSections,
   ],
   topbar: [
     { id: 'companies', label: 'Компании', to: '/companies' },
@@ -70,13 +127,7 @@ export const platformNavigation: ShellNavigationConfig = {
 }
 
 export const tenantNavigation: ShellNavigationConfig = {
-  sidebar: [
-    {
-      id: 'main',
-      label: 'Меню',
-      items: tenantDesktopNavItems,
-    },
-  ],
+  sidebar: [...tenantSidebarCoreSections, tenantSystemSection],
   topbar: tenantTopbarIds.map((id) => tenantNavById[id]).filter(Boolean),
 }
 
