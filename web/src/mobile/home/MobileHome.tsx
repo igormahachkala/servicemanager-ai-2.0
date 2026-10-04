@@ -35,7 +35,7 @@ import { getOnlineStatus, useOnlineStatus } from '../offlineQueue'
 import { loadBoardCache, saveBoardCache } from '../offline/boardCache'
 import { queueOffline } from '../offline/useOffline'
 import { ONLINE_ONLY_ACTION_MESSAGE } from '../offline/onlineOnlyMessage'
-import { mobilePath } from '../mobileRoute'
+import { getMobileRouteRoot, mobilePath } from '../mobileRoute'
 import { HomeHeader } from './HomeHeader'
 import { HomeTabs } from './HomeTabs'
 import { HomeChips } from './HomeChips'
@@ -316,6 +316,18 @@ export function MobileHome() {
     setAssignTechId((prev) => (prev && assignTechOptions.some((r) => r.id === prev) ? prev : assignTechOptions[0]!.id))
   }, [assignTechOptions])
 
+  const canOpenMaterialsFromHome = getMobileRouteRoot(location.pathname) === '/m' && !!meQ.data && (
+    meQ.data.role === 'TECHNICIAN'
+    || (meQ.data.canAccessManagementSurface === true && meQ.data.role !== 'PLATFORM_ADMIN')
+  )
+  const materialsHomeHref = meQ.data
+    ? api.appendScopeToPath('/m/materials', pageScope, meQ.data)
+    : '/m/materials'
+  const materialsHomeLabel = meQ.data?.role === 'TECHNICIAN' ? 'Мои материалы' : 'Материалы'
+  const materialsHomeHint = meQ.data?.role === 'TECHNICIAN'
+    ? 'Остатки, покупки и история движений'
+    : 'Склад, техники, выдача и справочник'
+
   const companyPrimaryLine = useMemo(() => {
     const fromMe = (meQ.data?.companyName || '').trim()
     if (fromMe) return fromMe
@@ -555,6 +567,33 @@ export function MobileHome() {
         searchQuery={searchQuery}
         setSearchQuery={changeSearchQuery}
       />
+      {canOpenMaterialsFromHome ? (
+        <div className="mobileHomeQuickCards">
+          <button
+            type="button"
+            className="mobileHomeQuickCard"
+            onClick={() => navigate(materialsHomeHref)}
+            aria-label={materialsHomeLabel}
+          >
+            <span className="mobileHomeQuickCardIcon" aria-hidden>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 8l-9 5l-9 -5" />
+                <path d="M3 8l9 -5l9 5v8l-9 5l-9 -5z" />
+                <path d="M12 13v8" />
+              </svg>
+            </span>
+            <span className="mobileHomeQuickCardBody">
+              <span className="mobileHomeQuickCardTitle">{materialsHomeLabel}</span>
+              <span className="mobileHomeQuickCardSub">{materialsHomeHint}</span>
+            </span>
+            <span className="mobileHomeQuickCardChevron" aria-hidden>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </span>
+          </button>
+        </div>
+      ) : null}
       {showMobileHomeTicketBoard ? (
         <>
           <HomeQuickCards
