@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode 
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { TicketMaterialsPanel } from '../components/tickets/TicketMaterialsPanel'
 import { mapReason } from '../lib/assignmentExplain'
 import {
   clientTicketLifecycleHintText,
@@ -1154,6 +1155,15 @@ export function TicketPage() {
             onShowSubmitForm={() => setShowSubmitToAcceptanceForm(true)}
           />
         </>
+      ) : null}
+
+      {/*
+        SMA-MATERIALS-V0-TICKET-USAGE: материалы, списанные на эту заявку.
+        Стоят до отчёта о приёмке: это часть выполнения работ, и техник
+        списывает их до того, как отправит заявку на приёмку.
+      */}
+      {ticketQ.data ? (
+        <TicketMaterialsPanel ticketId={ticketId} role={role} scope={effectiveTicketScope} />
       ) : null}
 
       {canSubmitToAcceptance && showSubmitToAcceptanceForm ? (
