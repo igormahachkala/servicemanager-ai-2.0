@@ -25,6 +25,11 @@ import { readMaxInitData } from '../max/maxBridge'
 import { runSmaLogout } from './smaLogout'
 import { clearMeCache, readMeCache, writeMeCache } from '../mobile/offline/meCache'
 
+import type { TechnicianMaterialBalance, TicketMaterialUsage } from './ticketMaterials'
+
+/** SMA-MATERIALS-V0: строки материалов живут рядом с правилами, здесь только реэкспорт. */
+export type { TechnicianMaterialBalance, TicketMaterialUsage }
+
 export type Role =
   | 'PLATFORM_ADMIN'
   | 'ADMIN'
@@ -3987,6 +3992,68 @@ export async function getEquipmentHistory(
   if (page?.cursor) search.set('cursor', page.cursor)
   const suffix = search.toString() ? `?${search.toString()}` : ''
   return request<EquipmentHistoryResponse>('/equipment/' + id + '/history' + suffix)
+}
+
+/**
+ * SMA-MATERIALS-V0-TICKET-USAGE — стык с бэкендом.
+ *
+ * Бэкенд проектируется параллельно, поэтому обёрток ровно три и все пути
+ * собраны здесь: когда контракт подтвердят, править нужно только эти
+ * константы и, если разойдутся имена полей, типы в lib/ticketMaterials.
+ * Шире API не выдумывается: закупок, выдачи, склада и поставщиков в срезе нет.
+ *
+ * Ожидаемый контракт (подлежит подтверждению backend-агентом):
+ *   GET  /tickets/:id/materials      -> { items: TicketMaterialUsage[] }
+ *   GET  /materials/my-balances      -> { items: TechnicianMaterialBalance[] }
+ *   POST /tickets/:id/materials      -> TicketMaterialUsage
+ *                                       body { materialId, quantity, comment? }
+ *
+ * quantity — строка: на сервере это Decimal, дробные единицы (м, л) обязаны
+ * доезжать без потерь, поэтому number здесь не используется.
+ */
+export const MATERIALS_API_PATHS = {
+  ticketUsage: (ticketId: string) => `/tickets/${ticketId}/materials`,
+  technicianBalances: '/materials/my-balances',
+} as const
+
+export type TicketMaterialUsageResponse = { items: TicketMaterialUsage[] }
+export type TechnicianMaterialBalancesResponse = { items: TechnicianMaterialBalance[] }
+
+/** История материалов, списанных на заявку. Область — та же, что у остальных чтений заявки. */
+export async function ticketMaterials(
+  ticketId: string,
+  scope?: string | TicketScopeParams,
+): Promise<TicketMaterialUsageResponse> {
+  return request<TicketMaterialUsageResponse>(
+    MATERIALS_API_PATHS.ticketUsage(ticketId) + buildTicketScopeSuffix(scope),
+  )
+}
+
+/** Остатки материалов на руках у текущего техника. Актор берётся из токена. */
+export async function technicianMaterialBalances(
+  scope?: string | TicketScopeParams,
+): Promise<TechnicianMaterialBalancesResponse> {
+  return request<TechnicianMaterialBalancesResponse>(
+    MATERIALS_API_PATHS.technicianBalances + buildTicketScopeSuffix(scope),
+  )
+}
+
+export type ConsumeTicketMaterialInput = {
+  materialId: string
+  quantity: string
+  comment?: string
+}
+
+/** Списание материала на заявку. Остаток пересчитывает сервер. */
+export async function consumeTicketMaterial(
+  ticketId: string,
+  input: ConsumeTicketMaterialInput,
+  scope?: string | TicketScopeParams,
+): Promise<TicketMaterialUsage> {
+  return request<TicketMaterialUsage>(
+    MATERIALS_API_PATHS.ticketUsage(ticketId) + buildTicketScopeSuffix(scope),
+    { method: 'POST', body: input },
+  )
 }
 
 export async function getEquipmentParts(id: string, companyId?: string): Promise<EquipmentPartsResponse> {
