@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { EmployeeForm, type EmployeeFormValue } from '../components/employees/EmployeeForm'
 import { EmployeeList } from '../components/employees/EmployeeList'
+import { EmployeeTechnicianMaterialsSection } from '../components/materials/MaterialsPanels'
 
 const emptyCreateForm: EmployeeFormValue = {
   firstName: '',
@@ -132,6 +133,21 @@ export function EmployeesPage() {
 
   const usersQ = useQuery({ queryKey: ['users', observerCompanyId, showDeleted], queryFn: () => api.users(observerCompanyId || undefined, { includeDeleted: showDeleted }) })
   const specsQ = useQuery({ queryKey: ['specializations'], queryFn: api.specializations, enabled: !isObserverMode })
+  const materialsQ = useQuery({
+    queryKey: ['materials-directory'],
+    queryFn: api.materials,
+    enabled: !!editingUserId && editValue.role === 'TECHNICIAN' && !isObserverMode,
+  })
+  const technicianMaterialsQ = useQuery({
+    queryKey: ['employee-technician-material-balances', editingUserId],
+    queryFn: () => api.technicianMaterialBalances(editingUserId!),
+    enabled: !!editingUserId && editValue.role === 'TECHNICIAN' && !isObserverMode,
+  })
+  const technicianMaterialHistoryQ = useQuery({
+    queryKey: ['employee-technician-material-history', editingUserId],
+    queryFn: () => api.technicianMaterialHistory(editingUserId!),
+    enabled: !!editingUserId && editValue.role === 'TECHNICIAN' && !isObserverMode,
+  })
 
   const activeSpecializations = useMemo(
     () => (specsQ.data || []).filter((item) => item.isActive !== false),
@@ -358,6 +374,25 @@ export function EmployeesPage() {
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['users'] }),
         qc.invalidateQueries({ queryKey: ['technician-location-bindings', editingUserId, effectiveBindingsCompanyId] }),
+      ])
+    },
+    onError: (error: any) => {
+      setSuccess(null)
+      setErr(error?.message || String(error))
+    },
+  })
+
+  const issueMaterialM = useMutation({
+    mutationFn: (input: api.ManagerIssueMaterialInput) => {
+      if (!editingUserId) throw new Error('Сначала выберите техника')
+      return api.issueTechnicianMaterial(editingUserId, input)
+    },
+    onSuccess: async () => {
+      setErr(null)
+      setSuccess('Материал выдан')
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['employee-technician-material-balances', editingUserId] }),
+        qc.invalidateQueries({ queryKey: ['employee-technician-material-history', editingUserId] }),
       ])
     },
     onError: (error: any) => {
@@ -597,6 +632,22 @@ export function EmployeesPage() {
       ) : null}
     </div>
   ) : null
+  const technicianMaterialsBlock = editingUserId && editValue.role === 'TECHNICIAN' && !isObserverMode ? (
+    <EmployeeTechnicianMaterialsSection
+      balances={technicianMaterialsQ.data || []}
+      movements={technicianMaterialHistoryQ.data || []}
+      materials={materialsQ.data || []}
+      loading={materialsQ.isFetching || technicianMaterialsQ.isFetching || technicianMaterialHistoryQ.isFetching}
+      submitting={issueMaterialM.isPending}
+      onIssue={(input) => issueMaterialM.mutate(input)}
+    />
+  ) : null
+  const employeeEditExtras = (
+    <>
+      {technicianLocationBindingsBlock}
+      {technicianMaterialsBlock}
+    </>
+  )
 
   return (
     <div className="managementPage">
@@ -703,7 +754,7 @@ export function EmployeesPage() {
               onToggleActive={toggleActive}
               onDelete={deleteEmployee}
               onRestore={restoreEmployee}
-              editExtras={technicianLocationBindingsBlock}
+              editExtras={employeeEditExtras}
             />
           )}
         </div>

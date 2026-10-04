@@ -1578,6 +1578,69 @@ button.toastItem:active {
   }
 }
 
+/* Materials V0 — compact balances, movements and dictionary rows. */
+.materialsPanelHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.materialsPanelHeader h3 {
+  margin: 0;
+}
+
+.materialsList,
+.materialsHistory,
+.materialsForm {
+  display: grid;
+  gap: 10px;
+}
+
+.materialsForm {
+  margin-top: 12px;
+}
+
+.materialsRow,
+.materialsHistoryRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.materialsRow:last-child,
+.materialsHistoryRow:last-child {
+  border-bottom: 0;
+}
+
+.materialsName {
+  min-width: 0;
+  font-weight: 700;
+  color: #111827;
+  overflow-wrap: anywhere;
+}
+
+.materialsQty {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: #111827;
+  white-space: nowrap;
+}
+
+.materialsEmployeeSection .grid2 {
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .materialsEmployeeSection .grid2 {
+    grid-template-columns: 1fr !important;
+  }
+}
+
 /* ── A4 portrait is the primary printable format for acts and round reports ── */
 @page {
   size: A4 portrait;

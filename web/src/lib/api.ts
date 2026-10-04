@@ -11,6 +11,16 @@
 } from './browserStorage'
 import { notifyRealtimeAuthChanged } from './realtimeSocket'
 import { reportApiReachability } from './apiReachability'
+import type {
+  CreateMaterialInput,
+  ManagerIssueMaterialInput,
+  MaterialDirectoryItem,
+  MaterialMovement,
+  SelfPurchaseInput,
+  TechnicianMaterialBalance,
+  TicketMaterialUsage,
+  TicketMaterialUsageInput,
+} from './materials'
 export {
   currentInternalAppPath,
   getReturnToFromSearch,
@@ -2399,6 +2409,109 @@ export async function setProblemCategorySpecializations(
     method: 'PUT',
     body: { specializationIds },
   })
+}
+
+// ── Materials V0 frontend seam ─────────────────────────────────────────────
+// Backend is being implemented in parallel. Keep endpoint names isolated here:
+// UI screens import functions, not literal paths, so contract reconciliation is
+// a small API-layer patch and does not create a second Materials subsystem.
+export const MATERIALS_API_ENDPOINTS = {
+  materials: '/materials',
+  myBalances: '/materials/my/balances',
+  myHistory: '/materials/my/history',
+  selfPurchase: '/materials/my/purchases',
+  technicianBalances: (userId: string) => `/users/${userId}/materials/balances`,
+  technicianHistory: (userId: string) => `/users/${userId}/materials/history`,
+  technicianIssue: (userId: string) => `/users/${userId}/materials/issues`,
+  ticketMaterials: (ticketId: string) => `/tickets/${ticketId}/materials`,
+} as const
+
+export type {
+  CreateMaterialInput,
+  ManagerIssueMaterialInput,
+  MaterialDirectoryItem,
+  MaterialMovement,
+  SelfPurchaseInput,
+  TechnicianMaterialBalance,
+  TicketMaterialUsage,
+  TicketMaterialUsageInput,
+}
+
+export async function materials(): Promise<MaterialDirectoryItem[]> {
+  const response = await request<unknown>(MATERIALS_API_ENDPOINTS.materials)
+  return normalizeArrayResponse<MaterialDirectoryItem>(response, ['items', 'materials', 'data'])
+}
+
+export async function createMaterial(input: CreateMaterialInput): Promise<MaterialDirectoryItem> {
+  return request<MaterialDirectoryItem>(MATERIALS_API_ENDPOINTS.materials, {
+    method: 'POST',
+    body: input,
+  })
+}
+
+export async function setMaterialStatus(id: string, active: boolean): Promise<MaterialDirectoryItem> {
+  return request<MaterialDirectoryItem>(`${MATERIALS_API_ENDPOINTS.materials}/${id}/status`, {
+    method: 'PATCH',
+    body: { active },
+  })
+}
+
+export async function myMaterialBalances(): Promise<TechnicianMaterialBalance[]> {
+  const response = await request<unknown>(MATERIALS_API_ENDPOINTS.myBalances)
+  return normalizeArrayResponse<TechnicianMaterialBalance>(response, ['items', 'balances', 'data'])
+}
+
+export async function myMaterialHistory(): Promise<MaterialMovement[]> {
+  const response = await request<unknown>(MATERIALS_API_ENDPOINTS.myHistory)
+  return normalizeArrayResponse<MaterialMovement>(response, ['items', 'movements', 'data'])
+}
+
+export async function recordMaterialSelfPurchase(input: SelfPurchaseInput): Promise<MaterialMovement> {
+  return request<MaterialMovement>(MATERIALS_API_ENDPOINTS.selfPurchase, {
+    method: 'POST',
+    body: input,
+  })
+}
+
+export async function technicianMaterialBalances(userId: string): Promise<TechnicianMaterialBalance[]> {
+  const response = await request<unknown>(MATERIALS_API_ENDPOINTS.technicianBalances(userId))
+  return normalizeArrayResponse<TechnicianMaterialBalance>(response, ['items', 'balances', 'data'])
+}
+
+export async function technicianMaterialHistory(userId: string): Promise<MaterialMovement[]> {
+  const response = await request<unknown>(MATERIALS_API_ENDPOINTS.technicianHistory(userId))
+  return normalizeArrayResponse<MaterialMovement>(response, ['items', 'movements', 'data'])
+}
+
+export async function issueTechnicianMaterial(userId: string, input: ManagerIssueMaterialInput): Promise<MaterialMovement> {
+  return request<MaterialMovement>(MATERIALS_API_ENDPOINTS.technicianIssue(userId), {
+    method: 'POST',
+    body: input,
+  })
+}
+
+export async function ticketMaterials(
+  ticketId: string,
+  scope?: string | TicketScopeParams,
+): Promise<TicketMaterialUsage[]> {
+  const response = await request<unknown>(
+    `${MATERIALS_API_ENDPOINTS.ticketMaterials(ticketId)}${buildTicketScopeSuffix(scope)}`,
+  )
+  return normalizeArrayResponse<TicketMaterialUsage>(response, ['items', 'materials', 'usages', 'data'])
+}
+
+export async function useTicketMaterial(
+  ticketId: string,
+  input: TicketMaterialUsageInput,
+  scope?: string | TicketScopeParams,
+): Promise<TicketMaterialUsage> {
+  return request<TicketMaterialUsage>(
+    `${MATERIALS_API_ENDPOINTS.ticketMaterials(ticketId)}${buildTicketScopeSuffix(scope)}`,
+    {
+      method: 'POST',
+      body: input,
+    },
+  )
 }
 
 export async function technicians(): Promise<TechnicianItem[]> {

@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { canAccessManagementDesktop, managementHomePath } from '../lib/navigation'
 import { ClientContourCard } from './ClientContourCard'
-import { mobilePath, supportsPersonalNotificationPreferences } from './mobileRoute'
+import { getMobileRouteRoot, mobilePath, supportsPersonalNotificationPreferences } from './mobileRoute'
 import { NotificationPreferencesPanel } from '../components/notifications/NotificationPreferencesPanel'
 
 type ManagementLink = {
@@ -182,6 +182,14 @@ export function MobileSettingsPage() {
         label: 'Смены сотрудников',
         hint: 'Отчёт по сменам и трудозатратам',
         to: scoped(mobilePath(location.pathname, '/workforce')),
+      })
+    }
+    if (role === 'TECHNICIAN' && getMobileRouteRoot(location.pathname) === '/m') {
+      links.push({
+        id: 'materials',
+        label: 'Мои материалы',
+        hint: 'Остатки, покупки и история движений',
+        to: scoped('/m/materials'),
       })
     }
     if (role !== 'STAFF') {
