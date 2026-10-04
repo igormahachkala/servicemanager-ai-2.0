@@ -3810,6 +3810,7 @@ a.mobileBtn.mobileCreateTicketLink {
   cursor: pointer;
   transition: transform 0.1s ease, box-shadow 0.15s ease;
   -webkit-tap-highlight-color: transparent;
+  text-decoration: none;
 }
 
 .mobileHomeQuickCard:active {
@@ -3871,6 +3872,19 @@ a.mobileBtn.mobileCreateTicketLink {
 }
 .mobileHomeQuickCard--amber .mobileHomeQuickCardSub { color: #b45309; }
 .mobileHomeQuickCard--amber .mobileHomeQuickCardChevron { color: #d97706; }
+
+/* emerald — ежедневный вход в Materials */
+.mobileHomeQuickCard--emerald {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+.mobileHomeQuickCard--emerald .mobileHomeQuickCardIcon {
+  background: #d1fae5;
+  color: #047857;
+}
+.mobileHomeQuickCard--emerald .mobileHomeQuickCardSub { color: #047857; }
+.mobileHomeQuickCard--emerald .mobileHomeQuickCardChevron { color: #059669; }
 
 /* violet — «Требует действия» / «Планирование» */
 .mobileHomeQuickCard--violet {

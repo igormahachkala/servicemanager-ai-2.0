@@ -12,6 +12,8 @@ describe('Materials V0 integrated surfaces', () => {
   const management = source('./MaterialsPage.tsx')
   const mobile = source('../mobile/MobileMaterialsPage.tsx')
   const mobileSettings = source('../mobile/MobileSettingsPage.tsx')
+  const mobileHome = source('../mobile/home/MobileHome.tsx')
+  const mobileQuickCards = source('../mobile/home/HomeQuickCards.tsx')
   const ticketDesktop = source('./TicketPage.tsx')
   const ticketMobile = source('../mobile/MobileTicketPage.tsx')
   const ticketPanel = source('../components/tickets/TicketMaterialsPanel.tsx')
@@ -47,11 +49,12 @@ describe('Materials V0 integrated surfaces', () => {
     expect(mobile).not.toContain('type="file"')
   })
 
-  it('provides one /m-only navigation entry for technicians and management', () => {
-    expect(mobileSettings).toContain("getMobileRouteRoot(location.pathname) === '/m'")
-    expect(mobileSettings).toContain("meQ.data?.canAccessManagementSurface === true && role !== 'PLATFORM_ADMIN'")
-    expect(mobileSettings).toContain("to: scoped('/m/materials')")
+  it('reuses one /m-only Materials visibility helper on Home and Settings', () => {
+    expect(mobileSettings).toContain('getMobileMaterialsEntry(meQ.data, location.pathname)')
+    expect(mobileHome).toContain('getMobileMaterialsEntry(meQ.data, location.pathname)')
+    expect(mobileQuickCards).toContain('HomeMaterialsEntry')
     expect(mobileSettings).not.toContain('/max/materials')
+    expect(mobileHome).not.toContain('/max/materials')
   })
 
   it('supports the mobile management workflow through canonical APIs', () => {
@@ -61,7 +64,7 @@ describe('Materials V0 integrated surfaces', () => {
     expect(mobile).toContain('api.technicianMaterialBalances')
     expect(mobile).toContain('api.technicianMaterialMovements')
     expect(mobile).toContain('api.issueMaterialToTechnician')
-    expect(mobile).toContain("canAccessManagementSurface === true && meQ.data.role !== 'PLATFORM_ADMIN'")
+    expect(mobile).toContain("getMobileMaterialsEntry(meQ.data, location.pathname)?.kind === 'management'")
     expect(mobile).not.toContain('materialCompanyStock')
     expect(mobile).not.toContain('setMaterialStatus')
   })

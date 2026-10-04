@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+
 export type MobileHomeQuickFilter = 'awaiting' | 'myaction' | 'rework' | null
 
 type Props = {
@@ -9,6 +11,31 @@ type Props = {
   onToggleMyAction: () => void
   onToggleRework: () => void
   onPlanning: () => void
+}
+
+export function HomeMaterialsEntry(props: { href: string; label: string }) {
+  return (
+    <Link className="mobileHomeQuickCard mobileHomeQuickCard--emerald" to={props.href}>
+      <span className="mobileHomeQuickCardIcon" aria-hidden>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6 7h12" />
+          <path d="M5 7l1 13h12l1 -13" />
+          <path d="M9 7V4h6v3" />
+          <path d="M9 11v5" />
+          <path d="M15 11v5" />
+        </svg>
+      </span>
+      <span className="mobileHomeQuickCardBody">
+        <span className="mobileHomeQuickCardTitle">{props.label}</span>
+        <span className="mobileHomeQuickCardSub">Остатки, движения и операции</span>
+      </span>
+      <span className="mobileHomeQuickCardChevron" aria-hidden>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+      </span>
+    </Link>
+  )
 }
 
 /** Быстрые карты главной (Figma HomeScreen): Требуют доработки / На приёмке / Требует действия / Планирование. Иконки — Tabler SVG, без эмодзи. */

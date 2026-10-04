@@ -35,12 +35,13 @@ import { getOnlineStatus, useOnlineStatus } from '../offlineQueue'
 import { loadBoardCache, saveBoardCache } from '../offline/boardCache'
 import { queueOffline } from '../offline/useOffline'
 import { ONLINE_ONLY_ACTION_MESSAGE } from '../offline/onlineOnlyMessage'
+import { getMobileMaterialsEntry } from '../mobileMaterialsEntry'
 import { mobilePath } from '../mobileRoute'
 import { HomeHeader } from './HomeHeader'
 import { HomeTabs } from './HomeTabs'
 import { HomeChips } from './HomeChips'
 import { HomeList, type TicketCloseModalState } from './HomeList'
-import { HomeQuickCards, type MobileHomeQuickFilter } from './HomeQuickCards'
+import { HomeMaterialsEntry, HomeQuickCards, type MobileHomeQuickFilter } from './HomeQuickCards'
 import { HomeFAB } from './HomeFAB'
 
 export function MobileHome() {
@@ -66,6 +67,7 @@ export function MobileHome() {
   const [filtersExpanded, setFiltersExpanded] = useState(false)
   // E3: быстрая карта персистится (как tab+chips) — вернулся из заявки → карта осталась активной; сброс её гасит.
   const [quickFilter, setQuickFilter] = useState<MobileHomeQuickFilter>(persistedBoardUi.quickFilter)
+  const materialsEntry = getMobileMaterialsEntry(meQ.data, location.pathname)
 
   const providerContextKnown =
     !meQ.data || meQ.data.role === 'CLIENT' || meQ.data.role === 'TECHNICIAN' || companyQ.isSuccess || companyQ.isError
@@ -530,6 +532,11 @@ export function MobileHome() {
         <div className="mobileNotice" role="status">
           Выберите клиентский контур в верхней панели, чтобы открыть заявки.
         </div>
+        {materialsEntry ? (
+          <div className="mobileHomeQuickCards">
+            <HomeMaterialsEntry {...materialsEntry} />
+          </div>
+        ) : null}
       </div>
     )
   }
@@ -555,6 +562,11 @@ export function MobileHome() {
         searchQuery={searchQuery}
         setSearchQuery={changeSearchQuery}
       />
+      {materialsEntry ? (
+        <div className="mobileHomeQuickCards">
+          <HomeMaterialsEntry {...materialsEntry} />
+        </div>
+      ) : null}
       {showMobileHomeTicketBoard ? (
         <>
           <HomeQuickCards

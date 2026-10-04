@@ -15,6 +15,7 @@ import {
   type UpdateMaterialInput,
 } from '../lib/materials'
 import { mobilePath } from './mobileRoute'
+import { getMobileMaterialsEntry } from './mobileMaterialsEntry'
 
 type Section = 'mine' | 'stock' | 'technicians' | 'directory'
 type MaterialDraft = { name: string; unit: string; sku: string; category: string }
@@ -43,7 +44,7 @@ export function MobileMaterialsPage() {
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const isTechnician = meQ.data?.role === 'TECHNICIAN'
-  const canManage = meQ.data?.canAccessManagementSurface === true && meQ.data.role !== 'PLATFORM_ADMIN'
+  const canManage = getMobileMaterialsEntry(meQ.data, location.pathname)?.kind === 'management'
 
   useEffect(() => {
     if (meQ.isSuccess && !isTechnician && canManage && section === 'mine') setSection('stock')
