@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { EmployeeForm, type EmployeeFormValue } from '../components/employees/EmployeeForm'
 import { EmployeeList } from '../components/employees/EmployeeList'
+import { TechnicianMaterials } from '../components/materials/TechnicianMaterials'
 
 const emptyCreateForm: EmployeeFormValue = {
   firstName: '',
@@ -597,6 +598,23 @@ export function EmployeesPage() {
       ) : null}
     </div>
   ) : null
+  // SMA-MATERIALS-V0: карточка материалов техника у руководителя — остатки,
+  // история и форма выдачи. canIssue по роли смотрящего; backend решает право.
+  const viewerCanIssueMaterials = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TERRITORIAL_MANAGER'].includes(
+    (meQ.data?.role as string) ?? '',
+  )
+  const technicianMaterialsCard =
+    editingUserId && editValue.role === 'TECHNICIAN' ? (
+      <div className="panel" style={{ marginTop: 12 }}>
+        <TechnicianMaterials technicianId={editingUserId} canIssue={viewerCanIssueMaterials} />
+      </div>
+    ) : null
+  const employeeEditExtras = (
+    <>
+      {technicianLocationBindingsBlock}
+      {technicianMaterialsCard}
+    </>
+  )
 
   return (
     <div className="managementPage">
@@ -703,7 +721,7 @@ export function EmployeesPage() {
               onToggleActive={toggleActive}
               onDelete={deleteEmployee}
               onRestore={restoreEmployee}
-              editExtras={technicianLocationBindingsBlock}
+              editExtras={employeeEditExtras}
             />
           )}
         </div>

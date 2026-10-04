@@ -76,6 +76,7 @@ const LocationAnalyticsPage = lazyExport(() => import('./views/LocationAnalytics
 const SettingsPage = lazyExport(() => import('./views/SettingsPage'), 'SettingsPage')
 const ProblemCategoriesPage = lazyExport(() => import('./views/ProblemCategoriesPage'), 'ProblemCategoriesPage')
 const SpecializationsPage = lazyExport(() => import('./views/SpecializationsPage'), 'SpecializationsPage')
+const MaterialsPage = lazyExport(() => import('./views/MaterialsPage'), 'MaterialsPage')
 const CompanyPage = lazyExport(() => import('./views/CompanyPage'), 'CompanyPage')
 const TechnicianPage = lazyExport(() => import('./views/TechnicianPage'), 'TechnicianPage')
 const CompaniesPage = lazyExport(() => import('./views/CompaniesPage'), 'CompaniesPage')
@@ -354,6 +355,7 @@ export function AppRoutes() {
         <Route path="locations/:id" element={<LazyRoute component={LocationPage} />} />
         <Route path="employees" element={<LazyRoute component={EmployeesPage} />} />
         <Route path="specializations" element={<LazyRoute component={SpecializationsPage} />} />
+        <Route path="materials" element={<LazyRoute component={MaterialsPage} />} />
         <Route path="analytics" element={<LazyRoute component={AnalyticsPage} />} />
         <Route path="workforce" element={<LazyRoute component={WorkforcePage} />} />
         <Route path="analytics/locations" element={<LazyRoute component={LocationAnalyticsPage} />} />

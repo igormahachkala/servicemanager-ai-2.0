@@ -124,6 +124,7 @@ export const MANAGEMENT_ROUTES: readonly ManagementRouteMeta[] = Object.freeze([
   { path: '/company', section: 'settings', pageLabel: 'Компания', breadcrumbLabel: 'Компания', parentPath: null, entity: null, primaryNav: true },
   { path: '/problem-categories', section: 'settings', pageLabel: 'Категории проблем', breadcrumbLabel: 'Категории проблем', parentPath: null, entity: null, primaryNav: true },
   { path: '/specializations', section: 'settings', pageLabel: 'Специализации', breadcrumbLabel: 'Специализации', parentPath: null, entity: null, primaryNav: true },
+  { path: '/materials', section: 'settings', pageLabel: 'Материалы', breadcrumbLabel: 'Материалы', parentPath: null, entity: null, primaryNav: true },
   { path: '/service-contracts', section: 'settings', pageLabel: 'Договоры и подрядчики', breadcrumbLabel: 'Договоры и подрядчики', parentPath: null, entity: null, primaryNav: true },
   { path: '/contractors', section: 'settings', pageLabel: 'Подрядчики', breadcrumbLabel: 'Подрядчики', parentPath: null, entity: null, primaryNav: false },
   { path: '/access-constructor', section: 'settings', pageLabel: 'Конструктор доступа', breadcrumbLabel: 'Конструктор доступа', parentPath: null, entity: null, primaryNav: false },

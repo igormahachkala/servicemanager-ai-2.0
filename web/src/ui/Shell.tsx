@@ -76,6 +76,7 @@ function isActivePath(currentPath: string, targetPath: string) {
   if (targetPath === '/inspection/templates') return currentPath.startsWith('/inspection/templates')
   if (targetPath === '/map') return currentPath.startsWith('/map')
   if (targetPath === '/specializations') return currentPath.startsWith('/specializations')
+  if (targetPath === '/materials') return currentPath.startsWith('/materials')
   if (targetPath === '/analytics') return currentPath.startsWith('/analytics')
   if (targetPath === '/settings') return currentPath.startsWith('/settings')
   if (targetPath === '/company') return currentPath.startsWith('/company')
@@ -109,7 +110,7 @@ function isNavItemVisible(item: NavItem, role?: api.Role, canAccessEngineeringAg
 
   const fullAdmin = api.isFullAdminDesktopNavRole(role)
 
-  if (item.to === '/employees' || item.to === '/locations' || item.to === '/problem-categories' || item.to === '/specializations') {
+  if (item.to === '/employees' || item.to === '/locations' || item.to === '/problem-categories' || item.to === '/specializations' || item.to === '/materials') {
     return fullAdmin
   }
   if (item.to === '/workforce') {

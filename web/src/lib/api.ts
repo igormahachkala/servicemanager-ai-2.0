@@ -2350,6 +2350,142 @@ export async function deleteSpecialization(id: string): Promise<void> {
   })
 }
 
+/* ───────────────────────────────────────────────────────────────────────────
+ * SMA-MATERIALS-V0 — typed integration seam.
+ *
+ * Backend строится параллельно; эндпоинты ниже собраны в MATERIALS_API одной
+ * точкой, чтобы финализация контракта была правкой в одном месте, а не поиском
+ * по файлу. Пути следуют конвенции справочников (specializations): коллекция
+ * /materials, статус через PATCH :id/status, остатки и движения техника — под
+ * ресурсом техника. Выдача материала — отдельный POST, провайдер списывает
+ * из COMPANY_STOCK в остаток техника.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+export const MATERIALS_API = {
+  list: '/materials',
+  byId: (id: string) => `/materials/${id}`,
+  status: (id: string) => `/materials/${id}/status`,
+  /** Остатки техника: материал → количество в его единице. */
+  technicianBalances: (technicianId: string) => `/technicians/${technicianId}/material-balances`,
+  /** История движений техника (выдача/покупка/расход). */
+  technicianMovements: (technicianId: string) => `/technicians/${technicianId}/material-movements`,
+  /** Остаток COMPANY_STOCK по материалу (если backend его отдаёт). */
+  companyStock: (materialId: string) => `/materials/${materialId}/company-stock`,
+  /** Выдача материала руководителем технику. */
+  issue: (technicianId: string) => `/technicians/${technicianId}/material-issuances`,
+} as const
+
+export type MaterialUnit = string
+
+export type MaterialListItem = {
+  id: string
+  name: string
+  unit: MaterialUnit
+  sku?: string | null
+  category?: string | null
+  isActive: boolean
+  createdAt?: string
+}
+
+export type CreateMaterialInput = {
+  name: string
+  unit: MaterialUnit
+  sku?: string | null
+  category?: string | null
+  isActive?: boolean
+}
+
+export type UpdateMaterialInput = {
+  name?: string
+  unit?: MaterialUnit
+  sku?: string | null
+  category?: string | null
+  isActive?: boolean
+}
+
+/** Остаток одного материала у техника. */
+export type TechnicianMaterialBalance = {
+  materialId: string
+  materialName: string
+  unit: MaterialUnit
+  quantity: number
+}
+
+/**
+ * Вид движения материала. Разделение источника важно для истории техника:
+ * выдача руководителем и покупка самим техником — приход, расход по заявке — убыль.
+ */
+export type MaterialMovementKind = 'ISSUE' | 'PURCHASE' | 'CONSUMPTION'
+
+export type MaterialMovement = {
+  id: string
+  materialId: string
+  materialName: string
+  unit: MaterialUnit
+  kind: MaterialMovementKind
+  /** Знаковое количество: приход > 0, расход < 0 (как присылает backend). */
+  quantity: number
+  comment?: string | null
+  /** Для CONSUMPTION — номер заявки, из-за которой списан материал. */
+  ticketNumber?: number | null
+  createdAt?: string
+}
+
+export type IssueMaterialInput = {
+  materialId: string
+  quantity: number
+  comment?: string | null
+}
+
+/** Остаток COMPANY_STOCK, если backend его предоставляет; иначе null. */
+export type CompanyStockBalance = {
+  materialId: string
+  unit: MaterialUnit
+  quantity: number
+}
+
+export async function materials(includeInactive = false): Promise<MaterialListItem[]> {
+  const search = new URLSearchParams()
+  if (includeInactive) search.set('includeInactive', 'true')
+  const suffix = search.toString() ? '?' + search.toString() : ''
+  const response = await request<unknown>(MATERIALS_API.list + suffix)
+  return normalizeArrayResponse<MaterialListItem>(response, ['items', 'materials'])
+}
+
+export async function createMaterial(input: CreateMaterialInput): Promise<MaterialListItem> {
+  return request<MaterialListItem>(MATERIALS_API.list, { method: 'POST', body: input })
+}
+
+export async function updateMaterial(id: string, input: UpdateMaterialInput): Promise<MaterialListItem> {
+  return request<MaterialListItem>(MATERIALS_API.byId(id), { method: 'PATCH', body: input })
+}
+
+export async function setMaterialStatus(id: string, isActive: boolean): Promise<MaterialListItem> {
+  return request<MaterialListItem>(MATERIALS_API.status(id), { method: 'PATCH', body: { isActive } })
+}
+
+export async function technicianMaterialBalances(technicianId: string): Promise<TechnicianMaterialBalance[]> {
+  const response = await request<unknown>(MATERIALS_API.technicianBalances(technicianId))
+  return normalizeArrayResponse<TechnicianMaterialBalance>(response, ['items', 'balances'])
+}
+
+export async function technicianMaterialMovements(technicianId: string): Promise<MaterialMovement[]> {
+  const response = await request<unknown>(MATERIALS_API.technicianMovements(technicianId))
+  return normalizeArrayResponse<MaterialMovement>(response, ['items', 'movements'])
+}
+
+export async function materialCompanyStock(materialId: string): Promise<CompanyStockBalance> {
+  return request<CompanyStockBalance>(MATERIALS_API.companyStock(materialId))
+}
+
+export async function issueMaterialToTechnician(
+  technicianId: string,
+  input: IssueMaterialInput,
+): Promise<MaterialMovement> {
+  return request<MaterialMovement>(MATERIALS_API.issue(technicianId), { method: 'POST', body: input })
+}
+
+
 /** `companyId` — query для GET /problem-categories: tenant, чьи категории нужны (у провайдера в linked-scope это id клиента). */
 export async function problemCategories(companyId?: string): Promise<ProblemCategoryListItem[]> {
   const search = new URLSearchParams()
