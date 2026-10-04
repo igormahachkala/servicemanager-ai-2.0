@@ -35,7 +35,7 @@ import { getOnlineStatus, useOnlineStatus } from '../offlineQueue'
 import { loadBoardCache, saveBoardCache } from '../offline/boardCache'
 import { queueOffline } from '../offline/useOffline'
 import { ONLINE_ONLY_ACTION_MESSAGE } from '../offline/onlineOnlyMessage'
-import { mobilePath } from '../mobileRoute'
+import { getMobileRouteRoot, mobilePath } from '../mobileRoute'
 import { HomeHeader } from './HomeHeader'
 import { HomeTabs } from './HomeTabs'
 import { HomeChips } from './HomeChips'
@@ -316,13 +316,13 @@ export function MobileHome() {
     setAssignTechId((prev) => (prev && assignTechOptions.some((r) => r.id === prev) ? prev : assignTechOptions[0]!.id))
   }, [assignTechOptions])
 
-  const canOpenMaterialsFromHome = !!meQ.data && (
+  const canOpenMaterialsFromHome = getMobileRouteRoot(location.pathname) === '/m' && !!meQ.data && (
     meQ.data.role === 'TECHNICIAN'
     || (meQ.data.canAccessManagementSurface === true && meQ.data.role !== 'PLATFORM_ADMIN')
   )
   const materialsHomeHref = meQ.data
-    ? api.appendScopeToPath(mobilePath(location.pathname, '/materials'), pageScope, meQ.data)
-    : mobilePath(location.pathname, '/materials')
+    ? api.appendScopeToPath('/m/materials', pageScope, meQ.data)
+    : '/m/materials'
   const materialsHomeLabel = meQ.data?.role === 'TECHNICIAN' ? 'Мои материалы' : 'Материалы'
   const materialsHomeHint = meQ.data?.role === 'TECHNICIAN'
     ? 'Остатки, покупки и история движений'
