@@ -568,28 +568,31 @@ export function MobileHome() {
         setSearchQuery={changeSearchQuery}
       />
       {canOpenMaterialsFromHome ? (
-        <button
-          type="button"
-          className="mobileCard"
-          onClick={() => navigate(materialsHomeHref)}
-          style={{
-            width: '100%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-            padding: '14px 16px',
-            textAlign: 'left',
-            cursor: 'pointer',
-          }}
-          aria-label={materialsHomeLabel}
-        >
-          <span>
-            <strong style={{ display: 'block', fontSize: '1rem' }}>{materialsHomeLabel}</strong>
-            <span className="mobileMeta" style={{ display: 'block', marginTop: 3 }}>{materialsHomeHint}</span>
-          </span>
-          <span aria-hidden style={{ fontSize: '1.3rem', lineHeight: 1 }}>›</span>
-        </button>
+        <div className="mobileHomeQuickCards">
+          <button
+            type="button"
+            className="mobileHomeQuickCard"
+            onClick={() => navigate(materialsHomeHref)}
+            aria-label={materialsHomeLabel}
+          >
+            <span className="mobileHomeQuickCardIcon" aria-hidden>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 8l-9 5l-9 -5" />
+                <path d="M3 8l9 -5l9 5v8l-9 5l-9 -5z" />
+                <path d="M12 13v8" />
+              </svg>
+            </span>
+            <span className="mobileHomeQuickCardBody">
+              <span className="mobileHomeQuickCardTitle">{materialsHomeLabel}</span>
+              <span className="mobileHomeQuickCardSub">{materialsHomeHint}</span>
+            </span>
+            <span className="mobileHomeQuickCardChevron" aria-hidden>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </span>
+          </button>
+        </div>
       ) : null}
       {showMobileHomeTicketBoard ? (
         <>
