@@ -21,6 +21,12 @@ export function MaterialsPage() {
       await qc.invalidateQueries({ queryKey: ['materials-directory'] })
     },
   })
+  const updateM = useMutation({
+    mutationFn: ({ id, input }: { id: string; input: api.UpdateMaterialInput }) => api.updateMaterial(id, input),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ['materials-directory'] })
+    },
+  })
 
   return (
     <div>
@@ -45,12 +51,14 @@ export function MaterialsPage() {
       {materialsQ.isError ? <div className="alert">{(materialsQ.error as any)?.message || String(materialsQ.error)}</div> : null}
       {createM.isError ? <div className="alert">{(createM.error as any)?.message || String(createM.error)}</div> : null}
       {statusM.isError ? <div className="alert">{(statusM.error as any)?.message || String(statusM.error)}</div> : null}
+      {updateM.isError ? <div className="alert">{(updateM.error as any)?.message || String(updateM.error)}</div> : null}
 
       <MaterialDictionaryPanel
         materials={materialsQ.data || []}
         loading={materialsQ.isFetching}
-        submitting={createM.isPending || statusM.isPending}
+        submitting={createM.isPending || statusM.isPending || updateM.isPending}
         onCreate={(input) => createM.mutate(input)}
+        onUpdate={(id, input) => updateM.mutate({ id, input })}
         onToggleActive={(id, active) => statusM.mutate({ id, active })}
       />
     </div>

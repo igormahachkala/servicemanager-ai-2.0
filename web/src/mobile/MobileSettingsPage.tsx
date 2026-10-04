@@ -16,6 +16,15 @@ type ManagementLink = {
 
 const WORKFORCE_ROLES = new Set<api.Role>(['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TERRITORIAL_MANAGER'])
 const INSPECTION_TEMPLATE_ROLES = new Set<api.Role>(['PLATFORM_ADMIN', 'ADMIN', 'DISPATCHER', 'MASTER', 'NETWORK_DIRECTOR'])
+const MATERIALS_ROLES = new Set<api.Role>([
+  'ADMIN',
+  'ADMIN_PROVIDER',
+  'MASTER',
+  'DISPATCHER',
+  'NETWORK_DIRECTOR',
+  'TERRITORIAL_MANAGER',
+  'TECHNICIAN',
+])
 
 function ChevronRight() {
   return (
@@ -184,11 +193,11 @@ export function MobileSettingsPage() {
         to: scoped(mobilePath(location.pathname, '/workforce')),
       })
     }
-    if (role === 'TECHNICIAN' && getMobileRouteRoot(location.pathname) === '/m') {
+    if (MATERIALS_ROLES.has(role) && getMobileRouteRoot(location.pathname) === '/m') {
       links.push({
         id: 'materials',
-        label: 'Мои материалы',
-        hint: 'Остатки, покупки и история движений',
+        label: role === 'TECHNICIAN' ? 'Мои материалы' : 'Материалы',
+        hint: role === 'TECHNICIAN' ? 'Остатки, покупки и история движений' : 'Склад, техники и справочник',
         to: scoped('/m/materials'),
       })
     }

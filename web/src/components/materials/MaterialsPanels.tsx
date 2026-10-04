@@ -5,12 +5,15 @@ import type {
   MaterialDirectoryItem,
   MaterialMovement,
   SelfPurchaseInput,
+  StockReceiptInput,
   TechnicianMaterialBalance,
   TicketMaterialUsage,
   TicketMaterialUsageInput,
+  UpdateMaterialInput,
 } from '../../lib/materials'
 import {
   activeMaterials,
+  decimalString,
   findMaterialBalance,
   formatMaterialQuantity,
   materialBalanceLabel,
@@ -19,6 +22,7 @@ import {
   validateCreateMaterialInput,
   validateManagerIssueMaterialInput,
   validateSelfPurchaseInput,
+  validateStockReceiptInput,
   validateTicketMaterialUsageInput,
 } from '../../lib/materials'
 
@@ -38,9 +42,8 @@ function materialOptions(materials: MaterialDirectoryItem[]) {
   return activeMaterials(materials).sort((a, b) => a.name.localeCompare(b.name, 'ru'))
 }
 
-function numberValue(value: string): number {
-  const normalized = value.replace(',', '.').trim()
-  return normalized ? Number(normalized) : 0
+function decimalValue(value: string): string {
+  return decimalString(value) || '0'
 }
 
 export function MaterialsBalanceList(props: {
@@ -79,6 +82,8 @@ export function MaterialMovementsList(props: {
               {movementTypeLabel(movement.type)}
               {movement.ticketNumber ? ` · заявка #${movement.ticketNumber}` : ''}
               {movement.actorName ? ` · ${movement.actorName}` : ''}
+              {movement.fromName ? ` · от ${movement.fromName}` : ''}
+              {movement.toName ? ` · к ${movement.toName}` : ''}
             </div>
             {movement.comment ? <div className="muted small">{movement.comment}</div> : null}
           </div>
@@ -95,10 +100,9 @@ export function MaterialMovementsList(props: {
 export function SelfPurchaseForm(props: {
   materials: MaterialDirectoryItem[]
   submitting?: boolean
-  receiptAttachmentAvailable?: boolean
   onSubmit?: (input: SelfPurchaseInput) => void | Promise<void>
 }) {
-  const { materials, submitting = false, receiptAttachmentAvailable = false, onSubmit } = props
+  const { materials, submitting = false, onSubmit } = props
   const options = useMemo(() => materialOptions(materials), [materials])
   const [materialId, setMaterialId] = useState('')
   const [quantity, setQuantity] = useState('')
@@ -110,8 +114,8 @@ export function SelfPurchaseForm(props: {
     e.preventDefault()
     const input: SelfPurchaseInput = {
       materialId,
-      quantity: numberValue(quantity),
-      cost: cost.trim() ? numberValue(cost) : null,
+      quantity: decimalValue(quantity),
+      cost: cost.trim() ? decimalValue(cost) : null,
       comment: normalizeMaterialText(comment) || null,
     }
     const validation = validateSelfPurchaseInput(input)
@@ -146,13 +150,6 @@ export function SelfPurchaseForm(props: {
         <input inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="Необязательно" disabled={submitting} />
       </label>
       <label>
-        Фото чека
-        <input type="file" accept="image/*,.pdf" disabled={!receiptAttachmentAvailable || submitting} />
-        {!receiptAttachmentAvailable ? (
-          <span className="fieldHint">Подключается через существующую attachment-архитектуру после backend-контракта.</span>
-        ) : null}
-      </label>
-      <label>
         Комментарий
         <textarea rows={3} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Необязательно" disabled={submitting} />
       </label>
@@ -182,7 +179,7 @@ export function TicketMaterialsPanel(props: {
     e.preventDefault()
     const input: TicketMaterialUsageInput = {
       materialId,
-      quantity: numberValue(quantity),
+      quantity: decimalValue(quantity),
       comment: normalizeMaterialText(comment) || null,
     }
     const validation = validateTicketMaterialUsageInput(input, balances)
@@ -269,7 +266,7 @@ export function ManagerIssueMaterialForm(props: {
     e.preventDefault()
     const input: ManagerIssueMaterialInput = {
       materialId,
-      quantity: numberValue(quantity),
+      quantity: decimalValue(quantity),
       comment: normalizeMaterialText(comment) || null,
     }
     const validation = validateManagerIssueMaterialInput(input)
@@ -305,6 +302,63 @@ export function ManagerIssueMaterialForm(props: {
       </label>
       <button type="submit" disabled={submitting}>
         {submitting ? 'Выдаём…' : '+ Выдать материал'}
+      </button>
+    </form>
+  )
+}
+
+export function StockReceiptForm(props: {
+  materials: MaterialDirectoryItem[]
+  submitting?: boolean
+  onSubmit?: (input: StockReceiptInput) => void | Promise<void>
+}) {
+  const { materials, submitting = false, onSubmit } = props
+  const options = useMemo(() => materialOptions(materials), [materials])
+  const [materialId, setMaterialId] = useState('')
+  const [quantity, setQuantity] = useState('')
+  const [comment, setComment] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  function submit(e: FormEvent) {
+    e.preventDefault()
+    const input: StockReceiptInput = {
+      materialId,
+      quantity: decimalValue(quantity),
+      comment: normalizeMaterialText(comment) || null,
+    }
+    const validation = validateStockReceiptInput(input)
+    if (validation) {
+      setError(validation)
+      return
+    }
+    setError(null)
+    void onSubmit?.(input)
+  }
+
+  return (
+    <form className="materialsForm" onSubmit={submit}>
+      {error ? <div className="alert">{error}</div> : null}
+      <label>
+        Материал
+        <select value={materialId} onChange={(e) => setMaterialId(e.target.value)} disabled={submitting}>
+          <option value="">Выберите материал</option>
+          {options.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name} · {item.unit}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Количество
+        <input inputMode="decimal" value={quantity} onChange={(e) => setQuantity(e.target.value)} placeholder="0" disabled={submitting} />
+      </label>
+      <label>
+        Комментарий
+        <textarea rows={2} value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Необязательно" disabled={submitting} />
+      </label>
+      <button type="submit" disabled={submitting}>
+        {submitting ? 'Проводим…' : 'Поступление на склад'}
       </button>
     </form>
   )
@@ -348,15 +402,22 @@ export function MaterialDictionaryPanel(props: {
   loading?: boolean
   submitting?: boolean
   onCreate?: (input: CreateMaterialInput) => void | Promise<void>
+  onUpdate?: (materialId: string, input: UpdateMaterialInput) => void | Promise<void>
   onToggleActive?: (materialId: string, active: boolean) => void | Promise<void>
 }) {
-  const { materials, loading = false, submitting = false, onCreate, onToggleActive } = props
+  const { materials, loading = false, submitting = false, onCreate, onUpdate, onToggleActive } = props
   const [name, setName] = useState('')
   const [unit, setUnit] = useState('')
   const [sku, setSku] = useState('')
   const [category, setCategory] = useState('')
   const [active, setActive] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState('')
+  const [editName, setEditName] = useState('')
+  const [editUnit, setEditUnit] = useState('')
+  const [editSku, setEditSku] = useState('')
+  const [editCategory, setEditCategory] = useState('')
+  const [editError, setEditError] = useState<string | null>(null)
 
   function submit(e: FormEvent) {
     e.preventDefault()
@@ -374,6 +435,37 @@ export function MaterialDictionaryPanel(props: {
     }
     setError(null)
     void onCreate?.(input)
+  }
+
+  function beginEdit(item: MaterialDirectoryItem) {
+    setEditingId(item.id)
+    setEditName(item.name)
+    setEditUnit(item.unit)
+    setEditSku(item.sku || '')
+    setEditCategory(item.category || '')
+    setEditError(null)
+  }
+
+  function submitEdit(e: FormEvent) {
+    e.preventDefault()
+    const input: UpdateMaterialInput = {
+      name: normalizeMaterialText(editName),
+      unit: normalizeMaterialText(editUnit),
+      sku: normalizeMaterialText(editSku) || null,
+      category: normalizeMaterialText(editCategory) || null,
+    }
+    const validation = validateCreateMaterialInput({
+      name: input.name || '',
+      unit: input.unit || '',
+      sku: input.sku,
+      category: input.category,
+    })
+    if (validation) {
+      setEditError(validation)
+      return
+    }
+    setEditError(null)
+    void onUpdate?.(editingId, input)
   }
 
   return (
@@ -424,9 +516,39 @@ export function MaterialDictionaryPanel(props: {
                   {item.category ? ` · ${item.category}` : ''}
                 </div>
               </div>
-              <button type="button" className="ghost" disabled={submitting} onClick={() => onToggleActive?.(item.id, item.active === false)}>
-                {item.active === false ? 'Активировать' : 'Деактивировать'}
-              </button>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                <button type="button" className="ghost" disabled={submitting} onClick={() => beginEdit(item)}>
+                  Редактировать
+                </button>
+                <button type="button" className="ghost" disabled={submitting} onClick={() => onToggleActive?.(item.id, item.active === false)}>
+                  {item.active === false ? 'Активировать' : 'Деактивировать'}
+                </button>
+              </div>
+              {editingId === item.id ? (
+                <form className="materialsForm" style={{ gridColumn: '1 / -1' }} onSubmit={submitEdit}>
+                  {editError ? <div className="alert">{editError}</div> : null}
+                  <label>
+                    Название
+                    <input value={editName} onChange={(e) => setEditName(e.target.value)} disabled={submitting} />
+                  </label>
+                  <label>
+                    Единица измерения
+                    <input value={editUnit} onChange={(e) => setEditUnit(e.target.value)} disabled={submitting} />
+                  </label>
+                  <label>
+                    SKU
+                    <input value={editSku} onChange={(e) => setEditSku(e.target.value)} placeholder="Необязательно" disabled={submitting} />
+                  </label>
+                  <label>
+                    Категория
+                    <input value={editCategory} onChange={(e) => setEditCategory(e.target.value)} placeholder="Необязательно" disabled={submitting} />
+                  </label>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button type="submit" disabled={submitting}>Сохранить</button>
+                    <button type="button" className="ghost" disabled={submitting} onClick={() => setEditingId('')}>Отмена</button>
+                  </div>
+                </form>
+              ) : null}
             </div>
           ))}
         </div>

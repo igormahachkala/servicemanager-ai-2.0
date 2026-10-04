@@ -16,10 +16,13 @@ import type {
   ManagerIssueMaterialInput,
   MaterialDirectoryItem,
   MaterialMovement,
+  MaterialOperationResult,
   SelfPurchaseInput,
+  StockReceiptInput,
   TechnicianMaterialBalance,
   TicketMaterialUsage,
   TicketMaterialUsageInput,
+  UpdateMaterialInput,
 } from './materials'
 export {
   currentInternalAppPath,
@@ -2417,13 +2420,16 @@ export async function setProblemCategorySpecializations(
 // a small API-layer patch and does not create a second Materials subsystem.
 export const MATERIALS_API_ENDPOINTS = {
   materials: '/materials',
-  myBalances: '/materials/my/balances',
-  myHistory: '/materials/my/history',
-  selfPurchase: '/materials/my/purchases',
-  technicianBalances: (userId: string) => `/users/${userId}/materials/balances`,
-  technicianHistory: (userId: string) => `/users/${userId}/materials/history`,
-  technicianIssue: (userId: string) => `/users/${userId}/materials/issues`,
-  ticketMaterials: (ticketId: string) => `/tickets/${ticketId}/materials`,
+  material: (materialId: string) => `/materials/${materialId}`,
+  myBalances: '/materials/me/balances',
+  myHistory: '/materials/me/movements',
+  selfPurchase: '/materials/me/purchases',
+  stockReceipt: '/materials/stock/receipts',
+  technicianBalances: (userId: string) => `/materials/technicians/${userId}/balances`,
+  technicianHistory: (userId: string) => `/materials/technicians/${userId}/movements`,
+  technicianIssue: '/materials/issues',
+  ticketMaterials: (ticketId: string) => `/materials/tickets/${ticketId}/consumptions`,
+  ticketConsumption: '/materials/me/consumptions',
 } as const
 
 export type {
@@ -2431,43 +2437,111 @@ export type {
   ManagerIssueMaterialInput,
   MaterialDirectoryItem,
   MaterialMovement,
+  MaterialOperationResult,
   SelfPurchaseInput,
+  StockReceiptInput,
   TechnicianMaterialBalance,
   TicketMaterialUsage,
   TicketMaterialUsageInput,
+  UpdateMaterialInput,
+}
+
+function normalizeMaterialDirectoryItem(row: any): MaterialDirectoryItem {
+  return {
+    id: String(row?.id || row?.materialId || ''),
+    name: String(row?.name || row?.materialName || row?.material?.name || ''),
+    unit: String(row?.unit || row?.material?.unit || ''),
+    sku: row?.sku ?? null,
+    category: row?.category ?? row?.categoryName ?? null,
+    active: row?.active ?? row?.isActive ?? true,
+  }
+}
+
+function normalizeMaterialBalance(row: any): TechnicianMaterialBalance {
+  return {
+    materialId: String(row?.materialId || row?.material?.id || row?.id || ''),
+    materialName: String(row?.materialName || row?.material?.name || row?.name || ''),
+    unit: String(row?.unit || row?.material?.unit || ''),
+    balance: row?.quantity ?? row?.balance ?? row?.currentBalance ?? '0',
+  }
+}
+
+function normalizeMaterialMovement(row: any): MaterialMovement {
+  return {
+    id: String(row?.id || row?.movementId || `${row?.materialId || 'movement'}-${row?.createdAt || ''}`),
+    materialId: String(row?.materialId || row?.material?.id || ''),
+    materialName: String(row?.materialName || row?.material?.name || row?.name || ''),
+    unit: String(row?.unit || row?.material?.unit || ''),
+    quantity: row?.quantity ?? '0',
+    type: String(row?.type || row?.movementType || 'ADJUSTMENT'),
+    createdAt: String(row?.createdAt || row?.at || ''),
+    ticketId: row?.ticketId ?? row?.ticket?.id ?? null,
+    ticketNumber: row?.ticketNumber ?? row?.ticket?.ticketNumber ?? null,
+    actorName: row?.actorName ?? row?.actor?.name ?? null,
+    fromName: row?.fromName ?? row?.from?.name ?? null,
+    toName: row?.toName ?? row?.to?.name ?? null,
+    comment: row?.comment ?? null,
+    cost: row?.cost ?? row?.money ?? null,
+  }
+}
+
+function normalizeTicketMaterialUsage(row: any): TicketMaterialUsage {
+  return {
+    id: String(row?.id || row?.consumptionId || `${row?.materialId || 'usage'}-${row?.createdAt || ''}`),
+    materialId: String(row?.materialId || row?.material?.id || ''),
+    materialName: String(row?.materialName || row?.material?.name || row?.name || ''),
+    unit: String(row?.unit || row?.material?.unit || ''),
+    quantity: row?.quantity ?? '0',
+    createdAt: String(row?.createdAt || row?.at || ''),
+    technicianName: row?.technicianName ?? row?.technician?.name ?? null,
+    comment: row?.comment ?? null,
+  }
 }
 
 export async function materials(): Promise<MaterialDirectoryItem[]> {
   const response = await request<unknown>(MATERIALS_API_ENDPOINTS.materials)
-  return normalizeArrayResponse<MaterialDirectoryItem>(response, ['items', 'materials', 'data'])
+  return normalizeArrayResponse<any>(response, ['items', 'materials', 'data']).map(normalizeMaterialDirectoryItem)
 }
 
 export async function createMaterial(input: CreateMaterialInput): Promise<MaterialDirectoryItem> {
-  return request<MaterialDirectoryItem>(MATERIALS_API_ENDPOINTS.materials, {
+  const response = await request<unknown>(MATERIALS_API_ENDPOINTS.materials, {
+    method: 'POST',
+    body: input,
+  })
+  return normalizeMaterialDirectoryItem(response)
+}
+
+export async function updateMaterial(id: string, input: UpdateMaterialInput): Promise<MaterialDirectoryItem> {
+  const response = await request<unknown>(MATERIALS_API_ENDPOINTS.material(id), {
+    method: 'PATCH',
+    body: input,
+  })
+  return normalizeMaterialDirectoryItem(response)
+}
+
+export async function setMaterialStatus(id: string, active: boolean): Promise<MaterialDirectoryItem> {
+  return updateMaterial(id, { active })
+}
+
+export async function myMaterialBalances(): Promise<TechnicianMaterialBalance[]> {
+  const response = await request<unknown>(MATERIALS_API_ENDPOINTS.myBalances)
+  return normalizeArrayResponse<any>(response, ['items', 'balances', 'data']).map(normalizeMaterialBalance)
+}
+
+export async function myMaterialHistory(): Promise<MaterialMovement[]> {
+  const response = await request<unknown>(MATERIALS_API_ENDPOINTS.myHistory)
+  return normalizeArrayResponse<any>(response, ['items', 'movements', 'data']).map(normalizeMaterialMovement)
+}
+
+export async function recordMaterialSelfPurchase(input: SelfPurchaseInput): Promise<MaterialOperationResult> {
+  return request<MaterialOperationResult>(MATERIALS_API_ENDPOINTS.selfPurchase, {
     method: 'POST',
     body: input,
   })
 }
 
-export async function setMaterialStatus(id: string, active: boolean): Promise<MaterialDirectoryItem> {
-  return request<MaterialDirectoryItem>(`${MATERIALS_API_ENDPOINTS.materials}/${id}/status`, {
-    method: 'PATCH',
-    body: { active },
-  })
-}
-
-export async function myMaterialBalances(): Promise<TechnicianMaterialBalance[]> {
-  const response = await request<unknown>(MATERIALS_API_ENDPOINTS.myBalances)
-  return normalizeArrayResponse<TechnicianMaterialBalance>(response, ['items', 'balances', 'data'])
-}
-
-export async function myMaterialHistory(): Promise<MaterialMovement[]> {
-  const response = await request<unknown>(MATERIALS_API_ENDPOINTS.myHistory)
-  return normalizeArrayResponse<MaterialMovement>(response, ['items', 'movements', 'data'])
-}
-
-export async function recordMaterialSelfPurchase(input: SelfPurchaseInput): Promise<MaterialMovement> {
-  return request<MaterialMovement>(MATERIALS_API_ENDPOINTS.selfPurchase, {
+export async function recordMaterialStockReceipt(input: StockReceiptInput): Promise<MaterialOperationResult> {
+  return request<MaterialOperationResult>(MATERIALS_API_ENDPOINTS.stockReceipt, {
     method: 'POST',
     body: input,
   })
@@ -2475,18 +2549,18 @@ export async function recordMaterialSelfPurchase(input: SelfPurchaseInput): Prom
 
 export async function technicianMaterialBalances(userId: string): Promise<TechnicianMaterialBalance[]> {
   const response = await request<unknown>(MATERIALS_API_ENDPOINTS.technicianBalances(userId))
-  return normalizeArrayResponse<TechnicianMaterialBalance>(response, ['items', 'balances', 'data'])
+  return normalizeArrayResponse<any>(response, ['items', 'balances', 'data']).map(normalizeMaterialBalance)
 }
 
 export async function technicianMaterialHistory(userId: string): Promise<MaterialMovement[]> {
   const response = await request<unknown>(MATERIALS_API_ENDPOINTS.technicianHistory(userId))
-  return normalizeArrayResponse<MaterialMovement>(response, ['items', 'movements', 'data'])
+  return normalizeArrayResponse<any>(response, ['items', 'movements', 'data']).map(normalizeMaterialMovement)
 }
 
-export async function issueTechnicianMaterial(userId: string, input: ManagerIssueMaterialInput): Promise<MaterialMovement> {
-  return request<MaterialMovement>(MATERIALS_API_ENDPOINTS.technicianIssue(userId), {
+export async function issueTechnicianMaterial(userId: string, input: ManagerIssueMaterialInput): Promise<MaterialOperationResult> {
+  return request<MaterialOperationResult>(MATERIALS_API_ENDPOINTS.technicianIssue, {
     method: 'POST',
-    body: input,
+    body: { technicianId: userId, ...input },
   })
 }
 
@@ -2497,7 +2571,7 @@ export async function ticketMaterials(
   const response = await request<unknown>(
     `${MATERIALS_API_ENDPOINTS.ticketMaterials(ticketId)}${buildTicketScopeSuffix(scope)}`,
   )
-  return normalizeArrayResponse<TicketMaterialUsage>(response, ['items', 'materials', 'usages', 'data'])
+  return normalizeArrayResponse<any>(response, ['items', 'materials', 'usages', 'consumptions', 'data']).map(normalizeTicketMaterialUsage)
 }
 
 export async function useTicketMaterial(
@@ -2505,13 +2579,14 @@ export async function useTicketMaterial(
   input: TicketMaterialUsageInput,
   scope?: string | TicketScopeParams,
 ): Promise<TicketMaterialUsage> {
-  return request<TicketMaterialUsage>(
-    `${MATERIALS_API_ENDPOINTS.ticketMaterials(ticketId)}${buildTicketScopeSuffix(scope)}`,
+  const response = await request<unknown>(
+    `${MATERIALS_API_ENDPOINTS.ticketConsumption}${buildTicketScopeSuffix(scope)}`,
     {
       method: 'POST',
-      body: input,
+      body: { ticketId, ...input },
     },
   )
+  return normalizeTicketMaterialUsage(response)
 }
 
 export async function technicians(): Promise<TechnicianItem[]> {

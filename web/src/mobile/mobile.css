@@ -6679,3 +6679,62 @@ a.mobileBtn.mobileCreateTicketLink {
   min-height: 32px;
   padding: 0 4px;
 }
+
+/* Materials V0 mobile management surface. */
+.mobileMaterialsHome {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.mobileMaterialsActionRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.mobileMaterialsActionRow .mobileBtn {
+  flex: 1 1 132px;
+}
+
+.mobileMaterialsTechnicianList,
+.mobileMaterialsDirectory {
+  display: grid;
+  gap: 8px;
+}
+
+.mobileMaterialsTechnicianBtn,
+.mobileMaterialsDirectoryCard {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.mobileMaterialsTechnicianBtn {
+  display: grid;
+  gap: 2px;
+  font: inherit;
+  color: #111827;
+}
+
+.mobileMaterialsTechnicianBtn.is-active {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.mobileMaterialsDirectoryTitle {
+  font-weight: 800;
+  color: #111827;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 360px) {
+  .mobileMaterialsHome {
+    grid-template-columns: 1fr;
+  }
+}
