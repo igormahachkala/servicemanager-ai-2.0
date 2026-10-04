@@ -41,7 +41,7 @@ import {
 } from './offline/localTicket'
 import { ONLINE_ONLY_ACTION_MESSAGE, OFFLINE_TICKET_NOT_CACHED_MESSAGE } from './offline/onlineOnlyMessage'
 import { formatMobileMutationError } from './mobileActionErrors'
-import { mobilePath } from './mobileRoute'
+import { getMobileRouteRoot, mobilePath } from './mobileRoute'
 import {
   clientTicketLifecycleHintText,
   shouldShowClientTicketLifecycleHint,
@@ -65,6 +65,7 @@ import { useProtectedUploadSrcs } from '../ui/useProtectedUploadSrc'
 import { MobileTicketPhotoGallery } from './MobileTicketPhotoGallery'
 import { MobileTicketActionsSheet, type TicketSheetAction } from './MobileTicketActionsSheet'
 import { MobileModalBackdrop } from './MobileModalBackdrop'
+import { TicketMaterialsPanel } from '../components/tickets/TicketMaterialsPanel'
 import { compactIdentityLabel, identityLines, presentActorIdentity, presentTicketAssignee, presentTicketCreator } from '../lib/ticketActorIdentity'
 import { MobileTicketWorkTimer } from './MobileTicketWorkTimer'
 import { canOfferTicketClaimAction, readBackendCanClaim } from '../lib/ticketActionCapabilities'
@@ -419,6 +420,7 @@ export function MobileTicketPage() {
   const offline = useOfflineStatus()
   const isOnline = offline.online
   const isLocalTicket = isLocalId(ticketId)
+  const isRegularMobileTicketRoute = getMobileRouteRoot(location.pathname) === '/m'
 
   const ticketQ = useQuery({
     enabled: !!ticketId,
@@ -1807,6 +1809,17 @@ export function MobileTicketPage() {
             scope={ticketResourceScope}
             enabled={isSelfAssigned && ticket.status !== 'DONE' && ticket.status !== 'CANCELED'}
           />
+
+          {isRegularMobileTicketRoute && !isLocalTicket ? (
+            <div className="mobileCard" style={{ marginTop: 8 }}>
+              <TicketMaterialsPanel
+                ticketId={ticket.id}
+                role={meQ.data?.role}
+                scope={ticketResourceScope}
+                canMutate={isOnline}
+              />
+            </div>
+          ) : null}
 
           {showTechnicianNoActionsHint ? (
             <div className="mobileCard mobileEmptyState" style={{ marginTop: 8 }} role="status">

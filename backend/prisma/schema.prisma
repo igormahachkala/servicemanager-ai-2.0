@@ -155,6 +155,21 @@ enum InspectionFrequency {
   CUSTOM
 }
 
+enum MaterialHolderType {
+  COMPANY_STOCK
+  TECHNICIAN
+}
+
+enum MaterialMovementType {
+  PURCHASE
+  ISSUE
+  CONSUMPTION
+  RETURN
+  TRANSFER
+  ADJUSTMENT_PLUS
+  ADJUSTMENT_MINUS
+}
+
 model Company {
   id                              String             @id @default(uuid())
   name                            String
@@ -228,6 +243,9 @@ model Company {
   maxUserBindings              MaxUserBinding[]
   notificationRolePreferences  CompanyNotificationRolePreference[]
   userNotificationPreferences  UserNotificationPreference[]
+  materials                    Material[]
+  materialBalances             MaterialBalance[]
+  materialMovements            MaterialMovement[]
 }
 
 model User {
@@ -277,6 +295,10 @@ model User {
   workLogs                    WorkLog[]
   maxUserBindings             MaxUserBinding[]
   notificationPreferencesV2    UserNotificationPreference[]
+  materialBalances             MaterialBalance[]            @relation("MaterialBalanceHolder")
+  materialMovementsFrom        MaterialMovement[]           @relation("MaterialMovementFromUser")
+  materialMovementsTo          MaterialMovement[]           @relation("MaterialMovementToUser")
+  materialMovementsActed       MaterialMovement[]           @relation("MaterialMovementActor")
 
   @@index([companyId, role])
   @@index([companyId, isActive])
@@ -648,6 +670,76 @@ model Equipment {
   @@index([companyId, inventoryNumber])
 }
 
+model Material {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String
+  unit      String
+  sku       String?
+  category  String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  balances  MaterialBalance[]
+  movements MaterialMovement[]
+
+  @@unique([companyId, name])
+  @@unique([companyId, sku])
+  @@index([companyId, active])
+  @@index([companyId, category])
+}
+
+model MaterialBalance {
+  id           String             @id @default(uuid())
+  companyId    String
+  materialId   String
+  holderType   MaterialHolderType
+  holderUserId String?
+  quantity     Decimal            @default(0) @db.Decimal(18, 3)
+  updatedAt    DateTime           @updatedAt
+
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  holderUser User?    @relation("MaterialBalanceHolder", fields: [holderUserId], references: [id], onDelete: Restrict)
+
+  @@unique([companyId, materialId, holderType, holderUserId])
+  @@index([companyId, holderType, holderUserId])
+  @@index([materialId])
+}
+
+model MaterialMovement {
+  id             String               @id @default(uuid())
+  companyId      String
+  materialId     String
+  type           MaterialMovementType
+  quantity       Decimal              @db.Decimal(18, 3)
+  fromHolderType MaterialHolderType?
+  fromUserId     String?
+  toHolderType   MaterialHolderType?
+  toUserId       String?
+  ticketId       String?
+  actorUserId    String
+  unitPrice      Decimal?             @db.Decimal(18, 2)
+  totalAmount    Decimal?             @db.Decimal(18, 2)
+  comment        String?
+  createdAt      DateTime             @default(now())
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  material Material @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  fromUser User?    @relation("MaterialMovementFromUser", fields: [fromUserId], references: [id], onDelete: Restrict)
+  toUser   User?    @relation("MaterialMovementToUser", fields: [toUserId], references: [id], onDelete: Restrict)
+  actor    User     @relation("MaterialMovementActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  ticket   Ticket?  @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+
+  @@index([companyId, materialId, createdAt])
+  @@index([companyId, fromUserId, createdAt])
+  @@index([companyId, toUserId, createdAt])
+  @@index([ticketId, type, createdAt])
+  @@index([actorUserId, createdAt])
+}
+
 /// SMA-EQUIPMENT-V2-110A.
 /// Повторяет форму TicketAttachment и InspectionRunItemAttachment: файлы лежат
 /// в том же защищённом хранилище и отдаются тем же авторизованным маршрутом
@@ -779,6 +871,7 @@ model Ticket {
   partsRemoved      InstalledPart[]       @relation("InstalledPartRemovedTicket")
   inspectionRunItem InspectionRunItem?
   workLogs          WorkLog[]
+  materialMovements MaterialMovement[]
 
   slaMinutes    Int?
   slaDueAt      DateTime?

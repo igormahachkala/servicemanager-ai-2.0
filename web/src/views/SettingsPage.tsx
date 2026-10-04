@@ -129,6 +129,17 @@ export function SettingsPage() {
       </div>
 
       <div className="panel" style={{ marginTop: 12 }}>
+        <h3 style={{ marginBottom: 10 }}>Материалы</h3>
+        <div className="muted small" style={{ marginBottom: 10 }}>
+          Справочник материалов для остатков техников, выдачи и списания в заявках.
+        </div>
+
+        <Link to="/materials">
+          <button>Открыть материалы</button>
+        </Link>
+      </div>
+
+      <div className="panel" style={{ marginTop: 12 }}>
         <h3 style={{ marginBottom: 10 }}>Что можно добавить следующим шагом</h3>
         <div className="muted small">
           Редактирование профиля компании, правила SLA, настройки ролей, специализации техников, загрузку логотипа и параметры

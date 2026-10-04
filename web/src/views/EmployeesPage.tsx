@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { EmployeeForm, type EmployeeFormValue } from '../components/employees/EmployeeForm'
 import { EmployeeList } from '../components/employees/EmployeeList'
+import { TechnicianMaterials } from '../components/materials/TechnicianMaterials'
 
 const emptyCreateForm: EmployeeFormValue = {
   firstName: '',
@@ -132,7 +133,6 @@ export function EmployeesPage() {
 
   const usersQ = useQuery({ queryKey: ['users', observerCompanyId, showDeleted], queryFn: () => api.users(observerCompanyId || undefined, { includeDeleted: showDeleted }) })
   const specsQ = useQuery({ queryKey: ['specializations'], queryFn: api.specializations, enabled: !isObserverMode })
-
   const activeSpecializations = useMemo(
     () => (specsQ.data || []).filter((item) => item.isActive !== false),
     [specsQ.data],
@@ -597,6 +597,18 @@ export function EmployeesPage() {
       ) : null}
     </div>
   ) : null
+  const technicianMaterialsCard =
+    editingUserId && editValue.role === 'TECHNICIAN' && !isObserverMode ? (
+      <div className="panel" style={{ marginTop: 12 }}>
+        <TechnicianMaterials technicianId={editingUserId} canIssue={meQ.data?.canAccessManagementSurface === true} />
+      </div>
+    ) : null
+  const employeeEditExtras = (
+    <>
+      {technicianLocationBindingsBlock}
+      {technicianMaterialsCard}
+    </>
+  )
 
   return (
     <div className="managementPage">
@@ -703,7 +715,7 @@ export function EmployeesPage() {
               onToggleActive={toggleActive}
               onDelete={deleteEmployee}
               onRestore={restoreEmployee}
-              editExtras={technicianLocationBindingsBlock}
+              editExtras={employeeEditExtras}
             />
           )}
         </div>

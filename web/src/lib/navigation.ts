@@ -28,6 +28,7 @@ const tenantDesktopNavItems: NavItem[] = [
   { id: 'workforce', label: 'Смены и трудозатраты', to: '/workforce' },
   { id: 'accessConstructor', label: 'Конструктор доступа', to: '/access-constructor' },
   { id: 'specializations', label: 'Специализации', to: '/specializations' },
+  { id: 'materials', label: 'Материалы', to: '/materials' },
   { id: 'problemCategories', label: 'Категории проблем', to: '/problem-categories' },
   { id: 'locations', label: 'Точки', to: '/locations' },
   { id: 'analytics', label: 'Аналитика', to: '/analytics' },

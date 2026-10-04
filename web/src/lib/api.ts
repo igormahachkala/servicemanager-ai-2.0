@@ -11,6 +11,19 @@
 } from './browserStorage'
 import { notifyRealtimeAuthChanged } from './realtimeSocket'
 import { reportApiReachability } from './apiReachability'
+import type {
+  ConsumeMaterialInput,
+  CreateMaterialInput,
+  IssueMaterialInput,
+  Material,
+  MaterialBalance,
+  MaterialIssueResult,
+  MaterialMovement,
+  MaterialMutationResult,
+  PurchaseMaterialInput,
+  StockReceiptInput,
+  UpdateMaterialInput,
+} from './materials'
 export {
   currentInternalAppPath,
   getReturnToFromSearch,
@@ -24,6 +37,18 @@ export {
 import { readMaxInitData } from '../max/maxBridge'
 import { runSmaLogout } from './smaLogout'
 import { clearMeCache, readMeCache, writeMeCache } from '../mobile/offline/meCache'
+
+export type {
+  ConsumeMaterialInput,
+  CreateMaterialInput,
+  IssueMaterialInput,
+  Material,
+  MaterialBalance,
+  MaterialMovement,
+  PurchaseMaterialInput,
+  StockReceiptInput,
+  UpdateMaterialInput,
+} from './materials'
 
 export type Role =
   | 'PLATFORM_ADMIN'
@@ -2349,6 +2374,80 @@ export async function deleteSpecialization(id: string): Promise<void> {
     method: 'DELETE',
   })
 }
+
+export const MATERIALS_API = {
+  list: '/materials',
+  byId: (id: string) => `/materials/${id}`,
+  myBalances: '/materials/me/balances',
+  myMovements: '/materials/me/movements',
+  purchases: '/materials/me/purchases',
+  consumptions: '/materials/me/consumptions',
+  technicianBalances: (id: string) => `/materials/technicians/${id}/balances`,
+  technicianMovements: (id: string) => `/materials/technicians/${id}/movements`,
+  issues: '/materials/issues',
+  stockReceipts: '/materials/stock/receipts',
+  ticketConsumptions: (ticketId: string) => `/materials/tickets/${ticketId}/consumptions`,
+} as const
+
+export function materials(): Promise<Material[]> {
+  return request<Material[]>(MATERIALS_API.list)
+}
+
+export function createMaterial(input: CreateMaterialInput): Promise<Material> {
+  return request<Material>(MATERIALS_API.list, { method: 'POST', body: input })
+}
+
+export function updateMaterial(id: string, input: UpdateMaterialInput): Promise<Material> {
+  return request<Material>(MATERIALS_API.byId(id), { method: 'PATCH', body: input })
+}
+
+export function setMaterialStatus(id: string, active: boolean): Promise<Material> {
+  return updateMaterial(id, { active })
+}
+
+export function myMaterialBalances(): Promise<MaterialBalance[]> {
+  return request<MaterialBalance[]>(MATERIALS_API.myBalances)
+}
+
+export function myMaterialMovements(): Promise<MaterialMovement[]> {
+  return request<MaterialMovement[]>(MATERIALS_API.myMovements)
+}
+
+export function recordMaterialSelfPurchase(input: PurchaseMaterialInput): Promise<MaterialMutationResult> {
+  return request<MaterialMutationResult>(MATERIALS_API.purchases, { method: 'POST', body: input })
+}
+
+export function technicianMaterialBalances(technicianId: string): Promise<MaterialBalance[]> {
+  return request<MaterialBalance[]>(MATERIALS_API.technicianBalances(technicianId))
+}
+
+export function technicianMaterialMovements(technicianId: string): Promise<MaterialMovement[]> {
+  return request<MaterialMovement[]>(MATERIALS_API.technicianMovements(technicianId))
+}
+
+export function issueMaterialToTechnician(input: IssueMaterialInput): Promise<MaterialIssueResult> {
+  return request<MaterialIssueResult>(MATERIALS_API.issues, { method: 'POST', body: input })
+}
+
+export function recordCompanyStockReceipt(input: StockReceiptInput): Promise<MaterialMutationResult> {
+  return request<MaterialMutationResult>(MATERIALS_API.stockReceipts, { method: 'POST', body: input })
+}
+
+export function ticketMaterialConsumptions(
+  ticketId: string,
+  scope?: string | TicketScopeParams,
+): Promise<MaterialMovement[]> {
+  return request<MaterialMovement[]>(
+    MATERIALS_API.ticketConsumptions(ticketId) + buildTicketScopeSuffix(scope),
+  )
+}
+
+export function consumeTicketMaterial(
+  input: ConsumeMaterialInput,
+): Promise<MaterialMutationResult> {
+  return request<MaterialMutationResult>(MATERIALS_API.consumptions, { method: 'POST', body: input })
+}
+
 
 /** `companyId` — query для GET /problem-categories: tenant, чьи категории нужны (у провайдера в linked-scope это id клиента). */
 export async function problemCategories(companyId?: string): Promise<ProblemCategoryListItem[]> {
