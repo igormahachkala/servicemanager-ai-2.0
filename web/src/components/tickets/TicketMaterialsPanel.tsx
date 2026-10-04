@@ -40,26 +40,32 @@ export function TicketMaterialsPanel({ ticketId, role, scope }: Props) {
   const [submitError, setSubmitError] = useState('')
 
   const usageQ = useQuery({
-    queryKey: ['ticket-materials', ticketId, scope?.companyId, scope?.linkedClientCompanyId],
-    queryFn: () => api.ticketMaterials(ticketId, scope),
+    queryKey: ['ticket-material-consumptions', ticketId, scope?.companyId, scope?.linkedClientCompanyId],
+    queryFn: () => api.ticketMaterialConsumptions(ticketId, scope),
     enabled: !!ticketId,
   })
 
   /* Остатки нужны только тому, кто списывает: лишнего запроса у остальных ролей нет. */
   const balancesQ = useQuery({
-    queryKey: ['technician-material-balances', scope?.companyId, scope?.linkedClientCompanyId],
-    queryFn: () => api.technicianMaterialBalances(scope),
+    queryKey: ['my-material-balances', scope?.companyId, scope?.linkedClientCompanyId],
+    queryFn: () => api.myMaterialBalances(scope),
     enabled: canConsume && formOpen,
   })
 
-  const balances = useMemo(() => selectableBalances(balancesQ.data?.items), [balancesQ.data])
+  const balances = useMemo(() => selectableBalances(balancesQ.data), [balancesQ.data])
   const validation = useMemo(() => validateMaterialUsage(draft, balances), [draft, balances])
   const selectedBalance = balances.find((item) => item.materialId === draft.materialId)
 
   const consumeM = useMutation({
     mutationFn: async () => {
       if (!validation.ok) throw new Error(validation.message)
-      return api.consumeTicketMaterial(ticketId, validation.payload, scope)
+      return api.consumeMaterial({
+        ticketId,
+        materialId: validation.payload.materialId,
+        quantity: validation.payload.quantity,
+        ...(validation.payload.comment ? { comment: validation.payload.comment } : {}),
+        ...(scope?.linkedClientCompanyId ? { linkedClientCompanyId: scope.linkedClientCompanyId } : {}),
+      })
     },
     onSuccess: async () => {
       /*
@@ -71,8 +77,9 @@ export function TicketMaterialsPanel({ ticketId, role, scope }: Props) {
       setSubmitError('')
       setFormOpen(false)
       await Promise.all([
-        qc.invalidateQueries({ queryKey: ['ticket-materials', ticketId] }),
-        qc.invalidateQueries({ queryKey: ['technician-material-balances'] }),
+        qc.invalidateQueries({ queryKey: ['ticket-material-consumptions', ticketId] }),
+        qc.invalidateQueries({ queryKey: ['my-material-balances'] }),
+        qc.invalidateQueries({ queryKey: ['my-material-movements'] }),
       ])
     },
     onError: (err: unknown) => {
@@ -81,7 +88,7 @@ export function TicketMaterialsPanel({ ticketId, role, scope }: Props) {
     },
   })
 
-  const usages = usageQ.data?.items ?? null
+  const usages = usageQ.data ?? null
 
   return (
     <div className="panel" style={{ marginBottom: 12 }}>
@@ -105,14 +112,14 @@ export function TicketMaterialsPanel({ ticketId, role, scope }: Props) {
       ) : (
         <div style={{ display: 'grid', gap: 10 }}>
           {usages.map((usage) => {
-            const who = compactIdentityLabel(presentActorIdentity(usage.usedBy ?? null))
+            const who = compactIdentityLabel(presentActorIdentity(usage.usedBy ?? usage.actor ?? null))
             return (
               <div key={usage.id}>
                 <div style={{ fontWeight: 600 }}>
                   {usage.name} — {formatQuantity(usage.quantity)} {usage.unit}
                 </div>
                 <div className="muted small">{who}</div>
-                <div className="muted small">{api.formatNotificationDateTime(usage.usedAt)}</div>
+                <div className="muted small">{api.formatNotificationDateTime(usage.consumedAt || usage.createdAt || '')}</div>
                 {usage.comment ? <div className="muted small">{usage.comment}</div> : null}
               </div>
             )

@@ -21,22 +21,61 @@ export type TechnicianMaterialBalance = {
   available: string
 }
 
-/** Строка истории: материал, списанный на эту заявку. */
-export type TicketMaterialUsage = {
+export type MaterialActor = {
+  id: string
+  firstName?: string | null
+  lastName?: string | null
+  email: string
+} | null
+
+/** Позиция канонического справочника: из неё выбирают при покупке. */
+export type MaterialCatalogItem = {
+  id: string
+  name: string
+  unit: string
+  isActive?: boolean
+}
+
+/** Строка истории: материал, списанный на заявку. */
+export type MaterialConsumption = {
   id: string
   ticketId: string
   materialId: string
   name: string
   unit: string
   quantity: string
-  usedAt: string
-  usedBy?: {
-    id: string
-    firstName?: string | null
-    lastName?: string | null
-    email: string
-  } | null
+  /** Имена даты расходятся между ручками, поэтому принимаются оба. */
+  consumedAt?: string
+  createdAt?: string
+  usedBy?: MaterialActor
+  actor?: MaterialActor
   comment?: string | null
+}
+
+/**
+ * Вид движения.
+ *
+ * Три известны точно: выдача, покупка, списание. Прочие значения бэкенд
+ * может добавить позже, поэтому тип открыт, а подпись для незнакомого вида
+ * берётся из самого значения — экран не ломается на новом виде.
+ */
+export type MaterialMovementKind = 'ISSUE' | 'PURCHASE' | 'CONSUMPTION' | (string & {})
+
+export type MaterialMovement = {
+  id: string
+  materialId: string
+  name: string
+  unit: string
+  /** Знак несёт направление: выдача и покупка прибавляют, списание убавляет. */
+  quantity: string
+  kind: MaterialMovementKind
+  type?: MaterialMovementKind
+  createdAt?: string
+  occurredAt?: string
+  ticketId?: string | null
+  ticketNumber?: number | null
+  comment?: string | null
+  actor?: MaterialActor
 }
 
 /**
@@ -151,7 +190,7 @@ export function formatQuantity(raw: string | null | undefined): string {
 }
 
 /** Подпись строки истории: «Кабель ВВГ 3×2.5 — 7 м». */
-export function formatUsageLine(usage: Pick<TicketMaterialUsage, 'name' | 'quantity' | 'unit'>): string {
+export function formatUsageLine(usage: Pick<MaterialConsumption, 'name' | 'quantity' | 'unit'>): string {
   return `${usage.name} — ${formatQuantity(usage.quantity)} ${usage.unit}`.trim()
 }
 
@@ -187,4 +226,157 @@ export function maxQuantityFor(
   const balance = balances.find((item) => item.materialId === materialId)
   if (!balance) return undefined
   return formatQuantity(balance.available)
+}
+
+
+/* ─────────── движения: выдача / покупка / списание ─────────── */
+
+const MOVEMENT_LABELS_RU: Record<string, string> = {
+  ISSUE: 'Выдача',
+  PURCHASE: 'Покупка',
+  CONSUMPTION: 'Списание',
+}
+
+/** Вид движения: имя поля у ручки может быть kind или type. */
+export function movementKind(movement: Pick<MaterialMovement, 'kind' | 'type'>): string {
+  return (movement.kind || movement.type || '').trim()
+}
+
+/**
+ * Подпись движения.
+ *
+ * Списание называет заявку, если её номер пришёл: «Списание на заявку #1045».
+ * Незнакомый вид не ломает экран — показывается как есть, потому что бэкенд
+ * вправе добавить вид, о котором этот срез не знает.
+ */
+export function movementLabel(movement: MaterialMovement): string {
+  const kind = movementKind(movement)
+  const base = MOVEMENT_LABELS_RU[kind] || kind || 'Движение'
+  if (kind === 'CONSUMPTION' && movement.ticketNumber) {
+    return `${base} на заявку #${movement.ticketNumber}`
+  }
+  return base
+}
+
+/**
+ * Величина движения без знака.
+ *
+ * Отдельно от parseQuantity: тот намеренно не принимает отрицательные
+ * (количество к списанию отрицательным быть не может), а ручка движений
+ * вправе отдать расход со минусом. Здесь нужна именно величина.
+ */
+export function movementMagnitude(raw: string | null | undefined): number {
+  const normalized = (raw ?? '').trim().replace(',', '.').replace(/^[-\u2212+]/, '')
+  const value = parseQuantity(normalized)
+  return value === null ? 0 : value
+}
+
+/**
+ * Количество движения со знаком.
+ *
+ * Знак берётся из вида, а не из знака числа: ручка может отдать списание
+ * и положительным, и отрицательным, а читателю нужно видеть направление.
+ * Двойного минуса при этом не возникает.
+ */
+export function movementSignedQuantity(movement: MaterialMovement): string {
+  const magnitude = movementMagnitude(movement.quantity)
+  if (magnitude === 0) return `0 ${movement.unit}`.trim()
+  const negative = movementKind(movement) === 'CONSUMPTION'
+  const sign = negative ? '\u2212' : '+'
+  return `${sign}${formatQuantity(String(magnitude))} ${movement.unit}`.trim()
+}
+
+/** Направление движения — для визуального различения видов. */
+export function movementDirection(movement: MaterialMovement): 'in' | 'out' {
+  return movementKind(movement) === 'CONSUMPTION' ? 'out' : 'in'
+}
+
+/* ─────────── самостоятельная покупка ─────────── */
+
+export type MaterialPurchaseDraft = {
+  materialId: string
+  quantity: string
+  unitPrice: string
+  totalPrice: string
+  comment: string
+}
+
+export const EMPTY_MATERIAL_PURCHASE_DRAFT: MaterialPurchaseDraft = {
+  materialId: '',
+  quantity: '',
+  unitPrice: '',
+  totalPrice: '',
+  comment: '',
+}
+
+export type MaterialPurchaseValidation =
+  | {
+      ok: true
+      payload: {
+        materialId: string
+        quantity: string
+        unitPrice?: string
+        totalPrice?: string
+        comment?: string
+      }
+    }
+  | { ok: false; reason: 'no-material' | 'no-quantity' | 'not-positive'; message: string }
+
+/**
+ * Можно ли записать покупку.
+ *
+ * Остатком покупка не ограничена — это приход. Материал берётся из
+ * канонического справочника: своего названия техник не придумывает,
+ * иначе один и тот же кабель разошёлся бы на десять написаний.
+ */
+export function validateMaterialPurchase(
+  draft: MaterialPurchaseDraft,
+  catalog: readonly MaterialCatalogItem[],
+): MaterialPurchaseValidation {
+  const materialId = (draft.materialId ?? '').trim()
+  if (!materialId) {
+    return { ok: false, reason: 'no-material', message: 'Выберите материал' }
+  }
+  if (!catalog.some((item) => item.id === materialId)) {
+    return { ok: false, reason: 'no-material', message: 'Выберите материал из справочника' }
+  }
+
+  const raw = (draft.quantity ?? '').trim()
+  if (!raw) {
+    return { ok: false, reason: 'no-quantity', message: 'Укажите количество' }
+  }
+
+  const quantity = parseQuantity(raw)
+  if (quantity === null || quantity <= 0) {
+    return { ok: false, reason: 'not-positive', message: 'Количество должно быть больше нуля' }
+  }
+
+  const unitPrice = parseQuantity(draft.unitPrice ?? '')
+  const totalPrice = parseQuantity(draft.totalPrice ?? '')
+  const comment = (draft.comment ?? '').trim()
+
+  return {
+    ok: true,
+    payload: {
+      materialId,
+      quantity: String(quantity),
+      ...(unitPrice !== null && unitPrice > 0 ? { unitPrice: String(unitPrice) } : {}),
+      ...(totalPrice !== null && totalPrice > 0 ? { totalPrice: String(totalPrice) } : {}),
+      ...(comment ? { comment } : {}),
+    },
+  }
+}
+
+/** Активные позиции справочника; флага нет — позиция считается активной. */
+export function purchasableCatalog(
+  catalog: readonly MaterialCatalogItem[] | null | undefined,
+): MaterialCatalogItem[] {
+  return (catalog ?? []).filter((item) => item.isActive !== false)
+}
+
+/** Остатки для экрана «Мои материалы»: нулевые полезным запасом не являются. */
+export function visibleBalances(
+  balances: readonly TechnicianMaterialBalance[] | null | undefined,
+): TechnicianMaterialBalance[] {
+  return selectableBalances(balances)
 }

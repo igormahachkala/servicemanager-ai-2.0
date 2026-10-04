@@ -109,6 +109,8 @@ const MobileOfflineQueue = lazyExport(() => import('./mobile/MobileOfflineQueue'
 const MobileInspectionList = lazyExport(() => import('./mobile/MobileInspectionList'), 'MobileInspectionList')
 // SMA-EQUIPMENT-V2-110A: карточка оборудования на телефоне — только чтение.
 const MobileEquipmentPage = lazyExport(() => import('./mobile/MobileEquipmentPage'), 'MobileEquipmentPage')
+// SMA-MATERIALS-V0: мои материалы техника.
+const MobileMaterialsPage = lazyExport(() => import('./mobile/MobileMaterialsPage'), 'MobileMaterialsPage')
 const MobileInspectionRunPage = lazyExport(() => import('./mobile/MobileInspectionRunPage'), 'MobileInspectionRunPage')
 const MobileInspectionStartPage = lazyExport(() => import('./mobile/MobileInspectionStartPage'), 'MobileInspectionStartPage')
 const MobileInspectionTodayPage = lazyExport(() => import('./mobile/MobileInspectionTodayPage'), 'MobileInspectionTodayPage')
@@ -320,6 +322,7 @@ export function AppRoutes() {
         <Route path="inspection/start" element={<LazyRoute component={MobileInspectionStartPage} />} />
         <Route path="inspection/:runId" element={<LazyRoute component={MobileInspectionRunPage} />} />
         <Route path="inspection/object/:locationId" element={<LazyRoute component={MobileInspectionList} />} />
+        <Route path="materials" element={<LazyRoute component={MobileMaterialsPage} />} />
         <Route path="equipment" element={<LazyRoute component={MobileEquipmentPage} />} />
         <Route path="equipment/:id" element={<LazyRoute component={MobileEquipmentPage} />} />
       </Route>

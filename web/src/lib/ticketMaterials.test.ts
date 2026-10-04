@@ -15,7 +15,7 @@ import {
   selectableBalances,
   validateMaterialUsage,
   type TechnicianMaterialBalance,
-  type TicketMaterialUsage,
+  type MaterialConsumption,
 } from './ticketMaterials'
 
 /**
@@ -30,7 +30,7 @@ const here = dirname(fileURLToPath(import.meta.url))
 const readSrc = (relative: string) => readFileSync(resolve(here, '..', relative), 'utf8')
 const codeOf = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^[ \t]*\/\/.*$/gm, '')
 
-const panelSource = readSrc('components/tickets/TicketMaterialsPanel.tsx')
+const panelSource = readSrc('mobile/MobileTicketMaterials.tsx')
 const panelCode = codeOf(panelSource)
 
 const BALANCES: TechnicianMaterialBalance[] = [
@@ -46,7 +46,7 @@ const draft = (over: Partial<typeof EMPTY_MATERIAL_USAGE_DRAFT>) => ({
 
 describe('V0 история материалов заявки', () => {
   it('строка истории собирается как «материал — количество единица»', () => {
-    const usage: Pick<TicketMaterialUsage, 'name' | 'quantity' | 'unit'> = {
+    const usage: Pick<MaterialConsumption, 'name' | 'quantity' | 'unit'> = {
       name: 'Кабель ВВГ 3×2.5',
       quantity: '7',
       unit: 'м',
@@ -65,32 +65,31 @@ describe('V0 история материалов заявки', () => {
   })
 
   it('блок показывает все требуемые поля строки', () => {
-    for (const field of ['usage.name', 'usage.unit', 'usage.quantity', 'usage.usedAt', 'usage.comment']) {
+    for (const field of ['row.name', 'row.unit', 'row.quantity', 'row.comment']) {
       expect(panelCode, field).toContain(field)
     }
-    // Кто использовал — через существующий помощник идентичности.
-    expect(panelCode).toContain('presentActorIdentity(usage.usedBy')
-    // Дата — существующим форматтером «Сегодня, 14:32», своего не заводится.
-    expect(panelCode).toContain('api.formatNotificationDateTime(usage.usedAt)')
+    // Кто использовал и когда — через существующие помощники, своих не заводится.
+    expect(panelCode).toContain('presentActorIdentity(row.usedBy ?? row.actor ?? null)')
+    expect(panelCode).toContain('api.formatNotificationDateTime(row.consumedAt || row.createdAt')
   })
 
   it('комментарий показывается только когда он есть', () => {
-    expect(panelCode).toContain('usage.comment ?')
+    expect(panelCode).toContain('row.comment ?')
   })
 
   it('пустая история не выдаётся за отказ, а отказ — за пустую историю', () => {
-    expect(panelCode).toContain('usageQ.isError')
+    expect(panelCode).toContain('consumptionsQ.isError')
     expect(panelCode).toContain('Материалы не списывались')
-    // Отсутствие данных не превращается в успешный пустой список.
-    expect(panelCode).toContain('usageQ.data?.items ?? null')
+    // Прямой массив: отсутствие данных не превращается в успешный пустой список.
+    expect(panelCode).toContain('consumptionsQ.data ?? null')
   })
 })
 
 describe('V0 доступный остаток', () => {
   it('остаток выбранного материала показывается', () => {
     expect(panelCode).toContain('Доступно:')
-    expect(panelCode).toContain('formatQuantity(selectedBalance.available)')
-    expect(panelCode).toContain('selectedBalance.unit')
+    expect(panelCode).toContain('formatQuantity(selected.available)')
+    expect(panelCode).toContain('selected.unit')
   })
 
   it('остаток нельзя править руками: поля ввода остатка нет', () => {
@@ -187,7 +186,7 @@ describe('V0 материал выбирается только из своих'
 
   it('выбор строится из остатков, а не из общего каталога', () => {
     expect(panelCode).toContain('balances.map((item) =>')
-    expect(panelCode).toContain('selectableBalances(balancesQ.data?.items)')
+    expect(panelCode).toContain('selectableBalances(balancesQ.data)')
   })
 
   it('списывать предлагается технику', () => {
@@ -224,16 +223,20 @@ describe('V0 контракт запроса', () => {
   it('списание уходит с правильными ticketId, materialId и quantity', async () => {
     const calls = stubFetch({ id: 'u-1' })
 
-    await api.consumeTicketMaterial('ticket-42', {
+    await api.consumeMaterial({
+      ticketId: 'ticket-42',
       materialId: 'm-cable',
       quantity: '7',
       comment: 'розетка у входа',
     })
 
     expect(calls).toHaveLength(1)
-    expect(calls[0].url).toContain('/tickets/ticket-42/materials')
+    // Ручка принадлежит материалам техника, ticketId идёт в теле.
+    expect(calls[0].url).toContain('/materials/me/consumptions')
+    expect(calls[0].url).not.toContain('/tickets/ticket-42/materials')
     expect(calls[0].init.method).toBe('POST')
     expect(JSON.parse(calls[0].init.body)).toEqual({
+      ticketId: 'ticket-42',
       materialId: 'm-cable',
       quantity: '7',
       comment: 'розетка у входа',
@@ -251,26 +254,31 @@ describe('V0 контракт запроса', () => {
   })
 
   it('история и остатки читаются своими запросами', async () => {
-    const usageCalls = stubFetch({ items: [] })
-    await api.ticketMaterials('ticket-42')
-    expect(usageCalls[0].url).toContain('/tickets/ticket-42/materials')
+    const usageCalls = stubFetch([])
+    await api.ticketMaterialConsumptions('ticket-42')
+    expect(usageCalls[0].url).toContain('/materials/tickets/ticket-42/consumptions')
     vi.unstubAllGlobals()
 
-    const balanceCalls = stubFetch({ items: [] })
-    await api.technicianMaterialBalances()
-    expect(balanceCalls[0].url).toContain('/materials/my-balances')
+    const balanceCalls = stubFetch([])
+    await api.myMaterialBalances()
+    expect(balanceCalls[0].url).toContain('/materials/me/balances')
   })
 
   it('пути собраны в одном месте — стык с бэкендом', () => {
-    expect(api.MATERIALS_API_PATHS.ticketUsage('t-1')).toBe('/tickets/t-1/materials')
-    expect(api.MATERIALS_API_PATHS.technicianBalances).toBe('/materials/my-balances')
+    expect(api.MATERIALS_API_PATHS.ticketConsumptions('t-1')).toBe('/materials/tickets/t-1/consumptions')
+    expect(api.MATERIALS_API_PATHS.myBalances).toBe('/materials/me/balances')
+    expect(api.MATERIALS_API_PATHS.myMovements).toBe('/materials/me/movements')
+    expect(api.MATERIALS_API_PATHS.myPurchases).toBe('/materials/me/purchases')
+    expect(api.MATERIALS_API_PATHS.myConsumptions).toBe('/materials/me/consumptions')
+    expect(api.MATERIALS_API_PATHS.catalog).toBe('/materials')
   })
 })
 
 describe('V0 после списания и при отказе', () => {
   it('успех обновляет и материалы заявки, и остатки', () => {
-    expect(panelCode).toContain("queryKey: ['ticket-materials', ticketId]")
-    expect(panelCode).toContain("queryKey: ['technician-material-balances']")
+    expect(panelCode).toContain("queryKey: ['ticket-material-consumptions', ticketId]")
+    expect(panelCode).toContain("queryKey: ['my-material-balances']")
+    expect(panelCode).toContain("queryKey: ['my-material-movements']")
     expect(panelCode).toContain('invalidateQueries')
   })
 
@@ -290,9 +298,12 @@ describe('V0 после списания и при отказе', () => {
     // живёт на кнопке «Отмена» — к обработке отказа оно не относится.
     const onError = panelCode.slice(onErrorStart, panelCode.indexOf('\n  })', onErrorStart))
     expect(onError).toContain('setSubmitError')
-    expect(onError).not.toContain('invalidateQueries')
     expect(onError).not.toContain('setFormOpen(false)')
     expect(onError).not.toContain('EMPTY_MATERIAL_USAGE_DRAFT')
+    // Остатки перечитываются: при 409 нужно показать настоящее состояние.
+    expect(onError).toContain("queryKey: ['my-material-balances']")
+    // Но материалы заявки не обновляются — списания не было.
+    expect(onError).not.toContain('ticket-material-consumptions')
   })
 
   it('невалидный черновик до сети не доходит', () => {
@@ -322,10 +333,10 @@ describe('V0 объём среза не расширен', () => {
   it('блок ходит только в три свои обёртки', () => {
     const calls = [...panelCode.matchAll(/api\.([A-Za-z0-9_]+)\(/g)].map((m) => m[1])
     expect([...new Set(calls)].sort()).toEqual([
-      'consumeTicketMaterial',
+      'consumeMaterial',
       'formatNotificationDateTime',
-      'technicianMaterialBalances',
-      'ticketMaterials',
+      'myMaterialBalances',
+      'ticketMaterialConsumptions',
     ])
   })
 })

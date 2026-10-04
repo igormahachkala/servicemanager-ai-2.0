@@ -5,6 +5,7 @@ import * as api from '../lib/api'
 import { canAccessManagementDesktop, managementHomePath } from '../lib/navigation'
 import { ClientContourCard } from './ClientContourCard'
 import { mobilePath, supportsPersonalNotificationPreferences } from './mobileRoute'
+import { materialsMobileNavLink } from './materialsMobileNav'
 import { NotificationPreferencesPanel } from '../components/notifications/NotificationPreferencesPanel'
 
 type ManagementLink = {
@@ -183,6 +184,11 @@ export function MobileSettingsPage() {
         hint: 'Отчёт по сменам и трудозатратам',
         to: scoped(mobilePath(location.pathname, '/workforce')),
       })
+    }
+    // SMA-MATERIALS-V0: решение о показе — в materialsMobileNav (только /m).
+    const materials = materialsMobileNavLink({ role, pathname: location.pathname })
+    if (materials) {
+      links.push({ ...materials, to: scoped(materials.to) })
     }
     if (role !== 'STAFF') {
       links.push({

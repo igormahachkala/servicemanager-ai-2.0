@@ -25,10 +25,15 @@ import { readMaxInitData } from '../max/maxBridge'
 import { runSmaLogout } from './smaLogout'
 import { clearMeCache, readMeCache, writeMeCache } from '../mobile/offline/meCache'
 
-import type { TechnicianMaterialBalance, TicketMaterialUsage } from './ticketMaterials'
+import type {
+  MaterialCatalogItem,
+  MaterialConsumption,
+  MaterialMovement,
+  TechnicianMaterialBalance,
+} from './ticketMaterials'
 
 /** SMA-MATERIALS-V0: строки материалов живут рядом с правилами, здесь только реэкспорт. */
-export type { TechnicianMaterialBalance, TicketMaterialUsage }
+export type { MaterialCatalogItem, MaterialConsumption, MaterialMovement, TechnicianMaterialBalance }
 
 export type Role =
   | 'PLATFORM_ADMIN'
@@ -3995,64 +4000,99 @@ export async function getEquipmentHistory(
 }
 
 /**
- * SMA-MATERIALS-V0-TICKET-USAGE — стык с бэкендом.
+ * SMA-MATERIALS-V0 — материалы техника.
  *
- * Бэкенд проектируется параллельно, поэтому обёрток ровно три и все пути
- * собраны здесь: когда контракт подтвердят, править нужно только эти
- * константы и, если разойдутся имена полей, типы в lib/ticketMaterials.
- * Шире API не выдумывается: закупок, выдачи, склада и поставщиков в срезе нет.
+ * Контракт бэкенда подтверждён. Списки отдают МАССИВЫ НАПРЯМУЮ, без обёртки
+ * { items }, поэтому обёртки типизированы массивами: несуществующее поле
+ * items молча давало бы пустые экраны.
  *
- * Ожидаемый контракт (подлежит подтверждению backend-агентом):
- *   GET  /tickets/:id/materials      -> { items: TicketMaterialUsage[] }
- *   GET  /materials/my-balances      -> { items: TechnicianMaterialBalance[] }
- *   POST /tickets/:id/materials      -> TicketMaterialUsage
- *                                       body { materialId, quantity, comment? }
- *
- * quantity — строка: на сервере это Decimal, дробные единицы (м, л) обязаны
- * доезжать без потерь, поэтому number здесь не используется.
+ * quantity везде строка: на сервере это Decimal, и дробные единицы
+ * (метры, литры) обязаны доезжать без потерь.
  */
 export const MATERIALS_API_PATHS = {
-  ticketUsage: (ticketId: string) => `/tickets/${ticketId}/materials`,
-  technicianBalances: '/materials/my-balances',
+  catalog: '/materials',
+  myBalances: '/materials/me/balances',
+  myMovements: '/materials/me/movements',
+  myPurchases: '/materials/me/purchases',
+  myConsumptions: '/materials/me/consumptions',
+  ticketConsumptions: (ticketId: string) => `/materials/tickets/${ticketId}/consumptions`,
 } as const
 
-export type TicketMaterialUsageResponse = { items: TicketMaterialUsage[] }
-export type TechnicianMaterialBalancesResponse = { items: TechnicianMaterialBalance[] }
-
-/** История материалов, списанных на заявку. Область — та же, что у остальных чтений заявки. */
-export async function ticketMaterials(
-  ticketId: string,
+/** Канонический справочник материалов: из него выбирают при покупке. */
+export async function materialsCatalog(
   scope?: string | TicketScopeParams,
-): Promise<TicketMaterialUsageResponse> {
-  return request<TicketMaterialUsageResponse>(
-    MATERIALS_API_PATHS.ticketUsage(ticketId) + buildTicketScopeSuffix(scope),
+): Promise<MaterialCatalogItem[]> {
+  return request<MaterialCatalogItem[]>(MATERIALS_API_PATHS.catalog + buildTicketScopeSuffix(scope))
+}
+
+/** Остатки на руках у текущего техника. Актор берётся из токена. */
+export async function myMaterialBalances(
+  scope?: string | TicketScopeParams,
+): Promise<TechnicianMaterialBalance[]> {
+  return request<TechnicianMaterialBalance[]>(
+    MATERIALS_API_PATHS.myBalances + buildTicketScopeSuffix(scope),
   )
 }
 
-/** Остатки материалов на руках у текущего техника. Актор берётся из токена. */
-export async function technicianMaterialBalances(
+/** Движения по материалам техника: выдача, покупка, списание. */
+export async function myMaterialMovements(
   scope?: string | TicketScopeParams,
-): Promise<TechnicianMaterialBalancesResponse> {
-  return request<TechnicianMaterialBalancesResponse>(
-    MATERIALS_API_PATHS.technicianBalances + buildTicketScopeSuffix(scope),
+): Promise<MaterialMovement[]> {
+  return request<MaterialMovement[]>(
+    MATERIALS_API_PATHS.myMovements + buildTicketScopeSuffix(scope),
   )
 }
 
-export type ConsumeTicketMaterialInput = {
+export type RecordMaterialPurchaseInput = {
   materialId: string
   quantity: string
+  unitPrice?: string
+  totalPrice?: string
   comment?: string
 }
 
-/** Списание материала на заявку. Остаток пересчитывает сервер. */
-export async function consumeTicketMaterial(
-  ticketId: string,
-  input: ConsumeTicketMaterialInput,
+/** Техник купил материал сам. Остаток пересчитывает сервер. */
+export async function recordMaterialPurchase(
+  input: RecordMaterialPurchaseInput,
   scope?: string | TicketScopeParams,
-): Promise<TicketMaterialUsage> {
-  return request<TicketMaterialUsage>(
-    MATERIALS_API_PATHS.ticketUsage(ticketId) + buildTicketScopeSuffix(scope),
+): Promise<MaterialMovement> {
+  return request<MaterialMovement>(
+    MATERIALS_API_PATHS.myPurchases + buildTicketScopeSuffix(scope),
     { method: 'POST', body: input },
+  )
+}
+
+export type ConsumeMaterialInput = {
+  ticketId: string
+  materialId: string
+  quantity: string
+  comment?: string
+  linkedClientCompanyId?: string
+}
+
+/**
+ * Списание материала на заявку.
+ *
+ * ticketId идёт в теле — это ручка материалов техника, а не заявки.
+ * linkedClientCompanyId передаётся из существующего контекста мобильной
+ * заявки; своего резолвера области здесь не заводится.
+ */
+export async function consumeMaterial(
+  input: ConsumeMaterialInput,
+): Promise<MaterialConsumption> {
+  return request<MaterialConsumption>(MATERIALS_API_PATHS.myConsumptions, {
+    method: 'POST',
+    body: input,
+  })
+}
+
+/** История материалов, списанных на заявку. */
+export async function ticketMaterialConsumptions(
+  ticketId: string,
+  scope?: string | TicketScopeParams,
+): Promise<MaterialConsumption[]> {
+  return request<MaterialConsumption[]>(
+    MATERIALS_API_PATHS.ticketConsumptions(ticketId) + buildTicketScopeSuffix(scope),
   )
 }
 

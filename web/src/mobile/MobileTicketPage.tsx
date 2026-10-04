@@ -2,6 +2,7 @@ import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { MobileTicketMaterials } from './MobileTicketMaterials'
 import {
   mobileTicketAttachmentReadScopes,
   mobileTicketCategoryLocationFromDetail,
@@ -1822,6 +1823,17 @@ export function MobileTicketPage() {
               ) : null}
             </div>
           ) : null}
+
+          {/*
+            SMA-MATERIALS-V0: материалы, списанные на эту заявку, и списание
+            для техника. Область берётся из существующего мобильного
+            контекста заявки — ticketResourceScope, своего резолвера нет.
+          */}
+          <MobileTicketMaterials
+            ticketId={ticketId}
+            role={meQ.data?.role}
+            scope={ticketResourceScope}
+          />
 
           {ticket.children?.length ? (
             <div className="mobileSection" style={{ marginTop: 4 }}>

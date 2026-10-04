@@ -6679,3 +6679,16 @@ a.mobileBtn.mobileCreateTicketLink {
   min-height: 32px;
   padding: 0 4px;
 }
+
+/* ── Материалы техника (SMA-MATERIALS-V0) ───────────────── */
+/* Направление движения различается цветом, а не только знаком: приход
+   и расход должны читаться с одного взгляда в длинном журнале. */
+.mobileMaterialsIn {
+  font-weight: 700;
+  color: #15803d;
+}
+
+.mobileMaterialsOut {
+  font-weight: 700;
+  color: #b91c1c;
+}
