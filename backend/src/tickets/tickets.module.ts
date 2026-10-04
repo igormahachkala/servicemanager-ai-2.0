@@ -38,6 +38,6 @@ import { WorkforceModule } from '../workforce/workforce.module'
     PermissionsContextGuard,
   ],
   controllers: [TicketsController],
-  exports: [TicketsService, TicketAttachmentsService],
+  exports: [TicketsService, TicketAttachmentsService, TicketsAssignmentService],
 })
 export class TicketsModule {}
