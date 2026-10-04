@@ -17,6 +17,7 @@ import { ServiceContractsModule } from '../service-contracts/service-contracts.m
 import { TechniciansModule } from '../technicians/technicians.module'
 import { NotificationsModule } from '../notifications/notifications.module'
 import { WorkforceModule } from '../workforce/workforce.module'
+import { FailureCausesModule } from '../failure-causes/failure-causes.module'
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { WorkforceModule } from '../workforce/workforce.module'
     TechniciansModule,
     NotificationsModule,
     WorkforceModule,
+    FailureCausesModule,
   ],
   providers: [
     TicketsService,
