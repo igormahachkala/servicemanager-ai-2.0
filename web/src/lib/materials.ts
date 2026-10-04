@@ -140,6 +140,15 @@ export function movementTypeLabel(type: MaterialMovementType): string {
   return labels[type]
 }
 
+export function movementDirection(type: MaterialMovementType): 'in' | 'out' {
+  return type === 'CONSUMPTION' || type === 'ADJUSTMENT_MINUS' ? 'out' : 'in'
+}
+
+export function formatSignedMaterialQuantity(movement: Pick<MaterialMovement, 'type' | 'quantity' | 'material'>): string {
+  const sign = movementDirection(movement.type) === 'out' ? '−' : '+'
+  return `${sign}${formatMaterialQuantity(String(Math.abs(Number(movement.quantity))), materialUnit(movement.material))}`
+}
+
 export function activeMaterials(materials: readonly Material[]): Material[] {
   return materials.filter((item) => item.active)
 }

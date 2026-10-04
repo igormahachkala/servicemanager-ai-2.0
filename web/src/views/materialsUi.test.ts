@@ -11,6 +11,7 @@ describe('Materials V0 integrated surfaces', () => {
   const api = source('../lib/api.ts')
   const management = source('./MaterialsPage.tsx')
   const mobile = source('../mobile/MobileMaterialsPage.tsx')
+  const mobileSettings = source('../mobile/MobileSettingsPage.tsx')
   const ticketDesktop = source('./TicketPage.tsx')
   const ticketMobile = source('../mobile/MobileTicketPage.tsx')
   const ticketPanel = source('../components/tickets/TicketMaterialsPanel.tsx')
@@ -44,6 +45,36 @@ describe('Materials V0 integrated surfaces', () => {
     expect(mobile).toContain('api.myMaterialBalances')
     expect(mobile).toContain('api.myMaterialMovements')
     expect(mobile).not.toContain('type="file"')
+  })
+
+  it('provides one /m-only navigation entry for technicians and management', () => {
+    expect(mobileSettings).toContain("getMobileRouteRoot(location.pathname) === '/m'")
+    expect(mobileSettings).toContain("meQ.data?.canAccessManagementSurface === true && role !== 'PLATFORM_ADMIN'")
+    expect(mobileSettings).toContain("to: scoped('/m/materials')")
+    expect(mobileSettings).not.toContain('/max/materials')
+  })
+
+  it('supports the mobile management workflow through canonical APIs', () => {
+    expect(mobile).toContain('api.createMaterial')
+    expect(mobile).toContain('api.updateMaterial')
+    expect(mobile).toContain('api.recordCompanyStockReceipt')
+    expect(mobile).toContain('api.technicianMaterialBalances')
+    expect(mobile).toContain('api.technicianMaterialMovements')
+    expect(mobile).toContain('api.issueMaterialToTechnician')
+    expect(mobile).toContain("canAccessManagementSurface === true && meQ.data.role !== 'PLATFORM_ADMIN'")
+    expect(mobile).not.toContain('materialCompanyStock')
+    expect(mobile).not.toContain('setMaterialStatus')
+  })
+
+  it('uses the exact backend paths and direct array contracts', () => {
+    expect(api).toContain("myBalances: '/materials/me/balances'")
+    expect(api).toContain("myMovements: '/materials/me/movements'")
+    expect(api).toContain("purchases: '/materials/me/purchases'")
+    expect(api).toContain("issues: '/materials/issues'")
+    expect(api).toContain("stockReceipts: '/materials/stock/receipts'")
+    expect(api).toContain('request<Material[]>')
+    expect(api).toContain('request<MaterialBalance[]>')
+    expect(api).toContain('request<MaterialMovement[]>')
   })
 
   it('reuses one ticket materials panel on desktop and mobile', () => {

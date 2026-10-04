@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   activeMaterials,
+  formatSignedMaterialQuantity,
   formatMaterialQuantity,
   movementTypeLabel,
   normalizeDecimalInput,
@@ -64,5 +65,13 @@ describe('Materials V0 canonical frontend contract', () => {
     expect(movementTypeLabel('PURCHASE')).toBe('Покупка')
     expect(movementTypeLabel('ISSUE')).toBe('Выдано')
     expect(movementTypeLabel('CONSUMPTION')).toBe('Списано в заявку')
+  })
+
+  it('renders technician movement direction from the canonical movement type', () => {
+    const movement = { quantity: '20.000', material }
+    expect(formatSignedMaterialQuantity({ ...movement, type: 'ISSUE' })).toBe('+20 м')
+    expect(formatSignedMaterialQuantity({ ...movement, type: 'PURCHASE' })).toBe('+20 м')
+    expect(formatSignedMaterialQuantity({ ...movement, type: 'CONSUMPTION' })).toBe('−20 м')
+    expect(formatSignedMaterialQuantity({ ...movement, type: 'ADJUSTMENT_MINUS' })).toBe('−20 м')
   })
 })

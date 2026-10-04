@@ -48,6 +48,14 @@ export function TicketMaterialsPanel(props: {
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['ticket-material-consumptions', ticketId] }),
         qc.invalidateQueries({ queryKey: ['my-material-balances'] }),
+        qc.invalidateQueries({ queryKey: ['my-material-movements'] }),
+        qc.invalidateQueries({ queryKey: ['mobile-my-material-history'] }),
+        qc.invalidateQueries({ queryKey: ['mobile-my-material-balances'] }),
+      ])
+    },
+    onError: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['my-material-balances'] }),
         qc.invalidateQueries({ queryKey: ['mobile-my-material-balances'] }),
       ])
     },

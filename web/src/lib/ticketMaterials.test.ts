@@ -61,7 +61,21 @@ describe('Ticket materials', () => {
     expect(api).toContain('/consumptions')
     expect(panel).toContain("['ticket-material-consumptions', ticketId]")
     expect(panel).toContain("['my-material-balances']")
+    expect(panel).toContain("['my-material-movements']")
     expect(panel).toContain("['mobile-my-material-balances']")
+    expect(panel).toContain("['mobile-my-material-history']")
     expect(panel).not.toContain('/tickets/')
+  })
+
+  it('refreshes canonical balances after a failed consume without faking a deduction', () => {
+    const panel = readFileSync(
+      fileURLToPath(new URL('../components/tickets/TicketMaterialsPanel.tsx', import.meta.url)),
+      'utf8',
+    )
+    const onError = panel.slice(panel.indexOf('onError:'), panel.indexOf('function submit'))
+    expect(onError).toContain("['my-material-balances']")
+    expect(onError).toContain("['mobile-my-material-balances']")
+    expect(onError).not.toContain('setQueryData')
+    expect(onError).not.toContain('setDraft(EMPTY_MATERIAL_USAGE_DRAFT)')
   })
 })

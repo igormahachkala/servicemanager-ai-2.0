@@ -184,11 +184,19 @@ export function MobileSettingsPage() {
         to: scoped(mobilePath(location.pathname, '/workforce')),
       })
     }
-    if (role === 'TECHNICIAN' && getMobileRouteRoot(location.pathname) === '/m') {
+    if (
+      getMobileRouteRoot(location.pathname) === '/m'
+      && (
+        role === 'TECHNICIAN'
+        || (meQ.data?.canAccessManagementSurface === true && role !== 'PLATFORM_ADMIN')
+      )
+    ) {
       links.push({
         id: 'materials',
-        label: 'Мои материалы',
-        hint: 'Остатки, покупки и история движений',
+        label: role === 'TECHNICIAN' ? 'Мои материалы' : 'Материалы',
+        hint: role === 'TECHNICIAN'
+          ? 'Остатки, покупки и история движений'
+          : 'Склад, техники и справочник',
         to: scoped('/m/materials'),
       })
     }

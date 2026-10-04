@@ -3,6 +3,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import type { Material, MaterialBalance, MaterialMovement, PurchaseMaterialInput } from '../../lib/materials'
 import {
   activeMaterials,
+  formatSignedMaterialQuantity,
   formatMaterialQuantity,
   materialName,
   materialUnit,
@@ -56,7 +57,7 @@ export function MaterialMovementsList(props: { movements: MaterialMovement[]; em
           </div>
           <div style={{ textAlign: 'right' }}>
             <div className="materialsQty">
-              {formatMaterialQuantity(movement.quantity, materialUnit(movement.material))}
+              {formatSignedMaterialQuantity(movement)}
             </div>
             <div className="muted small">{formatDateTime(movement.createdAt)}</div>
           </div>
