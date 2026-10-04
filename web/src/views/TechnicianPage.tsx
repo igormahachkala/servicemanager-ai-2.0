@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { compactTicketAssigneeLabel } from '../lib/ticketActorIdentity'
+import { TechnicianMaterials } from '../components/materials/TechnicianMaterials'
 
 function fmt(dt?: string | null) {
   if (!dt) return '—'
@@ -280,6 +281,12 @@ export function TechnicianPage() {
           </div>
         </div>
       </div>
+
+      {technicianQ.data?.id ? (
+        <div className="panel" style={{ marginTop: 12 }}>
+          <TechnicianMaterials technicianId={technicianQ.data.id} canIssue={false} />
+        </div>
+      ) : null}
 
       <div className="panel" style={{ marginTop: 12 }}>
         <h3 style={{ marginBottom: 10 }}>Что это даёт дальше</h3>
