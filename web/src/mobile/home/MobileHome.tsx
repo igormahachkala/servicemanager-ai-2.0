@@ -316,6 +316,18 @@ export function MobileHome() {
     setAssignTechId((prev) => (prev && assignTechOptions.some((r) => r.id === prev) ? prev : assignTechOptions[0]!.id))
   }, [assignTechOptions])
 
+  const canOpenMaterialsFromHome = !!meQ.data && (
+    meQ.data.role === 'TECHNICIAN'
+    || (meQ.data.canAccessManagementSurface === true && meQ.data.role !== 'PLATFORM_ADMIN')
+  )
+  const materialsHomeHref = meQ.data
+    ? api.appendScopeToPath(mobilePath(location.pathname, '/materials'), pageScope, meQ.data)
+    : mobilePath(location.pathname, '/materials')
+  const materialsHomeLabel = meQ.data?.role === 'TECHNICIAN' ? 'Мои материалы' : 'Материалы'
+  const materialsHomeHint = meQ.data?.role === 'TECHNICIAN'
+    ? 'Остатки, покупки и история движений'
+    : 'Склад, техники, выдача и справочник'
+
   const companyPrimaryLine = useMemo(() => {
     const fromMe = (meQ.data?.companyName || '').trim()
     if (fromMe) return fromMe
@@ -555,6 +567,30 @@ export function MobileHome() {
         searchQuery={searchQuery}
         setSearchQuery={changeSearchQuery}
       />
+      {canOpenMaterialsFromHome ? (
+        <button
+          type="button"
+          className="mobileCard"
+          onClick={() => navigate(materialsHomeHref)}
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+            padding: '14px 16px',
+            textAlign: 'left',
+            cursor: 'pointer',
+          }}
+          aria-label={materialsHomeLabel}
+        >
+          <span>
+            <strong style={{ display: 'block', fontSize: '1rem' }}>{materialsHomeLabel}</strong>
+            <span className="mobileMeta" style={{ display: 'block', marginTop: 3 }}>{materialsHomeHint}</span>
+          </span>
+          <span aria-hidden style={{ fontSize: '1.3rem', lineHeight: 1 }}>›</span>
+        </button>
+      ) : null}
       {showMobileHomeTicketBoard ? (
         <>
           <HomeQuickCards
