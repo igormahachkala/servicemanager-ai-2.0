@@ -2,8 +2,9 @@
 import { TicketUrgency } from '@prisma/client'
 
 export class CreateTicketFromItemDto {
+  @IsOptional()
   @IsUUID()
-  categoryId!: string
+  categoryId?: string
 
   @IsOptional()
   @IsString()

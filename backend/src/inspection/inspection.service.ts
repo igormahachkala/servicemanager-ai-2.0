@@ -1,4 +1,11 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common'
 import {
   InspectionCheckpointResponseType,
   InspectionReportStatus,
@@ -17,7 +24,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { IdempotencyService } from '../common/idempotency/idempotency.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { TicketsService } from '../tickets/tickets.service'
-import { assertActorCanUseLocation } from '../tickets/ticket-access.utils'
+import { assertActorCanUseLocation, assertActorCanUseProblemCategory } from '../tickets/ticket-access.utils'
 import { TimelineService } from '../timeline/timeline.service'
 import { ShiftPolicyService } from '../workforce/shift-policy.service'
 
@@ -34,6 +41,7 @@ import { ListRunsDto } from './dto/list-runs.dto'
 import { StartRunDto } from './dto/start-run.dto'
 import { UpdateRunItemDto } from './dto/update-run-item.dto'
 import { CreateTicketFromItemDto } from './dto/create-ticket-from-item.dto'
+import { advanceSchedule } from './inspection-recurrence'
 import { ReviewRunReportDto } from './dto/review-run-report.dto'
 import {
   buildInspectionDocumentDate,
@@ -69,6 +77,12 @@ function scheduledStartKey(schedule: { id: string; lastRunId: string | null }): 
 export class InspectionService {
   private readonly policy = new InspectionPolicy()
   private readonly uploadsDir = join(process.cwd(), 'uploads', 'inspection-run-items')
+
+  /**
+   * 038: журнал того же сервиса. Отдельной аналитики повторений не заводится —
+   * пропуски и исчерпанный догон уходят сюда, рядом с остальной диагностикой.
+   */
+  private readonly logger = new Logger(InspectionService.name)
 
   constructor(
     private readonly prisma: PrismaService,
@@ -254,6 +268,7 @@ export class InspectionService {
             zoneName: true,
             zoneSortOrder: true,
             checkpointSortOrder: true,
+            defaultCategoryId: true,
             responseType: true,
             numericMin: true,
             numericMax: true,
@@ -330,6 +345,11 @@ export class InspectionService {
       locationId: location.id,
       equipmentId: equipment?.id ?? null,
     })
+    const categorySnapshots = await this.resolveDefaultCategorySnapshots(
+      user,
+      locationAccess.clientCompanyId,
+      template.items,
+    )
 
     const data: Prisma.InspectionRunUncheckedCreateInput = {
       companyId: user.companyId,
@@ -358,6 +378,8 @@ export class InspectionService {
           numericMin: item.numericMin,
           numericMax: item.numericMax,
           numericUnit: item.numericUnit,
+          defaultCategoryId: categorySnapshots.get(item.id)?.id ?? null,
+          defaultCategoryName: categorySnapshots.get(item.id)?.name ?? null,
           isRequired: item.isRequired,
           status: InspectionRunItemStatus.PENDING,
           requiresRepair: false,
@@ -922,6 +944,9 @@ export class InspectionService {
     dto: CreateTicketFromItemDto,
     idempotencyKey?: string | null,
   ) {
+    assertAllowed(this.policy.canCreateTicket(user))
+    const categoryId = await this.resolveTicketCategoryFromRunSnapshot(user, runId, itemId, dto.categoryId)
+
     /**
      * SMA-OFFLINE-IDEMPOTENCY-113B — 113A left this blocked, and the key is what unblocks it.
      *
@@ -936,7 +961,7 @@ export class InspectionService {
       const fingerprint = IdempotencyService.fingerprint({
         runId,
         itemId,
-        categoryId: dto.categoryId,
+        categoryId,
         title: dto.title,
         description: dto.description,
         urgency: dto.urgency,
@@ -946,7 +971,7 @@ export class InspectionService {
         fingerprint,
         {
           execute: async () => {
-            const created = await this.createTicketFromItemInternal(user, runId, itemId, dto)
+            const created = await this.createTicketFromItemInternal(user, runId, itemId, dto, categoryId)
             return { result: created, entityType: 'Ticket', entityId: created.ticket.id }
           },
           replay: async (entityId) => {
@@ -966,7 +991,28 @@ export class InspectionService {
       return outcome.result
     }
 
-    return this.createTicketFromItemInternal(user, runId, itemId, dto)
+    return this.createTicketFromItemInternal(user, runId, itemId, dto, categoryId)
+  }
+
+  private async resolveTicketCategoryFromRunSnapshot(
+    user: InspectionUserCtx,
+    runId: string,
+    itemId: string,
+    explicitCategoryId?: string,
+  ) {
+    const explicit = explicitCategoryId?.trim()
+    if (explicit) return explicit
+
+    const item = await this.prisma.inspectionRunItem.findFirst({
+      where: { id: itemId, runId, run: { companyId: user.companyId } },
+      select: { defaultCategoryId: true },
+    })
+    if (!item) throw new NotFoundException('Inspection run item not found')
+    const snapshotCategoryId = item.defaultCategoryId?.trim()
+    if (!snapshotCategoryId) {
+      throw new BadRequestException('Выберите категорию заявки')
+    }
+    return snapshotCategoryId
   }
 
   private async createTicketFromItemInternal(
@@ -974,6 +1020,7 @@ export class InspectionService {
     runId: string,
     itemId: string,
     dto: CreateTicketFromItemDto,
+    categoryId: string,
   ) {
     assertAllowed(this.policy.canCreateTicket(user))
 
@@ -993,7 +1040,7 @@ export class InspectionService {
     const created = await this.tickets.create(user.companyId, { id: user.id, role: user.role }, {
       locationId: run.locationId,
       equipmentId: run.equipmentId ?? undefined,
-      categoryId: dto.categoryId,
+      categoryId,
       title: dto.title?.trim() || item.title,
       description: dto.description?.trim() || item.comment || item.description || item.title,
       urgency:
@@ -1055,15 +1102,154 @@ export class InspectionService {
     }
     await this.assertActiveShiftForRoundMutation(user)
 
-    const updated = await this.prisma.inspectionRun.update({
+    /**
+     * SMA-ROUND-SCHEDULE-ADVANCE-029.
+     *
+     * Завершение и сдвиг плана — одна транзакция, и признак «уже завершён»
+     * ставится самим переходом статуса, а не проверкой перед ним.
+     *
+     * Проверка выше остаётся ради понятного сообщения человеку, но полагаться
+     * на неё нельзя: между чтением и записью помещается второе завершение,
+     * и тогда план сдвинулся бы дважды за один визит. updateMany с условием
+     * по статусу отдаёт единице count=1, а всем остальным — 0, и сдвиг
+     * делает только победитель. Отдельного поля для этого не нужно: один
+     * обход закрывается один раз, а обход принадлежит одному визиту.
+     */
+    const completedAt = new Date()
+
+    const advanced = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.inspectionRun.updateMany({
+        where: { id: run.id, status: { not: InspectionRunStatus.COMPLETED } },
+        data: { status: InspectionRunStatus.COMPLETED, completedAt },
+      })
+
+      // Гонку проиграли: обход уже закрыт другим вызовом, план трогать нельзя.
+      if (claimed.count === 0) return null
+
+      return this.advanceScheduleAfterCompletion(tx, run.id, completedAt)
+    })
+
+    if (advanced === null) {
+      throw new BadRequestException('Inspection run is already completed')
+    }
+
+    const updated = await this.prisma.inspectionRun.findUniqueOrThrow({
       where: { id: run.id },
-      data: { status: InspectionRunStatus.COMPLETED, completedAt: new Date() },
       select: runSelect(),
     })
 
     return {
       run: updated,
       summary: buildInspectionRunSummary(updated.items),
+    }
+  }
+
+  /**
+   * 029: сдвиг плана после выполненного визита.
+   *
+   * Второго пути завершения не заводится — сюда попадают только из completeRun,
+   * внутри той же транзакции. Расписание читается там же, поэтому решение
+   * принимается по состоянию, которое никто не успеет изменить.
+   *
+   * Одноразовый план после выполнения гасится: висеть вечно просроченным ему
+   * незачем. Повторяемый сдвигается к ближайшему будущему визиту с догоном
+   * пропущенных.
+   */
+  private async advanceScheduleAfterCompletion(
+    tx: Prisma.TransactionClient,
+    runId: string,
+    completedAt: Date,
+  ): Promise<{ scheduleId: string | null; nextDueAt: Date | null; deactivated: boolean; missed: number }> {
+    const withSchedule = await tx.inspectionRun.findUnique({
+      where: { id: runId },
+      select: {
+        scheduleId: true,
+        schedule: {
+          select: {
+            id: true,
+            isActive: true,
+            frequency: true,
+            intervalDays: true,
+            nextDueAt: true,
+            // 038: якорь числа месяца берётся из исходной даты плана.
+            startDate: true,
+            company: { select: { timezone: true } },
+          },
+        },
+      },
+    })
+
+    const schedule = withSchedule?.schedule
+    // Обход без плана — обычный разовый обход, двигать нечего.
+    if (!schedule || !schedule.isActive) {
+      return { scheduleId: null, nextDueAt: null, deactivated: false, missed: 0 }
+    }
+
+    const outcome = advanceSchedule({
+      frequency: schedule.frequency,
+      intervalDays: schedule.intervalDays,
+      currentDueAt: schedule.nextDueAt,
+      completedAt,
+      timezone: schedule.company?.timezone,
+      anchorDate: schedule.startDate,
+    })
+
+    /**
+     * SMA-ROUND-RECURRENCE-HARDENING-038.
+     *
+     * Догон не уложился в предохранитель. Плана не касаемся вовсе: записать
+     * незаконченный расчёт значило бы показать человеку дату, которой никто
+     * не считал, а погасить план — молча снять с него работу, которую он
+     * ещё должен. План остаётся просроченным и видимым, а случай уходит
+     * в журнал: дальше это разбирает человек.
+     *
+     * Обход при этом остаётся завершённым: работу выполнили, и отменять её
+     * из-за арифметики расписания нельзя. Фиктивных обходов за пропущенные
+     * дни не появляется — их не создаёт никто.
+     */
+    if (outcome.exhausted) {
+      this.logger.warn(
+        `inspection_schedule_advance_exhausted scheduleId=${schedule.id} ` +
+          `frequency=${schedule.frequency} missedOccurrences=${outcome.missedOccurrences} ` +
+          'nextDueAt left unchanged',
+      )
+      return {
+        scheduleId: schedule.id,
+        nextDueAt: null,
+        deactivated: false,
+        missed: outcome.missedOccurrences,
+      }
+    }
+
+    if (!outcome.nextDueAt) {
+      await tx.inspectionSchedule.update({
+        where: { id: schedule.id },
+        data: { isActive: false },
+      })
+      return { scheduleId: schedule.id, nextDueAt: null, deactivated: true, missed: 0 }
+    }
+
+    /**
+     * 038: пропуски не выдумывают обходов и не заводят своей аналитики —
+     * они видны в журнале на той же ветке кода, что и сам сдвиг.
+     */
+    if (outcome.missedOccurrences > 0) {
+      this.logger.warn(
+        `inspection_schedule_missed_occurrences scheduleId=${schedule.id} ` +
+          `frequency=${schedule.frequency} missedOccurrences=${outcome.missedOccurrences} ` +
+          `nextDueAt=${outcome.nextDueAt.toISOString()}`,
+      )
+    }
+
+    await tx.inspectionSchedule.update({
+      where: { id: schedule.id },
+      data: { nextDueAt: outcome.nextDueAt },
+    })
+    return {
+      scheduleId: schedule.id,
+      nextDueAt: outcome.nextDueAt,
+      deactivated: false,
+      missed: outcome.missedOccurrences,
     }
   }
 
@@ -1089,6 +1275,7 @@ export class InspectionService {
       zoneName?: string | null
       zoneSortOrder?: number
       checkpointSortOrder?: number
+      defaultCategoryId?: string | null
       responseType?: InspectionCheckpointResponseType
       numericMin?: number | null
       numericMax?: number | null
@@ -1106,6 +1293,7 @@ export class InspectionService {
         zoneName: item.zoneName?.trim() || null,
         zoneSortOrder: item.zoneSortOrder ?? 0,
         checkpointSortOrder: item.checkpointSortOrder ?? item.sortOrder ?? index,
+        defaultCategoryId: item.defaultCategoryId?.trim() || null,
         responseType: item.responseType ?? InspectionCheckpointResponseType.NORMAL_PROBLEM,
         numericMin: item.numericMin ?? null,
         numericMax: item.numericMax ?? null,
@@ -1135,6 +1323,41 @@ export class InspectionService {
     }
 
     return items
+  }
+
+  private async resolveDefaultCategorySnapshots(
+    user: InspectionUserCtx,
+    clientCompanyId: string,
+    items: Array<{ id: string; defaultCategoryId?: string | null }>,
+  ) {
+    const resolvedByHint = new Map<string, { id: string; name: string } | null>()
+
+    for (const item of items) {
+      const hint = item.defaultCategoryId?.trim()
+      if (!hint || resolvedByHint.has(hint)) continue
+
+      try {
+        const category = await assertActorCanUseProblemCategory({
+          prisma: this.prisma,
+          actor: user,
+          scopeCompanyId: clientCompanyId,
+          problemCategoryId: hint,
+        })
+        resolvedByHint.set(hint, { id: category.id, name: category.name })
+      } catch (error) {
+        if (!(error instanceof NotFoundException) && !(error instanceof ForbiddenException)) {
+          throw error
+        }
+        resolvedByHint.set(hint, null)
+      }
+    }
+
+    return new Map(
+      items.map((item) => {
+        const hint = item.defaultCategoryId?.trim()
+        return [item.id, hint ? resolvedByHint.get(hint) ?? null : null] as const
+      }),
+    )
   }
 
   /**
@@ -1218,6 +1441,7 @@ export class InspectionService {
         templateItemId: true,
         title: true,
         description: true,
+        defaultCategoryId: true,
         responseType: true,
         numericMin: true,
         numericMax: true,
@@ -1296,6 +1520,7 @@ function templateSelect() {
         zoneName: true,
         zoneSortOrder: true,
         checkpointSortOrder: true,
+        defaultCategoryId: true,
         responseType: true,
         numericMin: true,
         numericMax: true,
@@ -1331,6 +1556,8 @@ function runItemSelect() {
     zoneName: true,
     zoneSortOrder: true,
     checkpointSortOrder: true,
+    defaultCategoryId: true,
+    defaultCategoryName: true,
     responseType: true,
     numericMin: true,
     numericMax: true,

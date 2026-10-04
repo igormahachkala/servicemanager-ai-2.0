@@ -67,6 +67,22 @@ export class InspectionController {
     return this.schedules.list(this.userFromRequest(req), query)
   }
 
+  /**
+   * 025: кандидаты на назначение обхода в точке.
+   *
+   * Объявлен ДО `schedules/:id`, иначе параметрический путь проглотил бы
+   * этот — та же причина, по которой весь блок schedules стоит до runs.
+   * Набор ролей и право те же, что у создания плана: кто планирует, тот
+   * и видит кандидатов.
+   */
+  @Get('schedules/assignable-technicians')
+  @ManagementSurface()
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
+  @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
+  listAssignableTechnicians(@Req() req: any, @Query('locationId') locationId: string) {
+    return this.schedules.listAssignableTechnicians(this.userFromRequest(req), (locationId || '').trim())
+  }
+
   @Get('schedules/:id')
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)

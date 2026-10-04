@@ -52,6 +52,22 @@ function makeContract(overrides: any = {}) {
   }
 }
 
+/**
+ * 025: что канонический резолвер вернул бы для точки. Тесты переопределяют
+ * список там, где проверяют пустое состояние.
+ *
+ * 039: сохранение теперь спрашивает того же резолвера, поэтому по умолчанию
+ * здесь пригодные исполнители этой точки, а не пустота. Пустой список —
+ * это «на точке работать некому», и подставлять его во все тесты назначения
+ * значило бы проверять отказ там, где проверяется успех.
+ */
+const eligibleFixture = () => [
+  { id: technician.id, email: 'tech@example.com', firstName: 'Иван', lastName: 'Петров', role: UserRole.TECHNICIAN, activeLoad: 0 },
+  { id: otherTechnician.id, email: 'tech2@example.com', firstName: 'Пётр', lastName: 'Иванов', role: UserRole.TECHNICIAN, activeLoad: 0 },
+]
+
+let assignableExecutors: any[] = eligibleFixture()
+
 const LOCATIONS = [LOC_A, LOC_B, LOC_UNCONTRACTED]
 
 const USERS: any[] = [
@@ -114,7 +130,22 @@ function makeSuite(options: { contracts?: any[]; schedules?: any[] } = {}) {
     },
   } as any
 
-  return { svc: new InspectionScheduleService(prisma, serviceContracts), prisma, contractsPrisma }
+  /**
+   * 025: кандидатов на назначение отдаёт канонический резолвер назначения
+   * заявок. В этом наборе он подменён: проверяется, что планирование зовёт
+   * именно его и с теми аргументами, а не что резолвер работает — его
+   * собственные тесты лежат рядом с ним.
+   */
+  const assignment = {
+    listLocationAssignableExecutors: jest.fn(async () => assignableExecutors),
+  } as any
+
+  return {
+    svc: new InspectionScheduleService(prisma, serviceContracts, assignment),
+    prisma,
+    contractsPrisma,
+    assignment,
+  }
 }
 
 function scheduleRow(overrides: any = {}) {
@@ -581,7 +612,19 @@ describe('098 schedule UPDATE', () => {
     expect(data.nextDueAt).toEqual(new Date('2026-11-05T08:00:00.000Z'))
   })
 
-  it('does NOT rewind nextDueAt once a generator has produced runs', async () => {
+  /**
+   * SMA-ROUND-SCHEDULE-ADVANCE-029: правило заменено намеренно.
+   *
+   * 098 замораживал nextDueAt после первого обхода, потому что курсор
+   * принадлежал будущему генератору. Генератор появился здесь, и курсор
+   * двигает завершение обхода. Заморозка при этом лишила администратора
+   * возможности перенести действующий план: оставалось погасить его и
+   * завести новый, потеряв связь с историей.
+   *
+   * Теперь правка даты переносит ближайший визит и при наличии прошлых
+   * обходов. Сами обходы не переписываются — это проверяется ниже.
+   */
+  it('029 moves the next occurrence even after previous runs exist', async () => {
     const { svc, prisma } = makeSuite({
       schedules: [scheduleRow({ lastGeneratedAt: new Date('2026-09-01T00:00:00.000Z') })],
     })
@@ -589,8 +632,25 @@ describe('098 schedule UPDATE', () => {
     await svc.update(admin, 'sched-1', { startDate: '2026-11-05T08:00:00.000Z' } as any)
 
     const data = prisma.inspectionSchedule.update.mock.calls[0][0].data
-    expect(data.startDate).toBeDefined()
-    expect(data.nextDueAt).toBeUndefined()
+    expect(data.startDate).toEqual(new Date('2026-11-05T08:00:00.000Z'))
+    expect(data.nextDueAt).toEqual(new Date('2026-11-05T08:00:00.000Z'))
+  })
+
+  it('029 rescheduling does not touch historical runs', async () => {
+    const { svc, prisma } = makeSuite({
+      schedules: [scheduleRow({ lastGeneratedAt: new Date('2026-09-01T00:00:00.000Z') })],
+    })
+
+    await svc.update(admin, 'sched-1', { startDate: '2026-11-05T08:00:00.000Z' } as any)
+
+    /*
+     * Прошлое остаётся с теми датами, когда работу действительно делали.
+     * Доказательство прямое: перенос обошёлся вообще без обращения к обходам —
+     * в поддельной призме делегата inspectionRun нет, и будь он нужен,
+     * вызов упал бы, а не прошёл молча.
+     */
+    expect((prisma as Record<string, unknown>).inspectionRun).toBeUndefined()
+    expect(prisma.inspectionSchedule.update).toHaveBeenCalledTimes(1)
   })
 
   it('DENIES moving a schedule to an out-of-scope location', async () => {
@@ -749,5 +809,101 @@ describe('120G выборка плана для мобильного «Сего�
 
     const orderBy = prisma.inspectionSchedule.findMany.mock.calls[0][0].orderBy
     expect(orderBy[0]).toEqual({ nextDueAt: 'asc' })
+  })
+})
+
+/**
+ * SMA-ROUND-TECHNICIAN-ASSIGNMENT-025 — кандидаты на назначение обхода.
+ *
+ * Дефект был в том, что список кандидатов и правило назначения жили в разных
+ * местах: интерфейс предлагал всех активных сотрудников, а непригодность
+ * всплывала отказом при сохранении. Здесь проверяется, что планирование берёт
+ * кандидатов каноническим резолвером назначения заявок и не заводит своего
+ * отбора, а сохранение по-прежнему решает само.
+ */
+describe('025 кандидаты на назначение обхода', () => {
+  beforeEach(() => {
+    assignableExecutors = [
+      {
+        id: technician.id,
+        email: 'tech@example.com',
+        firstName: 'Иван',
+        lastName: 'Петров',
+        role: UserRole.TECHNICIAN,
+        activeLoad: 2,
+      },
+    ]
+  })
+
+  it('1. зовёт канонический резолвер с компанией исполнителя, компанией площадки и точкой', async () => {
+    const { svc, assignment } = makeSuite()
+
+    const result = await svc.listAssignableTechnicians(admin, LOC_A.id)
+
+    expect(assignment.listLocationAssignableExecutors).toHaveBeenCalledTimes(1)
+    expect(assignment.listLocationAssignableExecutors).toHaveBeenCalledWith({
+      employerCompanyId: PROVIDER_ID,
+      scopeCompanyId: CLIENT_A,
+      locationId: LOC_A.id,
+    })
+    expect(result.map((item: any) => item.id)).toEqual([technician.id])
+  })
+
+  it('2. точка без действующего договора недоступна и кандидатов не отдаёт', async () => {
+    const { svc, assignment } = makeSuite()
+
+    await expect(svc.listAssignableTechnicians(admin, LOC_UNCONTRACTED.id)).rejects.toBeInstanceOf(
+      NotFoundException,
+    )
+    // Резолвер даже не вызывается: право на точку проверяется раньше.
+    expect(assignment.listLocationAssignableExecutors).not.toHaveBeenCalled()
+  })
+
+  it('3. без точки вопрос не имеет смысла и отклоняется', async () => {
+    const { svc, assignment } = makeSuite()
+
+    await expect(svc.listAssignableTechnicians(admin, '')).rejects.toBeInstanceOf(BadRequestException)
+    expect(assignment.listLocationAssignableExecutors).not.toHaveBeenCalled()
+  })
+
+  it('4. техник кандидатов не запрашивает — он не планирует', async () => {
+    const { svc, assignment } = makeSuite()
+
+    await expect(svc.listAssignableTechnicians(technician, LOC_A.id)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    )
+    expect(assignment.listLocationAssignableExecutors).not.toHaveBeenCalled()
+  })
+
+  it('5. пустой список отдаётся как есть, без подмены «всеми активными»', async () => {
+    assignableExecutors = []
+    const { svc } = makeSuite()
+
+    await expect(svc.listAssignableTechnicians(admin, LOC_A.id)).resolves.toEqual([])
+  })
+
+  it('6. наружу уходит только то, что нужно выбору, без нагрузки резолвера', async () => {
+    const { svc } = makeSuite()
+
+    const [candidate] = await svc.listAssignableTechnicians(admin, LOC_A.id)
+
+    expect(Object.keys(candidate).sort()).toEqual(
+      ['activeLoad', 'email', 'firstName', 'id', 'lastName', 'role'].sort(),
+    )
+  })
+
+  it('7. сохранение остаётся авторитетом: подставленный чужой идентификатор отклоняется', async () => {
+    // Список кандидатов интерфейсу ничего не разрешает — create проверяет заново.
+    const { svc } = makeSuite()
+
+    await expect(
+      svc.create(admin, {
+        templateId: 'tpl-1',
+        locationId: LOC_A.id,
+        assignedToUserId: 'u-from-another-company',
+        frequency: InspectionFrequency.ONCE,
+        startDate: VALID_START,
+      } as any),
+    ).rejects.toBeInstanceOf(NotFoundException)
   })
 })
