@@ -14,3 +14,13 @@ export function mobilePath(pathname: string | null | undefined, suffix: string):
 export function supportsPersonalNotificationPreferences(pathname?: string | null): boolean {
   return getMobileRouteRoot(pathname) === '/m'
 }
+
+/**
+ * SMA-MOBILE-SERVICE-OS Phase 0+1: пункт «Обходы» для техника ведёт в рабочий
+ * экран сегодняшних визитов, а не в исторический список прогонов. Остальные роли
+ * пока сохраняют прежнюю посадку на общий список. Движок /inspection не меняется —
+ * это только выбор посадочного суффикса в рамках canonical Rounds flow.
+ */
+export function inspectionNavSuffix(role?: string | null): string {
+  return role === 'TECHNICIAN' ? '/inspection/today' : '/inspection'
+}
