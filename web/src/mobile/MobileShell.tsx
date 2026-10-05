@@ -119,6 +119,7 @@ export function MobileShell() {
   useEffect(() => {
     if (!offline.online || !meQ.data) return
     void import('./MobileProfile')
+    void import('./MobileTicketPage')
   }, [offline.online, meQ.data?.id])
   useEffect(() => {
     if (!meQ.data) return

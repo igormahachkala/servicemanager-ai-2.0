@@ -24,11 +24,22 @@ import { identityFromToken } from './identity.js'
 import { OFFLINE_SYNC_LABEL, type OfflineQueueItem } from './types.js'
 import { reportApiReachability, subscribeApiReachability } from '../../lib/apiReachability.js'
 import { createReachabilityMonitor } from './reachabilityMonitor.js'
+import { requestPersistentStorage } from './persistentStorage.js'
 
 export type OfflineStatus = {
   /** Хранилище доступно и офлайн-работа сохранится. */
   ready: boolean
+  /**
+   * Устойчивый online: два успешных /health подряд после offline
+   * (или ещё не теряли связь после подтверждения).
+   */
   online: boolean
+  /**
+   * Можно бить живой API для новых действий техника.
+   * false в offline и пока не известен итог первого sync после выхода в online —
+   * тогда новые действия идут в очередь.
+   */
+  liveApiAllowed: boolean
   pending: number
   attention: number
   syncing: boolean
@@ -47,13 +58,104 @@ let store: OfflineStore | null = null
 let coordinator: SyncCoordinator | null = null
 let identityKey: string | null = null
 let connectivityWatched = false
+
+/** Пауза между двумя успешными /health перед выходом из offline. */
+const HEALTH_CONFIRM_GAP_MS = 2_500
+/** Интервал poll /health только пока offline. */
+const HEALTH_POLL_INTERVAL_MS = 7_000
+
+let healthSuccessStreak = 0
+let healthConfirmTimer: ReturnType<typeof setTimeout> | null = null
+/** true с момента online до завершения первого круга sync. */
+let awaitingInitialSyncAfterOnline = false
+
+function clearHealthConfirmTimer() {
+  if (healthConfirmTimer) clearTimeout(healthConfirmTimer)
+  healthConfirmTimer = null
+}
+
+function ensureHealthPolling() {
+  reachabilityMonitor.start()
+}
+
+function stopHealthPolling() {
+  reachabilityMonitor.stop()
+  clearHealthConfirmTimer()
+  healthSuccessStreak = 0
+}
+
+function enterOffline(reason: 'navigator' | 'transport' | 'health') {
+  void reason
+  clearHealthConfirmTimer()
+  healthSuccessStreak = 0
+  awaitingInitialSyncAfterOnline = false
+  const wasOnline = status.online || status.liveApiAllowed
+  emit({ online: false, liveApiAllowed: false })
+  cancelRetry()
+  ensureHealthPolling()
+  if (wasOnline) {
+    /* уже сбросили live — новых live-действий не будет */
+  }
+}
+
+async function finishInitialSyncAfterOnline() {
+  if (!awaitingInitialSyncAfterOnline) return
+  try {
+    await syncNow()
+  } finally {
+    if (!status.online) {
+      awaitingInitialSyncAfterOnline = false
+      return
+    }
+    // Transport fail во время sync уже вызвал enterOffline.
+    if (awaitingInitialSyncAfterOnline && status.online) {
+      awaitingInitialSyncAfterOnline = false
+      emit({ liveApiAllowed: true })
+    }
+  }
+}
+
+function onHealthProbeResult(ok: boolean) {
+  // В устойчивом online /health не поллим. Случайный probeNow игнорируем.
+  if (status.online) return
+
+  if (!ok) {
+    clearHealthConfirmTimer()
+    healthSuccessStreak = 0
+    reportApiReachability(false)
+    emit({ online: false, liveApiAllowed: false })
+    return
+  }
+
+  healthSuccessStreak += 1
+  if (healthSuccessStreak === 1) {
+    clearHealthConfirmTimer()
+    healthConfirmTimer = setTimeout(() => {
+      healthConfirmTimer = null
+      void reachabilityMonitor.probeNow()
+    }, HEALTH_CONFIRM_GAP_MS)
+    return
+  }
+
+  if (healthSuccessStreak < 2) return
+
+  // Два успешных /health с паузой → устойчивый online, sync, пока без live API.
+  stopHealthPolling()
+  awaitingInitialSyncAfterOnline = true
+  reportApiReachability(true)
+  emit({ online: true, liveApiAllowed: false })
+  cancelRetry()
+  void finishInitialSyncAfterOnline()
+}
+
 const reachabilityMonitor = createReachabilityMonitor({
   probe: async () => {
     const api = await import('../../lib/api')
     return api.probeApiReachability()
   },
   interfaceOnline: () => typeof navigator === 'undefined' || navigator.onLine !== false,
-  onResult: reportApiReachability,
+  onResult: onHealthProbeResult,
+  intervalMs: HEALTH_POLL_INTERVAL_MS,
 })
 
 /**
@@ -129,7 +231,9 @@ const listeners = new Set<Listener>()
 
 let status: OfflineStatus = {
   ready: false,
-  online: typeof navigator === 'undefined' ? true : navigator.onLine !== false,
+  // Не доверяем navigator при старте: online только после двух /health.
+  online: false,
+  liveApiAllowed: false,
   pending: 0,
   attention: 0,
   syncing: false,
@@ -140,38 +244,50 @@ let status: OfflineStatus = {
  * удалось ли открыть хранилище. Индикатор «Онлайн/Офлайн» в шапке обязан
  * оставаться честным даже там, где IndexedDB недоступна, — иначе техник
  * увидит «Онлайн» в подвале без связи.
+ *
+ * Политика.
+ * - navigator offline → сразу offline, poll /health когда интерфейс снова up.
+ * - Устойчивый online: /health не поллить. Transport failure любого fetch → offline.
+ * - HTTP 4xx/5xx online не снимают (reportApiReachability(true) при ответе).
+ * - Offline → online только после двух успешных /health с паузой ~2.5 с.
+ * - Стали online → один sync; пока итог неизвестен, liveApiAllowed=false.
  */
 function watchConnectivity() {
   if (connectivityWatched || typeof window === 'undefined') return
   connectivityWatched = true
   subscribeApiReachability((reachable) => {
-    // navigator.onLine describes an interface, not whether the API can be
-    // reached. A real request result is the stronger signal.
-    const wasOnline = status.online
-    const online = reachable && navigator.onLine !== false
-    emit({ online })
-    if (!reachable) cancelRetry()
-    else if (!wasOnline && online) {
-      cancelRetry()
-      void syncNow()
+    if (!reachable) {
+      enterOffline('transport')
+      return
+    }
+    // Product fetch получил HTTP. В offline это не выход в online —
+    // только double /health. В online подтверждаем, что API ещё доступен.
+    if (status.online && !awaitingInitialSyncAfterOnline) {
+      emit({ liveApiAllowed: true })
     }
   })
   window.addEventListener('online', () => {
-    // Do not claim "online" until an API request succeeds. The browser event
-    // only permits a sync attempt; mobile radios often emit it too early.
     cancelRetry()
-    void reachabilityMonitor.probeNow()
+    if (!status.online) void reachabilityMonitor.probeNow()
   })
   window.addEventListener('offline', () => {
-    reportApiReachability(false)
-    // Без сети повторять нечего: следующий круг закажет событие `online`.
     cancelRetry()
+    reportApiReachability(false)
+    enterOffline('navigator')
   })
-  window.addEventListener('focus', () => { void reachabilityMonitor.probeNow() })
+  window.addEventListener('focus', () => {
+    if (!status.online) void reachabilityMonitor.probeNow()
+  })
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') void reachabilityMonitor.probeNow()
+    if (document.visibilityState === 'visible' && !status.online) {
+      void reachabilityMonitor.probeNow()
+    }
   })
-  reachabilityMonitor.start()
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    enterOffline('navigator')
+  } else {
+    ensureHealthPolling()
+  }
 }
 
 export function getOfflineStatus(): OfflineStatus {
@@ -189,6 +305,14 @@ export function subscribeOfflineStatus(listener: Listener): () => void {
 function emit(patch: Partial<OfflineStatus>) {
   status = { ...status, ...patch }
   for (const listener of listeners) listener(status)
+}
+
+/** Любой подтверждённый отказ IndexedDB запрещает обещать offline-сохранение. */
+export function reportOfflineStorageUnavailable(message: string) {
+  emit({
+    ready: false,
+    unavailableReason: message || 'Офлайн-хранилище недоступно: работа не сохранится',
+  })
 }
 
 export async function refreshOfflineStatus(): Promise<OfflineStatus> {
@@ -219,6 +343,10 @@ export async function startOffline(identity: { id?: string | null; companyId?: s
 
   if (!opened.available || !store) return { store, status }
 
+  // Persistence запрашивается во всех браузерах. denied оставляет рабочую
+  // best-effort IndexedDB; фактическую доступность определяют результаты write.
+  void requestPersistentStorage()
+
   const startedAt = generation
   coordinator = new SyncCoordinator(store, createHttpSyncTransport(), {
     resolveIdentity: liveIdentityNamespace,
@@ -226,8 +354,13 @@ export async function startOffline(identity: { id?: string | null; companyId?: s
   })
 
   await refreshOfflineStatus()
-  // Работа могла накопиться в прошлой сессии — разбираем сразу, если связь есть.
-  if (status.online) void syncNow()
+  // Работа могла накопиться в прошлой сессии — разбираем, если уже устойчивый online.
+  if (status.online && status.liveApiAllowed) void syncNow()
+  else if (status.online && awaitingInitialSyncAfterOnline) {
+    /* первый sync уже запущен из onHealthProbeResult */
+  } else if (!status.online) {
+    ensureHealthPolling()
+  }
   return { store, status }
 }
 
@@ -279,6 +412,28 @@ export function offlineStore(): OfflineStore | null {
 }
 
 /**
+ * Дождаться открытия IndexedDB после входа в оболочку.
+ * Иначе первый offline-queryFn после reload читает пусто и рисует
+ * «нет сохранённых заявок», хотя снимок ещё не успели открыть.
+ */
+export async function waitForOfflineStore(timeoutMs = 2000): Promise<OfflineStore | null> {
+  const started = Date.now()
+  for (;;) {
+    const current = offlineStore()
+    if (current?.available) return current
+    if (current && !current.available) return current
+    if (Date.now() - started >= timeoutMs) return current
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  }
+}
+
+/** Живой API для новых действий (не navigator, не «online пока идёт первый sync»). */
+export function isLiveApiAllowed(): boolean {
+  watchConnectivity()
+  return status.liveApiAllowed
+}
+
+/**
  * Поставить операцию в очередь и честно сказать, сохранилась ли она.
  * Экран обязан показать результат: «Сохранено на устройстве» только при ok.
  */
@@ -292,6 +447,9 @@ export async function queueOffline(input: Parameters<OfflineStore['enqueue']>[0]
     }
   }
   const result = await s.enqueue(input)
+  if (!result.ok && result.quota) {
+    reportOfflineStorageUnavailable(result.message)
+  }
   await refreshOfflineStatus()
   if (result.ok) {
     if (status.online) void syncNow()

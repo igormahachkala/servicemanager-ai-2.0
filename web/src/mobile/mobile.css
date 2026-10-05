@@ -1118,6 +1118,58 @@ button.mobilePhotoThumbLink.mobilePhotoThumbOpen:focus-visible {
   font-size: 0.9rem;
 }
 
+.mobileBtnLink {
+  width: auto !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border: none;
+  background: transparent;
+  color: #1d4ed8;
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.mobileOfflineCachePanel {
+  margin-bottom: 10px;
+}
+
+.mobileOfflineCachePanelHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mobileOfflineCachePanelTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.mobileOfflineCachePanelBody {
+  margin-top: 6px;
+  display: grid;
+  gap: 8px;
+}
+
+.mobileOfflineCachePanelBody .mobileBtn {
+  width: 100%;
+}
+
+.mobileTicketCard input[type='checkbox'] {
+  width: auto !important;
+  min-width: 0 !important;
+  height: auto !important;
+  margin: 0;
+}
+
 .mobileNoticeSuccess {
   background: #ecfdf5;
   color: #065f46;

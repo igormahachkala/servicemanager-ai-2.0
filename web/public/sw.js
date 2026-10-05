@@ -185,9 +185,12 @@ function pickWindowClient(clientList) {
 // авторизованные ответы API в кэш Service Worker нельзя ещё и потому, что
 // он общий для всех, кто открывал браузер: на общем планшете следующий
 // техник увидел бы чужие данные.
-const APP_SHELL_CACHE = 'sma-app-shell-v3'
+const APP_SHELL_CACHE = 'sma-app-shell-v4'
 const APP_SHELL_URL = '/index.html'
 const BUILD_ASSET_MANIFEST_URL = '/asset-manifest.json'
+// F5 при связи должен взять свежий index.html. Полный timeout сети на
+// iOS cold-start недопустим, поэтому гонка с коротким бюджетом, затем кэш.
+const NAV_NETWORK_BUDGET_MS = 800
 
 function manifestAssetUrls(manifest) {
   const urls = new Set()
@@ -278,27 +281,42 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin) return
   if (url.pathname.startsWith('/uploads/') || url.pathname.startsWith('/api/')) return
 
-  // Cold-start on iOS must not wait for a network request to time out. Return
-  // the installed shell immediately and refresh it in the background. If the
-  // shell is not installed yet, the same network promise becomes the first
-  // response and retains the explicit 503 fallback.
-  const network = fetch(request).then((response) => {
-    if (response && response.ok && response.type === 'basic') {
-      const copy = response.clone()
-      caches.open(APP_SHELL_CACHE).then((cache) => cache.put(APP_SHELL_URL, copy)).catch(() => undefined)
+  // Online F5 must not keep yesterday's index.html. Airplane cold-start must
+  // not wait for a full network timeout. Race the network against a short
+  // budget, then fall back to the installed shell.
+  event.respondWith((async () => {
+    const cached = await caches.match(APP_SHELL_URL)
+    const networkPromise = fetch(request).then((response) => {
+      if (response && response.ok && response.type === 'basic') {
+        const copy = response.clone()
+        caches.open(APP_SHELL_CACHE).then((cache) => cache.put(APP_SHELL_URL, copy)).catch(() => undefined)
+      }
+      return response
+    })
+    event.waitUntil(networkPromise.then(() => undefined).catch(() => undefined))
+    const offlineFallback = () => new Response('Нет связи и нет сохранённой копии приложения.', {
+      status: 503,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    })
+    if (!cached) {
+      return networkPromise.catch(offlineFallback)
     }
-    return response
-  })
-  event.waitUntil(network.then(() => undefined).catch(() => undefined))
-  event.respondWith(
-    caches.match(APP_SHELL_URL).then((cached) => {
-      if (cached) return cached
-      return network.catch(() => new Response('Нет связи и нет сохранённой копии приложения.', {
-        status: 503,
-        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-      }))
-    }),
-  )
+    return await new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(cached), NAV_NETWORK_BUDGET_MS)
+      networkPromise.then((response) => {
+        if (response && response.ok) {
+          clearTimeout(timer)
+          resolve(response)
+          return
+        }
+        clearTimeout(timer)
+        resolve(cached)
+      }).catch(() => {
+        clearTimeout(timer)
+        resolve(cached)
+      })
+    })
+  })())
 })
 
 /**

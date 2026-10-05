@@ -27,12 +27,13 @@ import { queueOffline, useOfflineStatus } from './offline/useOffline'
 import { listOfflineQueue } from './offline/runtime'
 import { deliverTicketComment } from './offline/ticketCommentDelivery'
 import { deliverTicketAttachment } from './offline/attachmentDelivery'
-import { cacheTicketSnapshot, readTicketSnapshot } from './offline/ticketCache'
+import { deliverTicketStatus } from './offline/statusDelivery'
+import { cacheTicketSnapshot } from './offline/ticketCache'
 import { cacheLocationSnapshot } from './offline/locationCache'
 import {
-  loadAnyTicketDetailCache,
-  loadTicketDetailCache,
+  readCachedTicketDetail,
   saveTicketDetailCache,
+  ticketDetailCacheState,
 } from './offline/ticketDetailCache'
 import { isLocalId } from './offline/store'
 import {
@@ -343,6 +344,8 @@ export function MobileTicketPage() {
   const queryClient = useQueryClient()
 
   const [operationalToast, setOperationalToast] = useState('')
+  /** Offline «Начать работу» принято в queue — UI отличается от «Назначена». */
+  const [startQueuedLocally, setStartQueuedLocally] = useState(false)
   const [closeModal, setCloseModal] = useState<TicketCloseModalState>(null)
   const closeModalCameraRef = useRef<HTMLInputElement | null>(null)
   const closeModalGalleryRef = useRef<HTMLInputElement | null>(null)
@@ -366,6 +369,10 @@ export function MobileTicketPage() {
       { replace: true, state: Object.keys(next).length ? next : null },
     )
   }, [location.key, location.pathname, location.search, navigate])
+
+  useEffect(() => {
+    setStartQueuedLocally(false)
+  }, [ticketId])
 
   useEffect(() => {
     if (!operationalToast) return
@@ -419,6 +426,7 @@ export function MobileTicketPage() {
   // Один источник состояния связи на приложение — офлайн-слой.
   const offline = useOfflineStatus()
   const isOnline = offline.online
+  const liveApiAllowed = offline.liveApiAllowed
   const isLocalTicket = isLocalId(ticketId)
   const isRegularMobileTicketRoute = getMobileRouteRoot(location.pathname) === '/m'
 
@@ -448,71 +456,87 @@ export function MobileTicketPage() {
       }
 
       if (!getOnlineStatus()) {
-        const cached =
-          (await loadTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
-            ticketId,
-            scopeNorm,
-          )) ??
-          (await loadAnyTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
-            ticketId,
-          ))
+        const cached = await readCachedTicketDetail<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+          ticketId,
+          [scopeNorm],
+        )
         if (cached?.data?.ticket) return cached.data.ticket
-        const idbTicket = await readTicketSnapshot<api.TicketGetOne>(ticketId)
-        if (idbTicket) return idbTicket
         throw new Error(OFFLINE_TICKET_NOT_CACHED_MESSAGE)
       }
 
-      const urlCo = (searchParams.get('companyId') || '').trim()
-      const urlLi = (searchParams.get('linkedClientCompanyId') || '').trim()
-      const persistedObs = (api.getObserverCompanyId(meQ.data) || '').trim()
-      const persistedLinked = (api.getLinkedClientCompanyId(meQ.data) || '').trim()
+      try {
+        const urlCo = (searchParams.get('companyId') || '').trim()
+        const urlLi = (searchParams.get('linkedClientCompanyId') || '').trim()
+        const persistedObs = (api.getObserverCompanyId(meQ.data) || '').trim()
+        const persistedLinked = (api.getLinkedClientCompanyId(meQ.data) || '').trim()
 
-      const scopes = mobileTicketDetailGetOneScopes({
-        urlCompanyId: urlCo,
-        urlLinkedClientCompanyId: urlLi,
-        stateTicketOwnerCompanyId: navTicketOwnerCompanyId,
-        persistedCompanyId: persistedObs,
-        persistedLinkedClientCompanyId: persistedLinked,
-        meRole: meQ.data?.role,
-      })
+        const scopes = mobileTicketDetailGetOneScopes({
+          urlCompanyId: urlCo,
+          urlLinkedClientCompanyId: urlLi,
+          stateTicketOwnerCompanyId: navTicketOwnerCompanyId,
+          persistedCompanyId: persistedObs,
+          persistedLinkedClientCompanyId: persistedLinked,
+          meRole: meQ.data?.role,
+        })
 
-      let lastErr: unknown
-      for (const sc of scopes) {
-        try {
-          return await api.getTicket(ticketId, sc)
-        } catch (e) {
-          lastErr = e
-          if (!isNotFoundGetTicketError(e)) throw e
+        let lastErr: unknown
+        for (const sc of scopes) {
+          try {
+            return await api.getTicket(ticketId, sc)
+          } catch (e) {
+            lastErr = e
+            if (!isNotFoundGetTicketError(e)) throw e
+          }
         }
-      }
 
-      if (!urlLi) {
-        try {
-          const co = await api.company()
-          if (co.type === 'PROVIDER') {
-            const linkedClients = await api.getLinkedClients()
-            for (const lc of linkedClients) {
-              const clientId = (lc.clientCompany.id || '').trim()
-              if (!clientId) continue
-              if (scopes.some((s) => (s.linkedClientCompanyId || '').trim() === clientId)) continue
-              try {
-                return await api.getTicket(ticketId, { linkedClientCompanyId: clientId })
-              } catch (e) {
-                lastErr = e
-                if (!isNotFoundGetTicketError(e)) throw e
+        if (!urlLi) {
+          try {
+            const co = await api.company()
+            if (co.type === 'PROVIDER') {
+              const linkedClients = await api.getLinkedClients()
+              for (const lc of linkedClients) {
+                const clientId = (lc.clientCompany.id || '').trim()
+                if (!clientId) continue
+                if (scopes.some((s) => (s.linkedClientCompanyId || '').trim() === clientId)) continue
+                try {
+                  return await api.getTicket(ticketId, { linkedClientCompanyId: clientId })
+                } catch (e) {
+                  lastErr = e
+                  if (!isNotFoundGetTicketError(e)) throw e
+                }
               }
             }
+          } catch (e) {
+            if (!isNotFoundGetTicketError(e)) throw e
           }
-        } catch (e) {
-          if (!isNotFoundGetTicketError(e)) throw e
         }
-      }
 
-      throw lastErr instanceof Error ? lastErr : new Error(String(lastErr ?? 'Заявка не найдена'))
+        throw lastErr instanceof Error ? lastErr : new Error(String(lastErr ?? 'Заявка не найдена'))
+      } catch (error) {
+        const cached = await readCachedTicketDetail<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+          ticketId,
+          [scopeNorm],
+        )
+        const fromCache = cached?.data?.ticket
+        const liveHttp = error instanceof api.ApiRequestError
+        if (fromCache && (!liveHttp || !getOnlineStatus())) return fromCache
+        if (!getOnlineStatus()) throw new Error(OFFLINE_TICKET_NOT_CACHED_MESSAGE)
+        throw error
+      }
+    },
+    networkMode: 'always',
+    retry: (failureCount, error) => {
+      if (error instanceof Error && error.message === OFFLINE_TICKET_NOT_CACHED_MESSAGE) return false
+      if (error instanceof api.ApiRequestError && error.status === 404) return false
+      return failureCount < 1
     },
   })
 
   const ticket = ticketQ.data
+
+  useEffect(() => {
+    if (ticket?.status === 'IN_PROGRESS') setStartQueuedLocally(false)
+  }, [ticket?.status])
 
   const ticketResourceScope = useMemo<api.TicketScopeParams>(
     () =>
@@ -582,50 +606,54 @@ export function MobileTicketPage() {
       if (isLocalId(ticketId)) return [] as api.TicketAttachmentItem[]
 
       if (!getOnlineStatus()) {
-        const cached =
-          (await loadTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
-            ticketId,
-            ticketResourceScope,
-          )) ??
-          (await loadTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
-            ticketId,
-            scopeNorm,
-          )) ??
-          (await loadAnyTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
-            ticketId,
-          ))
+        const cached = await readCachedTicketDetail<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+          ticketId,
+          [ticketResourceScope, scopeNorm],
+        )
         if (cached?.data) return cached.data.attachments
         throw new Error('Нет сохранённых вложений для офлайна.')
       }
 
-      const scopes = mobileTicketAttachmentReadScopes({
-        me: meQ.data,
-        ticket,
-        observerCompanyId,
-        urlLinkedClientCompanyId,
-        stateTicketOwnerCompanyId: navTicketOwnerCompanyId,
-        persistedCompanyId: (api.getObserverCompanyId(meQ.data) || '').trim(),
-        persistedLinkedClientCompanyId: (api.getLinkedClientCompanyId(meQ.data) || '').trim(),
-      })
+      try {
+        const scopes = mobileTicketAttachmentReadScopes({
+          me: meQ.data,
+          ticket,
+          observerCompanyId,
+          urlLinkedClientCompanyId,
+          stateTicketOwnerCompanyId: navTicketOwnerCompanyId,
+          persistedCompanyId: (api.getObserverCompanyId(meQ.data) || '').trim(),
+          persistedLinkedClientCompanyId: (api.getLinkedClientCompanyId(meQ.data) || '').trim(),
+        })
 
-      let lastEmpty: api.TicketAttachmentItem[] = []
-      let lastErr: unknown
-      for (const sc of scopes) {
-        try {
-          const data = await api.ticketAttachments(ticketId, sc)
-          if (Array.isArray(data) && data.length > 0) return data
-          lastEmpty = Array.isArray(data) ? data : []
-        } catch (e) {
-          lastErr = e
-          if (!isNotFoundGetTicketError(e)) throw e
+        let lastEmpty: api.TicketAttachmentItem[] = []
+        let lastErr: unknown
+        for (const sc of scopes) {
+          try {
+            const data = await api.ticketAttachments(ticketId, sc)
+            if (Array.isArray(data) && data.length > 0) return data
+            lastEmpty = Array.isArray(data) ? data : []
+          } catch (e) {
+            lastErr = e
+            if (!isNotFoundGetTicketError(e)) throw e
+          }
         }
-      }
 
-      if (lastErr && lastEmpty.length === 0) {
-        throw lastErr instanceof Error ? lastErr : new Error(String(lastErr ?? 'Вложения недоступны'))
+        if (lastErr && lastEmpty.length === 0) {
+          throw lastErr instanceof Error ? lastErr : new Error(String(lastErr ?? 'Вложения недоступны'))
+        }
+        return lastEmpty
+      } catch (error) {
+        const cached = await readCachedTicketDetail<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+          ticketId,
+          [ticketResourceScope, scopeNorm],
+        )
+        if (cached?.data && (!(error instanceof api.ApiRequestError) || !getOnlineStatus())) {
+          return cached.data.attachments
+        }
+        throw error
       }
-      return lastEmpty
     },
+    networkMode: 'always',
   })
 
   const timelineQ = useQuery({
@@ -639,19 +667,27 @@ export function MobileTicketPage() {
     queryFn: async () => {
       if (isLocalId(ticketId)) return null
       if (!getOnlineStatus()) {
-        const cached =
-          (await loadTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
-            ticketId,
-            scopeNorm,
-          )) ??
-          (await loadAnyTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
-            ticketId,
-          ))
+        const cached = await readCachedTicketDetail<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+          ticketId,
+          [scopeNorm, ticketResourceScope],
+        )
         if (cached?.data) return cached.data.timeline ?? null
         throw new Error('Нет сохранённой истории для офлайна.')
       }
-      return api.timeline(ticketId, ticketResourceScope)
+      try {
+        return await api.timeline(ticketId, ticketResourceScope)
+      } catch (error) {
+        const cached = await readCachedTicketDetail<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+          ticketId,
+          [scopeNorm, ticketResourceScope],
+        )
+        if (cached?.data && (!(error instanceof api.ApiRequestError) || !getOnlineStatus())) {
+          return cached.data.timeline ?? null
+        }
+        throw error
+      }
     },
+    networkMode: 'always',
   })
 
   useEffect(() => {
@@ -686,6 +722,21 @@ export function MobileTicketPage() {
     timelineQ.data,
   ])
 
+  const [ticketCacheStale, setTicketCacheStale] = useState(false)
+  useEffect(() => {
+    if (!ticketId || isLocalTicket || !isOnline) {
+      setTicketCacheStale(false)
+      return
+    }
+    let cancelled = false
+    void ticketDetailCacheState(ticketId, ticketResourceScope).then((state) => {
+      if (!cancelled) setTicketCacheStale(state === 'stale')
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [isLocalTicket, isOnline, ticketId, ticketResourceScope, ticketQ.dataUpdatedAt, attachmentsQ.dataUpdatedAt])
+
   const isOwnCompanyClient = !observerCompanyId && ownCompanyQ.data?.type === 'CLIENT'
   const canAssignProvider = !isOwnCompanyClient && api.isProviderTicketAssignRole(meQ.data?.role)
   const techPrimary = ticket && meQ.data?.id ? api.mobileTechnicianTicketPrimaryAction(ticket, meQ.data.id) : null
@@ -715,6 +766,7 @@ export function MobileTicketPage() {
   const isSelfAssigned = !!meQ.data?.id && assigneeIdForMe === meQ.data.id
   const canShowTechStart =
     !!ticket &&
+    !startQueuedLocally &&
     ticket.status !== 'AWAITING_ACCEPTANCE' &&
     (
       (meQ.data?.role === 'TECHNICIAN' && (aa ? aa.canStart : techPrimary === 'start')) ||
@@ -722,6 +774,14 @@ export function MobileTicketPage() {
         (ticket.status === 'ASSIGNED' || ticket.status === 'NEW') &&
         (aa ? aa.canStart : false))
     )
+  /** Статус на экране после offline start: не «Назначена», но и не факт сервера. */
+  const ticketStatusLabelOnScreen = startQueuedLocally && ticket && ticket.status !== 'IN_PROGRESS'
+    ? 'В работе · на устройстве'
+    : ticket
+      ? mobileTicketStatusLabelRu(ticket.status)
+      : ''
+  const ticketStatusClassOnScreen =
+    startQueuedLocally && ticket && ticket.status !== 'IN_PROGRESS' ? 'IN_PROGRESS' : ticket?.status || ''
   const canShowComplete =
     !!ticket &&
     ticket.status === 'IN_PROGRESS' &&
@@ -969,7 +1029,7 @@ export function MobileTicketPage() {
         setTicketAddPhotoProgress({ current: i + 1, total: files.length })
         const file = files[i]
         const delivery = await deliverTicketAttachment({
-          reportedOnline: isLocalId(ticketId) ? false : isOnline,
+          reportedOnline: isLocalId(ticketId) ? false : liveApiAllowed,
           queueInput: {
             kind: 'ticket.attachment',
             target: { ticketId },
@@ -1417,7 +1477,7 @@ export function MobileTicketPage() {
         ? findParentFromRoundQueueId(ticketId, await listOfflineQueue())
         : undefined
       const delivery = await deliverTicketComment({
-        reportedOnline: isLocalId(ticketId) ? false : isOnline,
+        reportedOnline: isLocalId(ticketId) ? false : liveApiAllowed,
         queueInput: {
           kind: 'ticket.comment',
           target: { ticketId },
@@ -1471,24 +1531,38 @@ export function MobileTicketPage() {
    * запрещает выдавать несохранённое за сохранённое.
    */
   async function handleTechActionWithOfflineSupport(mode: 'claim' | 'start') {
-    if (!getOnlineStatus()) {
-      if (mode === 'start' && ticket) {
-        const queued = await queueOffline({
-          kind: 'ticket.status',
-          target: { ticketId: ticket.id },
-          payload: { status: 'IN_PROGRESS', scope: ticketResourceScope },
-        })
-        if (queued.ok) {
-          setOfflineQueuedNotice('Сохранено на устройстве. Будет отправлено после восстановления сети.')
-        } else {
-          setTechActionErr(queued.message)
-        }
+    if (mode === 'claim') {
+      if (!liveApiAllowed) {
+        setTechActionErr(ONLINE_ONLY_ACTION_MESSAGE)
         return
       }
-      setTechActionErr(ONLINE_ONLY_ACTION_MESSAGE)
+      techActionM.mutate(mode)
       return
     }
-    techActionM.mutate(mode)
+
+    if (!ticket) return
+    const delivery = await deliverTicketStatus({
+      reportedOnline: liveApiAllowed,
+      queueInput: {
+        kind: 'ticket.status',
+        target: { ticketId: ticket.id },
+        payload: { status: 'IN_PROGRESS', scope: ticketResourceScope },
+      },
+      send: async () => api.updateTicketStatus(ticket.id, { status: 'IN_PROGRESS' }, ticketResourceScope),
+      enqueue: queueOffline,
+    })
+    if (delivery.kind === 'queue-failed') {
+      setTechActionErr(delivery.message)
+      return
+    }
+    if (delivery.kind === 'queued') {
+      setStartQueuedLocally(true)
+      setOfflineQueuedNotice('Сохранено на устройстве. Будет отправлено после восстановления сети.')
+      return
+    }
+    setTechActionErr('')
+    await invalidateTicketQueries()
+    await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
   }
 
   function handleAssignmentRequest() {
@@ -1583,7 +1657,7 @@ export function MobileTicketPage() {
           <div className="mobileTicketHeaderInfo">
             <div className="mobileTicketHeaderTop">
               <span className="mobileTicketHeaderNumber">{mobileTicketNumberTitle(ticket.ticketNumber)}</span>
-              <span className={`mobileTicketStatus mobileTicketStatus--${ticket.status}`}>{mobileTicketStatusLabelRu(ticket.status)}</span>
+              <span className={`mobileTicketStatus mobileTicketStatus--${ticketStatusClassOnScreen}`}>{ticketStatusLabelOnScreen}</span>
             </div>
             {(() => {
               const sub = [ticket.problemCategory?.name, ticket.location?.name || ticket.pointName].map((s) => (s || '').trim()).filter(Boolean).join(' · ')
@@ -1628,23 +1702,31 @@ export function MobileTicketPage() {
         </div>
       ) : null}
 
+      {isOnline && ticketCacheStale ? (
+        <div className="mobileStaleDataBanner" role="status">
+          Сохранённая копия старше 8 часов. При связи её можно обновить.
+        </div>
+      ) : null}
+
       {isLocalTicket && ticket ? (
         <div className="mobileStaleDataBanner" role="status">
           Заявка сохранена на устройстве. Комментарии и фото уйдут после создания заявки на сервере.
         </div>
       ) : null}
 
-      {ticketQ.isLoading ? <div className="mobileCard mobileMeta">Загрузка…</div> : null}
-      {ticketQ.isError && !ticket ? (
-        !isOnline ? (
+      {ticketQ.isLoading || (ticketQ.isPending && ticketQ.isFetching) ? (
+        <div className="mobileCard mobileMeta">Загрузка…</div>
+      ) : null}
+      {!ticket && !ticketQ.isFetching && !ticketQ.isLoading ? (
+        !isOnline || (ticketQ.error instanceof Error && ticketQ.error.message === OFFLINE_TICKET_NOT_CACHED_MESSAGE) ? (
           <div className="mobileNotice mobileNoticeError" role="alert">
             {OFFLINE_TICKET_NOT_CACHED_MESSAGE}
           </div>
-        ) : (
+        ) : ticketQ.isError ? (
           <div className="mobileNotice mobileNoticeError">
             {formatMobileMutationError(ticketQ.error, { operation: 'other' })}
           </div>
-        )
+        ) : null
       ) : null}
 
       {ticket ? (
@@ -1718,8 +1800,8 @@ export function MobileTicketPage() {
           >
             {/* Status badge + number */}
             <div className="mobileRow" style={{ marginBottom: 4 }}>
-              <span className={`mobileTicketStatusLarge mobileTicketStatusLarge--${ticket.status}`}>
-                {mobileTicketStatusLabelRu(ticket.status)}
+              <span className={`mobileTicketStatusLarge mobileTicketStatusLarge--${ticketStatusClassOnScreen}`}>
+                {ticketStatusLabelOnScreen}
               </span>
               <span style={{ fontSize: '0.78rem', color: '#9ca3af', fontFamily: 'var(--font-mono)' }}>
                 {mobileTicketNumberTitle(ticket.ticketNumber)}

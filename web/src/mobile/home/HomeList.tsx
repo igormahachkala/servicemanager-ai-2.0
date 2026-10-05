@@ -14,6 +14,7 @@ import {
   ticketMediaKind,
   validateTicketMediaFile,
 } from '../../lib/ticketAttachmentMedia'
+import type { TicketDetailCacheState } from '../offline/ticketDetailCache'
 
 export type TicketCloseModalState = {
   ticketId: string
@@ -45,6 +46,8 @@ type Props = {
   ticketHref: (ticket: api.TicketCard) => string
   ticketLinkState: (ticket: api.TicketCard) => MobileTicketNavState
   onAction: (ticket: api.TicketCard) => void
+  /** Offline «Начать» уже в queue — прячем кнопку и меняем бейдж. */
+  startQueuedIds?: ReadonlySet<string>
   setAssignErr: (text: string) => void
   setAssignTicket: (ticket: api.TicketCard | null) => void
   assignCandidatesQ: UseQueryResult<api.AssignmentCandidatesResponse, unknown>
@@ -62,6 +65,10 @@ type Props = {
   closeCanSubmit: boolean
   closeM: UseMutationResult<void, unknown, void, unknown>
   mobileActionToast: string
+  cacheStates?: ReadonlyMap<string, TicketDetailCacheState>
+  cacheSelectedIds?: ReadonlySet<string>
+  onToggleCache?: (ticketId: string) => void
+  onRefreshCache?: (ticketId: string) => void
 }
 
 export function HomeList(props: Props) {
@@ -86,6 +93,7 @@ export function HomeList(props: Props) {
     ticketHref,
     ticketLinkState,
     onAction,
+    startQueuedIds,
     setAssignErr,
     setAssignTicket,
     assignCandidatesQ,
@@ -103,6 +111,10 @@ export function HomeList(props: Props) {
     closeCanSubmit,
     closeM,
     mobileActionToast,
+    cacheStates,
+    cacheSelectedIds,
+    onToggleCache,
+    onRefreshCache,
   } = props
 
   const groupRenderMode = boardTab === 'done' ? 'done' : 'active'
@@ -131,6 +143,7 @@ export function HomeList(props: Props) {
   }
 
   function renderTicket(ticket: api.TicketCard) {
+    const startQueued = !!startQueuedIds?.has(ticket.id)
     const showAssignFooter = canAssignProvider && ticket.status === 'NEW' && !ticket.assignedTechnician
     const actionProgressLabel = homeTicketActionProgressLabel(
       ticket,
@@ -148,9 +161,15 @@ export function HomeList(props: Props) {
         ticket={ticket}
         ticketHref={ticketHref(ticket)}
         linkState={ticketLinkState(ticket)}
-        actionLabel={getPrimaryActionLabel(ticket, meId, role)}
+        actionLabel={startQueued ? null : getPrimaryActionLabel(ticket, meId, role)}
+        statusLabelOverride={startQueued && ticket.status === 'ASSIGNED' ? 'В работе · на устройстве' : null}
+        statusClassOverride={startQueued && ticket.status === 'ASSIGNED' ? 'IN_PROGRESS' : null}
         actionProgressLabel={actionProgressLabel}
         onAction={onAction}
+        cacheState={cacheStates?.get(ticket.id) ?? 'none'}
+        cacheSelected={cacheSelectedIds?.has(ticket.id)}
+        onToggleCache={onToggleCache}
+        onRefreshCache={onRefreshCache}
         assignFooter={
           showAssignFooter
             ? {

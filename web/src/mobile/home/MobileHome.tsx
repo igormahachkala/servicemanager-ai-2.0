@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../../lib/api'
 import { canOfferTicketClaimAction } from '../../lib/ticketActionCapabilities'
 import {
@@ -31,9 +31,10 @@ import {
   writePersistedMobileHomeBoardUi,
 } from '../mobileHomeListUtils'
 import { formatMobileMutationError } from '../mobileActionErrors'
-import { getOnlineStatus, useOnlineStatus } from '../offlineQueue'
-import { loadBoardCache, saveBoardCache } from '../offline/boardCache'
-import { queueOffline } from '../offline/useOffline'
+import { getOnlineStatus } from '../offlineQueue'
+import { readCachedBoard, saveBoardCache } from '../offline/boardCache'
+import { queueOffline, useOfflineStatus } from '../offline/useOffline'
+import { deliverTicketStatus } from '../offline/statusDelivery'
 import { ONLINE_ONLY_ACTION_MESSAGE } from '../offline/onlineOnlyMessage'
 import { mobilePath } from '../mobileRoute'
 import { HomeHeader } from './HomeHeader'
@@ -42,6 +43,8 @@ import { HomeChips } from './HomeChips'
 import { HomeList, type TicketCloseModalState } from './HomeList'
 import { HomeQuickCards, type MobileHomeQuickFilter } from './HomeQuickCards'
 import { HomeFAB } from './HomeFAB'
+import { HomeOfflineCachePanel } from './HomeOfflineCachePanel'
+import { useTicketOfflineCache } from './useTicketOfflineCache'
 
 export function MobileHome() {
   const location = useLocation()
@@ -53,10 +56,19 @@ export function MobileHome() {
     queryFn: () => api.company(),
     enabled: !!meQ.data && meQ.data.role !== 'CLIENT' && meQ.data.role !== 'TECHNICIAN',
   })
-  const isOnline = useOnlineStatus()
+  const offline = useOfflineStatus()
+  const isOnline = offline.online
+  const liveApiAllowed = offline.liveApiAllowed
+  const [startQueuedIds, setStartQueuedIds] = useState<Set<string>>(() => new Set())
   const linkedClientCompanyId = (search.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
   const companyId = (search.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
-  const pageScope = { linkedClientCompanyId: linkedClientCompanyId || undefined, companyId: companyId || undefined }
+  const pageScope = useMemo(
+    () => ({
+      linkedClientCompanyId: linkedClientCompanyId || undefined,
+      companyId: companyId || undefined,
+    }),
+    [companyId, linkedClientCompanyId],
+  )
   const queryClient = useQueryClient()
   const [mobileActionToast, setMobileActionToast] = useState('')
   const persistedBoardUi = useMemo(() => readPersistedMobileHomeBoardUi(), [])
@@ -82,6 +94,7 @@ export function MobileHome() {
     queryKey: ['technician-bound-defaults', meQ.data?.id],
     queryFn: () => api.getTechnicianBoundContexts(),
     enabled: !!meQ.data && meQ.data.role === 'TECHNICIAN' && !linkedClientCompanyId,
+    networkMode: 'always',
   })
   const boardEnabled =
     providerContextKnown &&
@@ -102,17 +115,26 @@ export function MobileHome() {
   }, [meQ.data, linkedClientCompanyId, techBoundDefaultsQ.isSuccess, techBoundDefaultsQ.data, navigate, companyId, location.pathname, location.search])
 
   const boardQ = useQuery({
-    queryKey: ['mobile-home-board', linkedClientCompanyId, companyId, isOnline],
+    queryKey: ['mobile-home-board', linkedClientCompanyId, companyId, offline.ready],
     queryFn: async () => {
+      const cachedBoard = async () => readCachedBoard<api.BoardResponse>(pageScope)
       if (!getOnlineStatus()) {
-        const cached = await loadBoardCache<api.BoardResponse>(pageScope)
-        if (cached?.data) return cached.data
+        const cached = await cachedBoard()
+        if (cached) return cached
         throw new Error('Нет сохранённых заявок. Откройте главную при подключении к сети хотя бы раз.')
       }
-      const data = await api.board({ linkedClientCompanyId: pageScope.linkedClientCompanyId, companyId: pageScope.companyId, take: 500 })
-      await saveBoardCache<api.BoardResponse>(pageScope, data)
-      return data
+      try {
+        const data = await api.board({ linkedClientCompanyId: pageScope.linkedClientCompanyId, companyId: pageScope.companyId, take: 500 })
+        await saveBoardCache<api.BoardResponse>(pageScope, data)
+        return data
+      } catch (error) {
+        const cached = await cachedBoard()
+        if (cached) return cached
+        throw error
+      }
     },
+    networkMode: 'always',
+    placeholderData: keepPreviousData,
     // Техник без контура (субподрядчик SECONDARY: bound-contexts=[], [0] нет) тоже грузит board —
     // бэкенд скоупит по assignedTechnicianId + PRIMARY∪SECONDARY. Empty-scope разрешаем только когда
     // bound-contexts отстрелялся пустым, чтобы у PRIMARY-техника не было лишнего фетча до выбора [0].
@@ -138,8 +160,14 @@ export function MobileHome() {
     enabled: !!linkedClientCompanyId && !!meQ.data && meQ.data.role !== 'TECHNICIAN',
   })
 
-  const baseCards = boardQ.data?.columns.flatMap((col) => col.cards || []) || []
-  const completedCards = completedBoardQ.data?.columns.flatMap((col) => col.cards || []) || []
+  const baseCards = useMemo(
+    () => boardQ.data?.columns.flatMap((col) => col.cards || []) || [],
+    [boardQ.data],
+  )
+  const completedCards = useMemo(
+    () => completedBoardQ.data?.columns.flatMap((col) => col.cards || []) || [],
+    [completedBoardQ.data],
+  )
   const cards = boardTab === 'done' && completedBoardQ.data ? completedCards : baseCards
   const canAssignProvider = api.isProviderTicketAssignRole(meQ.data?.role)
   // E4: быстрая приёмка на карте — тот же гейт, что «Принять» в карточке (MobileTicketPage canShowClientAcceptance):
@@ -229,6 +257,30 @@ export function MobileHome() {
   }, [quickFilter, cards, meQ.data?.id, meQ.data?.role, canAssignProvider, reworkTicketIds])
   const quickFilterLabel =
     quickFilter === 'awaiting' ? 'На приёмке' : quickFilter === 'myaction' ? 'Требует моего действия' : quickFilter === 'rework' ? 'Требуют доработки' : ''
+  const renderedTickets = quickFilter ? quickTickets ?? [] : visibleTickets
+  const homeListTickets = useMemo(
+    () =>
+      buildMobileHomeVisibleTickets({
+        cards: baseCards,
+        tab: 'all',
+        meId: meQ.data?.id,
+        meRole: meQ.data?.role,
+        chips: new Set(),
+        searchQuery: '',
+        atRiskThresholdMinutes,
+      }),
+    [atRiskThresholdMinutes, baseCards, meQ.data?.id, meQ.data?.role],
+  )
+  const ticketOfflineCache = useTicketOfflineCache({
+    allTickets: baseCards,
+    homeListTickets,
+    visibleTickets: renderedTickets,
+    meId: meQ.data?.id,
+    scope: pageScope,
+    enabled: meQ.data?.role === 'TECHNICIAN',
+    online: isOnline,
+    storageReady: offline.ready,
+  })
 
   // При активной быстрой карте список показывает её выборку и обычные фильтры/вкладки очищаются.
   function activateQuickFilter(next: Exclude<MobileHomeQuickFilter, null>) {
@@ -413,29 +465,39 @@ export function MobileHome() {
   })
 
   async function handlePrimaryAction(ticket: api.TicketCard) {
-    // Claim и request assignment — только онлайн, как на detail.
-    if (!isOnline && ticket.status === 'NEW') {
+    // Claim и request assignment — только при liveApiAllowed.
+    if (!liveApiAllowed && ticket.status === 'NEW') {
       setHomeActionErr(ONLINE_ONLY_ACTION_MESSAGE)
       return
     }
-    // Start — в очередь, как на detail (не online-only).
-    if (!isOnline && ticket.status === 'ASSIGNED') {
+    if (ticket.status === 'ASSIGNED') {
       const role = meQ.data?.role
       if (role !== 'TECHNICIAN' || ticket.assignedTechnician?.id !== meQ.data?.id) {
         setHomeActionErr('Начать работу может только назначенный техник')
         return
       }
-      const queued = await queueOffline({
-        kind: 'ticket.status',
-        target: { ticketId: ticket.id },
-        payload: { status: 'IN_PROGRESS', scope: pageScope },
+      const delivery = await deliverTicketStatus({
+        reportedOnline: liveApiAllowed,
+        queueInput: {
+          kind: 'ticket.status',
+          target: { ticketId: ticket.id },
+          payload: { status: 'IN_PROGRESS', scope: pageScope },
+        },
+        send: async () => api.updateTicketStatus(ticket.id, { status: 'IN_PROGRESS' }, pageScope),
+        enqueue: queueOffline,
       })
-      if (queued.ok) {
-        setHomeActionErr('')
-        setMobileActionToast('Сохранено на устройстве. Будет отправлено после восстановления сети.')
-      } else {
-        setHomeActionErr(queued.message)
+      if (delivery.kind === 'queue-failed') {
+        setHomeActionErr(delivery.message)
+        return
       }
+      if (delivery.kind === 'queued') {
+        setHomeActionErr('')
+        setStartQueuedIds((prev) => new Set(prev).add(ticket.id))
+        setMobileActionToast('Сохранено на устройстве. Будет отправлено после восстановления сети.')
+        return
+      }
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
       return
     }
     actionM.mutate(ticket)
@@ -518,7 +580,7 @@ export function MobileHome() {
 
   const techWillRedirectForScope = techNoLinked && techBoundDefaultsQ.isSuccess && (techBoundDefaultsQ.data?.length ?? 0) > 0
   const technicianScopeGateReady = !techNoLinked || techBoundDefaultsQ.isFetched || techBoundDefaultsQ.isError
-  const showMobileHomeTicketBoard = technicianScopeGateReady && !techWillRedirectForScope && !activeBoardError && (meQ.data || (!!boardQ.data && !isOnline))
+  const showMobileHomeTicketBoard = technicianScopeGateReady && !techWillRedirectForScope && (!activeBoardError || activeBoardHasData) && (meQ.data || (!!boardQ.data && !isOnline))
 
   if (providerNeedsLinkedClient) {
     return (
@@ -598,9 +660,19 @@ export function MobileHome() {
               />
             ) : null}
           </div>
+          <HomeOfflineCachePanel
+            enabled={meQ.data?.role === 'TECHNICIAN'}
+            online={isOnline}
+            storageReady={offline.ready}
+            selectedCount={ticketOfflineCache.selectedIds.size}
+            busy={ticketOfflineCache.busy}
+            progress={ticketOfflineCache.progress}
+            error={ticketOfflineCache.error}
+            onCacheSelected={() => void ticketOfflineCache.cacheSelected()}
+          />
           <HomeList
             boardIsLoading={activeBoardIsLoading}
-            visibleTickets={quickFilter ? quickTickets ?? [] : visibleTickets}
+            visibleTickets={renderedTickets}
             tabOnlyTickets={tabOnlyTickets}
             boardTab={boardTab}
             role={meQ.data?.role}
@@ -619,6 +691,7 @@ export function MobileHome() {
             ticketHref={ticketHref}
             ticketLinkState={ticketLinkState}
             onAction={handlePrimaryAction}
+            startQueuedIds={startQueuedIds}
             setAssignErr={setAssignErr}
             setAssignTicket={setAssignTicket}
             assignCandidatesQ={assignCandidatesQ}
@@ -630,7 +703,7 @@ export function MobileHome() {
             canAcceptOnCard={canAcceptOnCard}
             acceptM={acceptM}
             onAccept={(ticket) => {
-              if (!isOnline) {
+              if (!liveApiAllowed) {
                 setHomeActionErr(ONLINE_ONLY_ACTION_MESSAGE)
                 return
               }
@@ -643,6 +716,10 @@ export function MobileHome() {
             closeCanSubmit={closeCanSubmit}
             closeM={closeM}
             mobileActionToast={mobileActionToast}
+            cacheStates={ticketOfflineCache.states}
+            cacheSelectedIds={ticketOfflineCache.selectedIds}
+            onToggleCache={isOnline ? ticketOfflineCache.toggleSelected : undefined}
+            onRefreshCache={isOnline ? ticketOfflineCache.refreshTicket : undefined}
           />
           {boardQ.data && boardQ.data.meta.totalTickets >= boardQ.data.meta.limitedToLast && boardQ.data.meta.limitedToLast >= 500 ? (
             <div className="mobileNotice" style={{ textAlign: 'center', fontSize: '0.82rem', marginTop: 4 }}>

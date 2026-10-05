@@ -12,6 +12,7 @@ import {
 import { MobileBoardClaimFallbackHint, MobileClaimReasonHintBox } from '../MobileUxHints'
 import { compactTicketCreatorLabel } from '../../lib/ticketActorIdentity'
 import { assignedTechnicianDisplay, type HomePrimaryActionLabel } from './utils'
+import type { TicketDetailCacheState } from '../offline/ticketDetailCache'
 
 type Props = {
   ticket: api.TicketCard
@@ -20,9 +21,15 @@ type Props = {
   actionLabel?: HomePrimaryActionLabel
   onAction?: (ticket: api.TicketCard) => void
   actionProgressLabel?: string | null
+  statusLabelOverride?: string | null
+  statusClassOverride?: string | null
   assignFooter?: { onOpen: () => void; disabled: boolean } | null
   /** E4: быстрая приёмка на карте (accept одним тапом) — только клиент-приёмщик для AWAITING_ACCEPTANCE. */
   acceptFooter?: { onAccept: () => void; busy: boolean } | null
+  cacheState?: TicketDetailCacheState
+  cacheSelected?: boolean
+  onToggleCache?: (ticketId: string) => void
+  onRefreshCache?: (ticketId: string) => void
 }
 
 function fmtCardTime(dt: string): string {
@@ -58,8 +65,14 @@ export function TicketCard({
   actionLabel = null,
   onAction,
   actionProgressLabel = null,
+  statusLabelOverride = null,
+  statusClassOverride = null,
   assignFooter = null,
   acceptFooter = null,
+  cacheState = 'none',
+  cacheSelected = false,
+  onToggleCache,
+  onRefreshCache,
 }: Props) {
   const claimReason = (ticket.claimAvailabilityReason || '').trim()
   const actionBusy = !!actionProgressLabel
@@ -70,8 +83,9 @@ export function TicketCard({
   })
   const urgent = mobileTicketPriorityIsUrgent(ticket.priority ?? 'NORMAL') || ticket.urgency === 'URGENT'
   const overdue = ticket.slaBreached
-  const statusClass = `mobileTicketStatus mobileTicketStatus--${ticket.status}`
-  const cardClass = ['mobileCard', 'mobileTicketCard', `mobileTicketCard--${ticket.status}`, overdue ? 'mobileTicketCardSlaOverdue' : '']
+  const statusKey = statusClassOverride || ticket.status
+  const statusClass = `mobileTicketStatus mobileTicketStatus--${statusKey}`
+  const cardClass = ['mobileCard', 'mobileTicketCard', `mobileTicketCard--${statusKey}`, overdue ? 'mobileTicketCardSlaOverdue' : '']
     .filter(Boolean)
     .join(' ')
 
@@ -80,9 +94,42 @@ export function TicketCard({
   const descText = (ticket.description || '').trim()
   const assigneeText = assignedTechnicianDisplay(ticket)
   const creatorText = compactTicketCreatorLabel(ticket)
+  const showCachedMark = cacheState === 'complete' || cacheState === 'stale'
+  const showCacheRow = !!onToggleCache || showCachedMark || cacheState === 'partial'
 
   return (
     <div className={cardClass} data-mobile-tour="ticket-card" style={{ padding: 0, overflow: 'hidden' }}>
+      {showCacheRow ? (
+        <div className="mobileRow" style={{ padding: '8px 14px 0', alignItems: 'center' }}>
+          {onToggleCache ? (
+            <label className="mobileMeta" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <input
+                type="checkbox"
+                checked={cacheSelected}
+                onChange={() => onToggleCache(ticket.id)}
+                aria-label={`Выбрать ${mobileTicketNumberTitle(ticket.ticketNumber)} для кэширования`}
+              />
+              Выбрать
+            </label>
+          ) : (
+            <span />
+          )}
+          <span style={{ marginLeft: 'auto', fontSize: '0.74rem', fontWeight: 700 }}>
+            {showCachedMark && !onRefreshCache ? '✓ Закешировано' : null}
+            {cacheState === 'complete' && onRefreshCache ? '✓ Закешировано' : null}
+            {cacheState === 'stale' && onRefreshCache ? (
+              <button
+                type="button"
+                className="mobileBtnLink"
+                onClick={() => onRefreshCache(ticket.id)}
+              >
+                Обновить кэш
+              </button>
+            ) : null}
+            {cacheState === 'partial' ? 'Кэш неполный' : null}
+          </span>
+        </div>
+      ) : null}
       <Link to={ticketHref} state={linkState ?? mobileTicketNavState('home')} className="mobileCardClickable" style={{ borderRadius: 0 }}>
         <div className="mobileTicketCardV2">
           <div className="mobileTicketCardV2Body">
@@ -111,7 +158,7 @@ export function TicketCard({
                 {urgent ? <span className="mobileSlaUrgentPill" style={{ marginLeft: 6 }}>Срочно</span> : null}
                 {slaLine ? <span className="mobileTicketSlaCountdown" style={{ marginLeft: 6 }}>{slaLine}</span> : null}
               </span>
-              <span className={statusClass}>{mobileTicketStatusLabelRu(ticket.status)}</span>
+              <span className={statusClass}>{statusLabelOverride || mobileTicketStatusLabelRu(ticket.status)}</span>
             </div>
 
             {ticket.assignmentRequestedByCurrentUser ? (

@@ -614,10 +614,11 @@ test('24. Service Worker кэширует оболочку и не кэширу�
   // расширениями: под него не должен попасть ни один ответ с данными.
   assert.match(sw, /function isBuildAsset/, 'отбор сборочных файлов выделен явно')
   assert.match(sw, /url\.pathname\.startsWith\('\/assets\/'\)/, 'только каталог /assets/')
-  assert.match(sw, /sma-app-shell-v3/, 'полный precache отделён от прежнего cache поколения')
+  assert.match(sw, /sma-app-shell-v4/, 'полный precache отделён от прежнего cache поколения')
   assert.match(sw, /BUILD_ASSET_MANIFEST_URL/, 'install читает build manifest')
   assert.doesNotMatch(sw, /caches\.delete/, 'cache живой старой страницы не удаляется при activate')
-  assert.match(sw, /if \(cached\) return cached/, 'cold navigation не ждёт сеть при наличии оболочки')
+  assert.match(sw, /NAV_NETWORK_BUDGET_MS/, 'navigation ждёт короткую сеть, затем оболочку из кэша')
+  assert.doesNotMatch(sw, /if \(cached\) return cached/)
 })
 
 test('24b. реальная недоступность API сильнее navigator.onLine=true', async () => {
@@ -1897,7 +1898,8 @@ test('entity cache: MobileTicketPage пишет ticket/location и читает 
   )
   assert.match(page, /cacheTicketSnapshot\(/)
   assert.match(page, /cacheLocationSnapshot\(/)
-  assert.match(page, /readTicketSnapshot/)
+  assert.match(page, /readCachedTicketDetail/)
+  assert.doesNotMatch(page, /readTicketSnapshot/)
 })
 
 test('план 3. board и ticket detail пишутся и читаются в IDB', async () => {
@@ -2085,6 +2087,7 @@ test('оболочка заранее тянет chunk профиля', async ()
     'utf8',
   )
   assert.match(shell, /import\('\.\/MobileProfile'\)/)
+  assert.match(shell, /import\('\.\/MobileTicketPage'\)/)
 })
 
 // ── План 4. dependsOnId UI chain ───────────────────────────────────────────
@@ -2223,10 +2226,75 @@ test('план 4. MobileTicketPage и InspectionRun передают dependsOnId
   assert.match(ticketPage, /findParentFromRoundQueueId/)
   assert.match(ticketPage, /dependsOnId/)
   assert.match(ticketPage, /buildLocalTicketFromQueue/)
-  assert.match(ticketPage, /isLocalId\(ticketId\) \? false : isOnline/)
+  assert.match(ticketPage, /isLocalId\(ticketId\) \? false : liveApiAllowed/)
   assert.match(ticketPage, /Сохранено на устройстве\. Отправим после создания заявки\./)
 
   assert.match(runPage, /LOCAL_ID_PREFIX\}?\$\{runId\}:\$\{item\.id\}/)
   assert.match(runPage, /Добавить комментарий или фото/)
   assert.match(runPage, /ticket\.fromRound/)
+})
+
+test('узкие места 1. deliverTicketStatus кладёт в queue при transport failure', async () => {
+  const { deliverTicketStatus } = await import('./statusDelivery.js')
+  const { store } = makeStore()
+  const keys: string[] = []
+  const result = await deliverTicketStatus({
+    reportedOnline: true,
+    queueInput: {
+      kind: 'ticket.status',
+      target: { ticketId: 'tk-1' },
+      payload: { status: 'IN_PROGRESS' },
+    },
+    send: async (key) => {
+      keys.push(key)
+      throw new TypeError('Failed to fetch')
+    },
+    enqueue: (input) => {
+      keys.push(input.idempotencyKey || '')
+      return store.enqueue(input)
+    },
+  })
+  assert.equal(result.kind, 'queued')
+  assert.equal(keys[0], keys[1])
+  assert.equal((await store.listQueue())[0]?.kind, 'ticket.status')
+})
+
+test('узкие места 1. deliverCheckpointUpdate offline сразу в queue', async () => {
+  const { deliverCheckpointUpdate } = await import('./statusDelivery.js')
+  const { store } = makeStore()
+  const result = await deliverCheckpointUpdate({
+    reportedOnline: false,
+    queueInput: {
+      kind: 'checkpoint.update',
+      target: { roundId: 'r-1', checkpointId: 'c-1' },
+      payload: { status: 'OK' },
+    },
+    send: async () => {
+      throw new Error('send не должен вызываться офлайн')
+    },
+    enqueue: (input) => store.enqueue(input),
+  })
+  assert.equal(result.kind, 'queued')
+})
+
+test('узкие места 1–4. экраны на deliver* и liveApiAllowed', async () => {
+  const { readFileSync } = await import('node:fs')
+  const ticketPage = readFileSync(new URL('../../../src/mobile/MobileTicketPage.tsx', import.meta.url), 'utf8')
+  const home = readFileSync(new URL('../../../src/mobile/home/MobileHome.tsx', import.meta.url), 'utf8')
+  const chats = readFileSync(new URL('../../../src/mobile/MobileChatsPage.tsx', import.meta.url), 'utf8')
+  const runPage = readFileSync(new URL('../../../src/mobile/MobileInspectionRunPage.tsx', import.meta.url), 'utf8')
+  const runtime = readFileSync(new URL('../../../src/mobile/offline/runtime.ts', import.meta.url), 'utf8')
+
+  assert.match(ticketPage, /deliverTicketStatus/)
+  assert.match(ticketPage, /startQueuedLocally/)
+  assert.match(ticketPage, /В работе · на устройстве/)
+  assert.match(home, /deliverTicketStatus/)
+  assert.match(home, /startQueuedIds/)
+  assert.match(chats, /deliverTicketComment/)
+  assert.match(chats, /pushToast/)
+  assert.match(runPage, /deliverCheckpointUpdate/)
+  assert.match(runPage, /offline\.liveApiAllowed/)
+  assert.match(runtime, /liveApiAllowed/)
+  assert.match(runtime, /HEALTH_CONFIRM_GAP_MS/)
+  assert.match(runtime, /awaitingInitialSyncAfterOnline/)
 })
