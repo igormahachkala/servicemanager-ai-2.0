@@ -43,7 +43,9 @@ import { HomeTabs } from './HomeTabs'
 import { HomeChips } from './HomeChips'
 import { HomeList, type TicketCloseModalState } from './HomeList'
 import { HomeQuickCards, type MobileHomeQuickFilter } from './HomeQuickCards'
-import { HomeFAB } from './HomeFAB'
+import { HomeShiftStatus } from './HomeShiftStatus'
+import { HomeUrgentBlock } from './HomeUrgentBlock'
+import { selectHomeUrgentTickets } from './homeUrgent'
 import { HomeOfflineCachePanel } from './HomeOfflineCachePanel'
 import { useTicketOfflineCache } from './useTicketOfflineCache'
 
@@ -170,6 +172,9 @@ export function MobileHome() {
     [completedBoardQ.data],
   )
   const cards = boardTab === 'done' && completedBoardQ.data ? completedCards : baseCards
+  // SMA-MOBILE-SERVICE-OS Phase 0+1: срочные берём из основной доски (не из done-среза),
+  // чтобы блок не зависел от выбранной вкладки.
+  const urgentTickets = useMemo(() => selectHomeUrgentTickets(baseCards), [baseCards])
   const canAssignProvider = api.isProviderTicketAssignRole(meQ.data?.role)
   // E4: быстрая приёмка на карте — тот же гейт, что «Принять» в карточке (MobileTicketPage canShowClientAcceptance):
   // своя client-компания (не наблюдатель) + клиент-управленческая роль (ADMIN/TM/ND, не CLIENT-заявитель).
@@ -645,6 +650,7 @@ export function MobileHome() {
           <h1 className="mobileTitle">Главная</h1>
           <div className="mobileSubtitle">Операционный экран без desktop-шумов</div>
         </div>
+        <HomeShiftStatus role={meQ.data?.role} />
         <div className="mobileNotice" role="status">
           Выберите клиентский контур в верхней панели, чтобы открыть заявки.
         </div>
@@ -674,6 +680,8 @@ export function MobileHome() {
         searchQuery={searchQuery}
         setSearchQuery={changeSearchQuery}
       />
+      <HomeShiftStatus role={meQ.data?.role} />
+      <HomeUrgentBlock tickets={urgentTickets} ticketHref={ticketHref} ticketLinkState={ticketLinkState} />
       {materialsHomeCard}
       {showMobileHomeTicketBoard ? (
         <>
@@ -685,7 +693,6 @@ export function MobileHome() {
             onToggleAwaiting={() => activateQuickFilter('awaiting')}
             onToggleMyAction={() => activateQuickFilter('myaction')}
             onToggleRework={() => activateQuickFilter('rework')}
-            onPlanning={() => setMobileActionToast('Планирование — раздел в разработке')}
           />
           <div className="mobileHomeBoardSticky" data-mobile-tour="ticket-filters">
             <HomeTabs
@@ -789,7 +796,6 @@ export function MobileHome() {
           ) : null}
         </>
       ) : null}
-      <HomeFAB me={meQ.data} pageScope={pageScope} />
     </div>
   )
 }

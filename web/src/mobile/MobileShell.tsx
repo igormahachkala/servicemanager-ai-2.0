@@ -11,7 +11,7 @@ import { formatPendingActionsLabel, offlinePendingBannerText, syncNow, useOfflin
 import { getOfflineStatus } from './offline/runtime'
 import { MobileGuidedTour } from './MobileGuidedTour'
 import { MobileShiftGatePrompt } from './MobileShiftGatePrompt'
-import { getMobileRouteRoot, mobilePath } from './mobileRoute'
+import { getMobileRouteRoot, inspectionNavSuffix, mobilePath } from './mobileRoute'
 import { syncMaxChatBinding } from '../max/syncMaxChatBinding'
 import './mobile.css'
 
@@ -19,6 +19,8 @@ type MobileNavItem = {
   id: string
   label: string
   to: string
+  /** Префикс для подсветки активного пункта, если он шире, чем `to`. */
+  match?: string
 }
 
 function NavIcon({ id, active }: { id: string; active: boolean }) {
@@ -270,7 +272,13 @@ export function MobileShell() {
   const mobileRoot = getMobileRouteRoot(location.pathname)
   const mobileNavItems: MobileNavItem[] = [
     { id: 'home', label: 'Главная', to: mobileRoot },
-    { id: 'inspection', label: 'Обходы', to: mobilePath(location.pathname, '/inspection') },
+    {
+      id: 'inspection',
+      label: 'Обходы',
+      // Техник приземляется на «Сегодня»; подсветка — по всему /inspection.
+      to: mobilePath(location.pathname, inspectionNavSuffix(meQ.data?.role)),
+      match: mobilePath(location.pathname, '/inspection'),
+    },
     { id: 'create', label: '+', to: mobilePath(location.pathname, '/create') },
     { id: 'analytics', label: 'Аналитика', to: mobilePath(location.pathname, '/analytics') },
     { id: 'settings', label: 'Настройки', to: mobilePath(location.pathname, '/settings') },
@@ -396,7 +404,7 @@ export function MobileShell() {
       <nav className="mobileBottomNav" aria-label="Мобильная навигация" data-mobile-tour="main-menu">
         <div className="mobileBottomNavInner">
           {mobileNavItems.map((item) => {
-            const active = isActivePath(location.pathname, item.to)
+            const active = isActivePath(location.pathname, item.match ?? item.to)
             const isCreate = item.id === 'create'
             if (isCreate) {
               return (

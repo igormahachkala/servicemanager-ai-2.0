@@ -3849,6 +3849,98 @@ a.mobileBtn.mobileCreateTicketLink {
   margin-bottom: 12px;
 }
 
+/* ── SMA-MOBILE-SERVICE-OS Phase 0+1: статус смены ───────── */
+.mobileHomeShiftChip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #475569;
+}
+.mobileHomeShiftChip--active {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+}
+.mobileHomeShiftDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #cbd5e1;
+  flex-shrink: 0;
+}
+.mobileHomeShiftChip--active .mobileHomeShiftDot { background: #22c55e; }
+.mobileHomeShiftText { line-height: 1.2; }
+.mobileHomeShiftBtn {
+  margin-left: auto;
+  padding: 4px 12px;
+  font-size: 0.78rem;
+  width: auto;
+}
+.mobileHomeShiftError {
+  flex-basis: 100%;
+  color: #b91c1c;
+  font-weight: 500;
+  font-size: 0.74rem;
+}
+
+/* ── SMA-MOBILE-SERVICE-OS Phase 0+1: приоритетный блок срочных ── */
+.mobileHomeUrgent {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+}
+.mobileHomeUrgentHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.mobileHomeUrgentDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #ef4444;
+  flex-shrink: 0;
+}
+.mobileHomeUrgentTitle {
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #b91c1c;
+}
+.mobileHomeUrgentList { display: grid; gap: 6px; }
+.mobileHomeUrgentItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #fecaca;
+  text-decoration: none;
+  color: inherit;
+}
+.mobileHomeUrgentItemMain { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.mobileHomeUrgentItemNo { font-size: 0.82rem; font-weight: 700; color: #111827; }
+.mobileHomeUrgentItemText {
+  font-size: 0.72rem;
+  color: #6b7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mobileHomeUrgentOpen { flex-shrink: 0; font-size: 0.78rem; font-weight: 700; color: #dc2626; }
+
 .mobileHomeQuickCard {
   display: flex;
   align-items: center;
