@@ -2021,17 +2021,40 @@ button.toastItem:active {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
- * SMA-MANAGEMENT-NAVIGATION-V2 — Rail → Flyout → Workspace (desktop ≥ 769px).
- * Мобильная раскладка (≤768px) не меняется: Rail/Flyout скрыты, работает
- * прежний .sidebar-drawer под hamburger.
+ * SMA-NAVIGATION-V2-VISUAL — Rail → Flyout → Workspace (desktop ≥ 769px).
+ * Значения — токены утверждённого visual contract SMA_Navigation_V2(2)/tokens.json,
+ * неймспейс --nav-* (не затрагивает остальной визуал приложения). Rail —
+ * единственная тёмная поверхность; Flyout светлый (panel); Workspace белый.
+ * Мобильная раскладка (≤768px) не меняется: Rail/Flyout скрыты, .sidebar-drawer.
  * ───────────────────────────────────────────────────────────────────────────── */
+:root {
+  --nav-rail-bg: #17202b;
+  --nav-rail-hover: #202c39;
+  --nav-rail-active: #263445;
+  --nav-rail-active-line: #35475b;
+  --nav-rail-ink: #dce4ec;
+  --nav-rail-ink-muted: #aeb9c5;
+  --nav-panel: #f7f9fb;
+  --nav-surface: #ffffff;
+  --nav-ink: #17202b;
+  --nav-ink-soft: #46515c;
+  --nav-ink-muted: #7a8793;
+  --nav-line: #e4e9ed;
+  --nav-line-active: #e1e6eb;
+  --nav-on-action: #ffffff;
+  --nav-focus-ring: #17202b;
+  --nav-shadow-raised: 0 10px 40px rgba(23, 32, 43, 0.08);
+  --nav-radius-rail: 13px;
+  --nav-radius-control: 11px;
+}
 .railNav { display: none; }
 .flyout { display: none; }
 .flyoutBackdrop { display: none; }
 .topbarUser { display: none; }
+.topbarCrumbs { min-width: 0; overflow: hidden; }
 
 @media (min-width: 769px) {
-  .appLayout { grid-template-columns: 76px minmax(0, 1fr); }
+  .appLayout { grid-template-columns: 76px minmax(0, 1fr); background: var(--nav-panel); }
   .appLayout[data-rail-collapsed="true"] { grid-template-columns: 60px minmax(0, 1fr); }
   .appLayout[data-flyout="true"] { grid-template-columns: 76px 270px minmax(0, 1fr); }
 
@@ -2041,84 +2064,139 @@ button.toastItem:active {
   .railNav {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    background: #0f172a;
-    color: #fff;
-    padding: 12px 6px;
+    align-items: center;
+    gap: 8px;
+    background: var(--nav-rail-bg);
+    color: var(--nav-rail-ink);
+    padding: 14px 10px;
     height: 100%;
     min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
     z-index: var(--management-sidebar-z);
   }
-  .railLogo { display: grid; place-items: center; padding: 4px 0 10px; }
-  .railLogo .smaBrandLogo img { width: 48px; }
-  .railSections { display: flex; flex-direction: column; gap: 6px; flex: 1 1 auto; }
-  .railFooter { margin-top: auto; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08); }
+  .appLayout[data-rail-collapsed="true"] .railNav { padding: 14px 8px; }
+  .railLogo {
+    height: 44px; width: 100%; display: grid; place-items: center;
+    font-weight: 800; font-size: 18px; letter-spacing: -0.01em;
+    color: var(--nav-rail-ink); margin-bottom: 8px;
+  }
+  .railSections { display: flex; flex-direction: column; align-items: center; gap: 8px; flex: 1 1 auto; width: 100%; }
+  .railSep { width: 32px; height: 1px; background: var(--nav-rail-active-line); margin: 4px 0; }
+  .railFooter { margin-top: auto; padding-top: 8px; width: 100%; display: grid; place-items: center; }
 
   .railBtn {
-    width: 100%;
+    position: relative;
+    width: 56px;
+    min-height: 54px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
     background: transparent;
     border: 1px solid transparent;
-    color: #fff;
-    border-radius: 10px;
-    padding: 10px 6px;
+    border-radius: var(--nav-radius-rail);
+    color: var(--nav-rail-ink-muted);
     font-size: 11px;
-    line-height: 1.15;
-    text-align: center;
+    line-height: 13px;
+    font-weight: 600;
     cursor: pointer;
-    overflow: hidden;
+    padding: 0;
   }
-  .railBtn:hover { background: rgba(255,255,255,0.08); }
-  .railBtnActive { background: rgba(255,255,255,0.16); border-color: rgba(255,255,255,0.22); font-weight: 700; }
-  .railBtnLabel { display: block; overflow: hidden; text-overflow: ellipsis; }
-  .railCollapseToggle { font-size: 16px; }
+  .railIcon { display: block; }
+  .railBtn:hover { background: var(--nav-rail-hover); color: var(--nav-on-action); }
+  .railBtnActive { background: var(--nav-rail-active); color: var(--nav-on-action); border-color: var(--nav-rail-active-line); }
+  .railBtnOpen { background: var(--nav-rail-hover); color: var(--nav-on-action); border-color: var(--nav-rail-active-line); border-style: dashed; }
+  .railBtn:focus-visible { outline: 2px solid var(--nav-rail-ink); outline-offset: 2px; }
+  .railBtnLabel { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+  .railUtil { min-height: 36px; width: 44px; color: var(--nav-rail-ink-muted); }
 
-  .appLayout[data-rail-collapsed="true"] .railBtnLabel { white-space: nowrap; }
+  .appLayout[data-rail-collapsed="true"] .railBtn { width: 44px; min-height: 44px; }
+  .appLayout[data-rail-collapsed="true"] .railBtnLabel { display: none; }
+
+  /* Подсказка в свёрнутом режиме: по наведению и по фокусу, не единственный путь. */
+  .appLayout[data-rail-collapsed="true"] .railBtn:hover::after,
+  .appLayout[data-rail-collapsed="true"] .railBtn:focus-visible::after {
+    content: attr(data-tip);
+    position: absolute;
+    left: calc(100% + 12px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--nav-ink);
+    color: var(--nav-on-action);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 16px;
+    padding: 5px 9px;
+    border-radius: 8px;
+    white-space: nowrap;
+    z-index: 60;
+    pointer-events: none;
+    border: 1px solid var(--nav-rail-active-line);
+  }
 
   .flyout {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    min-width: 0;
     width: 270px;
-    background: #111c33;
-    color: #fff;
-    padding: 16px 12px;
+    background: var(--nav-panel);
+    color: var(--nav-ink);
+    border-right: 1px solid var(--nav-line);
+    padding: 22px 16px;
     height: 100%;
     min-height: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
-    border-left: 1px solid rgba(255,255,255,0.06);
     z-index: var(--management-sidebar-z);
   }
-  .flyoutHeader { display: flex; align-items: center; justify-content: space-between; }
-  .flyoutTitle { font-weight: 800; letter-spacing: 0.02em; }
-  .flyoutClose {
-    background: transparent; border: 1px solid rgba(255,255,255,0.18); color: #fff;
-    border-radius: 8px; width: 28px; height: 28px; cursor: pointer;
+  .flyoutHeader { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 14px 8px; min-height: 30px; }
+  .flyoutTitle { font-size: 16px; line-height: 20px; font-weight: 750; margin: 0; color: var(--nav-ink); }
+  .flyoutTools { display: flex; gap: 2px; }
+  .flyoutIconBtn {
+    width: 30px; height: 30px; border-radius: 9px; border: 1px solid transparent;
+    background: transparent; color: var(--nav-ink-muted); display: grid; place-items: center; cursor: pointer; padding: 0;
   }
-  .flyoutItems { display: grid; gap: 8px; }
-  .flyoutAction { border-color: rgba(255,255,255,0.28); font-weight: 700; }
+  .flyoutIconBtn:hover { background: var(--nav-surface); border-color: var(--nav-line); color: var(--nav-ink); }
+  .flyoutIconBtn:focus-visible { outline: 2px solid var(--nav-focus-ring); outline-offset: 2px; }
+  .flyoutAction {
+    display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 12px; margin: 0 0 10px;
+    border-radius: var(--nav-radius-control); background: var(--nav-ink); color: var(--nav-on-action);
+    border: 1px solid var(--nav-ink); font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none;
+  }
+  .flyoutAction:focus-visible { outline: 2px solid var(--nav-focus-ring); outline-offset: 2px; }
+  .flyoutItems { display: flex; flex-direction: column; }
+  .flyoutSub {
+    display: block; width: 100%; text-align: left; padding: 11px 12px; margin: 3px 0;
+    border-radius: var(--nav-radius-control); font-size: 14px; line-height: 18px; color: var(--nav-ink-soft);
+    border: 1px solid transparent; background: transparent; cursor: pointer; text-decoration: none;
+  }
+  .flyoutSub:hover { background: var(--nav-surface); }
+  .flyoutSub[aria-current="page"] { background: var(--nav-surface); color: var(--nav-ink); font-weight: 700; border-color: var(--nav-line-active); }
+  .flyoutSub:focus-visible { outline: 2px solid var(--nav-focus-ring); outline-offset: 2px; }
+  .flyoutGroupLabel { font-size: 11px; line-height: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--nav-ink-muted); margin: 16px 12px 6px; }
 
-  /* Временный flyout в collapsed — оверлей поверх Workspace. */
+  /* Overlay-flyout в collapsed — поверх Workspace, единственная тень интерфейса. */
   .flyoutOverlay {
     position: fixed;
     top: 0;
     left: 60px;
     bottom: 0;
     width: 270px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.35);
+    box-shadow: var(--nav-shadow-raised);
     z-index: 45;
   }
   .flyoutBackdrop {
     display: block;
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.35);
+    background: rgba(23, 32, 43, 0.18);
     z-index: 44;
   }
 
-  /* На десктопе mobile-кнопка меню скрыта, а пользователь/выход — в топбаре. */
+  /* Облегчённый header: крошки слева, глобальные действия справа. */
+  .topbarSlim .topbarCrumbs { display: flex; flex: 1 1 auto; min-width: 0; align-items: center; }
   .mobileMenuBtn { display: none; }
   .topbarUser { display: inline; }
 }
