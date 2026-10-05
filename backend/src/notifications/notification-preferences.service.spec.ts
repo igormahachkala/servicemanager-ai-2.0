@@ -4,6 +4,7 @@ import {
   UserRole,
 } from '@prisma/client';
 
+import { PERMISSIONS } from '../common/permissions.constants';
 import { ROLE_GRANTS } from '../common/permissions-matrix';
 import { NotificationPreferencesService } from './notification-preferences.service';
 
@@ -209,14 +210,14 @@ describe('NotificationPreferencesService', () => {
     expect(prisma.pushPreference.findUnique).not.toHaveBeenCalled();
   });
 
-  it('represents CLIENT_ADMIN preferences without changing role grants', async () => {
+  it('keeps CLIENT_ADMIN preferences independent from its ticket read grant', async () => {
     const { service } = makeService({
       companyOverride: { enabled: true },
     });
 
     expect(
-      ROLE_GRANTS.some((grant) => grant.role === UserRole.CLIENT_ADMIN),
-    ).toBe(false);
+      ROLE_GRANTS.find((grant) => grant.role === UserRole.CLIENT_ADMIN)?.codes,
+    ).toEqual([PERMISSIONS.TICKETS_VIEW]);
     await expect(
       service.resolvePreference({
         ...baseInput,
