@@ -231,6 +231,7 @@ export class TicketsController {
   @Get(':id')
   @Roles(
     UserRole.ADMIN,
+    UserRole.CLIENT_ADMIN,
     UserRole.MASTER,
     UserRole.DISPATCHER,
     UserRole.NETWORK_DIRECTOR,
@@ -263,6 +264,7 @@ export class TicketsController {
   @Get(':id/failure-causes')
   @Roles(
     UserRole.ADMIN,
+    UserRole.CLIENT_ADMIN,
     UserRole.MASTER,
     UserRole.DISPATCHER,
     UserRole.NETWORK_DIRECTOR,
@@ -294,6 +296,7 @@ export class TicketsController {
   @Get(':id/attachments')
   @Roles(
     UserRole.ADMIN,
+    UserRole.CLIENT_ADMIN,
     UserRole.MASTER,
     UserRole.DISPATCHER,
     UserRole.NETWORK_DIRECTOR,
