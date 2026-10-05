@@ -9,9 +9,8 @@ import {
  * SMA-SECONDARY-CONTRACT-VISIBILITY-004C.
  *
  * Операционный охват SECONDARY-подрядчика (назначение на исполнителя компании либо
- * привязка её пользователей к локации) — ограничение уровня исполнителя.
- * Управленческие роли ограничены контекстом договора и не должны зависеть от
- * операционных привязок.
+ * привязка её пользователей к локации) — часть relationship scope. ALL_LOCATIONS
+ * не превращает SECONDARY-договор в полный клиентский board.
  */
 describe('SECONDARY provider operational scope by role', () => {
   const PROVIDER = 'secondary-provider'
@@ -26,10 +25,23 @@ describe('SECONDARY provider operational scope by role', () => {
   /** Ни одного исполнителя и ни одной привязки — операционный охват пуст. */
   function makeEmptyScopePrismaMock() {
     return {
-      user: { findMany: jest.fn().mockResolvedValue([]) },
+      user: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'actor-1' }),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       userLocationBinding: { findMany: jest.fn().mockResolvedValue([]) },
       userAccessScope: { findUnique: jest.fn().mockResolvedValue(null) },
-      serviceContract: { findUnique: jest.fn().mockResolvedValue(null) },
+      serviceContract: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'contract-1',
+          status: 'ACTIVE',
+          role: ServiceContractRole.SECONDARY,
+          startsAt: null,
+          endsAt: null,
+          locationMode: 'ALL_LOCATIONS',
+          locations: [],
+        }),
+      },
     } as any
   }
 
@@ -44,16 +56,11 @@ describe('SECONDARY provider operational scope by role', () => {
   }
 
   describe('предикат применимости', () => {
-    it('от операционного охвата освобождены только ADMIN, MASTER и DISPATCHER', () => {
-      expect(secondaryOperationalScopeAppliesTo(UserRole.ADMIN)).toBe(false)
-      expect(secondaryOperationalScopeAppliesTo(UserRole.MASTER)).toBe(false)
-      expect(secondaryOperationalScopeAppliesTo(UserRole.DISPATCHER)).toBe(false)
-
+    it('операционный relationship scope применяется ко всем SECONDARY ролям', () => {
+      expect(secondaryOperationalScopeAppliesTo(UserRole.ADMIN)).toBe(true)
+      expect(secondaryOperationalScopeAppliesTo(UserRole.MASTER)).toBe(true)
+      expect(secondaryOperationalScopeAppliesTo(UserRole.DISPATCHER)).toBe(true)
       expect(secondaryOperationalScopeAppliesTo(UserRole.TECHNICIAN)).toBe(true)
-    })
-
-    it('обзорные роли подрядчика остаются под охватом — закрытая утечка не открывается', () => {
-      // ticket-access.utils.spec: «SECONDARY management path … (leak closed)».
       expect(secondaryOperationalScopeAppliesTo(UserRole.NETWORK_DIRECTOR)).toBe(true)
       expect(secondaryOperationalScopeAppliesTo(UserRole.TERRITORIAL_MANAGER)).toBe(true)
       expect(secondaryOperationalScopeAppliesTo(UserRole.CLIENT)).toBe(true)
@@ -63,18 +70,19 @@ describe('SECONDARY provider operational scope by role', () => {
 
   describe('управленческие роли', () => {
     it.each([UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER])(
-      '%s не ограничивается операционным охватом при пустых привязках',
+      '%s без исполнителей и привязок получает запрет-заглушку',
       async (role) => {
         const where = await build(role)
-        expect(where).toEqual({})
+        expect(where).not.toEqual({})
+        expect(JSON.stringify(where)).toContain('__no_access__')
       },
     )
 
-    it('управленческой роли не требуется читать исполнителей и привязки', async () => {
+    it('управленческая роль строит relationship scope по исполнителям и привязкам', async () => {
       const prisma = makeEmptyScopePrismaMock()
       await build(UserRole.ADMIN, prisma)
-      expect(prisma.user.findMany).not.toHaveBeenCalled()
-      expect(prisma.userLocationBinding.findMany).not.toHaveBeenCalled()
+      expect(prisma.user.findMany).toHaveBeenCalled()
+      expect(prisma.userLocationBinding.findMany).toHaveBeenCalled()
     })
   })
 
