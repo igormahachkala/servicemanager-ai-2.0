@@ -96,7 +96,17 @@ export function EquipmentCardPage() {
   const passport = useMemo(() => (item ? equipmentPassportRows(item) : []), [item])
   const warrantyExpired = isWarrantyExpired(item?.warrantyUntil)
   const retired = isEquipmentRetired(item?.status)
-  const backTo = companyId ? `/equipment?companyId=${encodeURIComponent(companyId)}` : '/equipment'
+  /*
+   * «К списку» идёт без области намеренно.
+   *
+   * Список оборудования адресную область НЕ читает вовсе — он заново
+   * выводит контур из профиля или единственного связанного клиента. Зато
+   * Shell на каждом переходе зовёт persistScopeFromSearchParams, а тот
+   * пишет пару целиком: «?companyId=…» затирал провайдеру
+   * linkedClientCompanyId, и следующее создание заявки упиралось в скрытую
+   * форму. Параметр не давал ничего и только ломал область.
+   */
+  const backTo = '/equipment'
 
   /*
    * Доска учитывает companyId только у PLATFORM_ADMIN, а контур провайдера
@@ -110,11 +120,11 @@ export function EquipmentCardPage() {
       : { linkedClientCompanyId: companyId }
 
   /*
-   * Ссылки карточки несут ту же область тем же параметром. Иначе переход
-   * «Создать заявку» у провайдера упирался в скрытую форму, а ссылка на
-   * точку — в 404.
+   * Создание заявки читает тот же параметр, что и доска
+   * (linkedClientCompanyId у провайдера), поэтому область для него совпадает
+   * с boardScope. Карточка точки читает companyId — ей передаётся отдельно.
    */
-  const cardScope = boardScope
+  const createScope = boardScope
 
   if (equipmentQ.isLoading) {
     return (
@@ -151,8 +161,15 @@ export function EquipmentCardPage() {
           {item.location ? (
             <div className="muted small">
               Объект:{' '}
-              {/* Область обязательна: LocationPage читает её только из адреса. */}
-              <Link to={locationCardPath(item.location.id, cardScope)}>
+              {/*
+                Карточка точки читает ТОЛЬКО companyId и запасного варианта
+                не имеет, поэтому область уезжает именно этим параметром —
+                независимо от роли. Прошлый круг отдал сюда boardScope, то
+                есть linkedClientCompanyId, и провайдер получал 404 на тот
+                объект, на котором стоял: у получателей разные контракты,
+                одним псевдонимом их обслужить нельзя.
+              */}
+              <Link to={locationCardPath(item.location.id, { companyId })}>
                 {item.location.name || 'Без названия'}
               </Link>
             </div>
@@ -160,7 +177,7 @@ export function EquipmentCardPage() {
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {canCreateTicketForEquipment(item) ? (
-            <Link to={equipmentCreateTicketPath({ id: item.id, locationId }, cardScope)}>
+            <Link to={equipmentCreateTicketPath({ id: item.id, locationId }, createScope)}>
               <button>Создать заявку</button>
             </Link>
           ) : null}

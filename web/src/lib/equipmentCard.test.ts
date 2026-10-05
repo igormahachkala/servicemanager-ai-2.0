@@ -265,7 +265,7 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
     const locationCode = codeOf(readSrc('views/LocationPage.tsx'))
     expect(locationCode).toContain("searchParams.get('companyId') || ''")
     expect(codeOf(readSrc('views/EquipmentCardPage.tsx'))).toContain(
-      'locationCardPath(item.location.id, cardScope)',
+      'locationCardPath(item.location.id, { companyId })',
     )
   })
 
@@ -435,7 +435,7 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
       "searchFromLocation.get('linkedClientCompanyId')",
     )
     expect(codeOf(readSrc('views/EquipmentCardPage.tsx'))).toContain(
-      'equipmentCreateTicketPath({ id: item.id, locationId }, cardScope)',
+      'equipmentCreateTicketPath({ id: item.id, locationId }, createScope)',
     )
   })
 
@@ -490,6 +490,64 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
     const locationWrites = boardCode.match(/setSelectedLocationId\(/g)?.length || 0
     expect(equipmentWrites, 'новая запись в фильтр оборудования').toBe(8)
     expect(locationWrites, 'новая запись в фильтр точки').toBe(7)
+
+    /*
+     * Счёт по имени обходится псевдонимом: аудит вернул P0 строкой
+     * `const clear = setSelectedEquipmentId` и весь набор остался зелёным.
+     * Псевдонимы поэтому запрещены явно.
+     *
+     * Честно о границе: это по-прежнему заслон, а не доказательство.
+     * Полностью закрыть класс можно только проверкой в DOM либо переводом
+     * фильтров на один редьюсер, где место записи единственно по
+     * построению, — и то и другое выходит за рамки правки дефектов.
+     */
+    expect(boardCode, 'псевдоним сеттера фильтра').not.toMatch(
+      /=\s*setSelected(?:Equipment|Location)Id\s*[,;\n)]/,
+    )
+  })
+
+  it('ссылка на точку несёт параметр, который точка читает', () => {
+    /*
+     * Регресс прошлого круга: сюда отдали boardScope, то есть
+     * linkedClientCompanyId, а карточка точки читает только companyId —
+     * провайдер получал 404 на объект, на котором стоял. У получателей
+     * разные контракты, и один псевдоним на всех не годится.
+     */
+    const cardCode = codeOf(readSrc('views/EquipmentCardPage.tsx'))
+    expect(cardCode).toContain('locationCardPath(item.location.id, { companyId })')
+    expect(cardCode).not.toContain('locationCardPath(item.location.id, cardScope)')
+    expect(cardCode).not.toContain('locationCardPath(item.location.id, boardScope)')
+
+    // Создание заявки читает тот же параметр, что доска, — у него своя область.
+    expect(cardCode).toContain('equipmentCreateTicketPath({ id: item.id, locationId }, createScope)')
+  })
+
+  it('«К списку» не несёт области: иначе она затрётся', () => {
+    /*
+     * Список оборудования адресную область не читает вовсе, а Shell на
+     * каждом переходе перезаписывает сохранённую пару целиком. «?companyId=…» затирал провайдеру linkedClientCompanyId, и
+     * следующее создание заявки упиралось в скрытую форму.
+     */
+    const cardCode = codeOf(readSrc('views/EquipmentCardPage.tsx'))
+    expect(cardCode).toContain("const backTo = '/equipment'")
+    expect(cardCode).not.toMatch(/backTo = companyId \?/)
+
+    // Проверяем само утверждение: список действительно не читает адрес.
+    const listCode = codeOf(readSrc('views/EquipmentPage.tsx'))
+    expect(listCode).not.toContain('useSearchParams')
+  })
+
+  it('мобильная заявка не ведёт в карточку без области', () => {
+    /*
+     * /m/equipment/:id зовёт getEquipment без companyId, а тот разрешается
+     * в компанию актора. Оборудование принадлежит клиенту, поэтому для
+     * техника провайдера ссылка вела бы в «не найдено» — перехода нет,
+     * пока у мобильной страницы не появится область.
+     */
+    const mobileCode = codeOf(readSrc('mobile/MobileTicketPage.tsx'))
+    expect(mobileCode).not.toMatch(/mobilePath\(location\.pathname, `\/equipment\//)
+    // Утверждение проверяется у самой страницы: области она не принимает.
+    expect(codeOf(readSrc('mobile/MobileEquipmentPage.tsx'))).toContain('api.getEquipment(equipmentId)')
   })
 
   it('снятое оборудование новых заявок не предлагает', () => {
