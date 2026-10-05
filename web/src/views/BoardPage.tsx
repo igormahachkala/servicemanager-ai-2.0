@@ -489,7 +489,8 @@ export function BoardPage() {
         return
       }
       if (action === 'done') {
-        throw new Error('Откройте заявку и выберите причину неисправности перед отправкой на приёмку')
+        await api.updateTicketStatus(ticket.id, { status: 'AWAITING_ACCEPTANCE' }, ticketScope)
+        return
       }
       if (action === 'assign') {
         return api.smartAssignTicket(ticket.id, ticketScope)
@@ -554,7 +555,7 @@ export function BoardPage() {
     setSelectedTicketIds((prev) => prev.filter((id) => allVisibleTicketIds.includes(id)))
   }, [allVisibleTicketIds])
 
-  async function runBulkAction(action: 'claim' | 'IN_PROGRESS') {
+  async function runBulkAction(action: 'claim' | 'IN_PROGRESS' | 'AWAITING_ACCEPTANCE') {
     if (!selectedTicketIds.length || bulkBusy) return
     setBulkBusy(true)
     setBulkError('')
@@ -1052,6 +1053,14 @@ export function BoardPage() {
               className="ghost"
               type="button"
               disabled={!selectedTicketIds.length || bulkBusy}
+              onClick={() => runBulkAction('AWAITING_ACCEPTANCE')}
+            >
+              Отправить на приёмку
+            </button>
+            <button
+              className="ghost"
+              type="button"
+              disabled={!selectedTicketIds.length || bulkBusy}
               onClick={() => setSelectedTicketIds([])}
             >
               Сбросить выбор
@@ -1207,11 +1216,14 @@ export function BoardPage() {
                               </button>
                             ) : null}
                             {ticket.status === 'IN_PROGRESS' && ticket.assignedTechnician?.id === meQ.data?.id ? (
-                              <Link to={buildTicketLink(ticket)} state={buildTicketLinkState()}>
-                                <button type="button" className="ghost">
-                                  Отправить на приёмку
-                                </button>
-                              </Link>
+                              <button
+                                type="button"
+                                className="ghost"
+                                disabled={quickActionM.isPending}
+                                onClick={() => quickActionM.mutate({ ticket, action: 'done' })}
+                              >
+                                Отправить на приёмку
+                              </button>
                             ) : null}
                           </>
                         ) : null}

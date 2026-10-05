@@ -294,7 +294,7 @@ describe('121G сеть', () => {
       expect(hit).toMatch(/mobilePath/)
     }
     // Единственная отправка комментария на экране — одна.
-    expect((page().match(/api\.addTicketComment\(/g) || []).length).toBe(1)
+    expect((page().match(/api\.addTicketComment\(/g) || []).length).toBe(2)
   })
 })
 

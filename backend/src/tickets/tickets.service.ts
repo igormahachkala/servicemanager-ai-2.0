@@ -11,7 +11,6 @@ import { TicketsStatusService } from './tickets.status.service'
 import { TicketAttachmentsService } from './ticket-attachments.service'
 import { TicketsAcceptanceService } from './tickets.acceptance.service'
 import { TicketAcceptanceDto } from './dto/ticket-acceptance.dto'
-import { SubmitTicketAcceptanceDto } from './dto/submit-ticket-acceptance.dto'
 
 import { type BoardQueryInput } from '../policy/tickets.policy'
 
@@ -304,26 +303,6 @@ export class TicketsService {
     linkedClientCompanyId?: string,
   ) {
     return this.status.updateStatus(companyId, user, role, ticketId, dto, linkedClientCompanyId)
-  }
-
-  submitAcceptance(
-    companyId: string,
-    user: { id?: string } | any,
-    role: UserRole,
-    ticketId: string,
-    dto: SubmitTicketAcceptanceDto,
-    linkedClientCompanyId?: string,
-    idempotencyKey?: string | null,
-  ) {
-    return this.status.submitAcceptance(
-      companyId,
-      user,
-      role,
-      ticketId,
-      dto,
-      linkedClientCompanyId,
-      idempotencyKey,
-    )
   }
 
   addComment(
