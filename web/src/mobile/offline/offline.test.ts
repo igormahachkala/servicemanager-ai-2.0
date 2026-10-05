@@ -614,10 +614,11 @@ test('24. Service Worker кэширует оболочку и не кэширу�
   // расширениями: под него не должен попасть ни один ответ с данными.
   assert.match(sw, /function isBuildAsset/, 'отбор сборочных файлов выделен явно')
   assert.match(sw, /url\.pathname\.startsWith\('\/assets\/'\)/, 'только каталог /assets/')
-  assert.match(sw, /sma-app-shell-v3/, 'полный precache отделён от прежнего cache поколения')
+  assert.match(sw, /sma-app-shell-v4/, 'полный precache отделён от прежнего cache поколения')
   assert.match(sw, /BUILD_ASSET_MANIFEST_URL/, 'install читает build manifest')
   assert.doesNotMatch(sw, /caches\.delete/, 'cache живой старой страницы не удаляется при activate')
-  assert.match(sw, /if \(cached\) return cached/, 'cold navigation не ждёт сеть при наличии оболочки')
+  assert.match(sw, /NAV_NETWORK_BUDGET_MS/, 'navigation ждёт короткую сеть, затем оболочку из кэша')
+  assert.doesNotMatch(sw, /if \(cached\) return cached/)
 })
 
 test('24b. реальная недоступность API сильнее navigator.onLine=true', async () => {
