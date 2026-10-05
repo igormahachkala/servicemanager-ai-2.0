@@ -83,13 +83,6 @@ export const ROLE_GRANTS: RoleGrant[] = [
       // НЕТ: ASSIGN, CLAIM, VIEW_AVAILABLE, STATUS_CHANGE
     ],
   },
-  // CLIENT_ADMIN is a read-only client management role. Ticket and dictionary
-  // services still enforce tenant/location scope; no write capability is added.
-  {
-    role: UserRole.CLIENT_ADMIN,
-    companyType: CompanyType.CLIENT,
-    codes: [P.TICKETS_VIEW],
-  },
   {
     role: UserRole.ADMIN,
     companyType: CompanyType.PROVIDER,
