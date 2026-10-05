@@ -15,12 +15,6 @@ import { ShiftPolicyService } from '../workforce/shift-policy.service';
 import { IdempotencyService } from '../common/idempotency/idempotency.service';
 import { resolveTicketOperationAccess } from './ticket-access.utils';
 
-function uniqueNonEmpty(values?: Array<string | null | undefined>) {
-  return Array.from(
-    new Set((values ?? []).map((value) => (value ?? '').trim()).filter((value) => value.length > 0)),
-  )
-}
-
 @Injectable()
 export class TicketsStatusService {
   constructor(
@@ -61,7 +55,7 @@ export class TicketsStatusService {
   ) {
     const { ticketId, fromStatus, toStatus, changedByUserId, comment } = params;
 
-    return tx.ticketStatusHistory.create({
+    await tx.ticketStatusHistory.create({
       data: {
         ticketId,
         fromStatus,
@@ -70,400 +64,6 @@ export class TicketsStatusService {
         changedByUserId: changedByUserId ?? null,
       },
     });
-  }
-
-  async submitAcceptance(
-    companyId: string,
-    user: { id?: string } | any,
-    role: UserRole,
-    ticketId: string,
-    dto: { failureCauseId: string; comment?: string; attachmentIds?: string[] },
-    linkedClientCompanyId?: string,
-    idempotencyKey?: string | null,
-  ) {
-    await this.assertExecutorOperationsAllowed(companyId);
-    const failureCauseId = (dto.failureCauseId ?? '').trim();
-    if (!failureCauseId) {
-      throw new BadRequestException('failureCauseId is required');
-    }
-
-    const access = await resolveTicketOperationAccess({
-      prisma: this.prisma,
-      serviceContractsService: this.serviceContractsService,
-      actor: {
-        id: user?.id,
-        role,
-        companyId,
-        accessFlags: user?.accessFlags,
-      },
-      ticketId,
-      linkedClientCompanyId,
-    });
-
-    const comment = (dto.comment ?? '').trim();
-    const attachmentIds = uniqueNonEmpty(dto.attachmentIds);
-
-    const key = IdempotencyService.normalizeKey(idempotencyKey);
-    if (key && this.idempotency && user?.id) {
-      const fingerprint = IdempotencyService.fingerprint({
-        ticketId,
-        failureCauseId,
-        comment,
-        attachmentIds,
-      });
-      const outcome = await this.idempotency.run<any>(
-        { companyId, userId: user.id, operationType: 'ticket_submit_acceptance', key },
-        fingerprint,
-        {
-          execute: async () => {
-            const result = await this.submitAcceptanceInternal({
-              companyId,
-              user,
-              role,
-              ticketId,
-              failureCauseId,
-              comment,
-              attachmentIds,
-              linkedClientCompanyId,
-              access,
-            });
-            return {
-              result: result.updated,
-              entityType: 'TicketStatusHistory',
-              entityId: result.historyId,
-            };
-          },
-          replay: async (historyId) => {
-            const history = await this.prisma.ticketStatusHistory.findUnique({
-              where: { id: historyId },
-              select: { id: true, ticketId: true, toStatus: true },
-            });
-            if (!history || history.ticketId !== ticketId || history.toStatus !== TicketStatus.AWAITING_ACCEPTANCE) {
-              return null;
-            }
-            return this.prisma.ticket.findFirst({
-              where: { id: ticketId, companyId: access.ticket.companyId },
-            });
-          },
-        },
-      );
-      return outcome.result;
-    }
-
-    const result = await this.submitAcceptanceInternal({
-      companyId,
-      user,
-      role,
-      ticketId,
-      failureCauseId,
-      comment,
-      attachmentIds,
-      linkedClientCompanyId,
-      access,
-    });
-    return result.updated;
-  }
-
-  private async submitAcceptanceInternal(params: {
-    companyId: string;
-    user: { id?: string } | any;
-    role: UserRole;
-    ticketId: string;
-    failureCauseId: string;
-    comment: string;
-    attachmentIds: string[];
-    linkedClientCompanyId?: string;
-    access: Awaited<ReturnType<typeof resolveTicketOperationAccess>>;
-  }) {
-    const { companyId, user, role, ticketId, failureCauseId, comment, attachmentIds, access } = params;
-
-    // Atomicity boundary is the database transaction below. Access resolution
-    // follows the existing ticket pattern before it; notifications are emitted
-    // after commit and must not be treated as rollback-protected DB mutations.
-    const statusResult = await this.prisma.$transaction(async (tx) => {
-      const ticket = await tx.ticket.findFirst({
-        where: { id: ticketId, companyId: access.ticket.companyId },
-      });
-      if (!ticket) throw new NotFoundException('Ticket not found');
-
-      const actorIsExecutor = isExecutorCapableRole(role)
-        ? (await this.prisma.user.findFirst({ where: { id: user?.id }, select: { isExecutor: true } }))?.isExecutor ?? false
-        : false;
-      const decision = this.policy.canChangeStatus({
-        user: { id: user?.id, role, isExecutor: actorIsExecutor, companyId: access.operationCompanyId },
-        ticket: {
-          companyId: access.operationCompanyId,
-          assignedTechnicianId: ticket.assignedTechnicianId,
-        },
-      });
-      this.logger.log({
-        event: 'executor_submit_acceptance_decision',
-        actorUserId: user?.id,
-        actorRole: role,
-        actorIsExecutor,
-        ticketId,
-        allowed: decision.allowed,
-        denialReason: decision.allowed ? undefined : (decision as { reason?: string }).reason,
-      });
-      assertAllowed(decision);
-
-      await this.shiftPolicyService?.assertActiveShiftForOperationalWork({
-        id: user?.id ?? '',
-        role,
-        companyId,
-      });
-
-      const fromStatus = ticket.status;
-      const toStatus = TicketStatus.AWAITING_ACCEPTANCE;
-      const wf = decideTicketTransition(fromStatus, toStatus);
-      if (!wf.allowed) throw new BadRequestException(wf.reason);
-
-      const failureCause = await tx.failureCause.findFirst({
-        where: {
-          id: failureCauseId,
-          companyId: ticket.companyId,
-          active: true,
-        },
-        select: { id: true, name: true },
-      });
-      if (!failureCause) {
-        throw new BadRequestException('Failure cause is not available for this ticket');
-      }
-
-      if (attachmentIds.length > 0) {
-        const allowedCompanyIds = Array.from(new Set([ticket.companyId, companyId].filter(Boolean)));
-        const attachments = await tx.ticketAttachment.findMany({
-          where: {
-            id: { in: attachmentIds },
-            companyId: { in: allowedCompanyIds },
-          },
-          select: {
-            id: true,
-            ticketId: true,
-            companyId: true,
-            uploadedByUserId: true,
-          },
-        });
-
-        const safeAttachments = attachments.filter((attachment) => {
-          if (attachment.companyId === ticket.companyId && attachment.ticketId === ticketId) return true;
-          return (
-            attachment.ticketId === null &&
-            !!user?.id &&
-            attachment.uploadedByUserId === user.id &&
-            (attachment.companyId === ticket.companyId || attachment.companyId === companyId)
-          );
-        });
-
-        if (safeAttachments.length !== attachmentIds.length) {
-          throw new BadRequestException('Some attachmentIds are invalid');
-        }
-
-        await tx.ticketAttachment.updateMany({
-          where: { id: { in: safeAttachments.map((attachment) => attachment.id) } },
-          data: {
-            ticketId,
-            companyId: ticket.companyId,
-            purpose: TicketAttachmentPurpose.WORK_REPORT,
-          },
-        });
-      }
-
-      const [workReportMediaCount, commentEventCount] = await Promise.all([
-        tx.ticketAttachment.count({
-          where: {
-            ticketId,
-            purpose: TicketAttachmentPurpose.WORK_REPORT,
-            OR: [
-              { mimeType: { startsWith: 'image/' } },
-              { mimeType: { startsWith: 'video/' } },
-            ],
-          },
-        }),
-        tx.domainEvent.count({
-          where: {
-            companyId: ticket.companyId,
-            entityType: 'Ticket',
-            entityId: ticketId,
-            type: 'ticket.comment_added',
-          },
-        }),
-      ]);
-
-      if (workReportMediaCount === 0) {
-        throw new BadRequestException('Cannot complete ticket without at least 1 work report photo or video');
-      }
-
-      if (!comment && commentEventCount === 0) {
-        const legacyCommentCount = await tx.ticketStatusHistory.count({
-          where: {
-            ticketId,
-            NOT: [
-              { comment: null },
-              { comment: '' },
-              { comment: 'Ticket created' },
-            ],
-          },
-        });
-
-        if (legacyCommentCount === 0) {
-          throw new BadRequestException('Cannot complete ticket without at least 1 comment');
-        }
-      }
-
-      const now = new Date();
-      const shouldMarkBreached = ticket.slaDueAt && !ticket.slaBreachedAt && now > ticket.slaDueAt;
-      const updated = await tx.ticket.update({
-        where: { id: ticketId },
-        data: {
-          status: toStatus,
-          statusUpdatedAt: now,
-          slaBreachedAt: shouldMarkBreached ? now : ticket.slaBreachedAt,
-          closedAt: ticket.closedAt,
-        },
-      });
-
-      const history = await this.writeStatusHistoryTx(tx, {
-        ticketId,
-        fromStatus,
-        toStatus,
-        changedByUserId: user?.id ?? null,
-        comment: comment || null,
-      });
-
-      const assessment = await tx.ticketFailureCauseAssessment.create({
-        data: {
-          companyId: ticket.companyId,
-          ticketId,
-          ticketStatusHistoryId: history.id,
-          failureCauseId: failureCause.id,
-          failureCauseNameSnapshot: failureCause.name,
-          actorUserId: user?.id ?? null,
-        },
-      });
-
-      const statusEvent = await this.timelineService.recordTx(tx, {
-        event: 'STATUS_CHANGED',
-        companyId: ticket.companyId,
-        ticketId,
-        actorUserId: user?.id ?? null,
-        payload: {
-          fromStatus,
-          toStatus,
-          comment: comment || null,
-          slaBreachedMarked: shouldMarkBreached,
-          failureCauseId: failureCause.id,
-          failureCauseNameSnapshot: failureCause.name,
-          ticketStatusHistoryId: history.id,
-          failureCauseAssessmentId: assessment.id,
-        },
-      });
-
-      const commentEvent = comment
-        ? await this.timelineService.recordTx(tx, {
-          event: 'COMMENT_ADDED',
-          companyId: ticket.companyId,
-          ticketId,
-          actorUserId: user?.id ?? null,
-          payload: {
-            comment,
-            fromStatus,
-            toStatus,
-            source: 'submit_acceptance',
-          },
-        })
-        : null;
-
-      const readyEv = await this.timelineService.recordTx(tx, {
-        event: 'TICKET_READY_FOR_ACCEPTANCE',
-        companyId: ticket.companyId,
-        ticketId,
-        actorUserId: user?.id ?? null,
-        payload: {
-          fromStatus,
-          toStatus,
-          failureCauseId: failureCause.id,
-          failureCauseNameSnapshot: failureCause.name,
-          ticketStatusHistoryId: history.id,
-          failureCauseAssessmentId: assessment.id,
-        },
-      });
-
-      return {
-        updated,
-        fromStatus,
-        toStatus,
-        statusEventId: statusEvent.id,
-        commentEventId: commentEvent?.id ?? null,
-        readyForAcceptanceEventId: readyEv.id,
-        historyId: history.id,
-      };
-    });
-
-    const summaryParts = [comment, (statusResult.updated.problemText || '').trim()].filter(Boolean);
-    const summaryClip = (summaryParts[0] || summaryParts[1] || '').slice(0, 200);
-    const summaryLine = summaryClip || `Заявка #${statusResult.updated.ticketNumber}`;
-
-    this.notifications.scheduleTicketStatusChanged({
-      ticketCompanyId: statusResult.updated.companyId,
-      locationId: statusResult.updated.locationId,
-      ticketId,
-      ticketNumber: statusResult.updated.ticketNumber,
-      fromStatus: statusResult.fromStatus,
-      toStatus: statusResult.toStatus,
-      sourceEventId: statusResult.statusEventId,
-    });
-
-    if (
-      statusResult.updated.assignedTechnicianId &&
-      statusResult.updated.assignedTechnicianId !== user?.id
-    ) {
-      const linkedScope =
-        params.linkedClientCompanyId ??
-        (access.operationCompanyId !== access.ticket.companyId ? access.ticket.companyId : null);
-
-      this.notifications.scheduleTicketStatusAssignee({
-        assigneeUserId: statusResult.updated.assignedTechnicianId,
-        actorUserId: user?.id ?? null,
-        ticketId,
-        ticketCompanyId: statusResult.updated.companyId,
-        ticketNumber: statusResult.updated.ticketNumber,
-        summary: summaryLine,
-        fromStatus: statusResult.fromStatus,
-        toStatus: statusResult.toStatus,
-        linkedClientCompanyId: linkedScope,
-        sourceEventId: statusResult.statusEventId,
-      });
-    }
-
-    this.notifications.onTicketAwaitingAcceptance({
-      ticketCompanyId: statusResult.updated.companyId,
-      actorUserId: user?.id ?? null,
-      ticketId,
-      ticketNumber: statusResult.updated.ticketNumber,
-      sourceEventId: statusResult.readyForAcceptanceEventId,
-    });
-
-    if (statusResult.commentEventId && comment) {
-      const assignee = statusResult.updated.assignedTechnicianId
-        ? await this.prisma.user.findUnique({
-            where: { id: statusResult.updated.assignedTechnicianId },
-            select: { companyId: true },
-          })
-        : null;
-      this.notifications.scheduleTicketCommentAdded({
-        ticketCompanyId: statusResult.updated.companyId,
-        ticketId,
-        ticketNumber: statusResult.updated.ticketNumber,
-        summary: comment,
-        actorUserId: user?.id ?? null,
-        assigneeUserId: statusResult.updated.assignedTechnicianId,
-        assigneeCompanyId: assignee?.companyId ?? null,
-        sourceEventId: statusResult.commentEventId,
-      });
-    }
-
-    return statusResult;
   }
 
   async updateStatus(
@@ -531,12 +131,52 @@ export class TicketsStatusService {
           : dto.status;
       const fromStatus = ticket.status;
 
-      if (toStatus === TicketStatus.AWAITING_ACCEPTANCE) {
-        throw new BadRequestException('Failure cause is required; use submit-acceptance endpoint');
-      }
-
       const wf = decideTicketTransition(fromStatus, toStatus);
       if (!wf.allowed) throw new BadRequestException(wf.reason);
+
+      if (toStatus === TicketStatus.AWAITING_ACCEPTANCE) {
+        const [workReportMediaCount, commentEventCount] = await Promise.all([
+          tx.ticketAttachment.count({
+            where: {
+              ticketId,
+              purpose: TicketAttachmentPurpose.WORK_REPORT,
+              OR: [
+                { mimeType: { startsWith: 'image/' } },
+                { mimeType: { startsWith: 'video/' } },
+              ],
+            },
+          }),
+          tx.domainEvent.count({
+            where: {
+              companyId: ticket.companyId,
+              entityType: 'Ticket',
+              entityId: ticketId,
+              type: 'ticket.comment_added',
+            },
+          }),
+        ]);
+
+        if (workReportMediaCount === 0) {
+          throw new BadRequestException('Cannot complete ticket without at least 1 work report photo or video');
+        }
+
+        if (commentEventCount === 0) {
+          const legacyCommentCount = await tx.ticketStatusHistory.count({
+            where: {
+              ticketId,
+              NOT: [
+                { comment: null },
+                { comment: '' },
+                { comment: 'Ticket created' },
+              ],
+            },
+          });
+
+          if (legacyCommentCount === 0) {
+            throw new BadRequestException('Cannot complete ticket without at least 1 comment');
+          }
+        }
+      }
 
       const now = new Date();
       const shouldMarkBreached = ticket.slaDueAt && !ticket.slaBreachedAt && now > ticket.slaDueAt;
@@ -587,7 +227,19 @@ export class TicketsStatusService {
         })
         : null;
 
-      return { updated, fromStatus, toStatus, statusEventId: statusEvent.id, commentEventId: commentEvent?.id ?? null };
+      let readyForAcceptanceEventId: string | null = null;
+      if (toStatus === TicketStatus.AWAITING_ACCEPTANCE) {
+        const readyEv = await this.timelineService.recordTx(tx, {
+          event: 'TICKET_READY_FOR_ACCEPTANCE',
+          companyId: ticket.companyId,
+          ticketId,
+          actorUserId: user?.id ?? null,
+          payload: { fromStatus, toStatus },
+        });
+        readyForAcceptanceEventId = readyEv.id;
+      }
+
+      return { updated, fromStatus, toStatus, statusEventId: statusEvent.id, commentEventId: commentEvent?.id ?? null, readyForAcceptanceEventId };
     });
 
     const summaryParts = [(dto.comment || '').trim(), (statusResult.updated.problemText || '').trim()].filter(Boolean);
@@ -626,6 +278,16 @@ export class TicketsStatusService {
         toStatus: statusResult.toStatus,
         linkedClientCompanyId: linkedScope,
         sourceEventId: statusResult.statusEventId,
+      });
+    }
+
+    if (statusResult.toStatus === TicketStatus.AWAITING_ACCEPTANCE) {
+      this.notifications.onTicketAwaitingAcceptance({
+        ticketCompanyId: statusResult.updated.companyId,
+        actorUserId: user?.id ?? null,
+        ticketId,
+        ticketNumber: statusResult.updated.ticketNumber,
+        sourceEventId: statusResult.readyForAcceptanceEventId,
       });
     }
 
