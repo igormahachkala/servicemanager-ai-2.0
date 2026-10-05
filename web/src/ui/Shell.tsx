@@ -7,6 +7,7 @@ import { offlineAwareLogout } from '../lib/offlineSessionLogout'
 import {
   canAccessMobileApp,
   mobileAppNavItem,
+  isManagementNavItemVisible,
   platformNavigation,
   tenantNavigation,
   type NavItem,
@@ -14,7 +15,6 @@ import {
 } from '../lib/navigation'
 import { getRoleDisplayLabel } from '../lib/resolveAdminProfile'
 import { SmaBrandLogo } from '../components/SmaBrandLogo'
-import { canViewITCompany } from '../it-company/access'
 import { useWsInvalidation } from './useWsInvalidation'
 import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications'
 import { Breadcrumbs } from './Breadcrumbs'
@@ -86,59 +86,9 @@ function isActivePath(currentPath: string, targetPath: string) {
 }
 
 function isNavItemVisible(item: NavItem, role?: api.Role, canAccessEngineeringAgent?: boolean) {
-  // Owner-only hidden module: gated purely by the server-computed flag,
-  // independent of role (an owner email may have a non-platform role).
-  if (item.to === '/agents/engineering') return !!canAccessEngineeringAgent
-
-  // IT Company — доступ через it-company/access (строго PLATFORM_ADMIN). Проверяем
-  // до общего short-circuit ниже, т.к. для прочих ролей ветка по умолчанию → true.
-  if (item.to === '/it' || item.to.startsWith('/it/')) return canViewITCompany({ role })
-
-  if (role === 'PLATFORM_ADMIN') return true
-  if (!role) return false
-
-  if (role === 'CLIENT') {
-    return (
-      item.to === '/board' ||
-      item.to === '/archive' ||
-      item.to === '/tickets' ||
-      item.to === '/tickets/new' ||
-      item.to === '/company' ||
-      item.to === '/settings'
-    )
-  }
-
-  const fullAdmin = api.isFullAdminDesktopNavRole(role)
-
-  if (item.to === '/employees' || item.to === '/locations' || item.to === '/problem-categories' || item.to === '/specializations' || item.to === '/materials') {
-    return fullAdmin
-  }
-  if (item.to === '/workforce') {
-    return role === 'ADMIN' || role === 'MASTER' || role === 'DISPATCHER' || role === 'NETWORK_DIRECTOR' || role === 'TERRITORIAL_MANAGER'
-  }
-  if (item.to === '/access-constructor') {
-    return fullAdmin
-  }
-
-  if (item.to === '/inspection/templates') {
-    return role === 'ADMIN' || role === 'DISPATCHER' || role === 'MASTER' || role === 'NETWORK_DIRECTOR'
-  }
-  if (item.to === '/inspection/runs') {
-    return role !== 'STAFF'
-  }
-  if (item.to === '/analytics' || item.to === '/map') {
-    return role !== 'STAFF'
-  }
-  if (item.to === '/company') {
-    return role !== 'TECHNICIAN' && role !== 'STAFF'
-  }
-  if (item.to === '/tickets/new') {
-    return role !== 'STAFF'
-  }
-  if (item.to === '/settings') {
-    return role !== 'TECHNICIAN' && role !== 'STAFF'
-  }
-  return true
+  // SMA-MANAGEMENT-NAVIGATION-V2: единое fail-closed решение видимости живёт в
+  // lib/navigation (чистая функция, покрыта тестами). Shell только применяет.
+  return isManagementNavItemVisible(item.to, { role, canAccessEngineeringAgent })
 }
 
 export function Shell() {
