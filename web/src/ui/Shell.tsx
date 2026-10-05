@@ -156,11 +156,14 @@ export function Shell() {
     api.persistScopeFromSearchParams(new URLSearchParams(loc.search), meQ.data)
   }, [loc.search, meQ.data])
 
-  try {
-    localStorage.setItem(RAIL_COLLAPSED_STORAGE_KEY, collapsed ? '1' : '0')
-  } catch {
-    /* localStorage недоступен — не критично для раскладки */
-  }
+  // Persist состояния rail — в эффекте, не во время рендера (per-viewer, localStorage).
+  useEffect(() => {
+    try {
+      localStorage.setItem(RAIL_COLLAPSED_STORAGE_KEY, collapsed ? '1' : '0')
+    } catch {
+      /* localStorage недоступен — не критично для раскладки */
+    }
+  }, [collapsed])
 
   const role = meQ.data?.role
   const tenantCompanyType = tenantCompanyQ.data?.type
