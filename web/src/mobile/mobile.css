@@ -3880,8 +3880,10 @@ a.mobileBtn.mobileCreateTicketLink {
 .mobileHomeShiftText { line-height: 1.2; }
 .mobileHomeShiftBtn {
   margin-left: auto;
-  padding: 4px 12px;
-  font-size: 0.78rem;
+  /* Полевой tap-target: не ниже рекомендованного минимума. */
+  min-height: 44px;
+  padding: 8px 16px;
+  font-size: 0.82rem;
   width: auto;
 }
 .mobileHomeShiftError {
