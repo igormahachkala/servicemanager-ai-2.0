@@ -90,8 +90,8 @@ export function TicketActionBar(props: TicketActionBarProps) {
             ) : null}
             {primaryAction.kind === 'done' ? (
               <TicketActionButton
-                onClick={() => onOpenSubmitForm ? onOpenSubmitForm() : onSetStatus({ status: 'AWAITING_ACCEPTANCE', comment: newComment.trim() || undefined })}
-                disabled={statusPending || busy || !canTransitionTo('AWAITING_ACCEPTANCE')}
+                onClick={() => onOpenSubmitForm?.()}
+                disabled={statusPending || busy || !canTransitionTo('AWAITING_ACCEPTANCE') || !onOpenSubmitForm}
                 style={{ width: '100%' }}
               >
                 {statusPending ? 'Сохраняем…' : primaryAction.label}
@@ -131,8 +131,8 @@ export function TicketActionBar(props: TicketActionBarProps) {
           {canChangeStatus && primaryAction?.kind !== 'done' && canTransitionTo('AWAITING_ACCEPTANCE') ? (
             <TicketActionButton
               variant="ghost"
-              disabled={statusPending || busy}
-              onClick={() => onOpenSubmitForm ? onOpenSubmitForm() : onSetStatus({ status: 'AWAITING_ACCEPTANCE', comment: newComment.trim() || undefined })}
+              disabled={statusPending || busy || !onOpenSubmitForm}
+              onClick={() => onOpenSubmitForm?.()}
             >
               Отправить на приёмку
             </TicketActionButton>

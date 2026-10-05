@@ -433,6 +433,7 @@ export function MobileHome() {
           file: null,
           previewUrl: '',
           comment: '',
+          failureCauseId: '',
           err: '',
         })
       }
@@ -513,9 +514,18 @@ export function MobileHome() {
       if (!closeModal.file) throw new Error('Нужно фото или видео отчёта')
       const comment = closeModal.comment.trim()
       if (comment.length < 3) throw new Error('Нужен короткий комментарий (backend требует комментарий для DONE)')
-      await api.uploadTicketAttachment(closeModal.ticketId, closeModal.file, pageScope)
-      await api.addTicketComment(closeModal.ticketId, comment, pageScope)
-      await api.updateTicketStatus(closeModal.ticketId, { status: 'DONE' }, pageScope)
+      const failureCauseId = closeModal.failureCauseId.trim()
+      if (!failureCauseId) throw new Error('Выберите причину неисправности')
+      const uploaded = await api.uploadTicketAttachment(closeModal.ticketId, closeModal.file, pageScope)
+      await api.submitTicketAcceptance(
+        closeModal.ticketId,
+        {
+          failureCauseId,
+          comment,
+          attachmentIds: uploaded?.id ? [uploaded.id] : undefined,
+        },
+        pageScope,
+      )
     },
     onSuccess: async () => {
       if (closeModal?.previewUrl) URL.revokeObjectURL(closeModal.previewUrl)
@@ -576,7 +586,17 @@ export function MobileHome() {
     return api.appendScopeToPath(mobilePath(location.pathname, `/tickets/${ticket.id}`), compactTicketScope(linkScope), meQ.data)
   }
   const ticketLinkState = (ticket: api.TicketCard) => mobileTicketNavState('home', ticket.companyId, { tab: boardTab, chips: [...activeChips], search: searchQuery.trim() || undefined })
-  const closeCanSubmit = !!closeModal?.file && closeModal.comment.trim().length >= 3 && !closeBusy
+  const closeCanSubmit =
+    !!closeModal?.file &&
+    closeModal.comment.trim().length >= 3 &&
+    !!closeModal.failureCauseId.trim() &&
+    !closeBusy
+
+  const closeFailureCausesQ = useQuery({
+    queryKey: ['ticket-failure-causes', closeModal?.ticketId, pageScope],
+    queryFn: () => api.ticketFailureCauses(closeModal!.ticketId, pageScope),
+    enabled: !!closeModal?.ticketId && getOnlineStatus(),
+  })
 
   const techWillRedirectForScope = techNoLinked && techBoundDefaultsQ.isSuccess && (techBoundDefaultsQ.data?.length ?? 0) > 0
   const technicianScopeGateReady = !techNoLinked || techBoundDefaultsQ.isFetched || techBoundDefaultsQ.isError
@@ -715,6 +735,9 @@ export function MobileHome() {
             setCloseModal={setCloseModal}
             closeCanSubmit={closeCanSubmit}
             closeM={closeM}
+            closeFailureCauses={closeFailureCausesQ.data || []}
+            closeFailureCausesLoading={closeFailureCausesQ.isFetching}
+            closeFailureCausesError={closeFailureCausesQ.isError ? formatMobileMutationError(closeFailureCausesQ.error, { operation: 'other' }) : ''}
             mobileActionToast={mobileActionToast}
             cacheStates={ticketOfflineCache.states}
             cacheSelectedIds={ticketOfflineCache.selectedIds}
