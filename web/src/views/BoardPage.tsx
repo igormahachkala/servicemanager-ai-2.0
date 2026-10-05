@@ -17,6 +17,7 @@ import { logTicketActionError, mapTicketActionError } from '../lib/ticketOperati
 import { canOfferTicketClaimAction } from '../lib/ticketActionCapabilities'
 import { OperationsViewSwitcher, type OperationsViewMode } from '../components/operations/OperationsViewSwitcher'
 import { compactTicketAssigneeLabel, compactTicketCreatorLabel } from '../lib/ticketActorIdentity'
+import { boardEquipmentOptions, boardFilterReconciliation } from '../lib/equipmentCard'
 
 function fmt(dt?: string | null) {
   if (!dt) return '—'
@@ -386,57 +387,30 @@ export function BoardPage() {
     }
     return Array.from(map.entries()).map(([id, label]) => ({ id, label }))
   }, [cardsAll])
-  const equipmentOptions = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const card of cardsAll) {
-      if (selectedLocationId && card.location?.id !== selectedLocationId) continue
-      if (card.equipment?.id) {
-        map.set(card.equipment.id, [card.equipment.name, card.equipment.type].filter(Boolean).join(' · '))
-      }
-    }
-    /*
-     * SMA-EQUIPMENT-V2-FOUNDATION: выбранное оборудование остаётся вариантом,
-     * даже если заявок по нему нет.
-     *
-     * Варианты собираются из уже полученных карточек, а доска запрашивается
-     * СРАЗУ отфильтрованной. Поэтому у оборудования без заявок список
-     * вариантов пуст, сверка ниже снимала фильтр, и переход «Заявки
-     * оборудования» показывал ВСЕ заявки вместо пустой выборки — худший из
-     * ответов, потому что выглядит он достоверно.
-     *
-     * Названия тут нет: карточки его не принесли, а выдумывать подпись
-     * нельзя. Пользователь видит выбранный фильтр и может его снять.
-     */
-    if (selectedEquipmentId && !map.has(selectedEquipmentId)) {
-      map.set(selectedEquipmentId, 'Выбранное оборудование')
-    }
-    return Array.from(map.entries()).map(([id, label]) => ({ id, label }))
-  }, [cardsAll, selectedLocationId, selectedEquipmentId])
-
+  const equipmentOptions = useMemo(
+    () => boardEquipmentOptions(cardsAll, selectedLocationId, selectedEquipmentId),
+    [cardsAll, selectedLocationId, selectedEquipmentId],
+  )
   useEffect(() => {
     /*
-     * SMA-EQUIPMENT-V2-FOUNDATION: сверять фильтры не раньше, чем пришли
-     * данные доски.
+     * SMA-EQUIPMENT-V2-FOUNDATION: решение вынесено в чистую функцию
+     * (boardFilterReconciliation) и проверяется исполнением.
      *
-     * Варианты берутся из загруженных карточек, поэтому до ответа список
-     * пуст. Без этой проверки сверка снимала только что восстановленный
-     * фильтр: вход с карточки оборудования — холодный, кэша по новому ключу
-     * нет, boardDataRef пуст, — и доска открывалась без фильтра. Прежний
-     * переход с карточки заявки это скрывал, потому что его ключ обычно
-     * ещё лежал в кэше.
+     * Сверять раньше данных нельзя: варианты берутся из загруженных
+     * карточек, и на холодном входе — переход «Заявки оборудования» с
+     * карточки оборудования, ключ запроса новый, кэша нет — список пуст,
+     * и только что восстановленный фильтр затирался. Переход с карточки
+     * заявки это скрывал: его ключ обычно ещё лежал в кэше.
      */
-    if (!boardData) return
-    if (selectedLocationId && !locationOptions.some((item) => item.id === selectedLocationId)) {
-      setSelectedLocationId('')
-      setSelectedEquipmentId('')
-    }
-    /*
-     * Отдельной ветки для оборудования больше нет: выбранное значение всегда
-     * присутствует среди вариантов (см. выше), так что проверка была бы
-     * недостижимой. Несуществующий фильтр даёт пустую доску с видимым
-     * фильтром, а не молча полный список.
-     */
-  }, [boardData, selectedLocationId, locationOptions])
+    const decision = boardFilterReconciliation({
+      boardLoaded: !!boardData,
+      selectedLocationId,
+      selectedEquipmentId,
+      locationOptions,
+    })
+    if (decision.clearLocation) setSelectedLocationId('')
+    if (decision.clearEquipment) setSelectedEquipmentId('')
+  }, [boardData, selectedLocationId, selectedEquipmentId, locationOptions])
 
   const stats = useMemo(() => {
     const now = new Date()

@@ -19,7 +19,10 @@ import {
   equipmentPassportRows,
   equipmentPublicRequestLink,
   equipmentStatusLabel,
+  boardEquipmentOptions,
+  boardFilterReconciliation,
   equipmentTicketsLink,
+  locationCardPath,
   isEquipmentRetired,
   isWarrantyExpired,
 } from './equipmentCard'
@@ -157,7 +160,7 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
 
   it('заявка показывает оборудование и ведёт в карточку', () => {
     const ticketCode = codeOf(readSrc('views/TicketPage.tsx'))
-    expect(ticketCode).toContain('equipmentCardPath(ticket.equipment.id, observerCompanyId)')
+    expect(ticketCode).toContain('equipmentCardPath(ticket.equipment.id, observerCompanyId || effectiveLinkedClientCompanyId)')
   })
 
   it('создание заявки идёт существующим маршрутом с предзаполнением', () => {
@@ -226,19 +229,75 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
      * контуре, из которого пришли. Фильтр едет состоянием, область —
      * адресом, потому что из адреса её читает BoardPage.
      */
-    const scoped = equipmentTicketsLink({ id: 'eq-1' }, 'company-b')
-    expect(scoped.to).toBe('/tickets?companyId=company-b')
-    expect(scoped.state).toEqual({ boardContext: { selectedEquipmentId: 'eq-1' } })
+    const observer = equipmentTicketsLink({ id: 'eq-1' }, { companyId: 'company-b' })
+    expect(observer.to).toBe('/tickets?companyId=company-b')
+    expect(observer.state).toEqual({ boardContext: { selectedEquipmentId: 'eq-1' } })
 
-    expect(equipmentTicketsLink({ id: 'eq-1' }, '  ').to).toBe('/tickets')
-    expect(equipmentTicketsLink({ id: 'eq-1' }, null).to).toBe('/tickets')
-    expect(equipmentTicketsLink({ id: 'eq-1' }, 'a b&c').to).toBe('/tickets?companyId=a%20b%26c')
+    /*
+     * Доска учитывает companyId только у PLATFORM_ADMIN, контур провайдера
+     * задаётся linkedClientCompanyId. Поэтому у провайдера область уезжает
+     * именно им: «?companyId=…» открывал другой контур и вдобавок
+     * перезаписывал сохранённую область без linkedClientCompanyId.
+     */
+    const provider = equipmentTicketsLink({ id: 'eq-1' }, { linkedClientCompanyId: 'client-c' })
+    expect(provider.to).toBe('/tickets?linkedClientCompanyId=client-c')
+
+    expect(equipmentTicketsLink({ id: 'eq-1' }, { companyId: '  ' }).to).toBe('/tickets')
+    expect(equipmentTicketsLink({ id: 'eq-1' }, { linkedClientCompanyId: null }).to).toBe('/tickets')
+    expect(equipmentTicketsLink({ id: 'eq-1' }).to).toBe('/tickets')
+    expect(equipmentTicketsLink({ id: 'eq-1' }, { companyId: 'a b&c' }).to).toBe('/tickets?companyId=a+b%26c')
+  })
+
+  it('карточка выбирает параметр области по роли', () => {
+    const cardCode = codeOf(readSrc('views/EquipmentCardPage.tsx'))
+    expect(cardCode).toContain("meQ.data?.role === 'PLATFORM_ADMIN'")
+    expect(cardCode).toContain('{ companyId }')
+    expect(cardCode).toContain('{ linkedClientCompanyId: companyId }')
+    expect(cardCode).toContain('equipmentTicketsLink({ id: item.id }, boardScope)')
+  })
+
+  it('ссылка на точку несёт область: LocationPage запасного варианта не имеет', () => {
+    expect(locationCardPath('loc-1', 'company-b')).toBe('/locations/loc-1?companyId=company-b')
+    expect(locationCardPath('loc-1')).toBe('/locations/loc-1')
+    expect(locationCardPath('loc-1', '  ')).toBe('/locations/loc-1')
+
+    // Карточка точки читает companyId ТОЛЬКО из адреса — проверяем, что так и есть.
+    const locationCode = codeOf(readSrc('views/LocationPage.tsx'))
+    expect(locationCode).toContain("searchParams.get('companyId') || ''")
+    expect(codeOf(readSrc('views/EquipmentCardPage.tsx'))).toContain(
+      'locationCardPath(item.location.id, companyId)',
+    )
+  })
+
+  it('из заявки в карточку оборудования едет действующая область', () => {
+    /*
+     * В контуре провайдера observerCompanyId пуст — область задаётся
+     * linkedClientCompanyId. Без него карточка искала оборудование в
+     * компании провайдера и отвечала «не найдено».
+     */
+    expect(codeOf(readSrc('views/TicketPage.tsx'))).toContain(
+      'equipmentCardPath(ticket.equipment.id, observerCompanyId || effectiveLinkedClientCompanyId)',
+    )
+  })
+
+  it('предзаполненное оборудование доезжает до создаваемой заявки', () => {
+    /*
+     * Быстрый режим поля оборудования не показывает и не отправлял его:
+     * buildPayload возвращал base без equipmentId. Переход «Создать
+     * заявку» с карточки молча создавал заявку без привязки к позиции.
+     */
+    const code = codeOf(readSrc('views/CreateTicketPage.tsx'))
+    // Привязка уезжает в base, то есть в оба режима.
+    const base = code.slice(code.indexOf('const base: api.CreateTicketInput'), code.indexOf("if (mode === 'quick')"))
+    expect(base).toContain('equipmentId: equipmentId || undefined')
+    // И предзаполнение открывает форму, в которой эту привязку видно.
+    expect(code).toContain("useState<CreateMode>(presetEquipmentId ? 'full' : 'quick')")
   })
 
   it('карточка и список оборудования ведут на карточку с той же областью', () => {
     const cardCode = codeOf(readSrc('views/EquipmentCardPage.tsx'))
     // Область карточки уезжает в ссылку на заявки.
-    expect(cardCode).toContain('equipmentTicketsLink({ id: item.id }, companyId)')
+    expect(cardCode).toContain('equipmentTicketsLink({ id: item.id }, boardScope)')
 
     /*
      * Список фильтруется scopeCompanyId (выбранный контур клиента), и
@@ -263,21 +322,88 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
     expect(restored?.selectedEquipmentId).toBe('eq-1')
 
     /*
-     * Восстановить мало — повторный аудит показал, что фильтр тут же
-     * снимался. Варианты фильтра собираются из УЖЕ полученных карточек,
-     * а сверка шла без проверки, пришли ли они: на холодном входе список
-     * вариантов пуст, и восстановленное значение затиралось.
-     *
-     * Поэтому проверяются обе опоры: сверка не идёт без данных, и
-     * выбранное оборудование всегда остаётся среди вариантов — иначе
-     * оборудование без заявок снимало бы собственный фильтр.
+     * Решение о сверке доска берёт из чистых функций — они и проверяются
+     * исполнением ниже. Здесь остаётся только проводка: если доска
+     * перестанет ими пользоваться, тесты поведения ничего не защитят.
      */
-    expect(boardCode).toMatch(/useEffect\(\(\) => \{\s*if \(!boardData\) return\s*if \(selectedLocationId/)
-    expect(boardCode).toMatch(
-      /if \(selectedEquipmentId && !map\.has\(selectedEquipmentId\)\) \{\s*map\.set\(selectedEquipmentId,/,
-    )
-    // Снятия фильтра оборудования по составу карточек больше нет.
+    expect(boardCode).toContain('boardFilterReconciliation({')
+    expect(boardCode).toContain('boardEquipmentOptions(cardsAll, selectedLocationId, selectedEquipmentId)')
     expect(boardCode).not.toMatch(/!equipmentOptions\.some\(\(item\) => item\.id === selectedEquipmentId\)/)
+  })
+
+  it('сверка фильтров не трогает их, пока доска не ответила', () => {
+    /*
+     * Это и был P0: восстановленный фильтр снимался до прихода данных.
+     * Прошлый раз дефект охраняли только совпадения по тексту исходника —
+     * аудит показал, что его можно вернуть вторым эффектом, не тронув ни
+     * одной проверяемой строки, и все тесты оставались зелёными.
+     */
+    const cold = boardFilterReconciliation({
+      boardLoaded: false,
+      selectedLocationId: 'loc-1',
+      selectedEquipmentId: 'eq-1',
+      locationOptions: [],
+    })
+    expect(cold).toEqual({ clearLocation: false, clearEquipment: false })
+
+    // Данные пришли, точки среди них нет — снимается и точка, и оборудование.
+    expect(
+      boardFilterReconciliation({
+        boardLoaded: true,
+        selectedLocationId: 'loc-gone',
+        selectedEquipmentId: 'eq-1',
+        locationOptions: [{ id: 'loc-other' }],
+      }),
+    ).toEqual({ clearLocation: true, clearEquipment: true })
+
+    // Точка на месте — ничего не снимается.
+    expect(
+      boardFilterReconciliation({
+        boardLoaded: true,
+        selectedLocationId: 'loc-1',
+        selectedEquipmentId: 'eq-1',
+        locationOptions: [{ id: 'loc-1' }],
+      }),
+    ).toEqual({ clearLocation: false, clearEquipment: false })
+
+    /*
+     * Оборудование без заявок: карточек нет, но фильтр снимать нельзя —
+     * иначе доска молча показала бы ВСЕ заявки вместо пустой выборки.
+     */
+    expect(
+      boardFilterReconciliation({
+        boardLoaded: true,
+        selectedLocationId: '',
+        selectedEquipmentId: 'eq-no-tickets',
+        locationOptions: [],
+      }),
+    ).toEqual({ clearLocation: false, clearEquipment: false })
+  })
+
+  it('выбранное оборудование остаётся вариантом фильтра', () => {
+    const cards = [
+      { location: { id: 'loc-1' }, equipment: { id: 'eq-1', name: 'Печь', type: 'Тепловое' } },
+      { location: { id: 'loc-2' }, equipment: { id: 'eq-2', name: 'Витрина', type: null } },
+    ]
+
+    expect(boardEquipmentOptions(cards, '', '')).toEqual([
+      { id: 'eq-1', label: 'Печь · Тепловое' },
+      { id: 'eq-2', label: 'Витрина' },
+    ])
+
+    // Фильтр по точке оставляет только её оборудование.
+    expect(boardEquipmentOptions(cards, 'loc-1', '')).toEqual([{ id: 'eq-1', label: 'Печь · Тепловое' }])
+
+    // Заявок нет вовсе — выбранная позиция всё равно присутствует.
+    expect(boardEquipmentOptions([], '', 'eq-no-tickets')).toEqual([
+      { id: 'eq-no-tickets', label: 'Выбранное оборудование' },
+    ])
+
+    // Название из карточек не подменяется заглушкой.
+    expect(boardEquipmentOptions(cards, '', 'eq-1')).toEqual([
+      { id: 'eq-1', label: 'Печь · Тепловое' },
+      { id: 'eq-2', label: 'Витрина' },
+    ])
   })
 
   it('снятое оборудование новых заявок не предлагает', () => {
@@ -417,7 +543,7 @@ describe('V2 доступ: новой модели прав не вводитс�
 
     expect(codeOf(readSrc('views/LocationPage.tsx'))).toContain('equipmentCardPath(unit.id, companyId)')
     expect(codeOf(readSrc('views/TicketPage.tsx'))).toContain(
-      'equipmentCardPath(ticket.equipment.id, observerCompanyId)',
+      'equipmentCardPath(ticket.equipment.id, observerCompanyId || effectiveLinkedClientCompanyId)',
     )
     // Карточка берёт область из адреса, а при его отсутствии — наблюдаемую.
     expect(cardCode).toContain("searchParams.get('companyId') || api.getObserverCompanyId()")

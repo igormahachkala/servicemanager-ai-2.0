@@ -50,7 +50,6 @@ export function CreateTicketPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const preCreateSnapshotRef = useRef({ categoryName: '', locationName: '' })
 
-  const [mode, setMode] = useState<CreateMode>('quick')
   const [err, setErr] = useState<string | null>(null)
   const [clientCompanyId, setClientCompanyId] = useState('')
   /*
@@ -66,6 +65,17 @@ export function CreateTicketPage() {
   const [searchParams] = useSearchParams()
   const presetLocationId = (searchParams.get('locationId') || '').trim()
   const presetEquipmentId = (searchParams.get('equipmentId') || '').trim()
+
+  /*
+   * Переход с карточки оборудования открывает подробную форму.
+   *
+   * Быстрый режим поля оборудования не показывает И НЕ ОТПРАВЛЯЕТ его
+   * (buildPayload возвращает base), поэтому с предзаполнением он молча
+   * создавал заявку без привязки к позиции — ровно то, за чем шли с
+   * карточки. Предзаполнение есть — показываем форму, в которой эту
+   * привязку видно и можно изменить.
+   */
+  const [mode, setMode] = useState<CreateMode>(presetEquipmentId ? 'full' : 'quick')
 
   const [locationId, setLocationId] = useState(presetLocationId)
   const [equipmentId, setEquipmentId] = useState(presetEquipmentId)
@@ -424,6 +434,13 @@ export function CreateTicketPage() {
         : undefined,
       locationId,
       categoryId,
+      /*
+       * Привязка к оборудованию уезжает в ОБА режима. Иначе переключение
+       * в быстрый режим молча теряло бы её: поля там нет, а значение в
+       * состоянии остаётся. Бэкенд принимает equipmentId независимо от
+       * createMode и сам проверяет компанию, точку и ACTIVE.
+       */
+      equipmentId: equipmentId || undefined,
       requesterName: requesterName.trim() || undefined,
       requesterPhone: requesterPhone.trim() || undefined,
       attachmentIds: draftAttachment ? [draftAttachment.id] : [],
@@ -438,7 +455,6 @@ export function CreateTicketPage() {
     const parsedSla = Number(slaMinutes)
     return {
       ...base,
-      equipmentId: equipmentId || undefined,
       urgency,
       title: title.trim() || undefined,
       description: description.trim() || undefined,

@@ -16,6 +16,7 @@ import {
   equipmentTicketsLink,
   isEquipmentRetired,
   isWarrantyExpired,
+  locationCardPath,
 } from '../lib/equipmentCard'
 
 /**
@@ -86,6 +87,17 @@ export function EquipmentCardPage() {
   const retired = isEquipmentRetired(item?.status)
   const backTo = companyId ? `/equipment?companyId=${encodeURIComponent(companyId)}` : '/equipment'
 
+  /*
+   * Доска учитывает companyId только у PLATFORM_ADMIN, а контур провайдера
+   * задаётся linkedClientCompanyId. Поэтому область уезжает тем параметром,
+   * который для этой роли действительно работает: иначе доска открывалась
+   * в другом контуре и попутно перезаписывала сохранённую область.
+   */
+  const boardScope =
+    meQ.data?.role === 'PLATFORM_ADMIN'
+      ? { companyId }
+      : { linkedClientCompanyId: companyId }
+
   if (equipmentQ.isLoading) {
     return (
       <div className="panel">
@@ -121,7 +133,10 @@ export function EquipmentCardPage() {
           {item.location ? (
             <div className="muted small">
               Объект:{' '}
-              <Link to={`/locations/${item.location.id}`}>{item.location.name || 'Без названия'}</Link>
+              {/* Область обязательна: LocationPage читает её только из адреса. */}
+              <Link to={locationCardPath(item.location.id, companyId)}>
+                {item.location.name || 'Без названия'}
+              </Link>
             </div>
           ) : null}
         </div>
@@ -131,7 +146,7 @@ export function EquipmentCardPage() {
               <button>Создать заявку</button>
             </Link>
           ) : null}
-          <Link {...equipmentTicketsLink({ id: item.id }, companyId)}>
+          <Link {...equipmentTicketsLink({ id: item.id }, boardScope)}>
             <button className="ghost">Заявки оборудования</button>
           </Link>
           {qrUrl ? (

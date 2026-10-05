@@ -168,22 +168,107 @@ export function equipmentCreateTicketPath(item: {
  * остаётся обычным /tickets. Это тот же контракт, которым пользуется
  * карточка заявки; второго механизма не заводится.
  */
+export type BoardScopeParams = {
+  companyId?: string | null
+  linkedClientCompanyId?: string | null
+}
+
 export function equipmentTicketsLink(
   item: { id: string },
-  companyId?: string | null,
+  scope?: BoardScopeParams,
 ): {
   to: string
   state: { boardContext: { selectedEquipmentId: string } }
 } {
   /*
-   * Область переносится так же, как в equipmentCardPath. Без неё доска
-   * берёт компанию из сохранённой области (BoardPage: companyId из адреса,
-   * иначе getObserverCompanyId) и могла открыться в другом контуре, чем
-   * карточка, с которой пришли.
+   * Область переносится ИМЕННО тем параметром, который доска учитывает для
+   * этой роли, — выбор делает вызывающий, роли этот модуль не знает.
+   *
+   * companyId доска принимает только у PLATFORM_ADMIN
+   * (observerCompanyId = role === 'PLATFORM_ADMIN' ? requested : ''),
+   * а контур провайдера задаётся linkedClientCompanyId. Поэтому
+   * «?companyId=…» для провайдера не только открывал доску в другом
+   * контуре, но и перезаписывал сохранённую область без
+   * linkedClientCompanyId, ломая её для последующих страниц.
    */
-  const scope = (companyId || '').trim()
+  const params = new URLSearchParams()
+  const companyId = (scope?.companyId || '').trim()
+  const linkedClientCompanyId = (scope?.linkedClientCompanyId || '').trim()
+  if (companyId) params.set('companyId', companyId)
+  if (linkedClientCompanyId) params.set('linkedClientCompanyId', linkedClientCompanyId)
+  const query = params.toString()
   return {
-    to: scope ? `/tickets?companyId=${encodeURIComponent(scope)}` : '/tickets',
+    to: query ? `/tickets?${query}` : '/tickets',
     state: { boardContext: { selectedEquipmentId: item.id } },
   }
+}
+
+/**
+ * Путь к карточке точки с сохранением области.
+ *
+ * LocationPage читает companyId ТОЛЬКО из адреса и запасного варианта не
+ * имеет, поэтому без параметра провайдер и наблюдатель получали 404 на ту
+ * точку, с которой пришли.
+ */
+export function locationCardPath(locationId: string, companyId?: string | null): string {
+  const scope = (companyId || '').trim()
+  return scope
+    ? `/locations/${locationId}?companyId=${encodeURIComponent(scope)}`
+    : `/locations/${locationId}`
+}
+
+/**
+ * Сверка фильтров доски с составом полученных карточек.
+ *
+ * Вынесено из BoardPage, чтобы решение проверялось ИСПОЛНЕНИЕМ: прошлый
+ * раз его охраняли только совпадения по тексту исходника, и дефект,
+ * восстановленный вторым эффектом, проходил все тесты.
+ */
+export function boardFilterReconciliation(input: {
+  boardLoaded: boolean
+  selectedLocationId: string
+  selectedEquipmentId: string
+  locationOptions: readonly { id: string }[]
+}): { clearLocation: boolean; clearEquipment: boolean } {
+  /*
+   * Без данных не сверяем: варианты берутся из загруженных карточек, и на
+   * холодном входе список пуст — так восстановленный фильтр и затирался.
+   */
+  if (!input.boardLoaded) return { clearLocation: false, clearEquipment: false }
+  if (
+    input.selectedLocationId &&
+    !input.locationOptions.some((item) => item.id === input.selectedLocationId)
+  ) {
+    return { clearLocation: true, clearEquipment: true }
+  }
+  /*
+   * Оборудование по составу карточек не снимается: выбранная позиция
+   * всегда остаётся вариантом (boardEquipmentOptions), иначе оборудование
+   * без заявок снимало бы собственный фильтр и доска показывала бы ВСЕ
+   * заявки вместо пустой выборки. Снять фильтр можно вручную — в списке
+   * есть «Все».
+   */
+  return { clearLocation: false, clearEquipment: false }
+}
+
+/** Варианты фильтра оборудования: состав карточек плюс сама выбранная позиция. */
+export function boardEquipmentOptions(
+  cards: readonly {
+    location?: { id?: string | null } | null
+    equipment?: { id?: string | null; name?: string | null; type?: string | null } | null
+  }[],
+  selectedLocationId: string,
+  selectedEquipmentId: string,
+): { id: string; label: string }[] {
+  const map = new Map<string, string>()
+  for (const card of cards) {
+    if (selectedLocationId && card.location?.id !== selectedLocationId) continue
+    if (card.equipment?.id) {
+      map.set(card.equipment.id, [card.equipment.name, card.equipment.type].filter(Boolean).join(' · '))
+    }
+  }
+  if (selectedEquipmentId && !map.has(selectedEquipmentId)) {
+    map.set(selectedEquipmentId, 'Выбранное оборудование')
+  }
+  return Array.from(map.entries()).map(([id, label]) => ({ id, label }))
 }
