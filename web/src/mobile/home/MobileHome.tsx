@@ -36,6 +36,7 @@ import { readCachedBoard, saveBoardCache } from '../offline/boardCache'
 import { queueOffline, useOfflineStatus } from '../offline/useOffline'
 import { deliverTicketStatus } from '../offline/statusDelivery'
 import { ONLINE_ONLY_ACTION_MESSAGE } from '../offline/onlineOnlyMessage'
+import { getMobileMaterialsEntry } from '../mobileMaterialsEntry'
 import { mobilePath } from '../mobileRoute'
 import { HomeHeader } from './HomeHeader'
 import { HomeTabs } from './HomeTabs'
@@ -368,6 +369,41 @@ export function MobileHome() {
     setAssignTechId((prev) => (prev && assignTechOptions.some((r) => r.id === prev) ? prev : assignTechOptions[0]!.id))
   }, [assignTechOptions])
 
+  const materialsEntry = getMobileMaterialsEntry(meQ.data, location.pathname)
+  const materialsHomeHref = materialsEntry && meQ.data
+    ? api.appendScopeToPath(materialsEntry.href, pageScope, meQ.data)
+    : materialsEntry?.href
+  const materialsHomeHint = meQ.data?.role === 'TECHNICIAN'
+    ? 'Остатки, покупки и история движений'
+    : 'Склад, техники, выдача и справочник'
+  const materialsHomeCard = materialsEntry && materialsHomeHref ? (
+    <div className="mobileHomeQuickCards">
+      <button
+        type="button"
+        className="mobileHomeQuickCard"
+        onClick={() => navigate(materialsHomeHref)}
+        aria-label={materialsEntry.label}
+      >
+        <span className="mobileHomeQuickCardIcon" aria-hidden>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 8l-9 5l-9 -5" />
+            <path d="M3 8l9 -5l9 5v8l-9 5l-9 -5z" />
+            <path d="M12 13v8" />
+          </svg>
+        </span>
+        <span className="mobileHomeQuickCardBody">
+          <span className="mobileHomeQuickCardTitle">{materialsEntry.label}</span>
+          <span className="mobileHomeQuickCardSub">{materialsHomeHint}</span>
+        </span>
+        <span className="mobileHomeQuickCardChevron" aria-hidden>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </span>
+      </button>
+    </div>
+  ) : null
+
   const companyPrimaryLine = useMemo(() => {
     const fromMe = (meQ.data?.companyName || '').trim()
     if (fromMe) return fromMe
@@ -592,6 +628,7 @@ export function MobileHome() {
         <div className="mobileNotice" role="status">
           Выберите клиентский контур в верхней панели, чтобы открыть заявки.
         </div>
+        {materialsHomeCard}
       </div>
     )
   }
@@ -617,6 +654,7 @@ export function MobileHome() {
         searchQuery={searchQuery}
         setSearchQuery={changeSearchQuery}
       />
+      {materialsHomeCard}
       {showMobileHomeTicketBoard ? (
         <>
           <HomeQuickCards
