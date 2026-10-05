@@ -47,11 +47,22 @@ describe('Materials V0 integrated surfaces', () => {
     expect(mobile).not.toContain('type="file"')
   })
 
-  it('provides one /m-only navigation entry for technicians and management', () => {
-    expect(mobileSettings).toContain("getMobileRouteRoot(location.pathname) === '/m'")
-    expect(mobileSettings).toContain("meQ.data?.canAccessManagementSurface === true && role !== 'PLATFORM_ADMIN'")
+  it('provides /m-only navigation entries (primary Home card + secondary Settings) via one shared visibility helper', () => {
+    const home = source('../mobile/home/MobileHome.tsx')
+    const visibility = source('../mobile/materialsEntryVisibility.ts')
+    // Единый источник видимости — та же логика в обоих входах.
+    expect(visibility).toContain('export function canSeeMobileMaterialsEntry')
+    expect(visibility).toContain("params.canAccessManagementSurface === true && params.role !== 'PLATFORM_ADMIN'")
+    expect(visibility).toContain("params.routeRoot !== '/m'")
+    // Заметный первичный вход на Главной — карточка в стиле быстрых карт.
+    expect(home).toContain('canSeeMobileMaterialsEntry')
+    expect(home).toContain('HomeMaterialsCard')
+    expect(home).toContain("mobilePath(location.pathname, '/materials')")
+    // Вторичный вход в Настройках сохранён и переиспользует тот же helper.
+    expect(mobileSettings).toContain('canSeeMobileMaterialsEntry')
     expect(mobileSettings).toContain("to: scoped('/m/materials')")
     expect(mobileSettings).not.toContain('/max/materials')
+    expect(home).not.toContain('/max/materials')
   })
 
   it('supports the mobile management workflow through canonical APIs', () => {

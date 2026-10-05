@@ -35,8 +35,14 @@ import { getOnlineStatus, useOnlineStatus } from '../offlineQueue'
 import { loadBoardCache, saveBoardCache } from '../offline/boardCache'
 import { queueOffline } from '../offline/useOffline'
 import { ONLINE_ONLY_ACTION_MESSAGE } from '../offline/onlineOnlyMessage'
-import { mobilePath } from '../mobileRoute'
+import { getMobileRouteRoot, mobilePath } from '../mobileRoute'
+import {
+  canSeeMobileMaterialsEntry,
+  mobileMaterialsEntryHint,
+  mobileMaterialsEntryLabel,
+} from '../materialsEntryVisibility'
 import { HomeHeader } from './HomeHeader'
+import { HomeMaterialsCard } from './HomeMaterialsCard'
 import { HomeTabs } from './HomeTabs'
 import { HomeChips } from './HomeChips'
 import { HomeList, type TicketCloseModalState } from './HomeList'
@@ -520,6 +526,15 @@ export function MobileHome() {
   const technicianScopeGateReady = !techNoLinked || techBoundDefaultsQ.isFetched || techBoundDefaultsQ.isError
   const showMobileHomeTicketBoard = technicianScopeGateReady && !techWillRedirectForScope && !activeBoardError && (meQ.data || (!!boardQ.data && !isOnline))
 
+  // SMA-MATERIALS-V0: заметный вход «Материалы» с Главной. Та же видимость, что в
+  // Настройках (materialsEntryVisibility), всегда /m/materials, никогда /max.
+  const showMaterialsEntry = canSeeMobileMaterialsEntry({
+    role: meQ.data?.role,
+    canAccessManagementSurface: meQ.data?.canAccessManagementSurface,
+    routeRoot: getMobileRouteRoot(location.pathname),
+  })
+  const materialsEntryHref = api.appendScopeToPath(mobilePath(location.pathname, '/materials'), pageScope, meQ.data)
+
   if (providerNeedsLinkedClient) {
     return (
       <div className="mobileSection">
@@ -555,6 +570,13 @@ export function MobileHome() {
         searchQuery={searchQuery}
         setSearchQuery={changeSearchQuery}
       />
+      {showMaterialsEntry ? (
+        <HomeMaterialsCard
+          to={materialsEntryHref}
+          label={mobileMaterialsEntryLabel(meQ.data?.role)}
+          hint={mobileMaterialsEntryHint(meQ.data?.role)}
+        />
+      ) : null}
       {showMobileHomeTicketBoard ? (
         <>
           <HomeQuickCards

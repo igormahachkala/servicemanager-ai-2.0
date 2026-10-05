@@ -5,6 +5,7 @@ import * as api from '../lib/api'
 import { canAccessManagementDesktop, managementHomePath } from '../lib/navigation'
 import { ClientContourCard } from './ClientContourCard'
 import { getMobileRouteRoot, mobilePath, supportsPersonalNotificationPreferences } from './mobileRoute'
+import { canSeeMobileMaterialsEntry, mobileMaterialsEntryHint, mobileMaterialsEntryLabel } from './materialsEntryVisibility'
 import { NotificationPreferencesPanel } from '../components/notifications/NotificationPreferencesPanel'
 
 type ManagementLink = {
@@ -185,18 +186,16 @@ export function MobileSettingsPage() {
       })
     }
     if (
-      getMobileRouteRoot(location.pathname) === '/m'
-      && (
-        role === 'TECHNICIAN'
-        || (meQ.data?.canAccessManagementSurface === true && role !== 'PLATFORM_ADMIN')
-      )
+      canSeeMobileMaterialsEntry({
+        role,
+        canAccessManagementSurface: meQ.data?.canAccessManagementSurface,
+        routeRoot: getMobileRouteRoot(location.pathname),
+      })
     ) {
       links.push({
         id: 'materials',
-        label: role === 'TECHNICIAN' ? 'Мои материалы' : 'Материалы',
-        hint: role === 'TECHNICIAN'
-          ? 'Остатки, покупки и история движений'
-          : 'Склад, техники и справочник',
+        label: mobileMaterialsEntryLabel(role),
+        hint: mobileMaterialsEntryHint(role),
         to: scoped('/m/materials'),
       })
     }
