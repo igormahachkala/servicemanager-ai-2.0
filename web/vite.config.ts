@@ -25,6 +25,7 @@ export default defineConfig({
       '**/node_modules/**',
       '**/dist/**',
       '**/offline/offline.test.ts',
+      '**/offline/cachePrefetch.test.ts',
       /**
        * Сборка офлайн-тестов: test:offline компилирует их сюда и запускает
        * через node --test. Vitest подбирал этот .js как свой набор и падал
