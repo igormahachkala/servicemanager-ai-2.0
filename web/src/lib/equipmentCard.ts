@@ -149,11 +149,13 @@ export type ScopeParams = {
 /**
  * Параметры области для адреса.
  *
- * Строка принимается как companyId — так область переносили раньше, и
- * у карточки точки другого значения просто нет. Провайдерский контур
- * задаётся linkedClientCompanyId: именно его читают доска и создание
- * заявки, и именно он не даёт Shell перезаписать сохранённую область
- * без linked-части (persistScopeFromSearchParams пишет пару целиком).
+ * Строка принимается как companyId — так область переносили раньше.
+ *
+ * Провайдерский контур задаётся linkedClientCompanyId: его читают доска,
+ * создание заявки и карточка точки, и только он не даёт Shell перезаписать
+ * сохранённую область без linked-части (persistScopeFromSearchParams
+ * пишет пару целиком). Поэтому для провайдера посылать companyId нельзя,
+ * хотя получатель его и примет.
  */
 function scopeSearchParams(scope?: ScopeParams | string | null): URLSearchParams {
   const params = new URLSearchParams()
@@ -244,9 +246,14 @@ export function equipmentTicketsLink(
 /**
  * Путь к карточке точки с сохранением области.
  *
- * LocationPage читает companyId ТОЛЬКО из адреса и запасного варианта не
- * имеет, поэтому без параметра провайдер и наблюдатель получали 404 на ту
- * точку, с которой пришли.
+ * Без области провайдер и наблюдатель получали 404 на ту точку, с которой
+ * пришли: своей области LocationPage не выводит, берёт только из адреса.
+ *
+ * Принимает она ОБА параметра (companyId и linkedClientCompanyId), так что
+ * посылать нужно тот, который не ломает сохранённую область, — для
+ * провайдера это linkedClientCompanyId. Прежняя редакция этого примечания
+ * утверждала, что читается только companyId, и дважды завела правку не
+ * туда: сначала в 404, потом в затирание linked-части.
  */
 export function locationCardPath(locationId: string, scope?: ScopeParams | string | null): string {
   return withScope(`/locations/${locationId}`, scope)

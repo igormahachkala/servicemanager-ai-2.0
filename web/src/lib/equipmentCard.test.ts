@@ -518,10 +518,11 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
 
   it('ссылка на точку несёт параметр, который точка читает', () => {
     /*
-     * Регресс прошлого круга: сюда отдали boardScope, то есть
-     * linkedClientCompanyId, а карточка точки читает только companyId —
-     * провайдер получал 404 на объект, на котором стоял. У получателей
-     * разные контракты, и один псевдоним на всех не годится.
+     * История этой ссылки: сначала companyId всем — затирало провайдеру
+     * linked-часть сохранённой области; потом linkedClientCompanyId всем,
+     * когда получатель его ещё не читал, — 404 на объект, на котором
+     * стоишь. Поэтому контракт получателя расширен, а параметр выбирается
+     * по роли.
      */
     const cardCode = codeOf(readSrc('views/EquipmentCardPage.tsx'))
     /*
@@ -569,8 +570,7 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
      * сам же назван подлежащим правке, значило бы сломать тест ровно той
      * правкой, которой он требует.
      */
-    expect(mobileCode).not.toMatch(/\/equipment\/\$\{/)
-    expect(mobileCode).not.toMatch(/'\/equipment\/'\s*\+/)
+    expect(mobileCode).not.toMatch(/\/equipment\/(?:\$\{|['"`]\s*\+)/)
     expect(mobileCode).not.toMatch(/mobilePath\([^)]*equipment/)
   })
 
