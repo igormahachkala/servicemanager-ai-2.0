@@ -3,17 +3,17 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
-import { appendBoardNavigationContextToPath } from '../lib/boardNavigationContext'
 import { EquipmentHistoryTab } from '../components/equipment/EquipmentHistoryTab'
 import { EquipmentPartsTab } from '../components/equipment/EquipmentPartsTab'
 import { PublicQrModalLazy } from '../components/public/PublicQrLazy'
 import {
+  EQUIPMENT_PARTS_MANAGER_ROLES,
   canCreateTicketForEquipment,
   equipmentCreateTicketPath,
   equipmentPassportRows,
   equipmentPublicRequestLink,
   equipmentStatusLabel,
-  equipmentTicketsPath,
+  equipmentTicketsLink,
   isEquipmentRetired,
   isWarrantyExpired,
 } from '../lib/equipmentCard'
@@ -37,7 +37,13 @@ export function EquipmentCardPage() {
 
   /* Область берётся из адреса — тем же параметром, что и в остальных чтениях. */
   const [searchParams] = useSearchParams()
-  const companyId = (searchParams.get('companyId') || '').trim()
+  /*
+   * Область: из адреса, а при его отсутствии — наблюдаемая компания, как это
+   * делают доска и карточка заявки. Без запасного варианта провайдер,
+   * пришедший по ссылке без параметра, получал бы «не найдено» на то
+   * оборудование, которое только что видел.
+   */
+  const companyId = (searchParams.get('companyId') || api.getObserverCompanyId()).trim()
 
   const [qrOpen, setQrOpen] = useState(false)
 
@@ -125,7 +131,7 @@ export function EquipmentCardPage() {
               <button>Создать заявку</button>
             </Link>
           ) : null}
-          <Link to={equipmentTicketsPath({ id: item.id }, appendBoardNavigationContextToPath)}>
+          <Link {...equipmentTicketsLink({ id: item.id })}>
             <button className="ghost">Заявки оборудования</button>
           </Link>
           {qrUrl ? (
@@ -182,7 +188,14 @@ export function EquipmentCardPage() {
         <EquipmentPartsTab
           equipmentId={item.id}
           scopeCompanyId={companyId || undefined}
-          canManage={!!meQ.data && api.isFullAdminDesktopNavRole(meQ.data.role)}
+          /*
+           * Тот же круг лиц, что в списке оборудования: ADMIN, MASTER,
+           * DISPATCHER. isFullAdminDesktopNavRole — предикат видимости меню,
+           * и капабилити из него делать нельзя: MASTER и DISPATCHER потеряли
+           * бы управление деталями, а PLATFORM_ADMIN получил бы кнопки,
+           * которые бэкенд всё равно отклонит.
+           */
+          canManage={EQUIPMENT_PARTS_MANAGER_ROLES.includes(String(meQ.data?.role || ''))}
         />
       </div>
 

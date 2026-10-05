@@ -281,6 +281,14 @@ describe('102/9 наследие L1 не сломано', () => {
     // Каждый блок целиком возвращает null: даже пустой заголовок не раскрывает недоступный раздел.
     // 2026-10: четвёртый блок — оборудование, отказ так же не рисует ничего.
     expect(pageCode.match(/isError \? null/g)?.length).toBe(4)
+    /*
+     * Счётчика недостаточно: он бы прошёл и для блока, который гасит только
+     * тело, оставив заголовок. Поэтому каждая сводка проверяется поимённо —
+     * отказ обязан снимать раздел целиком.
+     */
+    for (const query of ['equipmentQ', 'ticketsQ', 'schedulesQ', 'locationEquipmentQ']) {
+      expect(pageCode, query).toContain(`${query}.isError ? null`)
+    }
     expect(pageCode).toMatch(/equipmentQ\.isError \? null : \(\s*<div className="panel"[\s\S]*?>Оборудование</)
     expect(pageCode).toMatch(/ticketsQ\.isError \? null : \(\s*<div className="panel"[\s\S]*?>Заявки</)
     expect(pageCode).toMatch(/schedulesQ\.isError \? null : \(\s*<div className="panel"[\s\S]*?>Обходы</)

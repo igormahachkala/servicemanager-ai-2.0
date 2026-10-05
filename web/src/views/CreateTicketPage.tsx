@@ -281,7 +281,18 @@ export function CreateTicketPage() {
 
   useEffect(() => {
     if (!locationId && activeLocations.length > 0) setLocationId(activeLocations[0].id)
-    if (locationId && !activeLocations.some((row) => row.id === locationId)) setLocationId(activeLocations[0]?.id || '')
+    /*
+     * SMA-EQUIPMENT-V2-FOUNDATION: сверка идёт только по загруженному списку.
+     *
+     * Раньше условие срабатывало и на пустом списке — на первом рендере,
+     * когда запрос точек ещё не ответил. Для обычного входа это незаметно
+     * (точка и так пуста), но предзаполнение из адреса затиралось, и форма
+     * открывалась на первой точке вместо выбранной: заявку можно было молча
+     * создать не по тому объекту.
+     */
+    if (activeLocations.length > 0 && locationId && !activeLocations.some((row) => row.id === locationId)) {
+      setLocationId(activeLocations[0].id)
+    }
   }, [activeLocations, locationId])
 
   useEffect(() => {
@@ -299,8 +310,14 @@ export function CreateTicketPage() {
       setEquipmentId('')
       return
     }
-    if (equipmentId && !locationEquipment.some((row) => row.id === equipmentId)) setEquipmentId('')
-  }, [locationId, equipmentId, locationEquipment])
+    /*
+     * Та же причина: пока состав оборудования точки не получен, список пуст,
+     * и сверка снимала предзаполнение, ещё не зная настоящего состава.
+     */
+    if (equipmentQ.isSuccess && equipmentId && !locationEquipment.some((row) => row.id === equipmentId)) {
+      setEquipmentId('')
+    }
+  }, [locationId, equipmentId, locationEquipment, equipmentQ.isSuccess])
 
   useEffect(() => {
     if (postCreateAction !== 'assign_employee') {

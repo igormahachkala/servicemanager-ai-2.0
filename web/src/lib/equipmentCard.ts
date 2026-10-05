@@ -32,6 +32,18 @@ export function equipmentStatusLabel(status?: string | null): string {
   return EQUIPMENT_STATUS_LABELS_RU[key] || key
 }
 
+/**
+ * Кто управляет деталями оборудования.
+ *
+ * Тот же круг, что в списке оборудования (EquipmentPage MANAGER_ROLES).
+ * Держится здесь, чтобы карточка и список не разошлись, и намеренно НЕ
+ * выводится из isFullAdminDesktopNavRole: тот предикат отвечает за видимость
+ * пункта меню, а не за право.
+ *
+ * Это подсказка интерфейса. Право решает бэкенд: LOCATIONS_MANAGE.
+ */
+export const EQUIPMENT_PARTS_MANAGER_ROLES: readonly string[] = ['ADMIN', 'MASTER', 'DISPATCHER']
+
 /** Снято с эксплуатации — для приглушения карточки и пометки в списках. */
 export function isEquipmentRetired(status?: string | null): boolean {
   const key = (status || '').trim()
@@ -122,6 +134,20 @@ export function canCreateTicketForEquipment(item: {
   return (item.status || '').trim() === 'ACTIVE'
 }
 
+/**
+ * Путь к карточке оборудования с сохранением области.
+ *
+ * Карточка читает companyId из адреса; без него провайдер, пришедший
+ * из клиентского контура, получил бы «не найдено» на то оборудование,
+ * которое только что видел. Поэтому область переносится явно.
+ */
+export function equipmentCardPath(equipmentId: string, companyId?: string | null): string {
+  const scope = (companyId || '').trim()
+  return scope
+    ? `/equipment/${equipmentId}?companyId=${encodeURIComponent(scope)}`
+    : `/equipment/${equipmentId}`
+}
+
 /** Путь создания заявки по оборудованию: существующий маршрут, не новый. */
 export function equipmentCreateTicketPath(item: {
   id: string
@@ -133,10 +159,21 @@ export function equipmentCreateTicketPath(item: {
   return `/tickets/new?${params.toString()}`
 }
 
-/** Путь к списку заявок этого оборудования: существующий контракт доски. */
-export function equipmentTicketsPath(
-  item: { id: string },
-  appendBoardContext: (path: string, ctx: { selectedEquipmentId?: string }) => string,
-): string {
-  return appendBoardContext('/tickets', { selectedEquipmentId: item.id })
+/**
+ * Переход к заявкам этого оборудования.
+ *
+ * Доска восстанавливает фильтры ТОЛЬКО из состояния навигации роутера
+ * (location.state.boardContext) — поисковую строку она не читает, сколько бы
+ * boardEquipmentId там ни стояло. Поэтому фильтр едет состоянием, а адрес
+ * остаётся обычным /tickets. Это тот же контракт, которым пользуется
+ * карточка заявки; второго механизма не заводится.
+ */
+export function equipmentTicketsLink(item: { id: string }): {
+  to: string
+  state: { boardContext: { selectedEquipmentId: string } }
+} {
+  return {
+    to: '/tickets',
+    state: { boardContext: { selectedEquipmentId: item.id } },
+  }
 }

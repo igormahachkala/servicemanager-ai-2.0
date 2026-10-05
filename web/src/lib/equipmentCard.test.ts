@@ -5,19 +5,21 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 import { buildPublicRequestLink } from './api'
-import { appendBoardNavigationContextToPath } from './boardNavigationContext'
+import { sanitizeBoardNavigationContext } from './boardNavigationContext'
 import {
   MANAGEMENT_ROUTES,
   buildManagementBreadcrumbs,
   validateManagementRoutes,
 } from './managementRouteMeta'
 import {
+  EQUIPMENT_PARTS_MANAGER_ROLES,
   canCreateTicketForEquipment,
+  equipmentCardPath,
   equipmentCreateTicketPath,
   equipmentPassportRows,
   equipmentPublicRequestLink,
   equipmentStatusLabel,
-  equipmentTicketsPath,
+  equipmentTicketsLink,
   isEquipmentRetired,
   isWarrantyExpired,
 } from './equipmentCard'
@@ -147,12 +149,13 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
   it('объект показывает своё оборудование ссылками на карточки', () => {
     const locationCode = codeOf(readSrc('views/LocationPage.tsx'))
     expect(locationCode).toContain('api.equipmentByLocation(locationId')
-    expect(locationCode).toContain('/equipment/${unit.id}')
+    // Ссылка идёт через общий помощник, переносящий область.
+    expect(locationCode).toContain('equipmentCardPath(unit.id, companyId)')
   })
 
   it('заявка показывает оборудование и ведёт в карточку', () => {
     const ticketCode = codeOf(readSrc('views/TicketPage.tsx'))
-    expect(ticketCode).toContain('/equipment/${ticket.equipment.id}')
+    expect(ticketCode).toContain('equipmentCardPath(ticket.equipment.id, observerCompanyId)')
   })
 
   it('создание заявки идёт существующим маршрутом с предзаполнением', () => {
@@ -174,11 +177,49 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
     expect(createTicketCode).toContain('useState(presetEquipmentId)')
   })
 
-  it('заявки оборудования открываются существующим контрактом доски', () => {
-    const path = equipmentTicketsPath({ id: 'eq-1' }, appendBoardNavigationContextToPath)
-    expect(path).toContain('boardEquipmentId=eq-1')
-    // Выдуманного параметра нет.
-    expect(path).not.toContain('?equipmentId=')
+  it('предзаполнение не затирается, пока списки ещё не загружены', () => {
+    /*
+     * Аудит нашёл дефект: обе сверки срабатывали на пустом списке, то есть
+     * на первом рендере, и предзаполнение исчезало — форма открывалась на
+     * первой точке списка без оборудования, и заявку можно было молча
+     * создать не по тому объекту.
+     *
+     * Сверка точки теперь требует загруженного списка, сверка оборудования —
+     * успешного ответа по составу точки.
+     */
+    expect(createTicketCode).toContain(
+      'activeLocations.length > 0 && locationId && !activeLocations.some',
+    )
+    expect(createTicketCode).toContain('equipmentQ.isSuccess && equipmentId && !locationEquipment.some')
+  })
+
+  it('заявки оборудования едут состоянием роутера, а не строкой адреса', () => {
+    /*
+     * Аудит нашёл здесь дефект: ссылка собиралась как
+     * /tickets?boardEquipmentId=…, а доска поисковую строку НЕ читает —
+     * фильтры она восстанавливает только из location.state.boardContext.
+     * Кнопка открывала неотфильтрованную доску без всякого признака,
+     * что фильтр проигнорирован.
+     */
+    const link = equipmentTicketsLink({ id: 'eq-1' })
+
+    expect(link.to).toBe('/tickets')
+    expect(link.state).toEqual({ boardContext: { selectedEquipmentId: 'eq-1' } })
+    // Параметра в адресе нет: он бы всё равно потерялся.
+    expect(link.to).not.toContain('boardEquipmentId')
+  })
+
+  it('доска действительно восстанавливает фильтр из состояния навигации', () => {
+    /*
+     * Проверяется сама причина дефекта: восстановление читает state, и
+     * sanitizeBoardNavigationContext пропускает selectedEquipmentId.
+     */
+    const boardCode = codeOf(readSrc('views/BoardPage.tsx'))
+    expect(boardCode).toContain('location.state as BoardTicketNavState')
+    expect(boardCode).toContain('setSelectedEquipmentId(restore.selectedEquipmentId')
+
+    const restored = sanitizeBoardNavigationContext({ selectedEquipmentId: 'eq-1' })
+    expect(restored?.selectedEquipmentId).toBe('eq-1')
   })
 
   it('снятое оборудование новых заявок не предлагает', () => {
@@ -284,7 +325,7 @@ describe('V2 доступ: новой модели прав не вводитс�
       'buildPublicRequestLink',
       'company',
       'getEquipment',
-      'isFullAdminDesktopNavRole',
+      'getObserverCompanyId',
       'me',
     ])
   })
@@ -293,6 +334,35 @@ describe('V2 доступ: новой модели прав не вводитс�
     expect(cardCode).not.toContain('PERMISSIONS')
     expect(cardCode).not.toContain('hasPermission')
     expect(cardCode).not.toContain('LOCATIONS_MANAGE')
+  })
+
+  it('управление деталями — тот же круг лиц, что в списке оборудования', () => {
+    /*
+     * Аудит нашёл дефект: капабилити бралась из isFullAdminDesktopNavRole —
+     * предиката видимости меню. MASTER и DISPATCHER теряли управление
+     * деталями на карточке, а PLATFORM_ADMIN и ADMIN_PROVIDER получали
+     * кнопки, которых нет в списке и которые бэкенд всё равно отклонит.
+     */
+    expect(EQUIPMENT_PARTS_MANAGER_ROLES).toEqual(['ADMIN', 'MASTER', 'DISPATCHER'])
+    expect(cardCode).toContain('EQUIPMENT_PARTS_MANAGER_ROLES.includes')
+    expect(cardCode).not.toContain('isFullAdminDesktopNavRole')
+    // Список использует тот же источник, поэтому разойтись они не могут.
+    expect(codeOf(readSrc('views/EquipmentPage.tsx'))).toContain(
+      'MANAGER_ROLES = EQUIPMENT_PARTS_MANAGER_ROLES',
+    )
+  })
+
+  it('ссылки на карточку переносят область, иначе наблюдатель получит «не найдено»', () => {
+    expect(equipmentCardPath('eq-1', 'client-7')).toBe('/equipment/eq-1?companyId=client-7')
+    expect(equipmentCardPath('eq-1', '')).toBe('/equipment/eq-1')
+    expect(equipmentCardPath('eq-1', null)).toBe('/equipment/eq-1')
+
+    expect(codeOf(readSrc('views/LocationPage.tsx'))).toContain('equipmentCardPath(unit.id, companyId)')
+    expect(codeOf(readSrc('views/TicketPage.tsx'))).toContain(
+      'equipmentCardPath(ticket.equipment.id, observerCompanyId)',
+    )
+    // Карточка берёт область из адреса, а при его отсутствии — наблюдаемую.
+    expect(cardCode).toContain("searchParams.get('companyId') || api.getObserverCompanyId()")
   })
 
   it('существующие права маршрутов оборудования не менялись', () => {

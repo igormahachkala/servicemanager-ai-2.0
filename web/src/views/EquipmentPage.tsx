@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { EQUIPMENT_PARTS_MANAGER_ROLES } from '../lib/equipmentCard'
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
 import { EquipmentHistoryTab } from '../components/equipment/EquipmentHistoryTab'
 import { EquipmentPartsTab } from '../components/equipment/EquipmentPartsTab'
@@ -18,7 +19,8 @@ import { EquipmentPartsTab } from '../components/equipment/EquipmentPartsTab'
  */
 
 /** Роли, у которых по канонической матрице есть LOCATIONS_MANAGE. Подсказка интерфейса: решает бэкенд. */
-const MANAGER_ROLES = ['ADMIN', 'MASTER', 'DISPATCHER']
+// Общий с карточкой список: см. EQUIPMENT_PARTS_MANAGER_ROLES.
+const MANAGER_ROLES = EQUIPMENT_PARTS_MANAGER_ROLES
 
 const STATUS_ORDER = ['ACTIVE', 'REPAIR', 'INACTIVE', 'DECOMMISSIONED']
 
