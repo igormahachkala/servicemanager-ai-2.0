@@ -6,7 +6,7 @@ import type { Role, TicketCard } from '../lib/api'
 import { notificationSectionToDetailTab } from './mobileTicketDetailTab'
 import { inspectionNavSuffix } from './mobileRoute'
 import { formatShiftDuration, homeShiftView, shouldShowHomeShiftStatus } from './home/shiftStatusView'
-import { selectHomeUrgentTickets } from './home/homeUrgent'
+import { isHomeUrgentTicket, selectHomeUrgentTickets } from './home/homeUrgent'
 
 /**
  * SMA-MOBILE-SERVICE-OS Phase 0+1. Чистая логика + source-contract (окружение node).
@@ -101,23 +101,39 @@ describe('Приоритетный блок срочных', () => {
     expect(selectHomeUrgentTickets(null)).toEqual([])
     expect(selectHomeUrgentTickets(undefined)).toEqual([])
   })
+
+  it('isHomeUrgentTicket — единый предикат (срочная + активный статус)', () => {
+    expect(isHomeUrgentTicket(card('a', 'URGENT', 'NEW'))).toBe(true)
+    expect(isHomeUrgentTicket(card('a', 'URGENT', 'IN_PROGRESS'))).toBe(true)
+    expect(isHomeUrgentTicket(card('a', 'URGENT', 'DONE'))).toBe(false)
+    expect(isHomeUrgentTicket(card('a', 'URGENT', 'AWAITING_ACCEPTANCE'))).toBe(false)
+    expect(isHomeUrgentTicket(card('a', 'NOT_URGENT', 'NEW'))).toBe(false)
+  })
 })
 
 describe('Source-contract: убран шум, добавлены блоки', () => {
   const read = (p: string) => readFileSync(join(__dirname, p), 'utf8')
 
-  it('HomeQuickCards: карта-заглушка «Планирование» удалена', () => {
+  it('HomeQuickCards: заглушка удалена, срочная — компактная quick-card', () => {
     const s = read('home/HomeQuickCards.tsx')
     expect(s).not.toContain('Планирование')
     expect(s).not.toContain('onPlanning')
     expect(s).not.toContain('--stub')
+    // «Срочные заявки» — в той же системе quick-cards, сильнее выделена, с count.
+    expect(s).toContain('Срочные заявки')
+    expect(s).toContain('mobileHomeQuickCard--urgent')
+    expect(s).toContain('urgentCount')
+    // без списка заявок внутри карточки
+    expect(s).not.toContain('ticketHref')
   })
 
-  it('MobileHome: нет дубль-FAB, есть статус смены и блок срочных', () => {
+  it('MobileHome: нет дубль-FAB и большого блока; статус смены + urgent как quick-card', () => {
     const s = read('home/MobileHome.tsx')
     expect(s).not.toContain('HomeFAB')
+    expect(s).not.toContain('HomeUrgentBlock')
     expect(s).toContain('<HomeShiftStatus')
-    expect(s).toContain('<HomeUrgentBlock')
+    expect(s).toContain('urgentCount={urgentTickets.length}')
+    expect(s).toContain("activateQuickFilter('urgent')")
   })
 
   it('MobileChatsPage: убраны неработающие кнопки композера', () => {
@@ -134,5 +150,45 @@ describe('Source-contract: убран шум, добавлены блоки', ()
   it('MobileShell: «Обходы» использует ролевую посадку', () => {
     const s = read('MobileShell.tsx')
     expect(s).toContain('inspectionNavSuffix(meQ.data?.role)')
+  })
+})
+
+describe('Mobile Settings: сворачиваемые группы', () => {
+  const s = readFileSync(join(__dirname, 'MobileSettingsPage.tsx'), 'utf8')
+
+  it('заголовки групп — доступные кнопки с aria-expanded + chevron', () => {
+    expect(s).toContain('mobileSettingsGroupHeader')
+    expect(s).toContain('aria-expanded={open}')
+    expect(s).toContain('aria-controls={regionId}')
+    expect(s).toContain('GroupChevron')
+  })
+
+  it('группы — реальные смысловые разделы, без длинного плоского списка', () => {
+    expect(s).toContain("manage: 'Управление'")
+    expect(s).toContain("work: 'Работа и обходы'")
+    expect(s).toContain("notifications: 'Уведомления'")
+    // активная группа раскрывается, состояние запоминается локально
+    expect(s).toContain('activeGroupId')
+    expect(s).toContain('SETTINGS_GROUPS_LS')
+  })
+
+  it('каждый пункт настроек отнесён к группе (нельзя «потерять» пункт)', () => {
+    // Все id, которые страница может добавить в managementLinks, должны иметь группу в LINK_GROUP.
+    const linkIds = Array.from(s.matchAll(/id:\s*'([a-zA-Z]+)'/g)).map((m) => m[1])
+    const groupedIds = new Set(Array.from(s.matchAll(/^\s{2}([a-zA-Z]+):\s*'(?:manage|work)'/gm)).map((m) => m[1]))
+    const pushed = linkIds.filter((id) => ['desktop', 'companies', 'permissions', 'company', 'employees', 'locations', 'access', 'workforce', 'materials', 'inspection', 'inspectionTemplates'].includes(id))
+    for (const id of pushed) {
+      expect(groupedIds.has(id)).toBe(true)
+    }
+    expect(pushed.length).toBe(11)
+  })
+
+  it('доступность пунктов не меняется (ролевая логика managementLinks сохранена)', () => {
+    expect(s).toContain('canAccessManagementDesktop')
+    expect(s).toContain('WORKFORCE_ROLES.has(role)')
+    expect(s).toContain('INSPECTION_TEMPLATE_ROLES.has(role)')
+    // notification panel и contour card не удалены
+    expect(s).toContain('NotificationPreferencesPanel')
+    expect(s).toContain('ClientContourCard')
   })
 })

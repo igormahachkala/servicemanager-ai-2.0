@@ -44,8 +44,7 @@ import { HomeChips } from './HomeChips'
 import { HomeList, type TicketCloseModalState } from './HomeList'
 import { HomeQuickCards, type MobileHomeQuickFilter } from './HomeQuickCards'
 import { HomeShiftStatus } from './HomeShiftStatus'
-import { HomeUrgentBlock } from './HomeUrgentBlock'
-import { selectHomeUrgentTickets } from './homeUrgent'
+import { isHomeUrgentTicket, selectHomeUrgentTickets } from './homeUrgent'
 import { HomeOfflineCachePanel } from './HomeOfflineCachePanel'
 import { useTicketOfflineCache } from './useTicketOfflineCache'
 
@@ -257,12 +256,13 @@ export function MobileHome() {
   const quickTickets = useMemo(() => {
     if (!quickFilter) return null
     const list = dedupeBoardCards(cards)
+    if (quickFilter === 'urgent') return list.filter(isHomeUrgentTicket)
     if (quickFilter === 'awaiting') return list.filter(isAwaitingAcceptanceTicket)
     if (quickFilter === 'rework') return list.filter((t) => t.status === 'IN_PROGRESS' && reworkTicketIds.has(t.id))
     return list.filter((t) => ticketRequiresMyAction(t, meQ.data?.id, meQ.data?.role, canAssignProvider))
   }, [quickFilter, cards, meQ.data?.id, meQ.data?.role, canAssignProvider, reworkTicketIds])
   const quickFilterLabel =
-    quickFilter === 'awaiting' ? 'На приёмке' : quickFilter === 'myaction' ? 'Требует моего действия' : quickFilter === 'rework' ? 'Требуют доработки' : ''
+    quickFilter === 'urgent' ? 'Срочные заявки' : quickFilter === 'awaiting' ? 'На приёмке' : quickFilter === 'myaction' ? 'Требует моего действия' : quickFilter === 'rework' ? 'Требуют доработки' : ''
   const renderedTickets = quickFilter ? quickTickets ?? [] : visibleTickets
   const homeListTickets = useMemo(
     () =>
@@ -681,15 +681,16 @@ export function MobileHome() {
         setSearchQuery={changeSearchQuery}
       />
       <HomeShiftStatus role={meQ.data?.role} />
-      <HomeUrgentBlock tickets={urgentTickets} ticketHref={ticketHref} ticketLinkState={ticketLinkState} />
       {materialsHomeCard}
       {showMobileHomeTicketBoard ? (
         <>
           <HomeQuickCards
+            urgentCount={urgentTickets.length}
             awaitingCount={awaitingCount}
             myActionCount={myActionCount}
             reworkCount={reworkCount}
             activeQuickFilter={quickFilter}
+            onToggleUrgent={() => activateQuickFilter('urgent')}
             onToggleAwaiting={() => activateQuickFilter('awaiting')}
             onToggleMyAction={() => activateQuickFilter('myaction')}
             onToggleRework={() => activateQuickFilter('rework')}
