@@ -133,7 +133,7 @@ function readLastPages(): Record<string, string> {
     const raw = localStorage.getItem(LAST_PAGE_STORAGE_KEY)
     if (!raw) return {}
     const parsed = JSON.parse(raw)
-    return parsed && typeof parsed === 'object' ? (parsed as Record<string, string>) : {}
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, string>) : {}
   } catch {
     return {}
   }
@@ -439,6 +439,9 @@ export function Shell() {
                   type="button"
                   data-sec={section.id}
                   data-tip={section.label}
+                  // aria-label — доступное имя кнопки и в collapsed, где подпись скрыта,
+                  // а иконка aria-hidden. Визуал не меняет.
+                  aria-label={section.label}
                   className={`railBtn${active ? ' railBtnActive' : ''}${openNonActive ? ' railBtnOpen' : ''}`}
                   aria-current={active ? 'true' : undefined}
                   {...(multi ? { 'aria-expanded': open, 'aria-haspopup': 'true' as const } : {})}
