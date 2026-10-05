@@ -4066,6 +4066,41 @@ a.mobileBtn.mobileCreateTicketLink {
   color: #fff;
 }
 
+/* SMA-MOBILE-SERVICE-OS — «Срочные заявки»: та же система quick-cards, но сильнее
+   выделена (2px рамка, акцентная тень, жирнее). */
+.mobileHomeQuickCard--urgent {
+  background: #fef2f2;
+  border: 1.5px solid #f87171;
+  color: #991b1b;
+  box-shadow: 0 2px 10px rgba(239, 68, 68, 0.16);
+}
+.mobileHomeQuickCard--urgent .mobileHomeQuickCardIcon {
+  background: #fee2e2;
+  color: #dc2626;
+}
+.mobileHomeQuickCard--urgent .mobileHomeQuickCardTitle { font-weight: 800; }
+.mobileHomeQuickCard--urgent .mobileHomeQuickCardSub { color: #b91c1c; }
+.mobileHomeQuickCard--urgent .mobileHomeQuickCardBadge {
+  background: #dc2626;
+  color: #fff;
+  font-weight: 800;
+}
+.mobileHomeQuickCard--urgentActive {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(220, 38, 38, 0.3);
+}
+.mobileHomeQuickCard--urgentActive .mobileHomeQuickCardIcon {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+.mobileHomeQuickCard--urgentActive .mobileHomeQuickCardSub { color: #fee2e2; }
+.mobileHomeQuickCard--urgentActive .mobileHomeQuickCardBadge {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
 /* активная быстрая карта */
 .mobileHomeQuickCard--active {
   outline: 2px solid #d97706;
@@ -5080,6 +5115,28 @@ a.mobileBtn.mobileCreateTicketLink {
   letter-spacing: 0.08em;
   margin-bottom: 8px;
 }
+
+/* SMA-MOBILE-SERVICE-OS — сворачиваемые группы настроек */
+.mobileSettingsGroup { padding: 4px 6px; }
+.mobileSettingsGroupHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 8px;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  color: #0f172a;
+}
+.mobileSettingsGroupHeader:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; border-radius: 10px; }
+.mobileSettingsGroupTitle { font-size: 0.92rem; font-weight: 700; }
+.mobileSettingsGroupChevron { flex-shrink: 0; color: #64748b; transition: transform 0.18s ease; }
+.mobileSettingsGroupChevron--open { transform: rotate(180deg); }
+.mobileSettingsGroupBody { padding: 2px 2px 6px; }
 
 /* SMA-MOBILE-103: profile stats, static menu row, app info */
 .mobileProfileStats {
