@@ -22,7 +22,6 @@ export type TicketCloseModalState = {
   file: File | null
   previewUrl: string
   comment: string
-  failureCauseId: string
   err: string
 } | null
 
@@ -65,9 +64,6 @@ type Props = {
   setCloseModal: (next: TicketCloseModalState | ((prev: TicketCloseModalState) => TicketCloseModalState)) => void
   closeCanSubmit: boolean
   closeM: UseMutationResult<void, unknown, void, unknown>
-  closeFailureCauses?: api.FailureCauseItem[]
-  closeFailureCausesLoading?: boolean
-  closeFailureCausesError?: string
   mobileActionToast: string
   cacheStates?: ReadonlyMap<string, TicketDetailCacheState>
   cacheSelectedIds?: ReadonlySet<string>
@@ -114,9 +110,6 @@ export function HomeList(props: Props) {
     setCloseModal,
     closeCanSubmit,
     closeM,
-    closeFailureCauses,
-    closeFailureCausesLoading,
-    closeFailureCausesError,
     mobileActionToast,
     cacheStates,
     cacheSelectedIds,
@@ -241,9 +234,6 @@ export function HomeList(props: Props) {
         setCloseModal={setCloseModal}
         closeCanSubmit={closeCanSubmit}
         closeM={closeM}
-        failureCauses={closeFailureCauses}
-        failureCausesLoading={closeFailureCausesLoading}
-        failureCausesError={closeFailureCausesError}
       />
 
       {mobileActionToast ? (
@@ -468,26 +458,12 @@ export function TicketCloseModal(props: {
   setCloseModal: (next: TicketCloseModalState | ((prev: TicketCloseModalState) => TicketCloseModalState)) => void
   closeCanSubmit: boolean
   closeM: UseMutationResult<void, unknown, void, unknown>
-  failureCauses?: api.FailureCauseItem[]
-  failureCausesLoading?: boolean
-  failureCausesError?: string
   /** SMA-ACCEPTANCE-005: переопределение текстов для сценария «Отправить на приёмку». */
   heading?: string
   submitLabel?: string
   submitBusyLabel?: string
 }) {
-  const {
-    closeModal,
-    closeBusy,
-    closeCameraInputRef,
-    closeGalleryInputRef,
-    setCloseModal,
-    closeCanSubmit,
-    closeM,
-    failureCauses = [],
-    failureCausesLoading = false,
-    failureCausesError = '',
-  } = props
+  const { closeModal, closeBusy, closeCameraInputRef, closeGalleryInputRef, setCloseModal, closeCanSubmit, closeM } = props
   const heading = props.heading ?? 'Закрыть заявку'
   const submitLabel = props.submitLabel ?? 'Завершить'
   const submitBusyLabel = props.submitBusyLabel ?? 'Завершаем…'
@@ -569,21 +545,6 @@ export function TicketCloseModal(props: {
             ) : null}
             {closeModal.file ? <div className="mobileMeta" style={{ marginTop: 10 }}>Файл: {closeModal.file.name}</div> : null}
           </div>
-          <label className="mobileFormFieldAfterPhoto">
-            Причина неисправности *
-            <select
-              value={closeModal.failureCauseId}
-              disabled={closeBusy || failureCausesLoading}
-              onChange={(e) => setCloseModal((prev) => (prev ? { ...prev, failureCauseId: e.target.value, err: '' } : prev))}
-            >
-              <option value="">Выберите причину</option>
-              {failureCauses.map((cause) => (
-                <option key={cause.id} value={cause.id}>{cause.name}</option>
-              ))}
-            </select>
-            {failureCausesLoading ? <div className="mobileMeta" style={{ marginTop: 6 }}>Загружаем причины…</div> : null}
-            {failureCausesError ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 8 }}>{failureCausesError}</div> : null}
-          </label>
           <label className="mobileFormFieldAfterPhoto">
             Комментарий к закрытию *
             <textarea

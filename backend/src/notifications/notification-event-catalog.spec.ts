@@ -4,7 +4,6 @@ import {
   UserRole,
 } from '@prisma/client';
 
-import { PERMISSIONS } from '../common/permissions.constants';
 import { ROLE_GRANTS } from '../common/permissions-matrix';
 import {
   getSystemNotificationDefault,
@@ -78,7 +77,7 @@ describe('notification event catalog', () => {
     ).toBe(false);
   });
 
-  it('keeps CLIENT_ADMIN notification defaults independent from its ticket read grant', () => {
+  it('represents CLIENT_ADMIN without adding permission grants', () => {
     expect(
       isRoleRepresentableForNotificationContour({
         contour: NotificationContour.CLIENT,
@@ -86,8 +85,8 @@ describe('notification event catalog', () => {
       }),
     ).toBe(true);
     expect(
-      ROLE_GRANTS.find((grant) => grant.role === UserRole.CLIENT_ADMIN)?.codes,
-    ).toEqual([PERMISSIONS.TICKETS_VIEW]);
+      ROLE_GRANTS.some((grant) => grant.role === UserRole.CLIENT_ADMIN),
+    ).toBe(false);
     expect(
       getSystemNotificationDefault({
         contour: NotificationContour.CLIENT,
