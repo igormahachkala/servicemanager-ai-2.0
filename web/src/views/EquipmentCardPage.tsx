@@ -44,7 +44,18 @@ export function EquipmentCardPage() {
    * пришедший по ссылке без параметра, получал бы «не найдено» на то
    * оборудование, которое только что видел.
    */
-  const companyId = (searchParams.get('companyId') || api.getObserverCompanyId()).trim()
+  /*
+   * Контур провайдера приходит в linkedClientCompanyId, контур наблюдателя —
+   * в companyId. Карточка принимает любой: для чтения оборудования бэкенд
+   * ждёт companyId и сам разрешает провайдеру связанного клиента
+   * (equipment.service: getLinkedClientAccess).
+   */
+  const linkedClientCompanyId = (searchParams.get('linkedClientCompanyId') || '').trim()
+  const companyId = (
+    searchParams.get('companyId') ||
+    linkedClientCompanyId ||
+    api.getObserverCompanyId()
+  ).trim()
 
   const [qrOpen, setQrOpen] = useState(false)
 
@@ -98,6 +109,13 @@ export function EquipmentCardPage() {
       ? { companyId }
       : { linkedClientCompanyId: companyId }
 
+  /*
+   * Ссылки карточки несут ту же область тем же параметром. Иначе переход
+   * «Создать заявку» у провайдера упирался в скрытую форму, а ссылка на
+   * точку — в 404.
+   */
+  const cardScope = boardScope
+
   if (equipmentQ.isLoading) {
     return (
       <div className="panel">
@@ -134,7 +152,7 @@ export function EquipmentCardPage() {
             <div className="muted small">
               Объект:{' '}
               {/* Область обязательна: LocationPage читает её только из адреса. */}
-              <Link to={locationCardPath(item.location.id, companyId)}>
+              <Link to={locationCardPath(item.location.id, cardScope)}>
                 {item.location.name || 'Без названия'}
               </Link>
             </div>
@@ -142,7 +160,7 @@ export function EquipmentCardPage() {
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {canCreateTicketForEquipment(item) ? (
-            <Link to={equipmentCreateTicketPath({ id: item.id, locationId })}>
+            <Link to={equipmentCreateTicketPath({ id: item.id, locationId }, cardScope)}>
               <button>Создать заявку</button>
             </Link>
           ) : null}

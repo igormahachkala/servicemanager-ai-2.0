@@ -90,7 +90,7 @@ describe('V2 карточка оборудования: маршрут и кро
   it('карточка доступна по прямой ссылке, а не выбором в списке', () => {
     expect(cardCode).toContain('useParams<{ id: string }>()')
     // Ссылка строится общим билдером, он же переносит область.
-    expect(codeOf(readSrc('views/EquipmentPage.tsx'))).toContain('equipmentCardPath(item.id,')
+    expect(codeOf(readSrc('views/EquipmentPage.tsx'))).toContain('equipmentCardPath(')
     expect(equipmentCardPath('eq-1')).toBe('/equipment/eq-1')
   })
 })
@@ -160,7 +160,7 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
 
   it('заявка показывает оборудование и ведёт в карточку', () => {
     const ticketCode = codeOf(readSrc('views/TicketPage.tsx'))
-    expect(ticketCode).toContain('equipmentCardPath(ticket.equipment.id, observerCompanyId || effectiveLinkedClientCompanyId)')
+    expect(ticketCode).toContain('equipmentCardPath(ticket.equipment.id, { companyId: observerCompanyId,')
   })
 
   it('создание заявки идёт существующим маршрутом с предзаполнением', () => {
@@ -265,7 +265,7 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
     const locationCode = codeOf(readSrc('views/LocationPage.tsx'))
     expect(locationCode).toContain("searchParams.get('companyId') || ''")
     expect(codeOf(readSrc('views/EquipmentCardPage.tsx'))).toContain(
-      'locationCardPath(item.location.id, companyId)',
+      'locationCardPath(item.location.id, cardScope)',
     )
   })
 
@@ -276,7 +276,7 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
      * компании провайдера и отвечала «не найдено».
      */
     expect(codeOf(readSrc('views/TicketPage.tsx'))).toContain(
-      'equipmentCardPath(ticket.equipment.id, observerCompanyId || effectiveLinkedClientCompanyId)',
+      'equipmentCardPath(ticket.equipment.id, { companyId: observerCompanyId,',
     )
   })
 
@@ -305,7 +305,7 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
      * получал «не найдено» на то, что только что видел в списке.
      */
     const listCode = codeOf(readSrc('views/EquipmentPage.tsx'))
-    expect(listCode).toContain('equipmentCardPath(item.id, scopeCompanyId)')
+    expect(listCode).toContain('{ linkedClientCompanyId: scopeCompanyId }')
     expect(listCode).not.toMatch(/appendScopeToPath\(`\/equipment\//)
   })
 
@@ -404,6 +404,86 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
       { id: 'eq-1', label: 'Печь · Тепловое' },
       { id: 'eq-2', label: 'Витрина' },
     ])
+  })
+
+  it('создание заявки по оборудованию несёт область, иначе форма скрыта', () => {
+    /*
+     * Это был тупик: приход на карточку с «?companyId=…» перезаписывает
+     * сохранённую область без linked-части (Shell дёргает
+     * persistScopeFromSearchParams на каждом переходе), форма создания
+     * видит пустой linkedClientCompanyId, поднимает providerNeedsLinkedClient
+     * и скрывается целиком — предзаполнение до неё не доезжает.
+     */
+    expect(
+      equipmentCreateTicketPath({ id: 'eq-1', locationId: 'loc-1' }, { linkedClientCompanyId: 'client-c' }),
+    ).toBe('/tickets/new?linkedClientCompanyId=client-c&locationId=loc-1&equipmentId=eq-1')
+
+    expect(
+      equipmentCreateTicketPath({ id: 'eq-1', locationId: 'loc-1' }, { companyId: 'company-b' }),
+    ).toBe('/tickets/new?companyId=company-b&locationId=loc-1&equipmentId=eq-1')
+
+    // Без области — прежний адрес, без пустых параметров.
+    expect(equipmentCreateTicketPath({ id: 'eq-1', locationId: 'loc-1' })).toBe(
+      '/tickets/new?locationId=loc-1&equipmentId=eq-1',
+    )
+    expect(equipmentCreateTicketPath({ id: 'eq-1', locationId: null }, { companyId: '  ' })).toBe(
+      '/tickets/new?equipmentId=eq-1',
+    )
+
+    // Форма создания читает именно этот параметр.
+    expect(codeOf(readSrc('views/CreateTicketPage.tsx'))).toContain(
+      "searchFromLocation.get('linkedClientCompanyId')",
+    )
+    expect(codeOf(readSrc('views/EquipmentCardPage.tsx'))).toContain(
+      'equipmentCreateTicketPath({ id: item.id, locationId }, cardScope)',
+    )
+  })
+
+  it('области переносятся тем параметром, который читает получатель', () => {
+    expect(equipmentCardPath('eq-1', { linkedClientCompanyId: 'client-c' })).toBe(
+      '/equipment/eq-1?linkedClientCompanyId=client-c',
+    )
+    expect(equipmentCardPath('eq-1', { companyId: 'company-b' })).toBe('/equipment/eq-1?companyId=company-b')
+    // Строка остаётся совместимой и означает companyId.
+    expect(equipmentCardPath('eq-1', 'company-b')).toBe('/equipment/eq-1?companyId=company-b')
+    expect(locationCardPath('loc-1', { linkedClientCompanyId: 'client-c' })).toBe(
+      '/locations/loc-1?linkedClientCompanyId=client-c',
+    )
+
+    /*
+     * Карточка принимает любой из двух параметров: ссылки на неё ведут и
+     * из провайдерского контура, и из наблюдательского.
+     */
+    const cardCode = codeOf(readSrc('views/EquipmentCardPage.tsx'))
+    expect(cardCode).toContain("searchParams.get('linkedClientCompanyId')")
+    expect(cardCode).toContain("searchParams.get('companyId') ||")
+
+    // Список провайдера отдаёт linked-контур, а не companyId.
+    expect(codeOf(readSrc('views/EquipmentPage.tsx'))).toContain(
+      '{ linkedClientCompanyId: scopeCompanyId }',
+    )
+    // Заявка отдаёт оба идентификатора как есть.
+    expect(codeOf(readSrc('views/TicketPage.tsx'))).toContain(
+      '{ companyId: observerCompanyId, linkedClientCompanyId: effectiveLinkedClientCompanyId }',
+    )
+  })
+
+  it('доска меняет фильтры только в известных местах', () => {
+    /*
+     * Чистые функции защищают РЕШЕНИЕ, но не мешают доске менять те же
+     * фильтры в другом месте: аудит показал, что P0 можно вернуть вторым
+     * эффектом, не тронув ни одной проверяемой строки, и весь набор
+     * оставался зелёным. Поэтому набор мест закрыт по счёту: новая точка
+     * записи обязана пройти через этот тест и быть осознанной.
+     *
+     * Полностью это закрывает только проверка в DOM: окружение тестов —
+     * node, монтировать компонент нечем.
+     */
+    const boardCode = codeOf(readSrc('views/BoardPage.tsx'))
+    const equipmentWrites = boardCode.match(/setSelectedEquipmentId\(/g)?.length || 0
+    const locationWrites = boardCode.match(/setSelectedLocationId\(/g)?.length || 0
+    expect(equipmentWrites, 'новая запись в фильтр оборудования').toBe(8)
+    expect(locationWrites, 'новая запись в фильтр точки').toBe(7)
   })
 
   it('снятое оборудование новых заявок не предлагает', () => {
@@ -543,10 +623,14 @@ describe('V2 доступ: новой модели прав не вводитс�
 
     expect(codeOf(readSrc('views/LocationPage.tsx'))).toContain('equipmentCardPath(unit.id, companyId)')
     expect(codeOf(readSrc('views/TicketPage.tsx'))).toContain(
-      'equipmentCardPath(ticket.equipment.id, observerCompanyId || effectiveLinkedClientCompanyId)',
+      'equipmentCardPath(ticket.equipment.id, { companyId: observerCompanyId,',
     )
-    // Карточка берёт область из адреса, а при его отсутствии — наблюдаемую.
-    expect(cardCode).toContain("searchParams.get('companyId') || api.getObserverCompanyId()")
+    /*
+     * Карточка берёт область из любого из двух параметров адреса, а при их
+     * отсутствии — наблюдаемую компанию.
+     */
+    expect(cardCode).toContain("searchParams.get('linkedClientCompanyId')")
+    expect(cardCode).toContain('api.getObserverCompanyId()')
   })
 
   it('существующие права маршрутов оборудования не менялись', () => {

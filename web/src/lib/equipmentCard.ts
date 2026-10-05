@@ -141,19 +141,57 @@ export function canCreateTicketForEquipment(item: {
  * из клиентского контура, получил бы «не найдено» на то оборудование,
  * которое только что видел. Поэтому область переносится явно.
  */
-export function equipmentCardPath(equipmentId: string, companyId?: string | null): string {
-  const scope = (companyId || '').trim()
-  return scope
-    ? `/equipment/${equipmentId}?companyId=${encodeURIComponent(scope)}`
-    : `/equipment/${equipmentId}`
+export type ScopeParams = {
+  companyId?: string | null
+  linkedClientCompanyId?: string | null
+}
+
+/**
+ * Параметры области для адреса.
+ *
+ * Строка принимается как companyId — так область переносили раньше, и
+ * у карточки точки другого значения просто нет. Провайдерский контур
+ * задаётся linkedClientCompanyId: именно его читают доска и создание
+ * заявки, и именно он не даёт Shell перезаписать сохранённую область
+ * без linked-части (persistScopeFromSearchParams пишет пару целиком).
+ */
+function scopeSearchParams(scope?: ScopeParams | string | null): URLSearchParams {
+  const params = new URLSearchParams()
+  const normalized: ScopeParams = typeof scope === 'string' ? { companyId: scope } : scope || {}
+  const companyId = (normalized.companyId || '').trim()
+  const linkedClientCompanyId = (normalized.linkedClientCompanyId || '').trim()
+  if (companyId) params.set('companyId', companyId)
+  if (linkedClientCompanyId) params.set('linkedClientCompanyId', linkedClientCompanyId)
+  return params
+}
+
+function withScope(path: string, scope?: ScopeParams | string | null): string {
+  const query = scopeSearchParams(scope).toString()
+  return query ? `${path}?${query}` : path
+}
+
+export function equipmentCardPath(equipmentId: string, scope?: ScopeParams | string | null): string {
+  return withScope(`/equipment/${equipmentId}`, scope)
 }
 
 /** Путь создания заявки по оборудованию: существующий маршрут, не новый. */
-export function equipmentCreateTicketPath(item: {
-  id: string
-  locationId?: string | null
-}): string {
-  const params = new URLSearchParams()
+export function equipmentCreateTicketPath(
+  item: {
+    id: string
+    locationId?: string | null
+  },
+  scope?: ScopeParams | string | null,
+): string {
+  /*
+   * Область обязательна, иначе переход «Создать заявку» у провайдера ведёт
+   * в тупик: форма создания берёт контур из linkedClientCompanyId (адрес
+   * или сохранённая область), а приход на карточку оборудования с
+   * «?companyId=…» эту сохранённую область уже перезаписал без linked-части
+   * (Shell вызывает persistScopeFromSearchParams на каждом переходе).
+   * Тогда providerNeedsLinkedClient истинно и форма скрывается целиком —
+   * предзаполнение до неё даже не доезжает.
+   */
+  const params = scopeSearchParams(scope)
   if (item.locationId) params.set('locationId', item.locationId)
   params.set('equipmentId', item.id)
   return `/tickets/new?${params.toString()}`
@@ -210,11 +248,8 @@ export function equipmentTicketsLink(
  * имеет, поэтому без параметра провайдер и наблюдатель получали 404 на ту
  * точку, с которой пришли.
  */
-export function locationCardPath(locationId: string, companyId?: string | null): string {
-  const scope = (companyId || '').trim()
-  return scope
-    ? `/locations/${locationId}?companyId=${encodeURIComponent(scope)}`
-    : `/locations/${locationId}`
+export function locationCardPath(locationId: string, scope?: ScopeParams | string | null): string {
+  return withScope(`/locations/${locationId}`, scope)
 }
 
 /**

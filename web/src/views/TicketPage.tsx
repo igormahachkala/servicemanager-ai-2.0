@@ -1092,7 +1092,7 @@ export function TicketPage() {
         <div className="panel" style={{ marginBottom: 12 }}>
           <h3 style={{ marginBottom: 6 }}>Оборудование</h3>
           <div>
-            <Link to={equipmentCardPath(ticket.equipment.id, observerCompanyId || effectiveLinkedClientCompanyId)}>{ticket.equipment.name}</Link>
+            <Link to={equipmentCardPath(ticket.equipment.id, { companyId: observerCompanyId, linkedClientCompanyId: effectiveLinkedClientCompanyId })}>{ticket.equipment.name}</Link>
           </div>
           {ticket.equipment.type ? (
             <div className="muted small">{ticket.equipment.type}</div>

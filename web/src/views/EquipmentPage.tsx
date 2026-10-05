@@ -440,7 +440,12 @@ export function EquipmentPage() {
                       смотрящий контур клиента, получал «не найдено» на
                       оборудование, которое только что видел в списке.
                     */
-                    to={equipmentCardPath(item.id, scopeCompanyId)}
+                    to={equipmentCardPath(
+                      item.id,
+                      isProviderScope
+                        ? { linkedClientCompanyId: scopeCompanyId }
+                        : { companyId: scopeCompanyId },
+                    )}
                     className="muted small"
                     style={{ paddingLeft: 10 }}
                   >

@@ -438,7 +438,10 @@ export function CreateTicketPage() {
        * Привязка к оборудованию уезжает в ОБА режима. Иначе переключение
        * в быстрый режим молча теряло бы её: поля там нет, а значение в
        * состоянии остаётся. Бэкенд принимает equipmentId независимо от
-       * createMode и сам проверяет компанию, точку и ACTIVE.
+       * createMode и сверяет компанию и точку (findFirst по id + companyId
+       * + locationId). Статус он на этом пути НЕ проверяет — ACTIVE
+       * требует только публичная заявка, — поэтому снятое с эксплуатации
+       * отсекает подсказка карточки (canCreateTicketForEquipment).
        */
       equipmentId: equipmentId || undefined,
       requesterName: requesterName.trim() || undefined,
