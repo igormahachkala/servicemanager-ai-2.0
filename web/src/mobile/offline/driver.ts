@@ -26,6 +26,7 @@ export type StoreName =
   | 'meta'
   | 'boardCache'
   | 'ticketDetailCache'
+  | 'serverMedia'
 
 export const STORE_NAMES: StoreName[] = [
   'queue',
@@ -37,14 +38,16 @@ export const STORE_NAMES: StoreName[] = [
   'meta',
   'boardCache',
   'ticketDetailCache',
+  'serverMedia',
 ]
 
 /**
  * Версия схемы IndexedDB. Повышение открывает onupgradeneeded и создаёт
  * недостающие object store, не трогая уже лежащие данные (очередь, снимки).
  * v2 — boardCache и ticketDetailCache (план 3).
+ * v3 — оригиналы серверных изображений, отдельно от исходящих blobs очереди.
  */
-export const OFFLINE_IDB_SCHEMA_VERSION = 2
+export const OFFLINE_IDB_SCHEMA_VERSION = 3
 
 /** Запись всегда возвращает результат, а не бросает: отказ — это состояние. */
 export type WriteResult =

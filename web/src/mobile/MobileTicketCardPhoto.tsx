@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import * as api from '../lib/api'
+import { useProtectedUploadSource } from '../ui/useProtectedUploadSrc'
 
 type Props = {
   previewUrl?: string | null
@@ -9,43 +10,15 @@ type Props = {
 
 export function MobileTicketCardPhoto({ previewUrl, imageCount = 0, alt = 'Фото заявки' }: Props) {
   const [broken, setBroken] = useState(false)
-  const [objectUrl, setObjectUrl] = useState<string | null>(null)
-  const [fetchFailed, setFetchFailed] = useState(false)
   const resolved = previewUrl ? api.resolveTicketAttachmentUrl({ url: previewUrl }) : ''
-  const src = objectUrl || (resolved && !api.isProtectedUploadUrl(resolved) ? resolved : '')
+  const source = useProtectedUploadSource(resolved)
   const count = Math.max(0, imageCount)
-  const waitingForBlob = Boolean(resolved) && api.isProtectedUploadUrl(resolved) && !objectUrl && !fetchFailed
 
   useEffect(() => {
     setBroken(false)
-    setObjectUrl(null)
-    setFetchFailed(false)
   }, [previewUrl])
 
-  useEffect(() => {
-    return () => {
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
-    }
-  }, [objectUrl])
-
-  useEffect(() => {
-    if (objectUrl || fetchFailed || !resolved || !api.isProtectedUploadUrl(resolved)) return
-    let cancelled = false
-    void api.fetchProtectedUploadBlob(resolved).then((blob) => {
-      if (cancelled) return
-      if (!blob) {
-        setFetchFailed(true)
-        return
-      }
-      setObjectUrl(URL.createObjectURL(blob))
-      setBroken(false)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [broken, fetchFailed, objectUrl, resolved])
-
-  if (!previewUrl || (broken && fetchFailed)) {
+  if (!previewUrl || broken || source.failed) {
     return (
       <div className="mobileTicketCardPhoto mobileTicketCardPhotoPlaceholder" aria-hidden="true">
         <span className="mobileTicketCardPhotoIcon" aria-hidden="true">
@@ -58,7 +31,7 @@ export function MobileTicketCardPhoto({ previewUrl, imageCount = 0, alt = 'Фо�
     )
   }
 
-  if (waitingForBlob || (broken && !objectUrl)) {
+  if (source.loading || !source.src) {
     return (
       <div className="mobileTicketCardPhoto mobileTicketCardPhotoPlaceholder" aria-hidden="true">
         <span className="mobileTicketCardPhotoIcon" aria-hidden="true">…</span>
@@ -69,7 +42,7 @@ export function MobileTicketCardPhoto({ previewUrl, imageCount = 0, alt = 'Фо�
   return (
     <div className="mobileTicketCardPhoto">
       <img
-        src={src}
+        src={source.src}
         alt={alt}
         className="mobileTicketCardPhotoImg"
         loading="lazy"

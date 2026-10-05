@@ -43,6 +43,8 @@ import { HomeChips } from './HomeChips'
 import { HomeList, type TicketCloseModalState } from './HomeList'
 import { HomeQuickCards, type MobileHomeQuickFilter } from './HomeQuickCards'
 import { HomeFAB } from './HomeFAB'
+import { HomeOfflineCachePanel } from './HomeOfflineCachePanel'
+import { useTicketOfflineCache } from './useTicketOfflineCache'
 
 export function MobileHome() {
   const location = useLocation()
@@ -60,7 +62,13 @@ export function MobileHome() {
   const [startQueuedIds, setStartQueuedIds] = useState<Set<string>>(() => new Set())
   const linkedClientCompanyId = (search.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
   const companyId = (search.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
-  const pageScope = { linkedClientCompanyId: linkedClientCompanyId || undefined, companyId: companyId || undefined }
+  const pageScope = useMemo(
+    () => ({
+      linkedClientCompanyId: linkedClientCompanyId || undefined,
+      companyId: companyId || undefined,
+    }),
+    [companyId, linkedClientCompanyId],
+  )
   const queryClient = useQueryClient()
   const [mobileActionToast, setMobileActionToast] = useState('')
   const persistedBoardUi = useMemo(() => readPersistedMobileHomeBoardUi(), [])
@@ -142,8 +150,14 @@ export function MobileHome() {
     enabled: !!linkedClientCompanyId && !!meQ.data && meQ.data.role !== 'TECHNICIAN',
   })
 
-  const baseCards = boardQ.data?.columns.flatMap((col) => col.cards || []) || []
-  const completedCards = completedBoardQ.data?.columns.flatMap((col) => col.cards || []) || []
+  const baseCards = useMemo(
+    () => boardQ.data?.columns.flatMap((col) => col.cards || []) || [],
+    [boardQ.data],
+  )
+  const completedCards = useMemo(
+    () => completedBoardQ.data?.columns.flatMap((col) => col.cards || []) || [],
+    [completedBoardQ.data],
+  )
   const cards = boardTab === 'done' && completedBoardQ.data ? completedCards : baseCards
   const canAssignProvider = api.isProviderTicketAssignRole(meQ.data?.role)
   // E4: быстрая приёмка на карте — тот же гейт, что «Принять» в карточке (MobileTicketPage canShowClientAcceptance):
@@ -233,6 +247,30 @@ export function MobileHome() {
   }, [quickFilter, cards, meQ.data?.id, meQ.data?.role, canAssignProvider, reworkTicketIds])
   const quickFilterLabel =
     quickFilter === 'awaiting' ? 'На приёмке' : quickFilter === 'myaction' ? 'Требует моего действия' : quickFilter === 'rework' ? 'Требуют доработки' : ''
+  const renderedTickets = quickFilter ? quickTickets ?? [] : visibleTickets
+  const homeListTickets = useMemo(
+    () =>
+      buildMobileHomeVisibleTickets({
+        cards: baseCards,
+        tab: 'all',
+        meId: meQ.data?.id,
+        meRole: meQ.data?.role,
+        chips: new Set(),
+        searchQuery: '',
+        atRiskThresholdMinutes,
+      }),
+    [atRiskThresholdMinutes, baseCards, meQ.data?.id, meQ.data?.role],
+  )
+  const ticketOfflineCache = useTicketOfflineCache({
+    allTickets: baseCards,
+    homeListTickets,
+    visibleTickets: renderedTickets,
+    meId: meQ.data?.id,
+    scope: pageScope,
+    enabled: meQ.data?.role === 'TECHNICIAN',
+    online: isOnline,
+    storageReady: offline.ready,
+  })
 
   // При активной быстрой карте список показывает её выборку и обычные фильтры/вкладки очищаются.
   function activateQuickFilter(next: Exclude<MobileHomeQuickFilter, null>) {
@@ -612,9 +650,19 @@ export function MobileHome() {
               />
             ) : null}
           </div>
+          <HomeOfflineCachePanel
+            enabled={meQ.data?.role === 'TECHNICIAN'}
+            online={isOnline}
+            storageReady={offline.ready}
+            selectedCount={ticketOfflineCache.selectedIds.size}
+            busy={ticketOfflineCache.busy}
+            progress={ticketOfflineCache.progress}
+            error={ticketOfflineCache.error}
+            onCacheSelected={() => void ticketOfflineCache.cacheSelected()}
+          />
           <HomeList
             boardIsLoading={activeBoardIsLoading}
-            visibleTickets={quickFilter ? quickTickets ?? [] : visibleTickets}
+            visibleTickets={renderedTickets}
             tabOnlyTickets={tabOnlyTickets}
             boardTab={boardTab}
             role={meQ.data?.role}
@@ -658,6 +706,10 @@ export function MobileHome() {
             closeCanSubmit={closeCanSubmit}
             closeM={closeM}
             mobileActionToast={mobileActionToast}
+            cacheStates={ticketOfflineCache.states}
+            cacheSelectedIds={ticketOfflineCache.selectedIds}
+            onToggleCache={ticketOfflineCache.toggleSelected}
+            onRefreshCache={isOnline ? ticketOfflineCache.refreshTicket : undefined}
           />
           {boardQ.data && boardQ.data.meta.totalTickets >= boardQ.data.meta.limitedToLast && boardQ.data.meta.limitedToLast >= 500 ? (
             <div className="mobileNotice" style={{ textAlign: 'center', fontSize: '0.82rem', marginTop: 4 }}>

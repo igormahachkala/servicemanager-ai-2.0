@@ -268,11 +268,17 @@ export class OfflineStore {
   async readRound<T>(id: string): Promise<T | null> {
     return this.driver.get<T>('rounds', id)
   }
+  async deleteRound(id: string) {
+    return this.driver.delete('rounds', id)
+  }
   async cacheCheckpoint(checkpoint: { id: string } & Record<string, unknown>) {
     return this.driver.put('checkpoints', checkpoint.id, checkpoint)
   }
   async readCheckpoints<T>(): Promise<T[]> {
     return this.driver.getAll<T>('checkpoints')
+  }
+  async deleteCheckpoint(id: string) {
+    return this.driver.delete('checkpoints', id)
   }
   async cacheLocation(location: { id: string } & Record<string, unknown>) {
     return this.driver.put('locations', location.id, location)
@@ -292,7 +298,7 @@ export class OfflineStore {
   async readBoardEntry<T>(key: string): Promise<T | null> {
     return this.driver.get<T>('boardCache', key)
   }
-  async cacheTicketDetailEntry(key: string, entry: { savedAt: string; data: unknown }) {
+  async cacheTicketDetailEntry<T extends { savedAt: string; data: unknown }>(key: string, entry: T) {
     return this.driver.put('ticketDetailCache', key, entry)
   }
   async readTicketDetailEntry<T>(key: string): Promise<T | null> {
@@ -300,6 +306,28 @@ export class OfflineStore {
   }
   async listTicketDetailKeys(): Promise<string[]> {
     return this.driver.getAllKeys('ticketDetailCache')
+  }
+  async deleteTicketDetailEntry(key: string) {
+    return this.driver.delete('ticketDetailCache', key)
+  }
+
+  // ── оригиналы серверных изображений ───────────────────────────────────
+  //
+  // Отдельный store обязателен: `blobs` принадлежит очереди исходящих фото
+  // и очищается после sync. Серверные изображения живут вместе с кэшем
+  // родительских сущностей и не участвуют в доставке мутаций.
+
+  async cacheServerMediaEntry(key: string, entry: unknown) {
+    return this.driver.put('serverMedia', key, entry)
+  }
+  async readServerMediaEntry<T>(key: string): Promise<T | null> {
+    return this.driver.get<T>('serverMedia', key)
+  }
+  async listServerMediaEntries<T>(): Promise<T[]> {
+    return this.driver.getAll<T>('serverMedia')
+  }
+  async deleteServerMediaEntry(key: string) {
+    return this.driver.delete('serverMedia', key)
   }
 
   // ── метаданные синхронизации ────────────────────────────────────────────
@@ -309,6 +337,9 @@ export class OfflineStore {
   }
   async setMeta(key: string, value: unknown) {
     return this.driver.put('meta', key, value)
+  }
+  async deleteMeta(key: string) {
+    return this.driver.delete('meta', key)
   }
 
   /**

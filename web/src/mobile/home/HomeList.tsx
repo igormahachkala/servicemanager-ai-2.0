@@ -14,6 +14,7 @@ import {
   ticketMediaKind,
   validateTicketMediaFile,
 } from '../../lib/ticketAttachmentMedia'
+import type { TicketDetailCacheState } from '../offline/ticketDetailCache'
 
 export type TicketCloseModalState = {
   ticketId: string
@@ -64,6 +65,10 @@ type Props = {
   closeCanSubmit: boolean
   closeM: UseMutationResult<void, unknown, void, unknown>
   mobileActionToast: string
+  cacheStates?: ReadonlyMap<string, TicketDetailCacheState>
+  cacheSelectedIds?: ReadonlySet<string>
+  onToggleCache?: (ticketId: string) => void
+  onRefreshCache?: (ticketId: string) => void
 }
 
 export function HomeList(props: Props) {
@@ -106,6 +111,10 @@ export function HomeList(props: Props) {
     closeCanSubmit,
     closeM,
     mobileActionToast,
+    cacheStates,
+    cacheSelectedIds,
+    onToggleCache,
+    onRefreshCache,
   } = props
 
   const groupRenderMode = boardTab === 'done' ? 'done' : 'active'
@@ -157,6 +166,10 @@ export function HomeList(props: Props) {
         statusClassOverride={startQueued && ticket.status === 'ASSIGNED' ? 'IN_PROGRESS' : null}
         actionProgressLabel={actionProgressLabel}
         onAction={onAction}
+        cacheState={cacheStates?.get(ticket.id)}
+        cacheSelected={cacheSelectedIds?.has(ticket.id)}
+        onToggleCache={onToggleCache}
+        onRefreshCache={onRefreshCache}
         assignFooter={
           showAssignFooter
             ? {

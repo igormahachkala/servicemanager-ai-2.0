@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type TouchEvent } from 'react'
 import * as api from '../lib/api'
 import { MobileAttachmentThumb, mobileAttachmentLabel, type MobileAttachmentLike } from './MobileAttachmentThumb'
+import { useProtectedUploadSource } from '../ui/useProtectedUploadSrc'
 
 const MAX_DOTS = 9
 
@@ -12,48 +13,24 @@ type HeroImageProps = {
 function HeroImage({ photo, onTap }: HeroImageProps) {
   const [broken, setBroken] = useState(false)
   const [loaded, setLoaded] = useState(false)
-  const [objectUrl, setObjectUrl] = useState<string | null>(null)
-  const [fetchFailed, setFetchFailed] = useState(false)
   const resolved = api.resolveTicketAttachmentUrl(photo)
-  const previewSrc = objectUrl || (api.isProtectedUploadUrl(resolved) ? '' : resolved)
+  const source = useProtectedUploadSource(resolved)
   const label = mobileAttachmentLabel(photo)
-  const waitingForBlob = Boolean(resolved) && api.isProtectedUploadUrl(resolved) && !objectUrl && !fetchFailed
 
   useEffect(() => {
     setBroken(false)
     setLoaded(false)
-    setObjectUrl(null)
-    setFetchFailed(false)
   }, [photo.id, photo.url, photo.downloadUrl, photo.path, photo.filename, photo.originalName])
-
-  useEffect(() => {
-    return () => {
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
-    }
-  }, [objectUrl])
-
-  useEffect(() => {
-    if (objectUrl || fetchFailed || !resolved || !api.isProtectedUploadUrl(resolved)) return
-    let cancelled = false
-    void api.fetchProtectedUploadBlob(resolved).then((blob) => {
-      if (cancelled) return
-      if (!blob) { setFetchFailed(true); return }
-      setObjectUrl(URL.createObjectURL(blob))
-      setBroken(false)
-      setLoaded(false)
-    })
-    return () => { cancelled = true }
-  }, [broken, fetchFailed, objectUrl, resolved])
 
   if (!resolved) {
     return <div className="mobileTicketPhotoHeroPlaceholder">{label}</div>
   }
 
-  if (!canPreviewInBrowser(photo.mimeType) || (broken && fetchFailed)) {
+  if (!canPreviewInBrowser(photo.mimeType) || broken || source.failed) {
     return (
       <a
         className="mobileTicketPhotoHeroPlaceholder mobileTicketPhotoHeroPlaceholder--link"
-        href={objectUrl || resolved}
+        href={source.src || resolved}
         target="_blank"
         rel="noreferrer"
       >
@@ -67,7 +44,7 @@ function HeroImage({ photo, onTap }: HeroImageProps) {
     )
   }
 
-  if ((broken && !objectUrl) || waitingForBlob) {
+  if (source.loading || !source.src) {
     return (
       <div className="mobileTicketPhotoHeroPlaceholder">
         <span style={{ fontSize: '0.78rem' }}>Загрузка…</span>
@@ -80,18 +57,15 @@ function HeroImage({ photo, onTap }: HeroImageProps) {
       type="button"
       className="mobileTicketPhotoHeroBtn"
       aria-label={`Открыть: ${label}`}
-      onClick={() => onTap(previewSrc)}
+      onClick={() => onTap(source.src)}
     >
       <img
-        src={previewSrc}
+        src={source.src}
         alt={label}
         className={`mobileTicketPhotoHeroImg${loaded ? '' : ' mobileTicketPhotoHeroImgPending'}`}
         loading="lazy"
         onLoad={() => setLoaded(true)}
-        onError={() => {
-          if (objectUrl) { setFetchFailed(true); return }
-          setBroken(true)
-        }}
+        onError={() => setBroken(true)}
         draggable={false}
       />
     </button>

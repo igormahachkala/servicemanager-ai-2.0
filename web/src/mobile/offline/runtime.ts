@@ -24,6 +24,7 @@ import { identityFromToken } from './identity.js'
 import { OFFLINE_SYNC_LABEL, type OfflineQueueItem } from './types.js'
 import { reportApiReachability, subscribeApiReachability } from '../../lib/apiReachability.js'
 import { createReachabilityMonitor } from './reachabilityMonitor.js'
+import { requestPersistentStorage } from './persistentStorage.js'
 
 export type OfflineStatus = {
   /** Хранилище доступно и офлайн-работа сохранится. */
@@ -306,6 +307,14 @@ function emit(patch: Partial<OfflineStatus>) {
   for (const listener of listeners) listener(status)
 }
 
+/** Любой подтверждённый отказ IndexedDB запрещает обещать offline-сохранение. */
+export function reportOfflineStorageUnavailable(message: string) {
+  emit({
+    ready: false,
+    unavailableReason: message || 'Офлайн-хранилище недоступно: работа не сохранится',
+  })
+}
+
 export async function refreshOfflineStatus(): Promise<OfflineStatus> {
   if (!store) return status
   const [pending, attention] = await Promise.all([store.pendingCount(), store.attentionCount()])
@@ -333,6 +342,10 @@ export async function startOffline(identity: { id?: string | null; companyId?: s
   emit({ ready: opened.available, unavailableReason: opened.unavailableReason })
 
   if (!opened.available || !store) return { store, status }
+
+  // Persistence запрашивается во всех браузерах. denied оставляет рабочую
+  // best-effort IndexedDB; фактическую доступность определяют результаты write.
+  void requestPersistentStorage()
 
   const startedAt = generation
   coordinator = new SyncCoordinator(store, createHttpSyncTransport(), {
@@ -418,6 +431,9 @@ export async function queueOffline(input: Parameters<OfflineStore['enqueue']>[0]
     }
   }
   const result = await s.enqueue(input)
+  if (!result.ok && result.quota) {
+    reportOfflineStorageUnavailable(result.message)
+  }
   await refreshOfflineStatus()
   if (result.ok) {
     if (status.online) void syncNow()

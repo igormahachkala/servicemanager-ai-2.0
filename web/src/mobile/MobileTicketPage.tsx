@@ -34,6 +34,7 @@ import {
   loadAnyTicketDetailCache,
   loadTicketDetailCache,
   saveTicketDetailCache,
+  ticketDetailCacheState,
 } from './offline/ticketDetailCache'
 import { isLocalId } from './offline/store'
 import {
@@ -370,10 +371,6 @@ export function MobileTicketPage() {
   }, [location.key, location.pathname, location.search, navigate])
 
   useEffect(() => {
-    if (ticket?.status === 'IN_PROGRESS') setStartQueuedLocally(false)
-  }, [ticket?.status])
-
-  useEffect(() => {
     setStartQueuedLocally(false)
   }, [ticketId])
 
@@ -523,6 +520,10 @@ export function MobileTicketPage() {
   })
 
   const ticket = ticketQ.data
+
+  useEffect(() => {
+    if (ticket?.status === 'IN_PROGRESS') setStartQueuedLocally(false)
+  }, [ticket?.status])
 
   const ticketResourceScope = useMemo<api.TicketScopeParams>(
     () =>
@@ -695,6 +696,21 @@ export function MobileTicketPage() {
     timelineQ.isError,
     timelineQ.data,
   ])
+
+  const [ticketCacheStale, setTicketCacheStale] = useState(false)
+  useEffect(() => {
+    if (!ticketId || isLocalTicket || !isOnline) {
+      setTicketCacheStale(false)
+      return
+    }
+    let cancelled = false
+    void ticketDetailCacheState(ticketId, ticketResourceScope).then((state) => {
+      if (!cancelled) setTicketCacheStale(state === 'stale')
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [isLocalTicket, isOnline, ticketId, ticketResourceScope, ticketQ.dataUpdatedAt, attachmentsQ.dataUpdatedAt])
 
   const isOwnCompanyClient = !observerCompanyId && ownCompanyQ.data?.type === 'CLIENT'
   const canAssignProvider = !isOwnCompanyClient && api.isProviderTicketAssignRole(meQ.data?.role)
@@ -1658,6 +1674,12 @@ export function MobileTicketPage() {
       {!isOnline && ticketQ.isSuccess && ticket ? (
         <div className="mobileStaleDataBanner" role="status">
           Показаны сохранённые данные
+        </div>
+      ) : null}
+
+      {isOnline && ticketCacheStale ? (
+        <div className="mobileStaleDataBanner" role="status">
+          Сохранённая копия старше 8 часов. При связи её можно обновить.
         </div>
       ) : null}
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import * as api from '../lib/api'
 import { ticketMediaKind } from '../lib/ticketAttachmentMedia'
+import { useProtectedUploadSource } from '../ui/useProtectedUploadSrc'
 
 export type MobileAttachmentLike = {
   id?: string | null
@@ -43,19 +44,14 @@ export function MobileAttachmentThumb({
 }) {
   const [broken, setBroken] = useState(false)
   const [loaded, setLoaded] = useState(false)
-  const [objectUrl, setObjectUrl] = useState<string | null>(null)
-  const [fetchFailed, setFetchFailed] = useState(false)
   const resolved = api.resolveTicketAttachmentUrl(attachment)
-  const previewSrc = objectUrl || (api.isProtectedUploadUrl(resolved) ? '' : resolved)
+  const source = useProtectedUploadSource(resolved)
   const label = mobileAttachmentLabel(attachment)
   const mediaKind = ticketMediaKind(attachment)
-  const waitingForBlob = Boolean(resolved) && api.isProtectedUploadUrl(resolved) && !objectUrl && !fetchFailed
 
   useEffect(() => {
     setBroken(false)
     setLoaded(false)
-    setObjectUrl(null)
-    setFetchFailed(false)
   }, [
     attachment.id,
     attachment.url,
@@ -66,32 +62,6 @@ export function MobileAttachmentThumb({
     attachment.originalName,
   ])
 
-  useEffect(() => {
-    return () => {
-      if (objectUrl) URL.revokeObjectURL(objectUrl)
-    }
-  }, [objectUrl])
-
-  useEffect(() => {
-    if (objectUrl || fetchFailed || !resolved || !api.isProtectedUploadUrl(resolved)) return
-
-    let cancelled = false
-    void api.fetchProtectedUploadBlob(resolved).then((blob) => {
-      if (cancelled) return
-      if (!blob) {
-        setFetchFailed(true)
-        return
-      }
-      setObjectUrl(URL.createObjectURL(blob))
-      setBroken(false)
-      setLoaded(false)
-    })
-
-    return () => {
-      cancelled = true
-    }
-  }, [broken, fetchFailed, objectUrl, resolved])
-
   if (!resolved) {
     return (
       <div className="mobilePhotoFallbackLink mobilePhotoFallbackLinkStatic">
@@ -101,11 +71,11 @@ export function MobileAttachmentThumb({
     )
   }
 
-  if (!mediaKind || (broken && fetchFailed)) {
-    return <FallbackLink href={objectUrl || resolved} label={label} />
+  if (!mediaKind || broken || source.failed) {
+    return <FallbackLink href={source.src || resolved} label={label} />
   }
 
-  if ((broken && !objectUrl) || waitingForBlob) {
+  if (source.loading || !source.src) {
     return (
       <div className="mobilePhotoFallbackLink mobilePhotoFallbackLinkStatic">
         <span className="mobilePhotoFallbackTitle">{label}</span>
@@ -117,38 +87,26 @@ export function MobileAttachmentThumb({
   if (mediaKind === 'video') {
     return (
       <video
-        src={previewSrc}
+        src={source.src}
         className={loaded ? className : `${className} mobilePhotoThumbPending`}
         controls
         playsInline
         preload="metadata"
         aria-label={label}
         onLoadedMetadata={() => setLoaded(true)}
-        onError={() => {
-          if (objectUrl) {
-            setFetchFailed(true)
-            return
-          }
-          setBroken(true)
-        }}
+        onError={() => setBroken(true)}
       />
     )
   }
 
   const img = (
     <img
-      src={previewSrc}
+      src={source.src}
       alt={label}
       className={loaded ? className : `${className} mobilePhotoThumbPending`}
       loading="lazy"
       onLoad={() => setLoaded(true)}
-      onError={() => {
-        if (objectUrl) {
-          setFetchFailed(true)
-          return
-        }
-        setBroken(true)
-      }}
+      onError={() => setBroken(true)}
     />
   )
 
@@ -158,7 +116,7 @@ export function MobileAttachmentThumb({
         type="button"
         className="mobilePhotoThumbLink mobilePhotoThumbOpen"
         aria-label={`Открыть фото: ${label}`}
-        onClick={() => onOpenPreview({ src: previewSrc, alt: label })}
+        onClick={() => onOpenPreview({ src: source.src, alt: label })}
       >
         {img}
       </button>
@@ -166,7 +124,7 @@ export function MobileAttachmentThumb({
   }
 
   return (
-    <a className="mobilePhotoThumbLink" href={previewSrc} target="_blank" rel="noreferrer">
+    <a className="mobilePhotoThumbLink" href={source.src} target="_blank" rel="noreferrer">
       {img}
     </a>
   )
