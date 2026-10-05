@@ -455,8 +455,14 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
      * из провайдерского контура, и из наблюдательского.
      */
     const cardCode = codeOf(readSrc('views/EquipmentCardPage.tsx'))
-    expect(cardCode).toContain("searchParams.get('linkedClientCompanyId')")
-    expect(cardCode).toContain("searchParams.get('companyId') ||")
+    /*
+     * Проверяется сама цепочка подстановки, а не наличие строки: объявить
+     * linkedClientCompanyId и не использовать его в области — ровно тот
+     * дефект, который «есть такая строка» пропускает.
+     */
+    expect(cardCode).toMatch(
+      /const companyId = \(\s*searchParams\.get\('companyId'\) \|\|\s*linkedClientCompanyId \|\|\s*api\.getObserverCompanyId\(\)\s*\)\.trim\(\)/,
+    )
 
     // Список провайдера отдаёт linked-контур, а не companyId.
     expect(codeOf(readSrc('views/EquipmentPage.tsx'))).toContain(
@@ -629,8 +635,9 @@ describe('V2 доступ: новой модели прав не вводитс�
      * Карточка берёт область из любого из двух параметров адреса, а при их
      * отсутствии — наблюдаемую компанию.
      */
-    expect(cardCode).toContain("searchParams.get('linkedClientCompanyId')")
-    expect(cardCode).toContain('api.getObserverCompanyId()')
+    expect(cardCode).toMatch(
+      /const companyId = \(\s*searchParams\.get\('companyId'\) \|\|\s*linkedClientCompanyId \|\|\s*api\.getObserverCompanyId\(\)\s*\)\.trim\(\)/,
+    )
   })
 
   it('существующие права маршрутов оборудования не менялись', () => {
