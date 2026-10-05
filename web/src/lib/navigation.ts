@@ -154,6 +154,30 @@ export function railSectionLeaves(section: RailSection): NavLeaf[] {
   return leaves
 }
 
+/**
+ * Активный раздел Rail по текущему пути. Единственный источник — сам Rail:
+ * ищем лист с самым длинным совпадающим префиксом (`to` или `to/…`). Это
+ * заодно делает маршрут готовым к canonical /equipment/:id: лист `/equipment`
+ * накрывает и `/equipment/<id>` без правок навигации. Неизвестный путь → null.
+ */
+export function railSectionIdForPath(pathname?: string | null): string | null {
+  const path = (pathname || '').split('?')[0].split('#')[0]
+  if (!path) return null
+  let bestLen = -1
+  let bestSection: string | null = null
+  for (const section of managementRailSections) {
+    for (const leaf of railSectionLeaves(section)) {
+      const to = leaf.to
+      const match = path === to || path.startsWith(to + '/')
+      if (match && to.length > bestLen) {
+        bestLen = to.length
+        bestSection = section.id
+      }
+    }
+  }
+  return bestSection
+}
+
 /* ─── Видимость (fail-closed) ─────────────────────────────────────────────────
  *
  * Явный allow-list по маршруту. Неизвестный маршрут → false. Навигация только
