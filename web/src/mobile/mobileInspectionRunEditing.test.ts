@@ -326,6 +326,7 @@ describe('120W source contract', () => {
       'smartAssignTicket',
       'startTicketWorkLog',
       'stopTicketWorkLog',
+      'submitTicketAcceptance',
       'updateTicket',
       'updateTicketStatus',
       'uploadDraftTicketAttachment',
