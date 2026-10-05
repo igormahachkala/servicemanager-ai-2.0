@@ -20,6 +20,10 @@ import { MobileTicketPhotoGallery } from './MobileTicketPhotoGallery'
 import { FullscreenPhotoViewer, type PhotoViewerItem } from '../components/FullscreenPhotoViewer'
 import { useProtectedUploadSrcs } from '../ui/useProtectedUploadSrc'
 import { toChatMessages } from '../lib/ticketChat'
+import { pushToast } from '../lib/appToast'
+import { buildOfflineTicketCommentPayload } from '../lib/ticketReplyUi'
+import { queueOffline, useOfflineStatus } from './offline/useOffline'
+import { deliverTicketComment } from './offline/ticketCommentDelivery'
 
 type ChatsFilter = 'all' | 'mine' | 'active' | 'with_photo'
 type ChatsView = 'active' | 'archive'
@@ -232,6 +236,7 @@ export function MobileChatsPage() {
   const { me, isMeReady, boardParams } = useLinkedBoardScope()
   const queryClient = useQueryClient()
 
+  const offline = useOfflineStatus()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<ChatsFilter>('all')
   const [chatView, setChatView] = useState<ChatsView>('active')
@@ -523,13 +528,31 @@ export function MobileChatsPage() {
   )
 
   const sendCommentM = useMutation({
-    mutationFn: (comment: string) => {
+    networkMode: 'always',
+    mutationFn: async (comment: string) => {
       if (!ticketQ.data) throw new Error('Ticket not loaded')
-      return api.addTicketComment(ticketId, comment, ticketResourceScope)
+      const scope = ticketResourceScope || {}
+      const delivery = await deliverTicketComment({
+        reportedOnline: offline.liveApiAllowed,
+        queueInput: {
+          kind: 'ticket.comment',
+          target: { ticketId },
+          payload: buildOfflineTicketCommentPayload(comment, scope, null),
+        },
+        send: (idempotencyKey) => api.addTicketComment(ticketId, comment, scope, { idempotencyKey }),
+        enqueue: queueOffline,
+      })
+      if (delivery.kind === 'queue-failed') {
+        throw new Error(`Не удалось сохранить на устройстве: ${delivery.message}`)
+      }
+      return delivery
     },
     onMutate: () => setComposerError(''),
-    onSuccess: async () => {
+    onSuccess: async (delivery) => {
       setComposerText('')
+      if (delivery.kind === 'queued') {
+        pushToast('Сохранено на устройстве. Будет отправлено после восстановления сети.', 'info')
+      }
       await queryClient.invalidateQueries({ queryKey: ['mobile-chats-timeline', ticketId] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-chats-ticket', ticketId] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-chats-board'] })

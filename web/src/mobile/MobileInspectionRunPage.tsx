@@ -7,6 +7,7 @@ import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
 import { mobilePath } from './mobileRoute'
 import { queueOffline, useOfflineStatus } from './offline/useOffline'
 import { deliverCheckpointAttachment } from './offline/attachmentDelivery'
+import { deliverCheckpointUpdate } from './offline/statusDelivery'
 import { ONLINE_ONLY_ACTION_MESSAGE } from './offline/onlineOnlyMessage'
 import { LOCAL_ID_PREFIX } from './offline/store'
 import { cacheRoundSnapshot, readPendingRoundTicketItemIds, readRoundSnapshot } from './offline/roundCache'
@@ -178,21 +179,30 @@ export function MobileInspectionRunPage() {
      */
     networkMode: 'always',
     mutationFn: async (input: { itemId: string; payload: api.UpdateInspectionRunItemInput }) => {
-      if (!offline.online) {
-        // Отметка чек-поинта схлопывается по цели: серверу нужно последнее
-        // значение, а не цепочка переключений Норма → Проблема → Норма.
-        const queued = await queueOffline({
+      let sent: Awaited<ReturnType<typeof api.updateInspectionRunItem>> | null = null
+      const delivery = await deliverCheckpointUpdate({
+        reportedOnline: offline.liveApiAllowed,
+        queueInput: {
           kind: 'checkpoint.update',
           target: { roundId: runId, checkpointId: input.itemId },
           payload: checkpointPayloadForOfflineQueue(input.payload),
-        })
-        if (!queued.ok) throw new Error(`Не удалось сохранить на устройстве: ${queued.message}`)
+        },
+        send: async () => {
+          sent = await api.updateInspectionRunItem(runId, input.itemId, input.payload)
+          return sent
+        },
+        enqueue: queueOffline,
+      })
+      if (delivery.kind === 'queue-failed') {
+        throw new Error(`Не удалось сохранить на устройстве: ${delivery.message}`)
+      }
+      if (delivery.kind === 'queued') {
         // Отметка сразу видна в открытом обходе: иначе техник решит, что
         // нажатие не сработало, и отметит чек-поинт ещё раз.
         patchRunItemLocally(input.itemId, input.payload)
         return null
       }
-      return api.updateInspectionRunItem(runId, input.itemId, input.payload)
+      return sent
     },
   })
 
@@ -201,7 +211,7 @@ export function MobileInspectionRunPage() {
     networkMode: 'always',
     mutationFn: async (input: { itemId: string; file: File }) => {
       const delivery = await deliverCheckpointAttachment({
-        reportedOnline: offline.online,
+        reportedOnline: offline.liveApiAllowed,
         queueInput: {
           kind: 'checkpoint.attachment',
           target: { roundId: runId, checkpointId: input.itemId },

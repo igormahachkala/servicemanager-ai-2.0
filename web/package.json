@@ -12,7 +12,7 @@
     "test": "vitest run",
     "preview": "vite preview",
     "gen:pwa-icons": "node scripts/gen-pwa-icons.mjs",
-    "test:offline": "rm -rf .offline-test-build && tsc -p tsconfig.offline-tests.json && node --test .offline-test-build/mobile/offline/offline.test.js",
+    "test:offline": "rm -rf .offline-test-build && tsc -p tsconfig.offline-tests.json && node --test .offline-test-build/mobile/offline/offline.test.js .offline-test-build/mobile/offline/cachePrefetch.test.js",
     "split:api": "node scripts/split-api-layer.mjs",
     "split:api:apply": "node scripts/split-api-layer.mjs --apply-barrel"
   },

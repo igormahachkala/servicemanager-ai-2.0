@@ -85,6 +85,23 @@ export async function openOfflineSession(
     }
   }
 
+  // `indexedDB` может существовать, но запретить open/write (приватный режим,
+  // политика браузера, заполненная квота). Проверяем реальную запись до того,
+  // как UI объявит offline-режим готовым.
+  if (!(store.driver instanceof MemoryDriver)) {
+    const probeKey = '__storage_probe__'
+    const probe = await store.setMeta(probeKey, { at: Date.now() })
+    if (!probe.ok) {
+      return {
+        store,
+        namespace,
+        available: false,
+        unavailableReason: `${probe.message}. Offline-режим недоступен.`,
+      }
+    }
+    await store.deleteMeta(probeKey)
+  }
+
   const legacyStorage =
     options.legacyStorage !== undefined
       ? options.legacyStorage

@@ -5,6 +5,7 @@ import {
   safeRemoveItem as removeBrowserStorageItem,
   safeWriteJson as writeBrowserStorageJson,
 } from '../lib/browserStorage'
+import { isLiveApiAllowed, subscribeOfflineStatus } from './offline/runtime'
 
 export type OfflineQueueActionType = 'ticket_status_change' | 'ticket_comment' | 'ticket_photo_upload'
 export type OfflineQueueItemStatus = 'pending' | 'syncing' | 'failed' | 'synced'
@@ -76,9 +77,12 @@ export function clearLegacyOfflineCaches() {
   }
 }
 
+/**
+ * Единый признак «можно бить живой API» для queue/live решений.
+ * Совпадает с offline.liveApiAllowed (не сырой navigator.onLine).
+ */
 export function getOnlineStatus(): boolean {
-  if (typeof navigator === 'undefined') return true
-  return navigator.onLine
+  return isLiveApiAllowed()
 }
 
 export function useOnlineStatus(): boolean {
@@ -89,14 +93,9 @@ export function useOnlineStatus(): boolean {
   }, [])
 
   useEffect(() => {
-    const sync = () => setIsOnline(getOnlineStatus())
-    sync()
-    window.addEventListener('online', sync)
-    window.addEventListener('offline', sync)
-    return () => {
-      window.removeEventListener('online', sync)
-      window.removeEventListener('offline', sync)
-    }
+    return subscribeOfflineStatus((status) => {
+      setIsOnline(status.liveApiAllowed)
+    })
   }, [])
 
   return isOnline
