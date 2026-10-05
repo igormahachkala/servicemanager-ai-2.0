@@ -2502,6 +2502,69 @@ export async function setProblemCategorySpecializations(
   })
 }
 
+export type FailureCauseItem = {
+  id: string
+  companyId: string
+  name: string
+  active: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type CreateFailureCauseInput = {
+  name: string
+  active?: boolean
+}
+
+export type UpdateFailureCauseInput = {
+  name?: string
+  active?: boolean
+}
+
+export async function failureCauses(active?: boolean): Promise<FailureCauseItem[]> {
+  const search = new URLSearchParams()
+  if (typeof active === 'boolean') search.set('active', String(active))
+  const suffix = search.toString() ? '?' + search.toString() : ''
+  const response = await request<unknown>('/failure-causes' + suffix)
+  return normalizeArrayResponse<FailureCauseItem>(response, [
+    'items',
+    'failureCauses',
+    'causes',
+    'data',
+  ])
+}
+
+export async function createFailureCause(input: CreateFailureCauseInput): Promise<FailureCauseItem> {
+  return request<FailureCauseItem>('/failure-causes', {
+    method: 'POST',
+    body: input,
+  })
+}
+
+export async function updateFailureCause(id: string, input: UpdateFailureCauseInput): Promise<FailureCauseItem> {
+  return request<FailureCauseItem>(`/failure-causes/${id}`, {
+    method: 'PATCH',
+    body: input,
+  })
+}
+
+export async function setFailureCauseStatus(id: string, active: boolean): Promise<FailureCauseItem> {
+  return request<FailureCauseItem>(`/failure-causes/${id}/status`, {
+    method: 'PATCH',
+    body: { active },
+  })
+}
+
+export async function ticketFailureCauses(id: string, scope?: string | TicketScopeParams): Promise<FailureCauseItem[]> {
+  const response = await request<unknown>(`/tickets/${id}/failure-causes${buildTicketScopeSuffix(scope)}`)
+  return normalizeArrayResponse<FailureCauseItem>(response, [
+    'items',
+    'failureCauses',
+    'causes',
+    'data',
+  ])
+}
+
 export async function technicians(): Promise<TechnicianItem[]> {
   return request<TechnicianItem[]>('/technicians')
 }
@@ -3423,6 +3486,25 @@ export async function decideTicketAcceptance(id: string, input: TicketAcceptance
   return request<any>(`/tickets/${id}/acceptance${buildTicketScopeSuffix(scope)}`, {
     method: 'POST',
     body: input,
+  })
+}
+
+export type SubmitTicketAcceptanceInput = {
+  failureCauseId: string
+  comment?: string
+  attachmentIds?: string[]
+}
+
+export async function submitTicketAcceptance(
+  id: string,
+  input: SubmitTicketAcceptanceInput,
+  scope?: string | TicketScopeParams,
+  idempotencyKey?: string,
+): Promise<any> {
+  return request<any>(`/tickets/${id}/submit-acceptance${buildTicketScopeSuffix(scope)}`, {
+    method: 'POST',
+    body: input,
+    headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
   })
 }
 
