@@ -242,7 +242,6 @@ export function TicketPage() {
   const [newComment, setNewComment] = useState('')
   const [acceptanceComment, setAcceptanceComment] = useState('')
   const [closeReportComment, setCloseReportComment] = useState('')
-  const [closeReportFailureCauseId, setCloseReportFailureCauseId] = useState('')
   const [childCategoryId, setChildCategoryId] = useState('')
   const [childProblemText, setChildProblemText] = useState('')
   const [childUrgency, setChildUrgency] = useState<api.TicketUrgency>('NOT_URGENT')
@@ -349,12 +348,6 @@ export function TicketPage() {
     enabled: !!ticketId,
     queryKey: ['ticket-attachments', ticketId, observerCompanyId, inferredLinkedClientCompanyId],
     queryFn: () => api.ticketAttachments(ticketId, effectiveTicketScope),
-  })
-
-  const failureCausesQ = useQuery({
-    enabled: !!ticketId && showSubmitToAcceptanceForm,
-    queryKey: ['ticket-failure-causes', ticketId, observerCompanyId, inferredLinkedClientCompanyId],
-    queryFn: () => api.ticketFailureCauses(ticketId, effectiveTicketScope),
   })
 
   const role = meQ.data?.role
@@ -708,28 +701,20 @@ export function TicketPage() {
       if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
       const normalizedComment = closeReportComment.trim()
       if (!normalizedComment) throw new Error('Добавьте комментарий к закрытию')
-      const failureCauseId = closeReportFailureCauseId.trim()
-      if (!failureCauseId) throw new Error('Выберите причину неисправности')
       const hasPhotoAlready = hasWorkReportPhotoEvidence
       if (!hasPhotoAlready && !selectedFile) throw new Error('Добавьте фото или видео для отправки на приёмку')
-      const attachmentIds: string[] = []
       if (selectedFile) {
-        const uploaded = await api.uploadTicketAttachment(ticketId, selectedFile, effectiveTicketScope)
-        if (uploaded?.id) attachmentIds.push(uploaded.id)
+        await api.uploadTicketAttachment(ticketId, selectedFile, effectiveTicketScope)
       }
-      await api.submitTicketAcceptance(
+      await api.addTicketComment(ticketId, normalizedComment, effectiveTicketScope)
+      await api.updateTicketStatus(
         ticketId,
-        {
-          failureCauseId,
-          comment: normalizedComment,
-          attachmentIds: attachmentIds.length ? attachmentIds : undefined,
-        },
+        { status: 'AWAITING_ACCEPTANCE', comment: normalizedComment },
         effectiveTicketScope,
       )
     },
     onSuccess: async () => {
       setCloseReportComment('')
-      setCloseReportFailureCauseId('')
       setNewComment('')
       setSelectedFile(null)
       setShowSubmitToAcceptanceForm(false)
@@ -1189,25 +1174,6 @@ export function TicketPage() {
           </div>
           <div className="form">
             <label>
-              Причина неисправности *
-              <select
-                value={closeReportFailureCauseId}
-                onChange={(e) => setCloseReportFailureCauseId(e.target.value)}
-                disabled={closeReportM.isPending || failureCausesQ.isFetching}
-              >
-                <option value="">Выберите причину</option>
-                {(failureCausesQ.data || []).map((cause) => (
-                  <option key={cause.id} value={cause.id}>{cause.name}</option>
-                ))}
-              </select>
-              {failureCausesQ.isFetching ? (
-                <div className="muted small" style={{ marginTop: 6 }}>Загружаем причины…</div>
-              ) : null}
-              {failureCausesQ.isError ? (
-                <div className="alert" style={{ marginTop: 8 }}>{(failureCausesQ.error as Error).message}</div>
-              ) : null}
-            </label>
-            <label>
               Комментарий *
               <textarea
                 value={closeReportComment}
@@ -1242,7 +1208,6 @@ export function TicketPage() {
                 onClick={() => closeReportM.mutate()}
                 disabled={
                   closeReportM.isPending ||
-                  !closeReportFailureCauseId.trim() ||
                   !closeReportComment.trim() ||
                   (!hasWorkReportPhotoEvidence && !selectedFile)
                 }
@@ -1254,7 +1219,6 @@ export function TicketPage() {
                 onClick={() => {
                   setShowSubmitToAcceptanceForm(false)
                   setCloseReportComment('')
-                  setCloseReportFailureCauseId('')
                   setSelectedFile(null)
                   if (fileInputRef.current) fileInputRef.current.value = ''
                 }}

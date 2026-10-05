@@ -140,17 +140,6 @@ export function SettingsPage() {
       </div>
 
       <div className="panel" style={{ marginTop: 12 }}>
-        <h3 style={{ marginBottom: 10 }}>Причины неисправности</h3>
-        <div className="muted small" style={{ marginBottom: 10 }}>
-          Справочник причин, которые техник выбирает при отправке выполненной заявки на приёмку.
-        </div>
-
-        <Link to="/failure-causes">
-          <button>Открыть причины неисправности</button>
-        </Link>
-      </div>
-
-      <div className="panel" style={{ marginTop: 12 }}>
         <h3 style={{ marginBottom: 10 }}>Что можно добавить следующим шагом</h3>
         <div className="muted small">
           Редактирование профиля компании, правила SLA, настройки ролей, специализации техников, загрузку логотипа и параметры

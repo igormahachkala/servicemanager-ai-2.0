@@ -1205,18 +1205,10 @@ export function MobileTicketPage() {
       if (!closeModal.file) throw new Error('Нужно фото или видео отчёта')
       const comment = closeModal.comment.trim()
       if (comment.length < 3) throw new Error('Нужен комментарий не короче 3 символов')
-      const failureCauseId = closeModal.failureCauseId.trim()
-      if (!failureCauseId) throw new Error('Выберите причину неисправности')
-      const uploaded = await api.uploadTicketAttachment(closeModal.ticketId, closeModal.file, ticketResourceScope)
-      await api.submitTicketAcceptance(
-        closeModal.ticketId,
-        {
-          failureCauseId,
-          comment,
-          attachmentIds: uploaded?.id ? [uploaded.id] : undefined,
-        },
-        ticketResourceScope,
-      )
+      await api.uploadTicketAttachment(closeModal.ticketId, closeModal.file, ticketResourceScope)
+      await api.addTicketComment(closeModal.ticketId, comment, ticketResourceScope)
+      // SMA-ACCEPTANCE-005: техник отправляет работу на клиентскую приёмку, а не закрывает напрямую.
+      await api.updateTicketStatus(closeModal.ticketId, { status: 'AWAITING_ACCEPTANCE' }, ticketResourceScope)
     },
     onSuccess: async () => {
       if (closeModal?.previewUrl) URL.revokeObjectURL(closeModal.previewUrl)
@@ -1438,17 +1430,7 @@ export function MobileTicketPage() {
   const startBtnPending = techActionM.isPending && techActionM.variables === 'start'
   const assignBusy = assignM.isPending
   const closeBusy = closeM.isPending
-  const closeCanSubmit =
-    !!closeModal?.file &&
-    closeModal.comment.trim().length >= 3 &&
-    !!closeModal.failureCauseId.trim() &&
-    !closeBusy
-
-  const closeFailureCausesQ = useQuery({
-    queryKey: ['ticket-failure-causes', closeModal?.ticketId, ticketResourceScope],
-    queryFn: () => api.ticketFailureCauses(closeModal!.ticketId, ticketResourceScope),
-    enabled: !!closeModal?.ticketId && isOnline,
-  })
+  const closeCanSubmit = !!closeModal?.file && closeModal.comment.trim().length >= 3 && !closeBusy
   // SMA-ACCEPTANCE-005: для отказа достаточно комментария (фото — по желанию).
   const rejectCanSubmit = !!rejectModal && rejectModal.comment.trim().length >= 3 && !rejectM.isPending
 
@@ -1625,7 +1607,6 @@ export function MobileTicketPage() {
                   file: null,
                   previewUrl: '',
                   comment: '',
-                  failureCauseId: '',
                   err: '',
                 }),
             }
@@ -2103,7 +2084,7 @@ export function MobileTicketPage() {
                   disabled={closeBusy || techActionM.isPending || assignmentRequestM.isPending || !isOnline}
                   onClick={() => {
                     if (!ticket) return
-                    setCloseModal({ ticketId: ticket.id, title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`, file: null, previewUrl: '', comment: '', failureCauseId: '', err: '' })
+                    setCloseModal({ ticketId: ticket.id, title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`, file: null, previewUrl: '', comment: '', err: '' })
                   }}
                 >
                   Отправить на приёмку (фото отчёта)
@@ -2628,7 +2609,7 @@ export function MobileTicketPage() {
                       disabled={closeBusy || techActionM.isPending || assignmentRequestM.isPending || !isOnline}
                       onClick={() => {
                         if (!ticket) return
-                        setCloseModal({ ticketId: ticket.id, title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`, file: null, previewUrl: '', comment: '', failureCauseId: '', err: '' })
+                        setCloseModal({ ticketId: ticket.id, title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`, file: null, previewUrl: '', comment: '', err: '' })
                       }}
                     >
                       Отправить на приёмку (фото отчёта)
@@ -2935,9 +2916,6 @@ export function MobileTicketPage() {
         setCloseModal={setCloseModal}
         closeCanSubmit={closeCanSubmit}
         closeM={closeM}
-        failureCauses={closeFailureCausesQ.data || []}
-        failureCausesLoading={closeFailureCausesQ.isFetching}
-        failureCausesError={closeFailureCausesQ.isError ? formatMobileMutationError(closeFailureCausesQ.error, { operation: 'other' }) : ''}
         heading="Отправить на приёмку"
         submitLabel="Отправить на приёмку"
         submitBusyLabel="Отправляем…"
