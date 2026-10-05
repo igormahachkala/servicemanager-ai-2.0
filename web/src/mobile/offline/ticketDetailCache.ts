@@ -6,7 +6,7 @@
  * не затирают друг друга.
  */
 
-import { offlineStore, reportOfflineStorageUnavailable } from './runtime.js'
+import { offlineStore, reportOfflineStorageUnavailable, waitForOfflineStore } from './runtime.js'
 import { ticketDetailCacheKey, type TicketScopeLike } from './cacheKeys.js'
 import {
   cacheServerImagesForParent,
@@ -215,13 +215,27 @@ export async function loadAnyTicketDetailCache<TTicket, TAttachment, TTimeline>(
   return null
 }
 
+/** Чтение detail для queryFn: ждёт store и перебирает scope, затем любой снимок этого id. */
+export async function readCachedTicketDetail<TTicket, TAttachment, TTimeline>(
+  ticketId: string,
+  scopes: Array<TicketScopeLike | undefined> = [],
+): Promise<OfflineTicketDetailCacheEntry<TTicket, TAttachment, TTimeline> | null> {
+  await waitForOfflineStore()
+  for (const scope of scopes) {
+    const entry = await loadTicketDetailCache<TTicket, TAttachment, TTimeline>(ticketId, scope)
+    if (entry?.data) return entry
+  }
+  return loadAnyTicketDetailCache<TTicket, TAttachment, TTimeline>(ticketId)
+}
+
 export async function ticketDetailCacheState(
   ticketId: string,
   scope?: TicketScopeLike,
 ): Promise<TicketDetailCacheState> {
-  const entry = await loadTicketDetailCache(ticketId, scope)
-  if (!entry) return 'none'
-  if (!entry.complete || !entry.cachedAt || !(await hasAllServerMedia(entry.mediaUrls || []))) return 'partial'
+  const entry = await readCachedTicketDetail(ticketId, [scope])
+  const ticket = (entry?.data as { ticket?: { id?: string } } | undefined)?.ticket
+  if (!ticket?.id) return 'none'
+  if (!entry?.complete || !entry.cachedAt || !(await hasAllServerMedia(entry.mediaUrls || []))) return 'partial'
   return isTicketCacheStale(entry.cachedAt) ? 'stale' : 'complete'
 }
 

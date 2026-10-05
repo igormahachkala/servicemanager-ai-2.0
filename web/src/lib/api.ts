@@ -1933,6 +1933,7 @@ type RequestOptions = {
   headers?: Record<string, string>
   auth?: boolean
   timeoutMs?: number
+  cache?: RequestCache
 }
 
 export const API_TIMEOUT_ERROR_MESSAGE =
@@ -2023,6 +2024,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       headers,
       body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
       signal: controller?.signal,
+      cache: options.cache,
     })
     text = await res.text()
     // Any HTTP response proves reachability. Its application status is
@@ -2069,7 +2071,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
  */
 export async function probeApiReachability(timeoutMs = 4_000): Promise<boolean> {
   try {
-    await request('/health', { auth: false, timeoutMs })
+    await request('/health', { auth: false, timeoutMs, cache: 'no-store' })
     return true
   } catch (error) {
     return error instanceof ApiRequestError

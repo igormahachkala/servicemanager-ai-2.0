@@ -166,7 +166,7 @@ export function HomeList(props: Props) {
         statusClassOverride={startQueued && ticket.status === 'ASSIGNED' ? 'IN_PROGRESS' : null}
         actionProgressLabel={actionProgressLabel}
         onAction={onAction}
-        cacheState={cacheStates?.get(ticket.id)}
+        cacheState={cacheStates?.get(ticket.id) ?? 'none'}
         cacheSelected={cacheSelectedIds?.has(ticket.id)}
         onToggleCache={onToggleCache}
         onRefreshCache={onRefreshCache}
