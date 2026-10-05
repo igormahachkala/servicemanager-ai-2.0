@@ -67,7 +67,22 @@ export function LocationPage() {
    * провайдер в linked-scope получил бы 404 на собственную же точку.
    */
   const [searchParams] = useSearchParams()
-  const companyId = searchParams.get('companyId') || ''
+  /*
+   * Область принимается любым из двух параметров.
+   *
+   * Значение здесь и так контур-независимо: ниже оно уходит в
+   * analyticsLocations и как companyId, и как linkedClientCompanyId, а
+   * getLocation документирует, что у провайдера это id клиента. Читать при
+   * этом только companyId значило заставлять ссылки присылать именно его —
+   * а Shell на каждом переходе перезаписывает сохранённую пару целиком, и
+   * «?companyId=…» затирал провайдеру linkedClientCompanyId: следующее
+   * создание заявки упиралось в скрытую форму.
+   */
+  const companyId = (
+    searchParams.get('companyId') ||
+    searchParams.get('linkedClientCompanyId') ||
+    ''
+  ).trim()
 
   const locationQ = useQuery({
     queryKey: ['location', locationId, companyId],

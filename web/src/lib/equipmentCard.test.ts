@@ -256,16 +256,26 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
     expect(cardCode).toContain('equipmentTicketsLink({ id: item.id }, boardScope)')
   })
 
-  it('ссылка на точку несёт область: LocationPage запасного варианта не имеет', () => {
+  it('ссылка на точку несёт область, и точка принимает оба параметра', () => {
     expect(locationCardPath('loc-1', 'company-b')).toBe('/locations/loc-1?companyId=company-b')
+    expect(locationCardPath('loc-1', { linkedClientCompanyId: 'client-c' })).toBe(
+      '/locations/loc-1?linkedClientCompanyId=client-c',
+    )
     expect(locationCardPath('loc-1')).toBe('/locations/loc-1')
     expect(locationCardPath('loc-1', '  ')).toBe('/locations/loc-1')
 
-    // Карточка точки читает companyId ТОЛЬКО из адреса — проверяем, что так и есть.
+    /*
+     * Область карточки точки контур-независима: ниже она уходит в
+     * analyticsLocations и как companyId, и как linkedClientCompanyId.
+     * Поэтому и из адреса принимается любой из двух — иначе ссылки были бы
+     * обязаны присылать companyId, а он затирает провайдеру linked-часть.
+     */
     const locationCode = codeOf(readSrc('views/LocationPage.tsx'))
-    expect(locationCode).toContain("searchParams.get('companyId') || ''")
+    expect(locationCode).toContain("searchParams.get('linkedClientCompanyId')")
+    expect(locationCode).toContain('companyId: scope')
+    expect(locationCode).toContain('linkedClientCompanyId: scope')
     expect(codeOf(readSrc('views/EquipmentCardPage.tsx'))).toContain(
-      'locationCardPath(item.location.id, { companyId })',
+      'locationCardPath(item.location.id, createScope)',
     )
   })
 
@@ -514,12 +524,20 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
      * разные контракты, и один псевдоним на всех не годится.
      */
     const cardCode = codeOf(readSrc('views/EquipmentCardPage.tsx'))
-    expect(cardCode).toContain('locationCardPath(item.location.id, { companyId })')
-    expect(cardCode).not.toContain('locationCardPath(item.location.id, cardScope)')
-    expect(cardCode).not.toContain('locationCardPath(item.location.id, boardScope)')
-
-    // Создание заявки читает тот же параметр, что доска, — у него своя область.
+    /*
+     * Область ролевая и единая, потому что карточка точки принимает ОБА
+     * параметра. Прошлые круги сломали это дважды: сначала companyId всем
+     * (затирал провайдеру linked-часть), потом linked всем при получателе,
+     * который его не читал (404). Поэтому проверяется и отправитель, и
+     * контракт получателя.
+     */
+    expect(cardCode).toContain('locationCardPath(item.location.id, createScope)')
     expect(cardCode).toContain('equipmentCreateTicketPath({ id: item.id, locationId }, createScope)')
+
+    const locationCode = codeOf(readSrc('views/LocationPage.tsx'))
+    expect(locationCode).toMatch(
+      /const companyId = \(\s*searchParams\.get\('companyId'\) \|\|\s*searchParams\.get\('linkedClientCompanyId'\) \|\|\s*''\s*\)\.trim\(\)/,
+    )
   })
 
   it('«К списку» не несёт области: иначе она затрётся', () => {
@@ -545,9 +563,15 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
      * пока у мобильной страницы не появится область.
      */
     const mobileCode = codeOf(readSrc('mobile/MobileTicketPage.tsx'))
-    expect(mobileCode).not.toMatch(/mobilePath\(location\.pathname, `\/equipment\//)
-    // Утверждение проверяется у самой страницы: области она не принимает.
-    expect(codeOf(readSrc('mobile/MobileEquipmentPage.tsx'))).toContain('api.getEquipment(equipmentId)')
+    /*
+     * Проверяется отсутствие перехода в любом написании, а НЕ то, что
+     * мобильная страница осталась без области: закреплять дефект, который
+     * сам же назван подлежащим правке, значило бы сломать тест ровно той
+     * правкой, которой он требует.
+     */
+    expect(mobileCode).not.toMatch(/\/equipment\/\$\{/)
+    expect(mobileCode).not.toMatch(/'\/equipment\/'\s*\+/)
+    expect(mobileCode).not.toMatch(/mobilePath\([^)]*equipment/)
   })
 
   it('снятое оборудование новых заявок не предлагает', () => {
