@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { ProtectedUploadImg, ProtectedUploadVideo } from '../ui/ProtectedUploadMedia'
@@ -53,8 +53,22 @@ export function CreateTicketPage() {
   const [mode, setMode] = useState<CreateMode>('quick')
   const [err, setErr] = useState<string | null>(null)
   const [clientCompanyId, setClientCompanyId] = useState('')
-  const [locationId, setLocationId] = useState('')
-  const [equipmentId, setEquipmentId] = useState('')
+  /*
+   * SMA-EQUIPMENT-V2-FOUNDATION: создание заявки по конкретному оборудованию.
+   *
+   * Параметры читаются из адреса, потому что переход приходит с карточки
+   * оборудования. Второго создателя заявок не появляется — это тот же
+   * маршрут и та же форма, просто с предзаполненными точкой и позицией.
+   * Доступ при этом не расширяется: список точек и оборудования по-прежнему
+   * приходит с бэкенда в области актора, и предзаполнение, не найденное
+   * в этих списках, сбрасывается существующей проверкой ниже.
+   */
+  const [searchParams] = useSearchParams()
+  const presetLocationId = (searchParams.get('locationId') || '').trim()
+  const presetEquipmentId = (searchParams.get('equipmentId') || '').trim()
+
+  const [locationId, setLocationId] = useState(presetLocationId)
+  const [equipmentId, setEquipmentId] = useState(presetEquipmentId)
   const [categoryId, setCategoryId] = useState('')
   const [postCreateAction, setPostCreateAction] = useState<'leave_unassigned' | 'assign_employee'>('leave_unassigned')
   const [assignTechnicianId, setAssignTechnicianId] = useState('')

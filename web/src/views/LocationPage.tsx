@@ -2,6 +2,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { equipmentStatusLabel } from '../lib/equipmentCard'
 import { appendBoardNavigationContextToPath } from '../lib/boardNavigationContext'
 import {
   pluralizeRu,
@@ -114,6 +115,14 @@ export function LocationPage() {
   const equipment = summarizeEquipment(equipmentQ.data)
   const tickets = summarizeTickets(ticketsQ.data)
   const schedules = summarizeSchedules(schedulesQ.data)
+
+  /* Оборудование объекта: существующая ручка, область та же. */
+  const locationEquipmentQ = useQuery({
+    queryKey: ['location-equipment', locationId, companyId],
+    queryFn: () => api.equipmentByLocation(locationId, companyId || undefined),
+    enabled: !!locationId,
+    retry: false,
+  })
 
   const backTo = companyId ? `/locations?companyId=${encodeURIComponent(companyId)}` : '/locations'
   /* Ссылка на заявки объекта строится существующим контрактом доски (boardLocationId). */
@@ -279,6 +288,31 @@ export function LocationPage() {
           )}
         </div>
       )}
+
+      {/*
+        SMA-EQUIPMENT-V2-FOUNDATION: оборудование объекта.
+        Читается существующей ручкой equipmentByLocation в области актора;
+        своего доступа блок не вводит и при отказе не выдаёт пустой список
+        за успешный ответ.
+      */}
+      <div className="panel" style={{ marginTop: 12 }}>
+        <h3 style={{ marginBottom: 10 }}>Оборудование</h3>
+        {locationEquipmentQ.isLoading ? (
+          <div className="muted small">Загружаем оборудование…</div>
+        ) : locationEquipmentQ.isError ? null : !locationEquipmentQ.data ||
+          locationEquipmentQ.data.length === 0 ? (
+          <div className="muted small">Нет оборудования</div>
+        ) : (
+          <div style={{ display: 'grid', gap: 8 }}>
+            {locationEquipmentQ.data.map((unit) => (
+              <div key={unit.id}>
+                <Link to={`/equipment/${unit.id}`}>{unit.name}</Link>
+                <span className="muted small"> · {equipmentStatusLabel(unit.status)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {showCoordinates ? (
         <div className="panel" style={{ marginTop: 12 }}>

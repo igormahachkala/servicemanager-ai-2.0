@@ -1918,6 +1918,24 @@ export function MobileTicketPage() {
             </div>
           ) : null}
 
+          {/*
+            SMA-EQUIPMENT-V2-FOUNDATION: из заявки — в карточку оборудования.
+            Полевой сценарий техника: заявка на руках, нужно посмотреть
+            паспорт и историю конкретной единицы. Маршрут /m/equipment/:id
+            уже существует, здесь появляется только переход к нему.
+          */}
+          {ticket.equipment?.id ? (
+            <div className="mobileCard" style={{ marginTop: 12 }}>
+              <h2 className="mobileSectionTitle">Оборудование</h2>
+              <Link to={mobilePath(location.pathname, `/equipment/${ticket.equipment.id}`)}>
+                {ticket.equipment.name}
+              </Link>
+              {ticket.equipment.type ? (
+                <div className="mobileMeta">{ticket.equipment.type}</div>
+              ) : null}
+            </div>
+          ) : null}
+
           {ticket.children?.length ? (
             <div className="mobileSection" style={{ marginTop: 4 }}>
               <h2 className="mobileSectionTitle">Связанные заявки</h2>

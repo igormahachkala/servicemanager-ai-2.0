@@ -53,6 +53,7 @@ describe('102/1 источники — только существующие а�
     const calls = [...pageCode.matchAll(/api\.([A-Za-z0-9_]+)\(/g)].map((m) => m[1])
     expect([...new Set(calls)].sort()).toEqual([
       'analyticsLocations',
+      'equipmentByLocation',
       'getInspectionSchedules',
       'getLocation',
       'listEquipment',
@@ -74,7 +75,8 @@ describe('102/1 источники — только существующие а�
 
   it('8. без locationId запрос не уходит — tenant-wide выборки не возникает', () => {
     // Все три запроса включены одним и тем же условием.
-    expect(pageCode.match(/enabled: !!locationId/g)?.length).toBe(4)
+    // 2026-10: пятый запрос — оборудование объекта, включён тем же условием.
+    expect(pageCode.match(/enabled: !!locationId/g)?.length).toBe(5)
   })
 })
 
@@ -277,7 +279,8 @@ describe('102/9 наследие L1 не сломано', () => {
 
   it('9. отказ сводки не рисует ничего и не называет причину', () => {
     // Каждый блок целиком возвращает null: даже пустой заголовок не раскрывает недоступный раздел.
-    expect(pageCode.match(/isError \? null/g)?.length).toBe(3)
+    // 2026-10: четвёртый блок — оборудование, отказ так же не рисует ничего.
+    expect(pageCode.match(/isError \? null/g)?.length).toBe(4)
     expect(pageCode).toMatch(/equipmentQ\.isError \? null : \(\s*<div className="panel"[\s\S]*?>Оборудование</)
     expect(pageCode).toMatch(/ticketsQ\.isError \? null : \(\s*<div className="panel"[\s\S]*?>Заявки</)
     expect(pageCode).toMatch(/schedulesQ\.isError \? null : \(\s*<div className="panel"[\s\S]*?>Обходы</)

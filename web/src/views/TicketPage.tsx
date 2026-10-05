@@ -1082,6 +1082,23 @@ export function TicketPage() {
         </div>
       ) : null}
 
+      {/*
+        SMA-EQUIPMENT-V2-FOUNDATION: оборудование заявки видно и ведёт в карточку.
+        До этого связь существовала только в форме правки: прочитать, по какому
+        оборудованию заявка, со страницы было нельзя.
+      */}
+      {ticket?.equipment?.id ? (
+        <div className="panel" style={{ marginBottom: 12 }}>
+          <h3 style={{ marginBottom: 6 }}>Оборудование</h3>
+          <div>
+            <Link to={`/equipment/${ticket.equipment.id}`}>{ticket.equipment.name}</Link>
+          </div>
+          {ticket.equipment.type ? (
+            <div className="muted small">{ticket.equipment.type}</div>
+          ) : null}
+        </div>
+      ) : null}
+
       <TicketSummaryPanel
         ticket={ticket ?? null}
         shortProblemText={shortProblemText}

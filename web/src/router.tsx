@@ -71,6 +71,8 @@ const LocationsPage = lazyExport(() => import('./views/LocationsPage'), 'Locatio
 const LocationPage = lazyExport(() => import('./views/LocationPage'), 'LocationPage')
 // SMA-EQUIPMENT-V2-110A: /equipment больше не заглушка.
 const EquipmentPage = lazyExport(() => import('./views/EquipmentPage'), 'EquipmentPage')
+// SMA-EQUIPMENT-V2-FOUNDATION: карточка оборудования отдельным маршрутом.
+const EquipmentCardPage = lazyExport(() => import('./views/EquipmentCardPage'), 'EquipmentCardPage')
 const AnalyticsPage = lazyExport(() => import('./views/AnalyticsPage'), 'AnalyticsPage')
 const LocationAnalyticsPage = lazyExport(() => import('./views/LocationAnalyticsPage'), 'LocationAnalyticsPage')
 const SettingsPage = lazyExport(() => import('./views/SettingsPage'), 'SettingsPage')
@@ -343,6 +345,7 @@ export function AppRoutes() {
         <Route path="tickets" element={<LazyRoute component={BoardPage} />} />
         <Route path="objects" element={<LazyRoute component={LocationsPage} />} />
         <Route path="equipment" element={<LazyRoute component={EquipmentPage} />} />
+        <Route path="equipment/:id" element={<LazyRoute component={EquipmentCardPage} />} />
         <Route path="users" element={<LazyRoute component={EmployeesPage} />} />
         <Route path="contractors" element={<LazyRoute component={ContractorsRoutePage} />} />
         <Route path="acts" element={<LazyRoute component={ManagementV2StubPage} />} />
