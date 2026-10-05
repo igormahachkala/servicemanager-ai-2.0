@@ -225,13 +225,10 @@ export function isManagementNavItemVisible(to: string, ctx: NavVisibilityContext
   if (to === '/it' || to.startsWith('/it/')) return canViewITCompany({ role })
 
   if (!role) return false
-  if (role === 'PLATFORM_ADMIN') {
-    // Платформа и весь тенантный контур доступны платформенному админу.
-    return true
-  }
 
-  // Платформенные пункты — только PLATFORM_ADMIN (выше). Для прочих — скрыты.
-  if (to === '/companies' || to === '/platform/permissions') return false
+  // Платформенные пункты — только PLATFORM_ADMIN. Даже платформа идёт через
+  // явный список ниже: неизвестный маршрут остаётся fail-closed.
+  if (to === '/companies' || to === '/platform/permissions') return role === 'PLATFORM_ADMIN'
 
   if (role === 'CLIENT') return CLIENT_ALLOWED.has(to)
 

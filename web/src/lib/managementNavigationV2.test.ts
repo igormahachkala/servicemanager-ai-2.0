@@ -83,12 +83,10 @@ describe('Rail: утверждённая информационная архит
 
 describe('Видимость: fail-closed', () => {
   it('неизвестный маршрут скрыт по умолчанию для любой роли', () => {
-    const roles: Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'CLIENT_ADMIN', 'TERRITORIAL_MANAGER', 'CLIENT', 'TECHNICIAN', 'STAFF']
+    const roles: Role[] = ['PLATFORM_ADMIN', 'ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'CLIENT_ADMIN', 'TERRITORIAL_MANAGER', 'CLIENT', 'TECHNICIAN', 'STAFF']
     for (const role of roles) {
       expect(isManagementNavItemVisible('/totally-new-route', { role })).toBe(false)
     }
-    // PLATFORM_ADMIN — единственное исключение (полный контур).
-    expect(isManagementNavItemVisible('/totally-new-route', { role: 'PLATFORM_ADMIN' })).toBe(true)
   })
 
   it('без роли всё скрыто', () => {
@@ -98,6 +96,8 @@ describe('Видимость: fail-closed', () => {
   it('платформенные пункты видит только PLATFORM_ADMIN', () => {
     expect(isManagementNavItemVisible('/companies', { role: 'PLATFORM_ADMIN' })).toBe(true)
     expect(isManagementNavItemVisible('/platform/permissions', { role: 'PLATFORM_ADMIN' })).toBe(true)
+    expect(isManagementNavItemVisible('/board', { role: 'PLATFORM_ADMIN' })).toBe(true)
+    expect(isManagementNavItemVisible('/locations', { role: 'PLATFORM_ADMIN' })).toBe(true)
     for (const role of ['ADMIN', 'MASTER', 'CLIENT_ADMIN', 'NETWORK_DIRECTOR'] as Role[]) {
       expect(isManagementNavItemVisible('/companies', { role })).toBe(false)
       expect(isManagementNavItemVisible('/platform/permissions', { role })).toBe(false)
