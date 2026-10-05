@@ -5,7 +5,7 @@
  * планшете следующий техник без сети больше не видит чужую доску.
  */
 
-import { offlineStore } from './runtime.js'
+import { offlineStore, waitForOfflineStore } from './runtime.js'
 import { boardCacheScopeKey, type TicketScopeLike } from './cacheKeys.js'
 
 export type OfflineBoardCacheEntry<T = unknown> = {
@@ -31,4 +31,11 @@ export async function loadBoardCache<T>(
   const store = offlineStore()
   if (!store) return null
   return store.readBoardEntry<OfflineBoardCacheEntry<T>>(boardCacheScopeKey(scope))
+}
+
+/** Чтение доски для queryFn: ждёт открытия store, чтобы reload offline не промахивался. */
+export async function readCachedBoard<T>(scope?: TicketScopeLike): Promise<T | null> {
+  await waitForOfflineStore()
+  const cached = await loadBoardCache<T>(scope)
+  return cached?.data ?? null
 }

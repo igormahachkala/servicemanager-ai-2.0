@@ -411,6 +411,22 @@ export function offlineStore(): OfflineStore | null {
   return store ?? currentOfflineStore()
 }
 
+/**
+ * Дождаться открытия IndexedDB после входа в оболочку.
+ * Иначе первый offline-queryFn после reload читает пусто и рисует
+ * «нет сохранённых заявок», хотя снимок ещё не успели открыть.
+ */
+export async function waitForOfflineStore(timeoutMs = 2000): Promise<OfflineStore | null> {
+  const started = Date.now()
+  for (;;) {
+    const current = offlineStore()
+    if (current?.available) return current
+    if (current && !current.available) return current
+    if (Date.now() - started >= timeoutMs) return current
+    await new Promise((resolve) => setTimeout(resolve, 40))
+  }
+}
+
 /** Живой API для новых действий (не navigator, не «online пока идёт первый sync»). */
 export function isLiveApiAllowed(): boolean {
   watchConnectivity()

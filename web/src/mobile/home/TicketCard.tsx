@@ -94,34 +94,37 @@ export function TicketCard({
   const descText = (ticket.description || '').trim()
   const assigneeText = assignedTechnicianDisplay(ticket)
   const creatorText = compactTicketCreatorLabel(ticket)
+  const showCachedMark = cacheState === 'complete' || cacheState === 'stale'
+  const showCacheRow = !!onToggleCache || showCachedMark || cacheState === 'partial'
 
   return (
     <div className={cardClass} data-mobile-tour="ticket-card" style={{ padding: 0, overflow: 'hidden' }}>
-      {onToggleCache ? (
+      {showCacheRow ? (
         <div className="mobileRow" style={{ padding: '8px 14px 0', alignItems: 'center' }}>
-          <label className="mobileMeta" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            <input
-              type="checkbox"
-              checked={cacheSelected}
-              onChange={() => onToggleCache(ticket.id)}
-              aria-label={`Выбрать ${mobileTicketNumberTitle(ticket.ticketNumber)} для кэширования`}
-            />
-            Выбрать
-          </label>
+          {onToggleCache ? (
+            <label className="mobileMeta" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <input
+                type="checkbox"
+                checked={cacheSelected}
+                onChange={() => onToggleCache(ticket.id)}
+                aria-label={`Выбрать ${mobileTicketNumberTitle(ticket.ticketNumber)} для кэширования`}
+              />
+              Выбрать
+            </label>
+          ) : (
+            <span />
+          )}
           <span style={{ marginLeft: 'auto', fontSize: '0.74rem', fontWeight: 700 }}>
-            {cacheState === 'complete' ? '✓ Закешировано' : null}
-            {cacheState === 'stale' ? (
-              onRefreshCache ? (
-                <button
-                  type="button"
-                  className="mobileBtnLink"
-                  onClick={() => onRefreshCache(ticket.id)}
-                >
-                  Обновить кэш
-                </button>
-              ) : (
-                'Обновить кэш'
-              )
+            {showCachedMark && !onRefreshCache ? '✓ Закешировано' : null}
+            {cacheState === 'complete' && onRefreshCache ? '✓ Закешировано' : null}
+            {cacheState === 'stale' && onRefreshCache ? (
+              <button
+                type="button"
+                className="mobileBtnLink"
+                onClick={() => onRefreshCache(ticket.id)}
+              >
+                Обновить кэш
+              </button>
             ) : null}
             {cacheState === 'partial' ? 'Кэш неполный' : null}
           </span>

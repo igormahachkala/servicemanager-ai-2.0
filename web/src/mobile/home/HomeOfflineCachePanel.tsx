@@ -18,7 +18,7 @@ export function HomeOfflineCachePanel(props: Props) {
   const [collapsed, setCollapsed] = useState(
     () => safeGetItem('local', COLLAPSED_KEY, '0') === '1',
   )
-  if (!props.enabled) return null
+  if (!props.enabled || !props.online) return null
 
   function toggleCollapsed() {
     const next = !collapsed
@@ -27,27 +27,22 @@ export function HomeOfflineCachePanel(props: Props) {
   }
 
   return (
-    <div className="mobileNotice" style={{ marginBottom: 10 }}>
-      <div className="mobileRow" style={{ alignItems: 'flex-start' }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 800 }}>Заявки без интернета</div>
-          {!collapsed ? (
-            <div className="mobileMeta" style={{ marginTop: 4 }}>
-              При слабой связи откроются только сохранённые заявки.
-              Заявки в работе и первые пять назначенных кэшируются сами.
-              Остальные отметьте и нажмите «Кэшировать».
-              Значок «Закешировано» значит, что карточка и все изображения лежат на устройстве.
-              Через 8 часов копия устаревает. При связи её можно обновить.
-            </div>
-          ) : null}
-        </div>
+    <div className="mobileNotice mobileOfflineCachePanel">
+      <div className="mobileOfflineCachePanelHead">
+        <div className="mobileOfflineCachePanelTitle">Заявки без интернета</div>
         <button type="button" className="mobileBtnLink" onClick={toggleCollapsed}>
           {collapsed ? 'Показать' : 'Скрыть'}
         </button>
       </div>
-
       {!collapsed ? (
-        <div style={{ marginTop: 8 }}>
+        <div className="mobileOfflineCachePanelBody">
+          <div className="mobileMeta">
+            При слабой связи откроются только сохранённые заявки.
+            Заявки в работе и первые пять назначенных кэшируются сами.
+            Остальные отметьте и нажмите «Кэшировать».
+            Значок «Закешировано» значит, что карточка и все изображения лежат на устройстве.
+            Через 8 часов копия устаревает. При связи её можно обновить.
+          </div>
           {!props.storageReady ? (
             <div className="mobileNotice mobileNoticeError">
               Offline-режим недоступен. Освободите место или проверьте настройки браузера.

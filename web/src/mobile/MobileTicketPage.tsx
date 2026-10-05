@@ -28,11 +28,10 @@ import { listOfflineQueue } from './offline/runtime'
 import { deliverTicketComment } from './offline/ticketCommentDelivery'
 import { deliverTicketAttachment } from './offline/attachmentDelivery'
 import { deliverTicketStatus } from './offline/statusDelivery'
-import { cacheTicketSnapshot, readTicketSnapshot } from './offline/ticketCache'
+import { cacheTicketSnapshot } from './offline/ticketCache'
 import { cacheLocationSnapshot } from './offline/locationCache'
 import {
-  loadAnyTicketDetailCache,
-  loadTicketDetailCache,
+  readCachedTicketDetail,
   saveTicketDetailCache,
   ticketDetailCacheState,
 } from './offline/ticketDetailCache'
@@ -457,67 +456,79 @@ export function MobileTicketPage() {
       }
 
       if (!getOnlineStatus()) {
-        const cached =
-          (await loadTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
-            ticketId,
-            scopeNorm,
-          )) ??
-          (await loadAnyTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
-            ticketId,
-          ))
+        const cached = await readCachedTicketDetail<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+          ticketId,
+          [scopeNorm],
+        )
         if (cached?.data?.ticket) return cached.data.ticket
-        const idbTicket = await readTicketSnapshot<api.TicketGetOne>(ticketId)
-        if (idbTicket) return idbTicket
         throw new Error(OFFLINE_TICKET_NOT_CACHED_MESSAGE)
       }
 
-      const urlCo = (searchParams.get('companyId') || '').trim()
-      const urlLi = (searchParams.get('linkedClientCompanyId') || '').trim()
-      const persistedObs = (api.getObserverCompanyId(meQ.data) || '').trim()
-      const persistedLinked = (api.getLinkedClientCompanyId(meQ.data) || '').trim()
+      try {
+        const urlCo = (searchParams.get('companyId') || '').trim()
+        const urlLi = (searchParams.get('linkedClientCompanyId') || '').trim()
+        const persistedObs = (api.getObserverCompanyId(meQ.data) || '').trim()
+        const persistedLinked = (api.getLinkedClientCompanyId(meQ.data) || '').trim()
 
-      const scopes = mobileTicketDetailGetOneScopes({
-        urlCompanyId: urlCo,
-        urlLinkedClientCompanyId: urlLi,
-        stateTicketOwnerCompanyId: navTicketOwnerCompanyId,
-        persistedCompanyId: persistedObs,
-        persistedLinkedClientCompanyId: persistedLinked,
-        meRole: meQ.data?.role,
-      })
+        const scopes = mobileTicketDetailGetOneScopes({
+          urlCompanyId: urlCo,
+          urlLinkedClientCompanyId: urlLi,
+          stateTicketOwnerCompanyId: navTicketOwnerCompanyId,
+          persistedCompanyId: persistedObs,
+          persistedLinkedClientCompanyId: persistedLinked,
+          meRole: meQ.data?.role,
+        })
 
-      let lastErr: unknown
-      for (const sc of scopes) {
-        try {
-          return await api.getTicket(ticketId, sc)
-        } catch (e) {
-          lastErr = e
-          if (!isNotFoundGetTicketError(e)) throw e
+        let lastErr: unknown
+        for (const sc of scopes) {
+          try {
+            return await api.getTicket(ticketId, sc)
+          } catch (e) {
+            lastErr = e
+            if (!isNotFoundGetTicketError(e)) throw e
+          }
         }
-      }
 
-      if (!urlLi) {
-        try {
-          const co = await api.company()
-          if (co.type === 'PROVIDER') {
-            const linkedClients = await api.getLinkedClients()
-            for (const lc of linkedClients) {
-              const clientId = (lc.clientCompany.id || '').trim()
-              if (!clientId) continue
-              if (scopes.some((s) => (s.linkedClientCompanyId || '').trim() === clientId)) continue
-              try {
-                return await api.getTicket(ticketId, { linkedClientCompanyId: clientId })
-              } catch (e) {
-                lastErr = e
-                if (!isNotFoundGetTicketError(e)) throw e
+        if (!urlLi) {
+          try {
+            const co = await api.company()
+            if (co.type === 'PROVIDER') {
+              const linkedClients = await api.getLinkedClients()
+              for (const lc of linkedClients) {
+                const clientId = (lc.clientCompany.id || '').trim()
+                if (!clientId) continue
+                if (scopes.some((s) => (s.linkedClientCompanyId || '').trim() === clientId)) continue
+                try {
+                  return await api.getTicket(ticketId, { linkedClientCompanyId: clientId })
+                } catch (e) {
+                  lastErr = e
+                  if (!isNotFoundGetTicketError(e)) throw e
+                }
               }
             }
+          } catch (e) {
+            if (!isNotFoundGetTicketError(e)) throw e
           }
-        } catch (e) {
-          if (!isNotFoundGetTicketError(e)) throw e
         }
-      }
 
-      throw lastErr instanceof Error ? lastErr : new Error(String(lastErr ?? 'Заявка не найдена'))
+        throw lastErr instanceof Error ? lastErr : new Error(String(lastErr ?? 'Заявка не найдена'))
+      } catch (error) {
+        const cached = await readCachedTicketDetail<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+          ticketId,
+          [scopeNorm],
+        )
+        const fromCache = cached?.data?.ticket
+        const liveHttp = error instanceof api.ApiRequestError
+        if (fromCache && (!liveHttp || !getOnlineStatus())) return fromCache
+        if (!getOnlineStatus()) throw new Error(OFFLINE_TICKET_NOT_CACHED_MESSAGE)
+        throw error
+      }
+    },
+    networkMode: 'always',
+    retry: (failureCount, error) => {
+      if (error instanceof Error && error.message === OFFLINE_TICKET_NOT_CACHED_MESSAGE) return false
+      if (error instanceof api.ApiRequestError && error.status === 404) return false
+      return failureCount < 1
     },
   })
 
@@ -595,50 +606,54 @@ export function MobileTicketPage() {
       if (isLocalId(ticketId)) return [] as api.TicketAttachmentItem[]
 
       if (!getOnlineStatus()) {
-        const cached =
-          (await loadTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
-            ticketId,
-            ticketResourceScope,
-          )) ??
-          (await loadTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
-            ticketId,
-            scopeNorm,
-          )) ??
-          (await loadAnyTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
-            ticketId,
-          ))
+        const cached = await readCachedTicketDetail<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+          ticketId,
+          [ticketResourceScope, scopeNorm],
+        )
         if (cached?.data) return cached.data.attachments
         throw new Error('Нет сохранённых вложений для офлайна.')
       }
 
-      const scopes = mobileTicketAttachmentReadScopes({
-        me: meQ.data,
-        ticket,
-        observerCompanyId,
-        urlLinkedClientCompanyId,
-        stateTicketOwnerCompanyId: navTicketOwnerCompanyId,
-        persistedCompanyId: (api.getObserverCompanyId(meQ.data) || '').trim(),
-        persistedLinkedClientCompanyId: (api.getLinkedClientCompanyId(meQ.data) || '').trim(),
-      })
+      try {
+        const scopes = mobileTicketAttachmentReadScopes({
+          me: meQ.data,
+          ticket,
+          observerCompanyId,
+          urlLinkedClientCompanyId,
+          stateTicketOwnerCompanyId: navTicketOwnerCompanyId,
+          persistedCompanyId: (api.getObserverCompanyId(meQ.data) || '').trim(),
+          persistedLinkedClientCompanyId: (api.getLinkedClientCompanyId(meQ.data) || '').trim(),
+        })
 
-      let lastEmpty: api.TicketAttachmentItem[] = []
-      let lastErr: unknown
-      for (const sc of scopes) {
-        try {
-          const data = await api.ticketAttachments(ticketId, sc)
-          if (Array.isArray(data) && data.length > 0) return data
-          lastEmpty = Array.isArray(data) ? data : []
-        } catch (e) {
-          lastErr = e
-          if (!isNotFoundGetTicketError(e)) throw e
+        let lastEmpty: api.TicketAttachmentItem[] = []
+        let lastErr: unknown
+        for (const sc of scopes) {
+          try {
+            const data = await api.ticketAttachments(ticketId, sc)
+            if (Array.isArray(data) && data.length > 0) return data
+            lastEmpty = Array.isArray(data) ? data : []
+          } catch (e) {
+            lastErr = e
+            if (!isNotFoundGetTicketError(e)) throw e
+          }
         }
-      }
 
-      if (lastErr && lastEmpty.length === 0) {
-        throw lastErr instanceof Error ? lastErr : new Error(String(lastErr ?? 'Вложения недоступны'))
+        if (lastErr && lastEmpty.length === 0) {
+          throw lastErr instanceof Error ? lastErr : new Error(String(lastErr ?? 'Вложения недоступны'))
+        }
+        return lastEmpty
+      } catch (error) {
+        const cached = await readCachedTicketDetail<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+          ticketId,
+          [ticketResourceScope, scopeNorm],
+        )
+        if (cached?.data && (!(error instanceof api.ApiRequestError) || !getOnlineStatus())) {
+          return cached.data.attachments
+        }
+        throw error
       }
-      return lastEmpty
     },
+    networkMode: 'always',
   })
 
   const timelineQ = useQuery({
@@ -652,19 +667,27 @@ export function MobileTicketPage() {
     queryFn: async () => {
       if (isLocalId(ticketId)) return null
       if (!getOnlineStatus()) {
-        const cached =
-          (await loadTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
-            ticketId,
-            scopeNorm,
-          )) ??
-          (await loadAnyTicketDetailCache<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
-            ticketId,
-          ))
+        const cached = await readCachedTicketDetail<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+          ticketId,
+          [scopeNorm, ticketResourceScope],
+        )
         if (cached?.data) return cached.data.timeline ?? null
         throw new Error('Нет сохранённой истории для офлайна.')
       }
-      return api.timeline(ticketId, ticketResourceScope)
+      try {
+        return await api.timeline(ticketId, ticketResourceScope)
+      } catch (error) {
+        const cached = await readCachedTicketDetail<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
+          ticketId,
+          [scopeNorm, ticketResourceScope],
+        )
+        if (cached?.data && (!(error instanceof api.ApiRequestError) || !getOnlineStatus())) {
+          return cached.data.timeline ?? null
+        }
+        throw error
+      }
     },
+    networkMode: 'always',
   })
 
   useEffect(() => {
@@ -1691,17 +1714,19 @@ export function MobileTicketPage() {
         </div>
       ) : null}
 
-      {ticketQ.isLoading ? <div className="mobileCard mobileMeta">Загрузка…</div> : null}
-      {ticketQ.isError && !ticket ? (
-        !isOnline ? (
+      {ticketQ.isLoading || (ticketQ.isPending && ticketQ.isFetching) ? (
+        <div className="mobileCard mobileMeta">Загрузка…</div>
+      ) : null}
+      {!ticket && !ticketQ.isFetching && !ticketQ.isLoading ? (
+        !isOnline || (ticketQ.error instanceof Error && ticketQ.error.message === OFFLINE_TICKET_NOT_CACHED_MESSAGE) ? (
           <div className="mobileNotice mobileNoticeError" role="alert">
             {OFFLINE_TICKET_NOT_CACHED_MESSAGE}
           </div>
-        ) : (
+        ) : ticketQ.isError ? (
           <div className="mobileNotice mobileNoticeError">
             {formatMobileMutationError(ticketQ.error, { operation: 'other' })}
           </div>
-        )
+        ) : null
       ) : null}
 
       {ticket ? (

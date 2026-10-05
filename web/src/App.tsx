@@ -10,12 +10,19 @@ import { isDynamicImportFailure, MOBILE_CHUNK_RECOVERY_MESSAGE } from './lib/laz
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
+      // PWA: queryFn сам читает IndexedDB. Режим 'online' ставит запрос
+      // на паузу при navigator.onLine=false — карточка остаётся пустой,
+      // баннер «не подгружена» не показывается.
+      networkMode: 'always',
       retry: (failureCount, error) => {
         if (error instanceof ApiRequestError && error.status === 404) return false
         return failureCount < 1
       },
       refetchOnWindowFocus: false,
       staleTime: 5000,
+    },
+    mutations: {
+      networkMode: 'always',
     },
   },
 })

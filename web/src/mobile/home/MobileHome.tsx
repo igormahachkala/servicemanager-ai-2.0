@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../../lib/api'
 import { canOfferTicketClaimAction } from '../../lib/ticketActionCapabilities'
 import {
@@ -32,7 +32,7 @@ import {
 } from '../mobileHomeListUtils'
 import { formatMobileMutationError } from '../mobileActionErrors'
 import { getOnlineStatus } from '../offlineQueue'
-import { loadBoardCache, saveBoardCache } from '../offline/boardCache'
+import { readCachedBoard, saveBoardCache } from '../offline/boardCache'
 import { queueOffline, useOfflineStatus } from '../offline/useOffline'
 import { deliverTicketStatus } from '../offline/statusDelivery'
 import { ONLINE_ONLY_ACTION_MESSAGE } from '../offline/onlineOnlyMessage'
@@ -94,6 +94,7 @@ export function MobileHome() {
     queryKey: ['technician-bound-defaults', meQ.data?.id],
     queryFn: () => api.getTechnicianBoundContexts(),
     enabled: !!meQ.data && meQ.data.role === 'TECHNICIAN' && !linkedClientCompanyId,
+    networkMode: 'always',
   })
   const boardEnabled =
     providerContextKnown &&
@@ -114,17 +115,26 @@ export function MobileHome() {
   }, [meQ.data, linkedClientCompanyId, techBoundDefaultsQ.isSuccess, techBoundDefaultsQ.data, navigate, companyId, location.pathname, location.search])
 
   const boardQ = useQuery({
-    queryKey: ['mobile-home-board', linkedClientCompanyId, companyId, isOnline],
+    queryKey: ['mobile-home-board', linkedClientCompanyId, companyId, offline.ready],
     queryFn: async () => {
+      const cachedBoard = async () => readCachedBoard<api.BoardResponse>(pageScope)
       if (!getOnlineStatus()) {
-        const cached = await loadBoardCache<api.BoardResponse>(pageScope)
-        if (cached?.data) return cached.data
+        const cached = await cachedBoard()
+        if (cached) return cached
         throw new Error('Нет сохранённых заявок. Откройте главную при подключении к сети хотя бы раз.')
       }
-      const data = await api.board({ linkedClientCompanyId: pageScope.linkedClientCompanyId, companyId: pageScope.companyId, take: 500 })
-      await saveBoardCache<api.BoardResponse>(pageScope, data)
-      return data
+      try {
+        const data = await api.board({ linkedClientCompanyId: pageScope.linkedClientCompanyId, companyId: pageScope.companyId, take: 500 })
+        await saveBoardCache<api.BoardResponse>(pageScope, data)
+        return data
+      } catch (error) {
+        const cached = await cachedBoard()
+        if (cached) return cached
+        throw error
+      }
     },
+    networkMode: 'always',
+    placeholderData: keepPreviousData,
     // Техник без контура (субподрядчик SECONDARY: bound-contexts=[], [0] нет) тоже грузит board —
     // бэкенд скоупит по assignedTechnicianId + PRIMARY∪SECONDARY. Empty-scope разрешаем только когда
     // bound-contexts отстрелялся пустым, чтобы у PRIMARY-техника не было лишнего фетча до выбора [0].
@@ -570,7 +580,7 @@ export function MobileHome() {
 
   const techWillRedirectForScope = techNoLinked && techBoundDefaultsQ.isSuccess && (techBoundDefaultsQ.data?.length ?? 0) > 0
   const technicianScopeGateReady = !techNoLinked || techBoundDefaultsQ.isFetched || techBoundDefaultsQ.isError
-  const showMobileHomeTicketBoard = technicianScopeGateReady && !techWillRedirectForScope && !activeBoardError && (meQ.data || (!!boardQ.data && !isOnline))
+  const showMobileHomeTicketBoard = technicianScopeGateReady && !techWillRedirectForScope && (!activeBoardError || activeBoardHasData) && (meQ.data || (!!boardQ.data && !isOnline))
 
   if (providerNeedsLinkedClient) {
     return (
@@ -708,7 +718,7 @@ export function MobileHome() {
             mobileActionToast={mobileActionToast}
             cacheStates={ticketOfflineCache.states}
             cacheSelectedIds={ticketOfflineCache.selectedIds}
-            onToggleCache={ticketOfflineCache.toggleSelected}
+            onToggleCache={isOnline ? ticketOfflineCache.toggleSelected : undefined}
             onRefreshCache={isOnline ? ticketOfflineCache.refreshTicket : undefined}
           />
           {boardQ.data && boardQ.data.meta.totalTickets >= boardQ.data.meta.limitedToLast && boardQ.data.meta.limitedToLast >= 500 ? (

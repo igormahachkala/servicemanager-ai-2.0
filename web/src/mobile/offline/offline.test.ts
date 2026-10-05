@@ -1897,7 +1897,8 @@ test('entity cache: MobileTicketPage пишет ticket/location и читает 
   )
   assert.match(page, /cacheTicketSnapshot\(/)
   assert.match(page, /cacheLocationSnapshot\(/)
-  assert.match(page, /readTicketSnapshot/)
+  assert.match(page, /readCachedTicketDetail/)
+  assert.doesNotMatch(page, /readTicketSnapshot/)
 })
 
 test('план 3. board и ticket detail пишутся и читаются в IDB', async () => {
@@ -2085,6 +2086,7 @@ test('оболочка заранее тянет chunk профиля', async ()
     'utf8',
   )
   assert.match(shell, /import\('\.\/MobileProfile'\)/)
+  assert.match(shell, /import\('\.\/MobileTicketPage'\)/)
 })
 
 // ── План 4. dependsOnId UI chain ───────────────────────────────────────────
