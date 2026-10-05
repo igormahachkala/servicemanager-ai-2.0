@@ -2019,3 +2019,106 @@ button.toastItem:active {
 .materialsMovementRow--neutral .materialsMovementAmount {
   color: inherit;
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+ * SMA-MANAGEMENT-NAVIGATION-V2 — Rail → Flyout → Workspace (desktop ≥ 769px).
+ * Мобильная раскладка (≤768px) не меняется: Rail/Flyout скрыты, работает
+ * прежний .sidebar-drawer под hamburger.
+ * ───────────────────────────────────────────────────────────────────────────── */
+.railNav { display: none; }
+.flyout { display: none; }
+.flyoutBackdrop { display: none; }
+.topbarUser { display: none; }
+
+@media (min-width: 769px) {
+  .appLayout { grid-template-columns: 76px minmax(0, 1fr); }
+  .appLayout[data-rail-collapsed="true"] { grid-template-columns: 60px minmax(0, 1fr); }
+  .appLayout[data-flyout="true"] { grid-template-columns: 76px 270px minmax(0, 1fr); }
+
+  /* .sidebar теперь только мобильный drawer — на десктопе скрыт. */
+  .sidebar { display: none; }
+
+  .railNav {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: #0f172a;
+    color: #fff;
+    padding: 12px 6px;
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    z-index: var(--management-sidebar-z);
+  }
+  .railLogo { display: grid; place-items: center; padding: 4px 0 10px; }
+  .railLogo .smaBrandLogo img { width: 48px; }
+  .railSections { display: flex; flex-direction: column; gap: 6px; flex: 1 1 auto; }
+  .railFooter { margin-top: auto; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.08); }
+
+  .railBtn {
+    width: 100%;
+    background: transparent;
+    border: 1px solid transparent;
+    color: #fff;
+    border-radius: 10px;
+    padding: 10px 6px;
+    font-size: 11px;
+    line-height: 1.15;
+    text-align: center;
+    cursor: pointer;
+    overflow: hidden;
+  }
+  .railBtn:hover { background: rgba(255,255,255,0.08); }
+  .railBtnActive { background: rgba(255,255,255,0.16); border-color: rgba(255,255,255,0.22); font-weight: 700; }
+  .railBtnLabel { display: block; overflow: hidden; text-overflow: ellipsis; }
+  .railCollapseToggle { font-size: 16px; }
+
+  .appLayout[data-rail-collapsed="true"] .railBtnLabel { white-space: nowrap; }
+
+  .flyout {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 270px;
+    background: #111c33;
+    color: #fff;
+    padding: 16px 12px;
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-left: 1px solid rgba(255,255,255,0.06);
+    z-index: var(--management-sidebar-z);
+  }
+  .flyoutHeader { display: flex; align-items: center; justify-content: space-between; }
+  .flyoutTitle { font-weight: 800; letter-spacing: 0.02em; }
+  .flyoutClose {
+    background: transparent; border: 1px solid rgba(255,255,255,0.18); color: #fff;
+    border-radius: 8px; width: 28px; height: 28px; cursor: pointer;
+  }
+  .flyoutItems { display: grid; gap: 8px; }
+  .flyoutAction { border-color: rgba(255,255,255,0.28); font-weight: 700; }
+
+  /* Временный flyout в collapsed — оверлей поверх Workspace. */
+  .flyoutOverlay {
+    position: fixed;
+    top: 0;
+    left: 60px;
+    bottom: 0;
+    width: 270px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.35);
+    z-index: 45;
+  }
+  .flyoutBackdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.35);
+    z-index: 44;
+  }
+
+  /* На десктопе mobile-кнопка меню скрыта, а пользователь/выход — в топбаре. */
+  .mobileMenuBtn { display: none; }
+  .topbarUser { display: inline; }
+}

@@ -5,6 +5,7 @@ import {
   isManagementNavItemVisible,
   managementHomePath,
   managementRailSections,
+  railSectionIdForPath,
   railSectionLeaves,
 } from './navigation'
 import { getHomeRoute } from './api'
@@ -174,5 +175,46 @@ describe('Landing (решение владельца)', () => {
     expect(getHomeRoute('TECHNICIAN')).toBe('/m')
     expect(getHomeRoute('CLIENT_ADMIN')).toBe('/board')
     expect(getHomeRoute('CLIENT')).toBe('/board')
+  })
+})
+
+
+describe('Активный раздел Rail по пути (railSectionIdForPath)', () => {
+  it('точные страницы разделов', () => {
+    expect(railSectionIdForPath('/dashboard')).toBe('home')
+    expect(railSectionIdForPath('/board')).toBe('tickets')
+    expect(railSectionIdForPath('/tickets')).toBe('tickets')
+    expect(railSectionIdForPath('/tickets/new')).toBe('tickets')
+    expect(railSectionIdForPath('/locations')).toBe('objects')
+    expect(railSectionIdForPath('/equipment')).toBe('objects')
+    expect(railSectionIdForPath('/map')).toBe('objects')
+    expect(railSectionIdForPath('/inspection/schedules')).toBe('works')
+    expect(railSectionIdForPath('/inspection/runs')).toBe('works')
+    expect(railSectionIdForPath('/workforce')).toBe('works')
+    expect(railSectionIdForPath('/analytics')).toBe('analytics')
+    expect(railSectionIdForPath('/analytics/locations')).toBe('analytics')
+    expect(railSectionIdForPath('/employees')).toBe('more')
+    expect(railSectionIdForPath('/materials')).toBe('more')
+    expect(railSectionIdForPath('/settings')).toBe('more')
+    expect(railSectionIdForPath('/companies')).toBe('platform')
+    expect(railSectionIdForPath('/platform/permissions')).toBe('platform')
+  })
+
+  it('record-маршруты активируют раздел родителя (длиннейший префикс)', () => {
+    expect(railSectionIdForPath('/locations/loc-123')).toBe('objects')
+    expect(railSectionIdForPath('/tickets/SMA-1542')).toBe('tickets')
+    expect(railSectionIdForPath('/inspection/runs/351')).toBe('works')
+    // готовность к canonical /equipment/:id без правок навигации
+    expect(railSectionIdForPath('/equipment/eq-17')).toBe('objects')
+  })
+
+  it('query/hash не влияют', () => {
+    expect(railSectionIdForPath('/analytics/locations?companyId=x#top')).toBe('analytics')
+  })
+
+  it('неизвестный путь → null (fail-closed для подсветки)', () => {
+    expect(railSectionIdForPath('/totally-unknown')).toBeNull()
+    expect(railSectionIdForPath('')).toBeNull()
+    expect(railSectionIdForPath(null)).toBeNull()
   })
 })
