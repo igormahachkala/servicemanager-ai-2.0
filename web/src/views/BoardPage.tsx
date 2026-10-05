@@ -394,19 +394,49 @@ export function BoardPage() {
         map.set(card.equipment.id, [card.equipment.name, card.equipment.type].filter(Boolean).join(' · '))
       }
     }
+    /*
+     * SMA-EQUIPMENT-V2-FOUNDATION: выбранное оборудование остаётся вариантом,
+     * даже если заявок по нему нет.
+     *
+     * Варианты собираются из уже полученных карточек, а доска запрашивается
+     * СРАЗУ отфильтрованной. Поэтому у оборудования без заявок список
+     * вариантов пуст, сверка ниже снимала фильтр, и переход «Заявки
+     * оборудования» показывал ВСЕ заявки вместо пустой выборки — худший из
+     * ответов, потому что выглядит он достоверно.
+     *
+     * Названия тут нет: карточки его не принесли, а выдумывать подпись
+     * нельзя. Пользователь видит выбранный фильтр и может его снять.
+     */
+    if (selectedEquipmentId && !map.has(selectedEquipmentId)) {
+      map.set(selectedEquipmentId, 'Выбранное оборудование')
+    }
     return Array.from(map.entries()).map(([id, label]) => ({ id, label }))
-  }, [cardsAll, selectedLocationId])
+  }, [cardsAll, selectedLocationId, selectedEquipmentId])
 
   useEffect(() => {
+    /*
+     * SMA-EQUIPMENT-V2-FOUNDATION: сверять фильтры не раньше, чем пришли
+     * данные доски.
+     *
+     * Варианты берутся из загруженных карточек, поэтому до ответа список
+     * пуст. Без этой проверки сверка снимала только что восстановленный
+     * фильтр: вход с карточки оборудования — холодный, кэша по новому ключу
+     * нет, boardDataRef пуст, — и доска открывалась без фильтра. Прежний
+     * переход с карточки заявки это скрывал, потому что его ключ обычно
+     * ещё лежал в кэше.
+     */
+    if (!boardData) return
     if (selectedLocationId && !locationOptions.some((item) => item.id === selectedLocationId)) {
       setSelectedLocationId('')
       setSelectedEquipmentId('')
-      return
     }
-    if (selectedEquipmentId && !equipmentOptions.some((item) => item.id === selectedEquipmentId)) {
-      setSelectedEquipmentId('')
-    }
-  }, [selectedLocationId, selectedEquipmentId, locationOptions, equipmentOptions])
+    /*
+     * Отдельной ветки для оборудования больше нет: выбранное значение всегда
+     * присутствует среди вариантов (см. выше), так что проверка была бы
+     * недостижимой. Несуществующий фильтр даёт пустую доску с видимым
+     * фильтром, а не молча полный список.
+     */
+  }, [boardData, selectedLocationId, locationOptions])
 
   const stats = useMemo(() => {
     const now = new Date()

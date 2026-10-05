@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
-import { EQUIPMENT_PARTS_MANAGER_ROLES } from '../lib/equipmentCard'
+import { EQUIPMENT_PARTS_MANAGER_ROLES, equipmentCardPath } from '../lib/equipmentCard'
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
 import { EquipmentHistoryTab } from '../components/equipment/EquipmentHistoryTab'
 import { EquipmentPartsTab } from '../components/equipment/EquipmentPartsTab'
@@ -434,7 +434,13 @@ export function EquipmentPage() {
                     ссылкой не является, а на карточку нужно уметь ссылаться.
                   */}
                   <Link
-                    to={api.appendScopeToPath(`/equipment/${item.id}`, undefined, meQ.data)}
+                    /*
+                      Область берётся та же, которой отфильтрован список
+                      (scopeCompanyId), а не сохранённая: иначе провайдер,
+                      смотрящий контур клиента, получал «не найдено» на
+                      оборудование, которое только что видел в списке.
+                    */
+                    to={equipmentCardPath(item.id, scopeCompanyId)}
                     className="muted small"
                     style={{ paddingLeft: 10 }}
                   >

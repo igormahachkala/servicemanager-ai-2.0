@@ -131,7 +131,7 @@ export function EquipmentCardPage() {
               <button>Создать заявку</button>
             </Link>
           ) : null}
-          <Link {...equipmentTicketsLink({ id: item.id })}>
+          <Link {...equipmentTicketsLink({ id: item.id }, companyId)}>
             <button className="ghost">Заявки оборудования</button>
           </Link>
           {qrUrl ? (

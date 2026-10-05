@@ -86,7 +86,9 @@ describe('V2 карточка оборудования: маршрут и кро
 
   it('карточка доступна по прямой ссылке, а не выбором в списке', () => {
     expect(cardCode).toContain('useParams<{ id: string }>()')
-    expect(codeOf(readSrc('views/EquipmentPage.tsx'))).toContain('/equipment/${item.id}')
+    // Ссылка строится общим билдером, он же переносит область.
+    expect(codeOf(readSrc('views/EquipmentPage.tsx'))).toContain('equipmentCardPath(item.id,')
+    expect(equipmentCardPath('eq-1')).toBe('/equipment/eq-1')
   })
 })
 
@@ -185,12 +187,20 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
      * создать не по тому объекту.
      *
      * Сверка точки теперь требует загруженного списка, сверка оборудования —
-     * успешного ответа по составу точки.
+     * ОТВЕЧЕННОГО запроса.
+     *
+     * Повторный аудит: одного isSuccess мало. При ошибке загрузки он не
+     * наступает никогда, и чужое предзаполнение из адреса дожило бы до
+     * отправки. Поэтому сверка идёт и по успеху, и по ошибке, а не идёт
+     * только пока ответа нет.
      */
     expect(createTicketCode).toContain(
       'activeLocations.length > 0 && locationId && !activeLocations.some',
     )
-    expect(createTicketCode).toContain('equipmentQ.isSuccess && equipmentId && !locationEquipment.some')
+    expect(createTicketCode).toContain('if (!equipmentQ.isSuccess && !equipmentQ.isError) return')
+    expect(createTicketCode).toContain('if (equipmentId && !locationEquipment.some')
+    // Прежней формулировки, пропускавшей ошибку, не осталось.
+    expect(createTicketCode).not.toContain('equipmentQ.isSuccess && equipmentId')
   })
 
   it('заявки оборудования едут состоянием роутера, а не строкой адреса', () => {
@@ -209,6 +219,37 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
     expect(link.to).not.toContain('boardEquipmentId')
   })
 
+  it('ссылка на заявки оборудования не теряет область', () => {
+    /*
+     * Повторный аудит: ссылка вела на голый /tickets, и доска брала
+     * компанию из сохранённой области — то есть могла открыться не в том
+     * контуре, из которого пришли. Фильтр едет состоянием, область —
+     * адресом, потому что из адреса её читает BoardPage.
+     */
+    const scoped = equipmentTicketsLink({ id: 'eq-1' }, 'company-b')
+    expect(scoped.to).toBe('/tickets?companyId=company-b')
+    expect(scoped.state).toEqual({ boardContext: { selectedEquipmentId: 'eq-1' } })
+
+    expect(equipmentTicketsLink({ id: 'eq-1' }, '  ').to).toBe('/tickets')
+    expect(equipmentTicketsLink({ id: 'eq-1' }, null).to).toBe('/tickets')
+    expect(equipmentTicketsLink({ id: 'eq-1' }, 'a b&c').to).toBe('/tickets?companyId=a%20b%26c')
+  })
+
+  it('карточка и список оборудования ведут на карточку с той же областью', () => {
+    const cardCode = codeOf(readSrc('views/EquipmentCardPage.tsx'))
+    // Область карточки уезжает в ссылку на заявки.
+    expect(cardCode).toContain('equipmentTicketsLink({ id: item.id }, companyId)')
+
+    /*
+     * Список фильтруется scopeCompanyId (выбранный контур клиента), и
+     * ссылка обязана нести ЕГО, а не сохранённую область: иначе провайдер
+     * получал «не найдено» на то, что только что видел в списке.
+     */
+    const listCode = codeOf(readSrc('views/EquipmentPage.tsx'))
+    expect(listCode).toContain('equipmentCardPath(item.id, scopeCompanyId)')
+    expect(listCode).not.toMatch(/appendScopeToPath\(`\/equipment\//)
+  })
+
   it('доска действительно восстанавливает фильтр из состояния навигации', () => {
     /*
      * Проверяется сама причина дефекта: восстановление читает state, и
@@ -220,6 +261,23 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
 
     const restored = sanitizeBoardNavigationContext({ selectedEquipmentId: 'eq-1' })
     expect(restored?.selectedEquipmentId).toBe('eq-1')
+
+    /*
+     * Восстановить мало — повторный аудит показал, что фильтр тут же
+     * снимался. Варианты фильтра собираются из УЖЕ полученных карточек,
+     * а сверка шла без проверки, пришли ли они: на холодном входе список
+     * вариантов пуст, и восстановленное значение затиралось.
+     *
+     * Поэтому проверяются обе опоры: сверка не идёт без данных, и
+     * выбранное оборудование всегда остаётся среди вариантов — иначе
+     * оборудование без заявок снимало бы собственный фильтр.
+     */
+    expect(boardCode).toMatch(/useEffect\(\(\) => \{\s*if \(!boardData\) return\s*if \(selectedLocationId/)
+    expect(boardCode).toMatch(
+      /if \(selectedEquipmentId && !map\.has\(selectedEquipmentId\)\) \{\s*map\.set\(selectedEquipmentId,/,
+    )
+    // Снятия фильтра оборудования по составу карточек больше нет.
+    expect(boardCode).not.toMatch(/!equipmentOptions\.some\(\(item\) => item\.id === selectedEquipmentId\)/)
   })
 
   it('снятое оборудование новых заявок не предлагает', () => {

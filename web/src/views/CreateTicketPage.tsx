@@ -314,10 +314,18 @@ export function CreateTicketPage() {
      * Та же причина: пока состав оборудования точки не получен, список пуст,
      * и сверка снимала предзаполнение, ещё не зная настоящего состава.
      */
-    if (equipmentQ.isSuccess && equipmentId && !locationEquipment.some((row) => row.id === equipmentId)) {
+    /*
+     * Сверка возможна только по ОТВЕЧЕННОМУ запросу. isSuccess одного мало:
+     * при ошибке загрузки он не наступает никогда, и предзаполненное из
+     * адреса оборудование доехало бы до отправки — бэкенд отвечает
+     * «Equipment not found» на поле, которого пользователь не трогал.
+     * Не знаем состав точки — предзаполнение снимаем.
+     */
+    if (!equipmentQ.isSuccess && !equipmentQ.isError) return
+    if (equipmentId && !locationEquipment.some((row) => row.id === equipmentId)) {
       setEquipmentId('')
     }
-  }, [locationId, equipmentId, locationEquipment, equipmentQ.isSuccess])
+  }, [locationId, equipmentId, locationEquipment, equipmentQ.isSuccess, equipmentQ.isError])
 
   useEffect(() => {
     if (postCreateAction !== 'assign_employee') {

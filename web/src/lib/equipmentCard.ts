@@ -168,12 +168,22 @@ export function equipmentCreateTicketPath(item: {
  * остаётся обычным /tickets. Это тот же контракт, которым пользуется
  * карточка заявки; второго механизма не заводится.
  */
-export function equipmentTicketsLink(item: { id: string }): {
+export function equipmentTicketsLink(
+  item: { id: string },
+  companyId?: string | null,
+): {
   to: string
   state: { boardContext: { selectedEquipmentId: string } }
 } {
+  /*
+   * Область переносится так же, как в equipmentCardPath. Без неё доска
+   * берёт компанию из сохранённой области (BoardPage: companyId из адреса,
+   * иначе getObserverCompanyId) и могла открыться в другом контуре, чем
+   * карточка, с которой пришли.
+   */
+  const scope = (companyId || '').trim()
   return {
-    to: '/tickets',
+    to: scope ? `/tickets?companyId=${encodeURIComponent(scope)}` : '/tickets',
     state: { boardContext: { selectedEquipmentId: item.id } },
   }
 }

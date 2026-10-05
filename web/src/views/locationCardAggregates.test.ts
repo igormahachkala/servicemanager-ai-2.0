@@ -292,6 +292,15 @@ describe('102/9 наследие L1 не сломано', () => {
     expect(pageCode).toMatch(/equipmentQ\.isError \? null : \(\s*<div className="panel"[\s\S]*?>Оборудование</)
     expect(pageCode).toMatch(/ticketsQ\.isError \? null : \(\s*<div className="panel"[\s\S]*?>Заявки</)
     expect(pageCode).toMatch(/schedulesQ\.isError \? null : \(\s*<div className="panel"[\s\S]*?>Обходы</)
+    /*
+     * Поимённого toContain выше недостаточно: он проходил и на дефектной
+     * версии, где отказ гасил только тело, а заголовок «Оборудование»
+     * оставался — раздел выглядел пустым, а не недоступным. Проверено
+     * подстановкой прежней версии: 33/33 проходили. Нужна структура.
+     */
+    expect(pageCode).toMatch(
+      /locationEquipmentQ\.isError \? null : \(\s*<div className="panel"[\s\S]*?>Оборудование</,
+    )
   })
 })
 
