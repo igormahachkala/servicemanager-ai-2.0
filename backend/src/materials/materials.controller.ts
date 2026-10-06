@@ -29,9 +29,17 @@ import {
 } from './dto/materials.dto';
 import { MaterialsService } from './materials.service';
 
+/*
+ * Управленческие материалы.
+ *
+ * CLIENT_ADMIN убран: роль не имеет LOCATIONS_VIEW/LOCATIONS_MANAGE, то есть
+ * PermissionsGuard отказывал ей на каждой из этих ручек, и в наборе она
+ * только вводила в заблуждение. Оставлять её значило держать скрытый путь:
+ * выдача роли LOCATIONS_VIEW в будущем молча открыла бы управление
+ * материалами. Доступ не менялся — он и так был закрыт.
+ */
 const MANAGEMENT_ROLES = [
   UserRole.ADMIN,
-  UserRole.CLIENT_ADMIN,
   UserRole.MASTER,
   UserRole.DISPATCHER,
 ] as const;

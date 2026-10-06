@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
 import { MaterialMovementsList, MaterialsBalanceList, SelfPurchaseForm } from '../components/materials/MaterialsPanels'
+import { canUseManagementMaterials, getMobileMaterialsEntry } from './mobileMaterialsEntry'
 import {
   activeMaterials,
   formatMaterialQuantity,
@@ -43,7 +44,16 @@ export function MobileMaterialsPage() {
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const isTechnician = meQ.data?.role === 'TECHNICIAN'
-  const canManage = meQ.data?.canAccessManagementSurface === true && meQ.data.role !== 'PLATFORM_ADMIN'
+  /* Тот же предикат, что и у входа: разделы и пункт меню не расходятся. */
+  const canManage = canUseManagementMaterials(meQ.data)
+
+  /*
+   * Заголовок совпадает с подписью входа, а возврат ведёт в корень
+   * мобильного шелла: страница открывается с главного экрана, из «Ещё» и
+   * из настроек, и жёсткий возврат в настройки был верен лишь для одного.
+   */
+  const pageTitle = getMobileMaterialsEntry(meQ.data, location.pathname)?.label ?? 'Материалы'
+  const backHref = useMemo(() => mobilePath(location.pathname, ''), [location.pathname])
 
   useEffect(() => {
     if (meQ.isSuccess && !isTechnician && canManage && section === 'mine') setSection('stock')
@@ -133,11 +143,18 @@ export function MobileMaterialsPage() {
   return (
     <div className="mobileSection">
       <div className="mobileTicketDetailsToolbar">
-        <Link to={mobilePath(location.pathname, '/settings')} className="mobileDetailsBackLink mobilePatrolBackLink">
-          ← Настройки
+        {/*
+          Материалы открываются с главного экрана, из «Ещё» и из настроек.
+          Жёсткий возврат в настройки был верен только для одного из трёх
+          входов. Берётся соглашение страниц с несколькими входами
+          (уведомления, «Ещё», профиль): возврат в корень мобильного шелла.
+        */}
+        <Link to={backHref} className="mobileDetailsBackLink mobilePatrolBackLink">
+          Назад
         </Link>
       </div>
-      <h1 className="mobileTitle">Материалы</h1>
+      {/* Заголовок совпадает с подписью входа: техник открывает «Мои материалы». */}
+      <h1 className="mobileTitle">{pageTitle}</h1>
       <div className="mobileSubtitle">
         {canManage ? 'Склад, техники и справочник' : 'Мои остатки, покупки и история'}
       </div>

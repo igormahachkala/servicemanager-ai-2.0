@@ -61,7 +61,13 @@ describe('Materials V0 integrated surfaces', () => {
     expect(mobile).toContain('api.technicianMaterialBalances')
     expect(mobile).toContain('api.technicianMaterialMovements')
     expect(mobile).toContain('api.issueMaterialToTechnician')
-    expect(mobile).toContain("canAccessManagementSurface === true && meQ.data.role !== 'PLATFORM_ADMIN'")
+    /*
+     * Управленческий признак теперь один на вход и на страницу
+     * (canUseManagementMaterials): прежняя широкая проверка пускала в
+     * разделы CLIENT_ADMIN, которому бэкенд отказывает на каждой ручке.
+     */
+    expect(mobile).toContain('canUseManagementMaterials(meQ.data)')
+    expect(mobile).not.toContain("canAccessManagementSurface === true && meQ.data.role !== 'PLATFORM_ADMIN'")
     expect(mobile).not.toContain('materialCompanyStock')
     expect(mobile).not.toContain('setMaterialStatus')
   })
