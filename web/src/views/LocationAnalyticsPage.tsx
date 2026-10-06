@@ -2,6 +2,14 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import {
+  ALL_CITIES_KEY,
+  NO_CITY_KEY,
+  groupLocationsByCity,
+  retainSelectableLocations,
+  selectVisibleLocations,
+  toggleLocationSelection,
+} from '../lib/locationAnalyticsGrouping'
 
 function fmtNumber(v?: number | null) {
   if (typeof v !== 'number' || Number.isNaN(v)) return '—'
@@ -29,6 +37,18 @@ export function LocationAnalyticsPage() {
   const [minTickets, setMinTickets] = useState('')
   const [expandedLocationId, setExpandedLocationId] = useState<string | null>(null)
 
+  /*
+   * SMA-ANALYTICS-V2-PHASE1: «Город → Точки».
+   *
+   * Выбор города и точек — это ПРЕДСТАВЛЕНИЕ уже полученных строк, не
+   * параметры запроса: в бэкенд ни город, ни список точек не уезжают, и
+   * область доступа не меняется. Группируются только те объекты, которые
+   * бэкенд уже разрешил (ANALYTICS_VIEW + Capability + Scope + Relationship,
+   * включая сужение SECONDARY по 004C).
+   */
+  const [selectedCityKey, setSelectedCityKey] = useState(ALL_CITIES_KEY)
+  const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>([])
+
   const queryParams = useMemo(() => ({
     companyId: scopeCompanyId || undefined,
     linkedClientCompanyId: scopeLinkedClientCompanyId || undefined,
@@ -49,6 +69,38 @@ export function LocationAnalyticsPage() {
   const summary = data?.summary
 
   const backLink = buildBackLink({ companyId: scopeCompanyId, linkedClientCompanyId: scopeLinkedClientCompanyId })
+
+  const cityGroups = useMemo(() => groupLocationsByCity(items), [items])
+  const activeCityGroup = useMemo(
+    () => cityGroups.find((group) => group.cityKey === selectedCityKey) ?? null,
+    [cityGroups, selectedCityKey],
+  )
+
+  /*
+   * Выбор точек приводится к текущему составу: при смене города и при
+   * обновлении данных точки, которых в нём нет, из выбора уходят — иначе
+   * «выбрано 3», а показана одна.
+   */
+  const effectiveSelectedLocationIds = useMemo(
+    () => retainSelectableLocations(cityGroups, selectedCityKey, selectedLocationIds),
+    [cityGroups, selectedCityKey, selectedLocationIds],
+  )
+
+  const visibleLocations = useMemo(
+    () => selectVisibleLocations(cityGroups, selectedCityKey, effectiveSelectedLocationIds),
+    [cityGroups, selectedCityKey, effectiveSelectedLocationIds],
+  )
+
+  function selectCity(cityKey: string) {
+    setSelectedCityKey(cityKey)
+    // Точки другого города в выборе не остаются.
+    setSelectedLocationIds([])
+    setExpandedLocationId(null)
+  }
+
+  function toggleLocation(locId: string) {
+    setSelectedLocationIds((prev) => toggleLocationSelection(prev, locId))
+  }
 
   function toggleExpand(locId: string) {
     setExpandedLocationId((prev) => (prev === locId ? null : locId))
@@ -149,6 +201,79 @@ export function LocationAnalyticsPage() {
 
       {q.isError ? <div className="alert">{(q.error as any)?.message || String(q.error)}</div> : null}
 
+      {/*
+        SMA-ANALYTICS-V2-PHASE1: «Город → Точки».
+        Сводка выше остаётся канонической — она по всей доступной области,
+        а не по выбранному городу: пересчитывать её здесь нельзя.
+      */}
+      {!q.isLoading && cityGroups.length > 0 ? (
+        <div className="panel" style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+            <h3 style={{ marginBottom: 0 }}>Города</h3>
+            <span className="muted small">
+              {activeCityGroup
+                ? `${activeCityGroup.cityLabel} · ${fmtNumber(activeCityGroup.locationsCount)} точек`
+                : `${fmtNumber(cityGroups.length)} городов · ${fmtNumber(items.length)} точек`}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
+            <button
+              className={selectedCityKey === ALL_CITIES_KEY ? undefined : 'ghost'}
+              onClick={() => selectCity(ALL_CITIES_KEY)}
+              aria-pressed={selectedCityKey === ALL_CITIES_KEY}
+            >
+              Все города
+            </button>
+            {cityGroups.map((group) => (
+              <button
+                key={group.cityKey}
+                className={selectedCityKey === group.cityKey ? undefined : 'ghost'}
+                onClick={() => selectCity(group.cityKey)}
+                aria-pressed={selectedCityKey === group.cityKey}
+                style={group.cityKey === NO_CITY_KEY ? { fontStyle: 'italic' } : undefined}
+              >
+                {group.cityLabel} · {fmtNumber(group.locationsCount)}
+              </button>
+            ))}
+          </div>
+
+          {activeCityGroup ? (
+            <div style={{ marginTop: 12, borderTop: '1px solid #e5e7eb', paddingTop: 10 }}>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>Точки города</div>
+                <span className="muted small">
+                  {effectiveSelectedLocationIds.length > 0
+                    ? `выбрано ${fmtNumber(effectiveSelectedLocationIds.length)} из ${fmtNumber(activeCityGroup.locationsCount)}`
+                    : 'выбраны все'}
+                </span>
+                {effectiveSelectedLocationIds.length > 0 ? (
+                  <button className="ghost" onClick={() => setSelectedLocationIds([])}>
+                    Сбросить точки
+                  </button>
+                ) : null}
+              </div>
+
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+                {activeCityGroup.locations.map((loc) => {
+                  const picked = effectiveSelectedLocationIds.includes(loc.locationId)
+                  return (
+                    <button
+                      key={loc.locationId}
+                      className={picked ? undefined : 'ghost'}
+                      onClick={() => toggleLocation(loc.locationId)}
+                      aria-pressed={picked}
+                    >
+                      {loc.locationName}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* Location list */}
       {!q.isLoading && items.length === 0 ? (
         <div className="panel">
@@ -156,8 +281,24 @@ export function LocationAnalyticsPage() {
         </div>
       ) : null}
 
+      {/*
+        Город либо точки выбраны, а показывать нечего — это другое состояние,
+        чем пустой ответ: фильтры тут не виноваты, и предлагать менять их
+        неверно.
+      */}
+      {!q.isLoading && items.length > 0 && visibleLocations.length === 0 ? (
+        <div className="panel">
+          <div className="muted small">
+            В выбранном городе нет точек под текущий выбор.{' '}
+            <button className="ghost" onClick={() => selectCity(ALL_CITIES_KEY)}>
+              Все города
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div style={{ display: 'grid', gap: 8 }}>
-        {items.map((loc) => {
+        {visibleLocations.map((loc) => {
           const overdueRisk = loc.totalTickets > 0 ? loc.overdueTickets / loc.totalTickets : 0
           const isExpanded = expandedLocationId === loc.locationId
           const topCategory = loc.categories[0]
