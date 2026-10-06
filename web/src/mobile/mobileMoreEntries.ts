@@ -20,6 +20,20 @@ const ANALYTICS_ROLES: ReadonlySet<string> = new Set<string>([
   'PLATFORM_ADMIN',
 ])
 
+// P1-fix: Оборудование и управленческие Материалы — провайдерские management-поверхности.
+// canAccessManagementSurface оказался слишком широким: у CLIENT_ADMIN он true, но реальных
+// backend-прав нет (equipment.controller @Roles = ADMIN/MASTER/DISPATCHER — CLIENT_ADMIN
+// отсутствует; materials management = @Roles(...MANAGEMENT_ROLES) + @RequirePermission
+// LOCATIONS_VIEW/MANAGE, которых у CLIENT_ADMIN нет → 403). Зеркалим провайдерский
+// management-набор (как ANALYTICS_ROLES/бэкендовый MANAGEMENT_ROLES). ADMIN_PROVIDER —
+// фронтовый алиас ADMIN. Новый access resolver не вводится; PBAC не меняется.
+const PROVIDER_MANAGEMENT_ROLES: ReadonlySet<string> = new Set<string>([
+  'ADMIN',
+  'ADMIN_PROVIDER',
+  'MASTER',
+  'DISPATCHER',
+])
+
 export type MobileMoreEntry = { id: string; label: string; hint: string; to: string }
 
 export function getMobileMoreEntries(
@@ -31,9 +45,11 @@ export function getMobileMoreEntries(
   const p = (suffix: string) => mobilePath(pathname, suffix)
   const out: MobileMoreEntry[] = []
 
-  // Материалы — существующий helper (техник / management surface; /m-only по его правилу).
+  // Материалы — техник всегда «Мои материалы»; управленческие «Материалы» только
+  // провайдерским management-ролям (CLIENT_ADMIN исключён: нет реального backend-доступа).
   const materials = getMobileMaterialsEntry(user, pathname)
-  if (materials) {
+  const materialsAllowed = role === 'TECHNICIAN' || PROVIDER_MANAGEMENT_ROLES.has(role)
+  if (materials && materialsAllowed) {
     out.push({
       id: 'materials',
       label: materials.label,
@@ -42,8 +58,9 @@ export function getMobileMoreEntries(
     })
   }
 
-  // Оборудование — management surface (существующий серверный сигнал).
-  if (user?.canAccessManagementSurface === true) {
+  // Оборудование — провайдерский management-набор (equipment.controller @Roles =
+  // ADMIN/MASTER/DISPATCHER). CLIENT_ADMIN/CLIENT/TECHNICIAN реального доступа не имеют.
+  if (PROVIDER_MANAGEMENT_ROLES.has(role)) {
     out.push({ id: 'equipment', label: 'Оборудование', hint: 'Паспорта, история и установленные детали', to: p('/equipment') })
   }
 

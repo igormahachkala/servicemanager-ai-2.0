@@ -83,8 +83,39 @@ describe('«Ещё» — видимость по ролям (negative controls)'
     expect(ids({ role: 'CLIENT_ADMIN', canAccessManagementSurface: false })).toEqual(['profile', 'settings'])
   })
 
+  it('P1: CLIENT_ADMIN ДАЖЕ с canAccessManagementSurface не получает Оборудование/Материалы (нет реального backend-доступа)', () => {
+    const list = ids({ role: 'CLIENT_ADMIN', canAccessManagementSurface: true })
+    expect(list).toEqual(['profile', 'settings'])
+    expect(list).not.toContain('equipment')
+    expect(list).not.toContain('materials')
+    expect(list).not.toContain('analytics')
+  })
+
+  it('P1: CLIENT с canAccessManagementSurface тоже не получает Оборудование/Материалы', () => {
+    const list = ids({ role: 'CLIENT', canAccessManagementSurface: true })
+    expect(list).not.toContain('equipment')
+    expect(list).not.toContain('materials')
+  })
+
   it('CLIENT без mgmt: только профиль + настройки; без аналитики/оборудования/материалов/смены', () => {
     expect(ids({ role: 'CLIENT', canAccessManagementSurface: false })).toEqual(['profile', 'settings'])
+  })
+
+  it('P1: Оборудование — только провайдерский management-набор (ADMIN/ADMIN_PROVIDER/MASTER/DISPATCHER)', () => {
+    for (const r of ['ADMIN', 'ADMIN_PROVIDER', 'MASTER', 'DISPATCHER'] as Role[]) {
+      expect(ids({ role: r, canAccessManagementSurface: true })).toContain('equipment')
+    }
+    for (const r of ['CLIENT_ADMIN', 'CLIENT', 'TECHNICIAN', 'NETWORK_DIRECTOR', 'TERRITORIAL_MANAGER', 'STAFF', 'PLATFORM_ADMIN'] as Role[]) {
+      expect(ids({ role: r, canAccessManagementSurface: true })).not.toContain('equipment')
+    }
+  })
+
+  it('TECHNICIAN сохраняет «Мои материалы»; провайдер-роли — управленческие «Материалы»', () => {
+    expect(ids({ role: 'TECHNICIAN', canAccessManagementSurface: false })).toContain('materials')
+    for (const r of ['ADMIN', 'MASTER', 'DISPATCHER'] as Role[]) {
+      expect(ids({ role: r, canAccessManagementSurface: true })).toContain('materials')
+    }
+    expect(ids({ role: 'CLIENT_ADMIN', canAccessManagementSurface: true })).not.toContain('materials')
   })
 
   it('аналитика — только роли с реальным доступом', () => {
