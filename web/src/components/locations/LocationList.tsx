@@ -1,6 +1,7 @@
 ﻿import { Link } from 'react-router-dom'
 
 import * as api from '../../lib/api'
+import { locationCardPath } from '../../lib/equipmentCard'
 import { LocationForm, type LocationFormValue } from './LocationForm'
 
 type Props = {
@@ -20,6 +21,15 @@ type Props = {
    * него карточка запросила бы точку от имени своей компании и получила 404.
    */
   scopeCompanyId?: string
+  /**
+   * Провайдерский ли это контур.
+   *
+   * Решает, КАКИМ параметром уехать области. У провайдера scopeCompanyId —
+   * это id связанного клиента, и отдавать его как «?companyId=…» нельзя:
+   * Shell на каждом переходе сохраняет область, и linked-часть терялась бы
+   * с первого же клика. Роль знает вызывающий, список её не выводит.
+   */
+  isProviderScope?: boolean
 }
 
 export function LocationList({
@@ -34,6 +44,7 @@ export function LocationList({
   onDelete,
   onRestore,
   scopeCompanyId,
+  isProviderScope,
 }: Props) {
   if (locations.length === 0) {
     return (
@@ -49,9 +60,17 @@ export function LocationList({
       {locations.map((location) => {
         const isEditing = editingLocationId === location.id
         const isDeleted = !!location.deletedAt
-        const cardTo = scopeCompanyId
-          ? `/locations/${location.id}?companyId=${encodeURIComponent(scopeCompanyId)}`
-          : `/locations/${location.id}`
+        /*
+         * Путь строится общим билдером, и область уезжает тем параметром,
+         * который контур действительно использует. Карточка точки принимает
+         * оба и возвращает тот же — контур от перехода не меняется.
+         */
+        const cardTo = locationCardPath(
+          location.id,
+          isProviderScope
+            ? { linkedClientCompanyId: scopeCompanyId }
+            : { companyId: scopeCompanyId },
+        )
 
         return (
           <div key={location.id} className="panel" style={{ marginBottom: 0, opacity: isDeleted ? 0.65 : 1 }}>
