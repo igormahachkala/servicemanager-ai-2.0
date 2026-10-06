@@ -259,6 +259,11 @@ export function locationCardPath(locationId: string, scope?: ScopeParams | strin
   return withScope(`/locations/${locationId}`, scope)
 }
 
+/** Список точек с сохранением области — тем же параметром, которым она пришла. */
+export function locationsListPath(scope?: ScopeParams | string | null): string {
+  return withScope('/locations', scope)
+}
+
 /**
  * Сверка фильтров доски с составом полученных карточек.
  *

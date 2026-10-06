@@ -23,6 +23,7 @@ import {
   boardFilterReconciliation,
   equipmentTicketsLink,
   locationCardPath,
+  locationsListPath,
   isEquipmentRetired,
   isWarrantyExpired,
 } from './equipmentCard'
@@ -155,7 +156,7 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
     const locationCode = codeOf(readSrc('views/LocationPage.tsx'))
     expect(locationCode).toContain('api.equipmentByLocation(locationId')
     // Ссылка идёт через общий помощник, переносящий область.
-    expect(locationCode).toContain('equipmentCardPath(unit.id, companyId)')
+    expect(locationCode).toContain('equipmentCardPath(unit.id, outboundScope)')
   })
 
   it('заявка показывает оборудование и ведёт в карточку', () => {
@@ -271,7 +272,13 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
      * обязаны присылать companyId, а он затирает провайдеру linked-часть.
      */
     const locationCode = codeOf(readSrc('views/LocationPage.tsx'))
-    expect(locationCode).toContain("searchParams.get('linkedClientCompanyId')")
+    expect(locationCode).toMatch(
+      /const scopeFromCompanyId = \(searchParams\.get\('companyId'\) \|\| ''\)\.trim\(\)/,
+    )
+    expect(locationCode).toMatch(
+      /const scopeFromLinkedClient = \(searchParams\.get\('linkedClientCompanyId'\) \|\| ''\)\.trim\(\)/,
+    )
+    expect(locationCode).toContain('const companyId = scopeFromCompanyId || scopeFromLinkedClient')
     expect(locationCode).toContain('companyId: scope')
     expect(locationCode).toContain('linkedClientCompanyId: scope')
     expect(codeOf(readSrc('views/EquipmentCardPage.tsx'))).toContain(
@@ -536,9 +543,7 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
     expect(cardCode).toContain('equipmentCreateTicketPath({ id: item.id, locationId }, createScope)')
 
     const locationCode = codeOf(readSrc('views/LocationPage.tsx'))
-    expect(locationCode).toMatch(
-      /const companyId = \(\s*searchParams\.get\('companyId'\) \|\|\s*searchParams\.get\('linkedClientCompanyId'\) \|\|\s*''\s*\)\.trim\(\)/,
-    )
+    expect(locationCode).toContain('const companyId = scopeFromCompanyId || scopeFromLinkedClient')
   })
 
   it('«К списку» не несёт области: иначе она затрётся', () => {
@@ -572,6 +577,45 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
      */
     expect(mobileCode).not.toMatch(/\/equipment\/(?:\$\{|['"`]\s*\+)/)
     expect(mobileCode).not.toMatch(/mobilePath\([^)]*equipment/)
+  })
+
+  it('переход не меняет контур: область возвращается тем же параметром', () => {
+    /*
+     * Главный инвариант. Shell на каждом переходе перезаписывает
+     * сохранённую пару областей ЦЕЛИКОМ, поэтому ссылка, отдавшая
+     * «не тот» параметр, молча меняет контур пользователя: провайдер,
+     * пришедший с linkedClientCompanyId, терял его и упирался в скрытую
+     * форму создания заявки.
+     *
+     * Поэтому карточка точки возвращает область тем же параметром,
+     * которым она пришла, и это проверяется исполнением на обоих путях.
+     */
+    expect(locationsListPath({ linkedClientCompanyId: 'client-c' })).toBe(
+      '/locations?linkedClientCompanyId=client-c',
+    )
+    expect(locationsListPath({ companyId: 'company-b' })).toBe('/locations?companyId=company-b')
+    expect(locationsListPath()).toBe('/locations')
+
+    // Контур провайдера переживает круг «точка → оборудование → точка».
+    expect(equipmentCardPath('eq-1', { linkedClientCompanyId: 'client-c' })).toBe(
+      '/equipment/eq-1?linkedClientCompanyId=client-c',
+    )
+    expect(locationCardPath('loc-1', { linkedClientCompanyId: 'client-c' })).toBe(
+      '/locations/loc-1?linkedClientCompanyId=client-c',
+    )
+
+    /*
+     * Выбор параметра на исходе — не по роли, а по тому, что пришло:
+     * своей области страница не выводит, угадывать нечем.
+     */
+    const locationCode = codeOf(readSrc('views/LocationPage.tsx'))
+    expect(locationCode).toMatch(
+      /const outboundScope = scopeFromCompanyId\s*\?\s*\{ companyId: scopeFromCompanyId \}\s*:\s*\{ linkedClientCompanyId: scopeFromLinkedClient \}/,
+    )
+    expect(locationCode).toContain('equipmentCardPath(unit.id, outboundScope)')
+    expect(locationCode).toContain('locationsListPath(outboundScope)')
+    // Прежней формы, затиравшей провайдеру linked-часть, не осталось.
+    expect(locationCode).not.toMatch(/\/locations\?companyId=\$\{/)
   })
 
   it('снятое оборудование новых заявок не предлагает', () => {
@@ -709,7 +753,7 @@ describe('V2 доступ: новой модели прав не вводитс�
     expect(equipmentCardPath('eq-1', '')).toBe('/equipment/eq-1')
     expect(equipmentCardPath('eq-1', null)).toBe('/equipment/eq-1')
 
-    expect(codeOf(readSrc('views/LocationPage.tsx'))).toContain('equipmentCardPath(unit.id, companyId)')
+    expect(codeOf(readSrc('views/LocationPage.tsx'))).toContain('equipmentCardPath(unit.id, outboundScope)')
     expect(codeOf(readSrc('views/TicketPage.tsx'))).toContain(
       'equipmentCardPath(ticket.equipment.id, { companyId: observerCompanyId,',
     )

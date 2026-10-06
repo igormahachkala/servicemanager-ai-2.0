@@ -2,7 +2,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
-import { equipmentCardPath, equipmentStatusLabel } from '../lib/equipmentCard'
+import { equipmentCardPath, equipmentStatusLabel, locationsListPath } from '../lib/equipmentCard'
 import { appendBoardNavigationContextToPath } from '../lib/boardNavigationContext'
 import {
   pluralizeRu,
@@ -78,11 +78,23 @@ export function LocationPage() {
    * «?companyId=…» затирал провайдеру linkedClientCompanyId: следующее
    * создание заявки упиралось в скрытую форму.
    */
-  const companyId = (
-    searchParams.get('companyId') ||
-    searchParams.get('linkedClientCompanyId') ||
-    ''
-  ).trim()
+  const scopeFromCompanyId = (searchParams.get('companyId') || '').trim()
+  const scopeFromLinkedClient = (searchParams.get('linkedClientCompanyId') || '').trim()
+  const companyId = scopeFromCompanyId || scopeFromLinkedClient
+
+  /*
+   * Исходящие ссылки возвращают область ТЕМ ЖЕ параметром, которым она
+   * пришла.
+   *
+   * Инвариант простой: переход не меняет контур. Своей области страница не
+   * выводит, поэтому «угадывать» параметр не нужно и нельзя: Shell на
+   * каждом переходе перезаписывает сохранённую пару целиком, и отдать
+   * провайдеру «?companyId=…» значило затереть ему linkedClientCompanyId —
+   * контур сменился бы от одного клика по ссылке.
+   */
+  const outboundScope = scopeFromCompanyId
+    ? { companyId: scopeFromCompanyId }
+    : { linkedClientCompanyId: scopeFromLinkedClient }
 
   const locationQ = useQuery({
     queryKey: ['location', locationId, companyId],
@@ -139,7 +151,7 @@ export function LocationPage() {
     retry: false,
   })
 
-  const backTo = companyId ? `/locations?companyId=${encodeURIComponent(companyId)}` : '/locations'
+  const backTo = locationsListPath(outboundScope)
   /* Ссылка на заявки объекта строится существующим контрактом доски (boardLocationId). */
   const ticketsTo = appendBoardNavigationContextToPath('/tickets', { selectedLocationId: locationId })
 
@@ -325,7 +337,7 @@ export function LocationPage() {
             <div style={{ display: 'grid', gap: 8 }}>
               {locationEquipmentQ.data.map((unit) => (
                 <div key={unit.id}>
-                  <Link to={equipmentCardPath(unit.id, companyId)}>{unit.name}</Link>
+                  <Link to={equipmentCardPath(unit.id, outboundScope)}>{unit.name}</Link>
                   <span className="muted small"> · {equipmentStatusLabel(unit.status)}</span>
                 </div>
               ))}
