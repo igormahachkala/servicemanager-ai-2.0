@@ -618,6 +618,42 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
     expect(locationCode).not.toMatch(/\/locations\?companyId=\$\{/)
   })
 
+  it('ACTIVE проверяет только публичный путь — и это проверяется у бэкенда', () => {
+    /*
+     * Утверждать поведение бэкенда по памяти нельзя: комментарий в
+     * CreateTicketPage уже однажды заявлял проверку ACTIVE там, где её нет.
+     * Поэтому обе ручки читаются из исходника.
+     *
+     * Аутентифицированное создание сверяет компанию и точку, статус — нет:
+     * status лежит в select (он нужен ответу), но не в where. Публичная
+     * заявка требует ACTIVE явно.
+     */
+    const authPath = readSrc('../../backend/src/tickets/tickets.assignment.service.ts')
+    const authStart = authPath.indexOf('private async getEquipment(')
+    const authWhere = authPath.slice(authStart, authPath.indexOf('select:', authStart))
+    expect(authStart).toBeGreaterThan(-1)
+    expect(authWhere).toContain('id: equipmentId')
+    expect(authWhere).toContain('companyId: companyId')
+    expect(authWhere).toContain('locationId')
+    // Ключевое: статуса в where НЕТ.
+    expect(authWhere).not.toContain('status')
+
+    const publicPath = readSrc('../../backend/src/public-request/public-request.service.ts')
+    const publicStart = publicPath.indexOf('private async resolveEquipment(')
+    const publicWhere = publicPath.slice(publicStart, publicPath.indexOf('select:', publicStart))
+    expect(publicStart).toBeGreaterThan(-1)
+    expect(publicWhere).toContain("status: 'ACTIVE'")
+
+    /*
+     * Значит отсев снятого с эксплуатации на аутентифицированном пути —
+     * подсказка интерфейса, и комментарий обязан говорить именно это.
+     */
+    const createCode = readSrc('views/CreateTicketPage.tsx')
+    expect(createCode).not.toMatch(/сам проверяет компанию, точку и ACTIVE/)
+    expect(createCode).toMatch(/Статус он на этом пути НЕ проверяет/)
+    expect(canCreateTicketForEquipment({ status: 'INACTIVE', locationId: 'loc-1' })).toBe(false)
+  })
+
   it('снятое оборудование новых заявок не предлагает', () => {
     expect(canCreateTicketForEquipment({ status: 'ACTIVE', locationId: 'loc-1' })).toBe(true)
     expect(canCreateTicketForEquipment({ status: 'INACTIVE', locationId: 'loc-1' })).toBe(false)
