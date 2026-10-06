@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
-import { mobilePath } from './mobileRoute'
+import { getMobileRouteRoot, mobilePath } from './mobileRoute'
 
 /**
  * SMA-EQUIPMENT-V2-110A.
@@ -68,14 +68,24 @@ const TICKET_STATUS_LABELS: Record<string, string> = {
   CANCELLED: 'Отменена',
 }
 
-function MobileEquipmentHistory({ equipmentId }: { equipmentId: string }) {
+function MobileEquipmentHistory({
+  equipmentId,
+  scopeCompanyId,
+  scope,
+  mobileRoot,
+}: {
+  equipmentId: string
+  scopeCompanyId: string
+  scope: api.TicketScopeParams
+  mobileRoot: string
+}) {
   // SMA-EQUIPMENT-PARTS-POLISH-110C: телефон тоже не тянет всю историю
   // разом — страницы догружаются кнопкой.
   const [cursor, setCursor] = useState<string | undefined>(undefined)
   const [acc, setAcc] = useState<api.EquipmentHistoryEntry[]>([])
   const q = useQuery({
-    queryKey: ['mobile-equipment-history', equipmentId, cursor || ''],
-    queryFn: () => api.getEquipmentHistory(equipmentId, undefined, { limit: 20, cursor }),
+    queryKey: ['mobile-equipment-history', equipmentId, scopeCompanyId, cursor || ''],
+    queryFn: () => api.getEquipmentHistory(equipmentId, scopeCompanyId || undefined, { limit: 20, cursor }),
   })
   useEffect(() => {
     if (!q.data) return
@@ -109,7 +119,11 @@ function MobileEquipmentHistory({ equipmentId }: { equipmentId: string }) {
           {e.partsInstalled.length > 0 ? (
             <div className="mobileMeta">Установлено: {e.partsInstalled.map((p) => p.name).join(', ')}</div>
           ) : null}
-          <Link to={`/m/tickets/${e.ticketId}`} className="mobileBtn mobileBtnGhost" style={{ textAlign: 'center', marginTop: 2 }}>
+          <Link
+            to={api.appendScopeToPath(`${mobileRoot}/tickets/${e.ticketId}`, scope)}
+            className="mobileBtn mobileBtnGhost"
+            style={{ textAlign: 'center', marginTop: 2 }}
+          >
             Открыть заявку
           </Link>
         </div>
@@ -128,10 +142,10 @@ function MobileEquipmentHistory({ equipmentId }: { equipmentId: string }) {
   )
 }
 
-function MobileEquipmentParts({ equipmentId }: { equipmentId: string }) {
+function MobileEquipmentParts({ equipmentId, scopeCompanyId }: { equipmentId: string; scopeCompanyId: string }) {
   const q = useQuery({
-    queryKey: ['mobile-equipment-parts', equipmentId],
-    queryFn: () => api.getEquipmentParts(equipmentId),
+    queryKey: ['mobile-equipment-parts', equipmentId, scopeCompanyId],
+    queryFn: () => api.getEquipmentParts(equipmentId, scopeCompanyId || undefined),
   })
   if (q.isLoading) return <div className="mobileCard mobileMeta">Загружаем комплектующие…</div>
   if (q.isError) return <div className="mobileNotice mobileNoticeError">{(q.error as any)?.message || String(q.error)}</div>
@@ -174,6 +188,24 @@ export function MobileEquipmentPage() {
   const location = useLocation()
   const params = useParams<{ id?: string }>()
   const equipmentId = (params.id || '').trim()
+  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+
+  const scope = useMemo<api.TicketScopeParams>(() => {
+    const search = new URLSearchParams(location.search)
+    const linkedClientCompanyId = (
+      search.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)
+    ).trim()
+    const companyId = linkedClientCompanyId
+      ? ''
+      : (search.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
+    return {
+      linkedClientCompanyId: linkedClientCompanyId || undefined,
+      companyId: companyId || undefined,
+    }
+  }, [location.search, meQ.data])
+  const scopeCompanyId = scope.linkedClientCompanyId || scope.companyId || ''
+  const mobileRoot = getMobileRouteRoot(location.pathname)
+  const scopedPath = (path: string) => api.appendScopeToPath(mobilePath(location.pathname, path), scope)
 
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
@@ -185,14 +217,14 @@ export function MobileEquipmentPage() {
   }, [searchInput])
 
   const listQ = useQuery({
-    queryKey: ['mobile-equipment', search],
-    queryFn: () => api.listEquipment({ search: search || undefined }),
+    queryKey: ['mobile-equipment', scopeCompanyId, search],
+    queryFn: () => api.listEquipment({ companyId: scopeCompanyId || undefined, search: search || undefined }),
     enabled: !equipmentId,
   })
 
   const cardQ = useQuery({
-    queryKey: ['mobile-equipment-card', equipmentId],
-    queryFn: () => api.getEquipment(equipmentId),
+    queryKey: ['mobile-equipment-card', equipmentId, scopeCompanyId],
+    queryFn: () => api.getEquipment(equipmentId, scopeCompanyId || undefined),
     enabled: !!equipmentId,
   })
 
@@ -201,7 +233,7 @@ export function MobileEquipmentPage() {
     return (
       <div className="mobileSection">
         <div className="mobileTicketDetailsToolbar">
-          <Link to={mobilePath(location.pathname, '/equipment')} className="mobileDetailsBackLink">
+          <Link to={scopedPath('/equipment')} className="mobileDetailsBackLink">
             <BackArrow />
             Оборудование
           </Link>
@@ -248,8 +280,16 @@ export function MobileEquipmentPage() {
               ))}
             </div>
 
-            {tab === 'history' ? <MobileEquipmentHistory equipmentId={item.id} /> : null}
-            {tab === 'parts' ? <MobileEquipmentParts equipmentId={item.id} /> : null}
+            {tab === 'history' ? (
+              <MobileEquipmentHistory
+                key={`${item.id}:${scopeCompanyId}`}
+                equipmentId={item.id}
+                scopeCompanyId={scopeCompanyId}
+                scope={scope}
+                mobileRoot={mobileRoot}
+              />
+            ) : null}
+            {tab === 'parts' ? <MobileEquipmentParts equipmentId={item.id} scopeCompanyId={scopeCompanyId} /> : null}
 
             {tab === 'overview' ? (
             <div className="mobileCard" style={{ display: 'grid', gap: 6 }}>
@@ -325,7 +365,7 @@ export function MobileEquipmentPage() {
         rows.map((item) => (
           <Link
             key={item.id}
-            to={mobilePath(location.pathname, `/equipment/${item.id}`)}
+            to={scopedPath(`/equipment/${item.id}`)}
             className="mobileCard"
             style={{ display: 'flex', gap: 10, alignItems: 'center', textDecoration: 'none', color: 'inherit' }}
           >

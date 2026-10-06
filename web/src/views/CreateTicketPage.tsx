@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { ProtectedUploadImg, ProtectedUploadVideo } from '../ui/ProtectedUploadMedia'
@@ -50,11 +50,35 @@ export function CreateTicketPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const preCreateSnapshotRef = useRef({ categoryName: '', locationName: '' })
 
-  const [mode, setMode] = useState<CreateMode>('quick')
   const [err, setErr] = useState<string | null>(null)
   const [clientCompanyId, setClientCompanyId] = useState('')
-  const [locationId, setLocationId] = useState('')
-  const [equipmentId, setEquipmentId] = useState('')
+  /*
+   * SMA-EQUIPMENT-V2-FOUNDATION: создание заявки по конкретному оборудованию.
+   *
+   * Параметры читаются из адреса, потому что переход приходит с карточки
+   * оборудования. Второго создателя заявок не появляется — это тот же
+   * маршрут и та же форма, просто с предзаполненными точкой и позицией.
+   * Доступ при этом не расширяется: список точек и оборудования по-прежнему
+   * приходит с бэкенда в области актора, и предзаполнение, не найденное
+   * в этих списках, сбрасывается существующей проверкой ниже.
+   */
+  const [searchParams] = useSearchParams()
+  const presetLocationId = (searchParams.get('locationId') || '').trim()
+  const presetEquipmentId = (searchParams.get('equipmentId') || '').trim()
+
+  /*
+   * Переход с карточки оборудования открывает подробную форму.
+   *
+   * Быстрый режим поля оборудования не показывает И НЕ ОТПРАВЛЯЕТ его
+   * (buildPayload возвращает base), поэтому с предзаполнением он молча
+   * создавал заявку без привязки к позиции — ровно то, за чем шли с
+   * карточки. Предзаполнение есть — показываем форму, в которой эту
+   * привязку видно и можно изменить.
+   */
+  const [mode, setMode] = useState<CreateMode>(presetEquipmentId ? 'full' : 'quick')
+
+  const [locationId, setLocationId] = useState(presetLocationId)
+  const [equipmentId, setEquipmentId] = useState(presetEquipmentId)
   const [categoryId, setCategoryId] = useState('')
   const [postCreateAction, setPostCreateAction] = useState<'leave_unassigned' | 'assign_employee'>('leave_unassigned')
   const [assignTechnicianId, setAssignTechnicianId] = useState('')
@@ -267,7 +291,18 @@ export function CreateTicketPage() {
 
   useEffect(() => {
     if (!locationId && activeLocations.length > 0) setLocationId(activeLocations[0].id)
-    if (locationId && !activeLocations.some((row) => row.id === locationId)) setLocationId(activeLocations[0]?.id || '')
+    /*
+     * SMA-EQUIPMENT-V2-FOUNDATION: сверка идёт только по загруженному списку.
+     *
+     * Раньше условие срабатывало и на пустом списке — на первом рендере,
+     * когда запрос точек ещё не ответил. Для обычного входа это незаметно
+     * (точка и так пуста), но предзаполнение из адреса затиралось, и форма
+     * открывалась на первой точке вместо выбранной: заявку можно было молча
+     * создать не по тому объекту.
+     */
+    if (activeLocations.length > 0 && locationId && !activeLocations.some((row) => row.id === locationId)) {
+      setLocationId(activeLocations[0].id)
+    }
   }, [activeLocations, locationId])
 
   useEffect(() => {
@@ -285,8 +320,22 @@ export function CreateTicketPage() {
       setEquipmentId('')
       return
     }
-    if (equipmentId && !locationEquipment.some((row) => row.id === equipmentId)) setEquipmentId('')
-  }, [locationId, equipmentId, locationEquipment])
+    /*
+     * Та же причина: пока состав оборудования точки не получен, список пуст,
+     * и сверка снимала предзаполнение, ещё не зная настоящего состава.
+     */
+    /*
+     * Сверка возможна только по ОТВЕЧЕННОМУ запросу. isSuccess одного мало:
+     * при ошибке загрузки он не наступает никогда, и предзаполненное из
+     * адреса оборудование доехало бы до отправки — бэкенд отвечает
+     * «Equipment not found» на поле, которого пользователь не трогал.
+     * Не знаем состав точки — предзаполнение снимаем.
+     */
+    if (!equipmentQ.isSuccess && !equipmentQ.isError) return
+    if (equipmentId && !locationEquipment.some((row) => row.id === equipmentId)) {
+      setEquipmentId('')
+    }
+  }, [locationId, equipmentId, locationEquipment, equipmentQ.isSuccess, equipmentQ.isError])
 
   useEffect(() => {
     if (postCreateAction !== 'assign_employee') {
@@ -385,6 +434,16 @@ export function CreateTicketPage() {
         : undefined,
       locationId,
       categoryId,
+      /*
+       * Привязка к оборудованию уезжает в ОБА режима. Иначе переключение
+       * в быстрый режим молча теряло бы её: поля там нет, а значение в
+       * состоянии остаётся. Бэкенд принимает equipmentId независимо от
+       * createMode и сверяет компанию и точку (findFirst по id + companyId
+       * + locationId). Статус он на этом пути НЕ проверяет — ACTIVE
+       * требует только публичная заявка, — поэтому снятое с эксплуатации
+       * отсекает подсказка карточки (canCreateTicketForEquipment).
+       */
+      equipmentId: equipmentId || undefined,
       requesterName: requesterName.trim() || undefined,
       requesterPhone: requesterPhone.trim() || undefined,
       attachmentIds: draftAttachment ? [draftAttachment.id] : [],
@@ -399,7 +458,6 @@ export function CreateTicketPage() {
     const parsedSla = Number(slaMinutes)
     return {
       ...base,
-      equipmentId: equipmentId || undefined,
       urgency,
       title: title.trim() || undefined,
       description: description.trim() || undefined,
