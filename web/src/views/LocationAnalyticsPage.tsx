@@ -82,13 +82,18 @@ export function LocationAnalyticsPage() {
    * «выбрано 3», а показана одна.
    */
   const effectiveSelectedLocationIds = useMemo(
-    () => retainSelectableLocations(cityGroups, selectedCityKey, selectedLocationIds),
-    [cityGroups, selectedCityKey, selectedLocationIds],
+    () => retainSelectableLocations(items, selectedCityKey, selectedLocationIds),
+    [items, selectedCityKey, selectedLocationIds],
   )
 
+  /*
+   * Отбор идёт по исходным строкам ответа, поэтому порядок бэкенда —
+   * по убыванию заявок — сохраняется и при «Все города», и внутри города.
+   * Группы нужны только для списка городов.
+   */
   const visibleLocations = useMemo(
-    () => selectVisibleLocations(cityGroups, selectedCityKey, effectiveSelectedLocationIds),
-    [cityGroups, selectedCityKey, effectiveSelectedLocationIds],
+    () => selectVisibleLocations(items, selectedCityKey, effectiveSelectedLocationIds),
+    [items, selectedCityKey, effectiveSelectedLocationIds],
   )
 
   function selectCity(cityKey: string) {
@@ -196,6 +201,15 @@ export function LocationAnalyticsPage() {
         <div>
           <div className="muted small">Завершено</div>
           <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>{!q.isFetching ? fmtNumber(summary?.doneTotal) : '—'}</div>
+        </div>
+        {/*
+          Подпись видимая, а не в комментарии: при выбранном городе список
+          ниже сужается, а показатели остаются по всему доступному объёму —
+          без этой строки их читали бы как итоги выбора. Пересчитывать их
+          на фронтенде нельзя: канонические итоги считает бэкенд.
+        */}
+        <div className="muted small" style={{ gridColumn: '1 / -1', marginTop: 2 }}>
+          Показатели рассчитаны по всему доступному объёму данных, а не по выбранному городу или точкам.
         </div>
       </div>
 

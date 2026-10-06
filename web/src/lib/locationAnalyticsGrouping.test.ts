@@ -50,16 +50,49 @@ describe('ANALYTICS V2 Phase 1: город → точки', () => {
   })
 
   it('2. один город: видны только его точки', () => {
-    const groups = groupLocationsByCity([row('l1', 'Казань'), row('l2', 'Самара'), row('l3', 'Казань')])
-    const visible = selectVisibleLocations(groups, normalizeCityKey('Казань'))
+    const items = [row('l1', 'Казань'), row('l2', 'Самара'), row('l3', 'Казань')]
+    const visible = selectVisibleLocations(items, normalizeCityKey('Казань'))
 
     expect(visible.map((l) => l.locationId)).toEqual(['l1', 'l3'])
-    // «Все города» возвращает всё, в порядке групп.
-    expect(selectVisibleLocations(groups, ALL_CITIES_KEY).map((l) => l.locationId)).toEqual([
+    /*
+     * «Все города» возвращает ответ КАК ЕСТЬ, а не склейку групп.
+     * Прежняя редакция этого теста закрепляла порядок по группам
+     * (l1, l3, l2) — то есть ровно ту регрессию, из-за которой список
+     * выстраивался по алфавиту городов вместо порядка бэкенда.
+     */
+    expect(selectVisibleLocations(items, ALL_CITIES_KEY).map((l) => l.locationId)).toEqual([
       'l1',
-      'l3',
       'l2',
+      'l3',
     ])
+  })
+
+  it('2a. РЕГРЕССИЯ: «Все города» сохраняет ранжирование бэкенда по заявкам', () => {
+    /*
+     * Бэкенд отдаёт точки по убыванию заявок
+     * (analytics.service: .sort((a, b) => b.totalTickets - a.totalTickets)),
+     * и Production рисовал их напрямую. Группировка по городам не должна
+     * этот порядок трогать: иначе на первом же экране, когда пользователь
+     * ничего не выбрал, точка с 500 заявками оказывается ниже точек с одной.
+     */
+    const items = [
+      row('a', 'Ярославль', 500),
+      row('b', 'Абакан', 1),
+      row('c', 'Абакан', 1),
+    ]
+
+    const visible = selectVisibleLocations(items, ALL_CITIES_KEY)
+
+    expect(visible.map((l) => l.totalTickets)).toEqual([500, 1, 1])
+    expect(visible.map((l) => l.locationId)).toEqual(['a', 'b', 'c'])
+
+    // Алфавит города на порядок строк не влияет вовсе.
+    expect(groupLocationsByCity(items).map((g) => g.cityLabel)).toEqual(['Абакан', 'Ярославль'])
+
+    // Внутри выбранного города — тоже порядок ответа.
+    expect(
+      selectVisibleLocations(items, normalizeCityKey('Абакан')).map((l) => l.locationId),
+    ).toEqual(['b', 'c'])
   })
 
   it('3. city = null/пустая строка/пробелы — одна понятная группа', () => {
@@ -96,59 +129,59 @@ describe('ANALYTICS V2 Phase 1: город → точки', () => {
   })
 
   it('5. выбор нескольких точек внутри города', () => {
-    const groups = groupLocationsByCity([
+    const items = [
       row('l1', 'Казань'),
       row('l2', 'Казань'),
       row('l3', 'Казань'),
       row('l4', 'Самара'),
-    ])
+    ]
     const kazan = normalizeCityKey('Казань')
 
     let selected = toggleLocationSelection([], 'l1')
     selected = toggleLocationSelection(selected, 'l3')
     expect(selected).toEqual(['l1', 'l3'])
 
-    expect(selectVisibleLocations(groups, kazan, selected).map((l) => l.locationId)).toEqual(['l1', 'l3'])
+    expect(selectVisibleLocations(items, kazan, selected).map((l) => l.locationId)).toEqual(['l1', 'l3'])
 
     // Повторное нажатие снимает выбор.
     selected = toggleLocationSelection(selected, 'l1')
     expect(selected).toEqual(['l3'])
 
     // Пустой выбор — это «все точки города», а не пустой экран.
-    expect(selectVisibleLocations(groups, kazan, []).map((l) => l.locationId)).toEqual(['l1', 'l2', 'l3'])
+    expect(selectVisibleLocations(items, kazan, []).map((l) => l.locationId)).toEqual(['l1', 'l2', 'l3'])
 
     // Точка другого города в выборе ничего не добавляет: доступ не расширяется.
-    expect(selectVisibleLocations(groups, kazan, ['l4']).map((l) => l.locationId)).toEqual([])
+    expect(selectVisibleLocations(items, kazan, ['l4']).map((l) => l.locationId)).toEqual([])
   })
 
   it('6. пустой ответ: групп нет, выбор ничего не ломает', () => {
-    const groups = groupLocationsByCity([])
+    const items: Row[] = []
+    const groups = groupLocationsByCity(items)
 
     expect(groups).toEqual([])
-    expect(selectVisibleLocations(groups, ALL_CITIES_KEY)).toEqual([])
-    expect(selectVisibleLocations(groups, 'казань', ['l1'])).toEqual([])
+    expect(selectVisibleLocations(items, ALL_CITIES_KEY)).toEqual([])
+    expect(selectVisibleLocations(items, 'казань', ['l1'])).toEqual([])
     expect(hasCityGroup(groups, ALL_CITIES_KEY)).toBe(true)
     expect(hasCityGroup(groups, 'казань')).toBe(false)
-    expect(retainSelectableLocations(groups, ALL_CITIES_KEY, ['l1'])).toEqual([])
+    expect(retainSelectableLocations(items, ALL_CITIES_KEY, ['l1'])).toEqual([])
   })
 
   it('7. выбор приводится к новому составу: смена города и обновление данных', () => {
-    const groups = groupLocationsByCity([row('l1', 'Казань'), row('l2', 'Казань'), row('l3', 'Самара')])
+    const items = [row('l1', 'Казань'), row('l2', 'Казань'), row('l3', 'Самара')]
 
     // Смена города сбрасывает точки другого города.
-    expect(retainSelectableLocations(groups, normalizeCityKey('Самара'), ['l1', 'l2'])).toEqual([])
-    expect(retainSelectableLocations(groups, normalizeCityKey('Казань'), ['l1', 'l3'])).toEqual(['l1'])
+    expect(retainSelectableLocations(items, normalizeCityKey('Самара'), ['l1', 'l2'])).toEqual([])
+    expect(retainSelectableLocations(items, normalizeCityKey('Казань'), ['l1', 'l3'])).toEqual(['l1'])
 
     // Исчезнувшая из ответа точка в выборе не остаётся.
-    const narrowed = groupLocationsByCity([row('l1', 'Казань')])
-    expect(retainSelectableLocations(narrowed, ALL_CITIES_KEY, ['l1', 'l2'])).toEqual(['l1'])
+    expect(retainSelectableLocations([row('l1', 'Казань')], ALL_CITIES_KEY, ['l1', 'l2'])).toEqual(['l1'])
   })
 
   it('8. возврат ко всем городам: выбранный город перестаёт сужать', () => {
-    const groups = groupLocationsByCity([row('l1', 'Казань'), row('l2', 'Самара')])
+    const items = [row('l1', 'Казань'), row('l2', 'Самара')]
 
-    expect(selectVisibleLocations(groups, normalizeCityKey('Казань')).map((l) => l.locationId)).toEqual(['l1'])
-    expect(selectVisibleLocations(groups, ALL_CITIES_KEY).map((l) => l.locationId)).toEqual(['l1', 'l2'])
+    expect(selectVisibleLocations(items, normalizeCityKey('Казань')).map((l) => l.locationId)).toEqual(['l1'])
+    expect(selectVisibleLocations(items, ALL_CITIES_KEY).map((l) => l.locationId)).toEqual(['l1', 'l2'])
   })
 
   it('9. порядок строк внутри города — как у бэкенда, не пересортирован', () => {
@@ -201,5 +234,28 @@ describe('ANALYTICS V2 Phase 1: город → точки', () => {
      */
     expect(page).toContain('visibleLocations.map(')
     expect(page).not.toContain('items.map(')
+
+    /*
+     * Отбор идёт по исходным строкам, иначе порядок бэкенда теряется.
+     */
+    expect(page).toContain('selectVisibleLocations(items, selectedCityKey')
+    expect(page).toContain('retainSelectableLocations(items, selectedCityKey')
+    expect(page).not.toContain('selectVisibleLocations(cityGroups')
+  })
+
+  it('12. подпись у сводки — видимый текст, а не комментарий', () => {
+    /*
+     * Ревью нашло, что оговорка про область показателей лежала в JSX-комментарии,
+     * то есть пользователю её не видно: при выбранном городе список сужался, а
+     * «Всего заявок» оставалось по всей области и читалось как итог выбора.
+     *
+     * codeOf срезает комментарии — если подпись переживает срез, это разметка.
+     */
+    const page = codeOf(readSrc('views/LocationAnalyticsPage.tsx'))
+    expect(page).toMatch(/Показатели рассчитаны по всему доступному объёму данных/)
+
+    // И по-прежнему никаких пересчётов: итоги берутся у бэкенда.
+    expect(page).toContain('summary?.totalTickets')
+    expect(page).not.toMatch(/\.reduce\(/)
   })
 })

@@ -115,22 +115,31 @@ export function hasCityGroup<T extends GroupableLocation>(
 /**
  * Какие точки показывать.
  *
- * Фильтрация идёт по уже полученным строкам: выбор города и точек — это
- * представление, а не расширение доступа. Поэтому выбранная точка, которой
- * нет в разрешённых строках, просто ничего не добавляет.
+ * Отбор идёт по ИСХОДНЫМ строкам ответа, а не по группам, и поэтому
+ * сохраняет порядок бэкенда в любом состоянии.
+ *
+ * Это важнее, чем кажется: бэкенд отдаёт точки по убыванию заявок
+ * (analytics.service: sort по totalTickets DESC), и прежняя редакция при
+ * «Все города» склеивала группы — список становился упорядоченным по
+ * алфавиту городов, то есть на первом же экране точка с 500 заявками
+ * оказывалась ниже точек с одной. Группы остались только для списка
+ * городов; на порядок строк они больше не влияют.
+ *
+ * Фильтрация — это представление, а не расширение доступа: выбранная
+ * точка, которой нет в разрешённых строках, ничего не добавляет.
  *
  * Пустой выбор точек означает «все точки этого города», а не «ни одной»:
  * иначе выбор города давал бы пустой экран.
  */
 export function selectVisibleLocations<T extends GroupableLocation>(
-  groups: readonly CityGroup<T>[],
+  items: readonly T[],
   cityKey: string,
   selectedLocationIds: readonly string[] = [],
 ): T[] {
   const scoped =
     cityKey === ALL_CITIES_KEY
-      ? groups.flatMap((group) => group.locations)
-      : groups.find((group) => group.cityKey === cityKey)?.locations ?? []
+      ? items
+      : items.filter((item) => normalizeCityKey(item.city) === cityKey)
 
   if (selectedLocationIds.length === 0) return [...scoped]
 
@@ -161,13 +170,13 @@ export function toggleLocationSelection(
  * «выбрано 3», а показана одна.
  */
 export function retainSelectableLocations<T extends GroupableLocation>(
-  groups: readonly CityGroup<T>[],
+  items: readonly T[],
   cityKey: string,
   selectedLocationIds: readonly string[],
 ): string[] {
   if (selectedLocationIds.length === 0) return []
   const available = new Set(
-    selectVisibleLocations(groups, cityKey).map((item) => item.locationId),
+    selectVisibleLocations(items, cityKey).map((item) => item.locationId),
   )
   return selectedLocationIds.filter((id) => available.has(id))
 }
