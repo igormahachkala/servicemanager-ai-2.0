@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode 
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { equipmentCardPath } from '../lib/equipmentCard'
 import { TicketMaterialsPanel } from '../components/tickets/TicketMaterialsPanel'
 import { mapReason } from '../lib/assignmentExplain'
 import {
@@ -1094,6 +1095,23 @@ export function TicketPage() {
               <Skeleton w={120} h={24} />
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {/*
+        SMA-EQUIPMENT-V2-FOUNDATION: оборудование заявки видно и ведёт в карточку.
+        До этого связь существовала только в форме правки: прочитать, по какому
+        оборудованию заявка, со страницы было нельзя.
+      */}
+      {ticket?.equipment?.id ? (
+        <div className="panel" style={{ marginBottom: 12 }}>
+          <h3 style={{ marginBottom: 6 }}>Оборудование</h3>
+          <div>
+            <Link to={equipmentCardPath(ticket.equipment.id, { companyId: observerCompanyId, linkedClientCompanyId: effectiveLinkedClientCompanyId })}>{ticket.equipment.name}</Link>
+          </div>
+          {ticket.equipment.type ? (
+            <div className="muted small">{ticket.equipment.type}</div>
+          ) : null}
         </div>
       ) : null}
 

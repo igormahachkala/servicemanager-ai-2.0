@@ -1638,6 +1638,17 @@ export function getHomeRoute(role?: string | null): string {
   const resolvedRole = role || getUserRole()
   if (resolvedRole === 'PLATFORM_ADMIN') return '/companies'
   if (resolvedRole === 'TECHNICIAN') return '/m'
+  // Navigation V2 (решение владельца): роль с доступом к аналитике → Главная.
+  // ANALYTICS_VIEW у `me` не приходит, поэтому по ролям backend-аналитики.
+  if (
+    resolvedRole === 'ADMIN' ||
+    resolvedRole === 'ADMIN_PROVIDER' ||
+    resolvedRole === 'MASTER' ||
+    resolvedRole === 'DISPATCHER' ||
+    resolvedRole === 'NETWORK_DIRECTOR'
+  ) {
+    return '/dashboard'
+  }
   return '/board'
 }
 
@@ -3237,10 +3248,28 @@ export async function regenerateCompanyPublicRequestToken(): Promise<CompanySett
   })
 }
 
-export function buildPublicRequestLink(token?: string | null, locationId?: string | null): string {
+/**
+ * SMA-EQUIPMENT-V2-FOUNDATION: третий параметр добавлен, первые два не тронуты.
+ *
+ * Ссылка остаётся той же публичной заявкой: отдельной публичной ручки под
+ * оборудование не заводится, второго создателя заявок тоже. equipmentId —
+ * лишь предзаполнение формы; каноническую проверку (компания, та же точка,
+ * ACTIVE) делает бэкенд в resolveEquipment, и подставленный чужой или
+ * погашенный id он отклонит независимо от того, что пришло в адресе.
+ *
+ * Прежние вызовы с одним и двумя аргументами продолжают работать: параметр
+ * необязательный и без него в адрес ничего не добавляется.
+ */
+export function buildPublicRequestLink(
+  token?: string | null,
+  locationId?: string | null,
+  equipmentId?: string | null,
+): string {
   if (!token) return ''
   const url = new URL('/r/' + token, getPublicAppBaseUrl())
   if (locationId) url.searchParams.set('locationId', locationId)
+  // Оборудование без точки не имеет смысла: форма выбирает его внутри точки.
+  if (locationId && equipmentId) url.searchParams.set('equipmentId', equipmentId)
   return url.toString()
 }
 

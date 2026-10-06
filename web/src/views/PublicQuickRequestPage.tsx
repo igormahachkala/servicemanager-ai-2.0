@@ -26,6 +26,12 @@ export function PublicQuickRequestPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const presetLocationId = (searchParams.get('locationId') || '').trim()
+  /*
+   * SMA-EQUIPMENT-V2-FOUNDATION: QR с оборудования приводит сюда же.
+   * Это только предзаполнение. Каноническую проверку (компания, та же точка,
+   * ACTIVE) делает бэкенд; подставленный чужой или погашенный id он отклонит.
+   */
+  const presetEquipmentId = (searchParams.get('equipmentId') || '').trim()
 
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(search)
@@ -88,6 +94,23 @@ export function PublicQuickRequestPage() {
       setEquipmentId('')
     }
   }, [selectedLocation])
+
+  /*
+   * Предзаполнение оборудования из адреса — один раз и только если такая
+   * позиция действительно есть на выбранной точке. Иначе пользователь увидел
+   * бы выбранным то, чего в списке нет, а бэкенд потом отказал бы. Ссылки без
+   * equipmentId работают как раньше: эффект ничего не делает.
+   */
+  const [equipmentPresetApplied, setEquipmentPresetApplied] = useState(false)
+  useEffect(() => {
+    if (equipmentPresetApplied || !presetEquipmentId) return
+    const rows = equipmentQ.data
+    if (!rows) return
+    if (rows.some((item) => item.id === presetEquipmentId)) {
+      setEquipmentId(presetEquipmentId)
+    }
+    setEquipmentPresetApplied(true)
+  }, [equipmentPresetApplied, presetEquipmentId, equipmentQ.data])
 
   const maxPhotos = contextQ.data?.featureFlags.photoUpload ? Math.max(0, contextQ.data?.limits.maxPhotos || 0) : 0
   const requirePhone = contextQ.data?.limits.requirePhone !== false
