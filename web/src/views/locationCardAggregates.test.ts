@@ -53,7 +53,6 @@ describe('102/1 источники — только существующие а�
     const calls = [...pageCode.matchAll(/api\.([A-Za-z0-9_]+)\(/g)].map((m) => m[1])
     expect([...new Set(calls)].sort()).toEqual([
       'analyticsLocations',
-      'equipmentByLocation',
       'getInspectionSchedules',
       'getLocation',
       'listEquipment',
@@ -75,8 +74,7 @@ describe('102/1 источники — только существующие а�
 
   it('8. без locationId запрос не уходит — tenant-wide выборки не возникает', () => {
     // Все три запроса включены одним и тем же условием.
-    // 2026-10: пятый запрос — оборудование объекта, включён тем же условием.
-    expect(pageCode.match(/enabled: !!locationId/g)?.length).toBe(5)
+    expect(pageCode.match(/enabled: !!locationId/g)?.length).toBe(4)
   })
 })
 
@@ -279,28 +277,10 @@ describe('102/9 наследие L1 не сломано', () => {
 
   it('9. отказ сводки не рисует ничего и не называет причину', () => {
     // Каждый блок целиком возвращает null: даже пустой заголовок не раскрывает недоступный раздел.
-    // 2026-10: четвёртый блок — оборудование, отказ так же не рисует ничего.
-    expect(pageCode.match(/isError \? null/g)?.length).toBe(4)
-    /*
-     * Счётчика недостаточно: он бы прошёл и для блока, который гасит только
-     * тело, оставив заголовок. Поэтому каждая сводка проверяется поимённо —
-     * отказ обязан снимать раздел целиком.
-     */
-    for (const query of ['equipmentQ', 'ticketsQ', 'schedulesQ', 'locationEquipmentQ']) {
-      expect(pageCode, query).toContain(`${query}.isError ? null`)
-    }
+    expect(pageCode.match(/isError \? null/g)?.length).toBe(3)
     expect(pageCode).toMatch(/equipmentQ\.isError \? null : \(\s*<div className="panel"[\s\S]*?>Оборудование</)
     expect(pageCode).toMatch(/ticketsQ\.isError \? null : \(\s*<div className="panel"[\s\S]*?>Заявки</)
     expect(pageCode).toMatch(/schedulesQ\.isError \? null : \(\s*<div className="panel"[\s\S]*?>Обходы</)
-    /*
-     * Поимённого toContain выше недостаточно: он проходил и на дефектной
-     * версии, где отказ гасил только тело, а заголовок «Оборудование»
-     * оставался — раздел выглядел пустым, а не недоступным. Проверено
-     * подстановкой прежней версии: 33/33 проходили. Нужна структура.
-     */
-    expect(pageCode).toMatch(
-      /locationEquipmentQ\.isError \? null : \(\s*<div className="panel"[\s\S]*?>Оборудование</,
-    )
   })
 })
 
