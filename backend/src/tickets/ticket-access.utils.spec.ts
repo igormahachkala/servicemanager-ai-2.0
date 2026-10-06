@@ -1528,6 +1528,69 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
     ).rejects.toBeInstanceOf(NotFoundException)
   })
 
+  it('004C: SECONDARY ADMIN default all-locations detail does not expand to full client board', async () => {
+    const prisma = makePrismaTicketMock({
+      executorIds: [],
+      contractLocationMode: ServiceContractLocationMode.ALL_LOCATIONS,
+      ticketLocationId: 'client-loc',
+      ticketAssignedTechnicianId: null,
+    })
+    const serviceContractsService = makeServiceContractsService(
+      ServiceContractRole.SECONDARY,
+    )
+
+    await expect(
+      resolveReadableTicketAccess({
+        prisma,
+        serviceContractsService: serviceContractsService as any,
+        actor: {
+          id: 'admin-1',
+          role: UserRole.ADMIN,
+          companyId: providerCompanyId,
+        },
+        ticketId,
+        linkedClientCompanyId: clientCompanyId,
+        allowedLinkedClientContractRoles: [
+          ServiceContractRole.PRIMARY,
+          ServiceContractRole.SECONDARY,
+        ],
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException)
+  })
+
+  it('004C: SECONDARY ADMIN selected relationship location remains readable by detail', async () => {
+    const prisma = makePrismaTicketMock({
+      accessLocationMode: UserAccessLocationMode.SELECTED_LOCATIONS,
+      boundLocationIds: ['loc-secondary-bound'],
+      contractLocationMode: ServiceContractLocationMode.ALL_LOCATIONS,
+      ticketLocationId: 'loc-secondary-bound',
+      ticketAssignedTechnicianId: null,
+    })
+    const serviceContractsService = makeServiceContractsService(
+      ServiceContractRole.SECONDARY,
+    )
+
+    const result = await resolveReadableTicketAccess({
+      prisma,
+      serviceContractsService: serviceContractsService as any,
+      actor: {
+        id: 'admin-1',
+        role: UserRole.ADMIN,
+        companyId: providerCompanyId,
+      },
+      ticketId,
+      linkedClientCompanyId: clientCompanyId,
+      allowedLinkedClientContractRoles: [
+        ServiceContractRole.PRIMARY,
+        ServiceContractRole.SECONDARY,
+      ],
+    })
+
+    expect(result.ticket.id).toBe(ticketId)
+    expect(result.scopeCompanyId).toBe(clientCompanyId)
+    expect(result.visibilityMode).toBe('provider_primary')
+  })
+
   it('SECONDARY direct fallback: denies detail outside operational scope (leak closed)', async () => {
     // linkedClientCompanyId is not supplied and the provider has no linked-clients listed,
     // so resolution reaches the direct-ticket fallback. SECONDARY with empty scope must deny.
