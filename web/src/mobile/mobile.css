@@ -4005,6 +4005,94 @@ a.mobileBtn.mobileCreateTicketLink {
   border-radius: 999px;
 }
 
+/* SMA-MOBILE-HOME — blue: «Материалы» (рабочий ресурс, не тревога). Светлый фон, синий акцент. */
+.mobileHomeQuickCard--blue {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1e3a8a;
+}
+.mobileHomeQuickCard--blue .mobileHomeQuickCardIcon {
+  background: #dbeafe;
+  color: #2563eb;
+}
+.mobileHomeQuickCard--blue .mobileHomeQuickCardSub { color: #1d4ed8; }
+.mobileHomeQuickCard--blue .mobileHomeQuickCardChevron { color: #3b82f6; }
+
+/* SMA-MOBILE-HOME — операционная карточка «Срочные заявки»: светлый красный фон,
+   красный акцент в иконке/счётчике; та же design-система (radius/spacing/typography). */
+.mobileHomeUrgentCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  border-radius: 16px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+}
+.mobileHomeUrgentHead { display: flex; align-items: center; gap: 12px; }
+.mobileHomeUrgentIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  background: #fee2e2;
+  color: #dc2626;
+}
+.mobileHomeUrgentHeadBody { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.mobileHomeUrgentTitle { font-size: 0.82rem; font-weight: 800; line-height: 1.2; color: #991b1b; }
+.mobileHomeUrgentSub { font-size: 0.69rem; line-height: 1.2; color: #b91c1c; }
+.mobileHomeUrgentBadge {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+}
+.mobileHomeUrgentRows { display: flex; flex-direction: column; gap: 6px; }
+.mobileHomeUrgentRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid #fecaca;
+  text-decoration: none;
+  color: inherit;
+}
+.mobileHomeUrgentRowMain { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.mobileHomeUrgentRowNo { font-size: 0.78rem; font-weight: 700; color: #111827; }
+.mobileHomeUrgentRowText {
+  font-size: 0.7rem;
+  color: #6b7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mobileHomeUrgentRowAge { flex-shrink: 0; font-size: 0.68rem; font-weight: 600; color: #dc2626; }
+.mobileHomeUrgentAll {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  min-height: 44px;
+  background: transparent;
+  border: 0;
+  padding: 6px 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #dc2626;
+  cursor: pointer;
+}
+
 /* amber — «На приёмке» */
 .mobileHomeQuickCard--amber {
   background: #fffbeb;

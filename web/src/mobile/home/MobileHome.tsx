@@ -43,6 +43,7 @@ import { HomeTabs } from './HomeTabs'
 import { HomeChips } from './HomeChips'
 import { HomeList, type TicketCloseModalState } from './HomeList'
 import { HomeQuickCards, type MobileHomeQuickFilter } from './HomeQuickCards'
+import { HomeUrgentCard } from './HomeUrgentCard'
 import { HomeShiftStatus } from './HomeShiftStatus'
 import { isHomeUrgentTicket, selectHomeUrgentTickets } from './homeUrgent'
 import { HomeOfflineCachePanel } from './HomeOfflineCachePanel'
@@ -385,7 +386,7 @@ export function MobileHome() {
     <div className="mobileHomeQuickCards">
       <button
         type="button"
-        className="mobileHomeQuickCard"
+        className="mobileHomeQuickCard mobileHomeQuickCard--blue"
         onClick={() => navigate(materialsHomeHref)}
         aria-label={materialsEntry.label}
       >
@@ -681,16 +682,15 @@ export function MobileHome() {
         setSearchQuery={changeSearchQuery}
       />
       <HomeShiftStatus role={meQ.data?.role} />
+      <HomeUrgentCard tickets={urgentTickets} ticketHref={ticketHref} ticketLinkState={ticketLinkState} onViewAll={() => activateQuickFilter('urgent')} />
       {materialsHomeCard}
       {showMobileHomeTicketBoard ? (
         <>
           <HomeQuickCards
-            urgentCount={urgentTickets.length}
             awaitingCount={awaitingCount}
             myActionCount={myActionCount}
             reworkCount={reworkCount}
             activeQuickFilter={quickFilter}
-            onToggleUrgent={() => activateQuickFilter('urgent')}
             onToggleAwaiting={() => activateQuickFilter('awaiting')}
             onToggleMyAction={() => activateQuickFilter('myaction')}
             onToggleRework={() => activateQuickFilter('rework')}

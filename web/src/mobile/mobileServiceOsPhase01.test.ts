@@ -102,38 +102,43 @@ describe('Приоритетный блок срочных', () => {
     expect(selectHomeUrgentTickets(undefined)).toEqual([])
   })
 
-  it('isHomeUrgentTicket — единый предикат (срочная + активный статус)', () => {
+  it('isHomeUrgentTicket — единый предикат (priority ИЛИ urgency URGENT + активный статус)', () => {
     expect(isHomeUrgentTicket(card('a', 'URGENT', 'NEW'))).toBe(true)
     expect(isHomeUrgentTicket(card('a', 'URGENT', 'IN_PROGRESS'))).toBe(true)
     expect(isHomeUrgentTicket(card('a', 'URGENT', 'DONE'))).toBe(false)
     expect(isHomeUrgentTicket(card('a', 'URGENT', 'AWAITING_ACCEPTANCE'))).toBe(false)
     expect(isHomeUrgentTicket(card('a', 'NOT_URGENT', 'NEW'))).toBe(false)
+    // urgency === URGENT тоже срочная (даже если priority не URGENT)
+    expect(isHomeUrgentTicket({ id: 'u', priority: 'NORMAL', urgency: 'URGENT', status: 'NEW' } as unknown as TicketCard)).toBe(true)
   })
 })
 
 describe('Source-contract: убран шум, добавлены блоки', () => {
   const read = (p: string) => readFileSync(join(__dirname, p), 'utf8')
 
-  it('HomeQuickCards: заглушка удалена, срочная — компактная quick-card', () => {
+  it('HomeQuickCards: заглушка удалена; «Срочные» вынесены из quick-cards (один urgent surface)', () => {
     const s = read('home/HomeQuickCards.tsx')
     expect(s).not.toContain('Планирование')
     expect(s).not.toContain('onPlanning')
     expect(s).not.toContain('--stub')
-    // «Срочные заявки» — в той же системе quick-cards, сильнее выделена, с count.
-    expect(s).toContain('Срочные заявки')
-    expect(s).toContain('mobileHomeQuickCard--urgent')
-    expect(s).toContain('urgentCount')
-    // без списка заявок внутри карточки
-    expect(s).not.toContain('ticketHref')
+    // compact urgent quick-card убрана — срочные теперь в HomeUrgentCard
+    expect(s).not.toContain('mobileHomeQuickCard--urgent')
+    expect(s).not.toContain('urgentCount')
+    expect(s).not.toContain('onToggleUrgent')
   })
 
-  it('MobileHome: нет дубль-FAB и большого блока; статус смены + urgent как quick-card', () => {
+  it('MobileHome: статус смены + полноценная операционная карточка срочных (не compact)', () => {
     const s = read('home/MobileHome.tsx')
     expect(s).not.toContain('HomeFAB')
     expect(s).not.toContain('HomeUrgentBlock')
     expect(s).toContain('<HomeShiftStatus')
-    expect(s).toContain('urgentCount={urgentTickets.length}')
-    expect(s).toContain("activateQuickFilter('urgent')")
+    expect(s).toContain('<HomeUrgentCard')
+    // один urgent surface: в HomeQuickCards срочных нет
+    expect(s).not.toContain('urgentCount={urgentTickets.length}')
+    // «Все срочные» → canonical urgent quick-filter (тот же предикат, что у карточки)
+    expect(s).toContain("onViewAll={() => activateQuickFilter('urgent')}")
+    // Materials — новый светло-синий visual state
+    expect(s).toContain('mobileHomeQuickCard--blue')
   })
 
   it('MobileChatsPage: убраны неработающие кнопки композера', () => {
@@ -190,5 +195,41 @@ describe('Mobile Settings: сворачиваемые группы', () => {
     // notification panel и contour card не удалены
     expect(s).toContain('NotificationPreferencesPanel')
     expect(s).toContain('ClientContourCard')
+  })
+})
+
+describe('P1-1: единый canonical urgent-предикат (карточка == quick-filter == chip)', () => {
+  const read = (p: string) => readFileSync(join(__dirname, p), 'utf8')
+  const card = (id: string, priority: string, status: string): TicketCard =>
+    ({ id, priority, status } as unknown as TicketCard)
+
+  it('URGENT активная заявка — в карточке (select) и в предикате списка', () => {
+    const t = card('x', 'URGENT', 'NEW')
+    expect(isHomeUrgentTicket(t)).toBe(true)
+    expect(selectHomeUrgentTickets([t]).map((x) => x.id)).toEqual(['x'])
+  })
+
+  it('SLA-warning, но НЕ URGENT → не срочная (предикат не смотрит на SLA)', () => {
+    const near = { id: 's', priority: 'NORMAL', urgency: 'NOT_URGENT', status: 'NEW', slaDueAt: new Date(Date.now() + 10 * 60000).toISOString() } as unknown as TicketCard
+    expect(isHomeUrgentTicket(near)).toBe(false)
+    expect(selectHomeUrgentTickets([near])).toEqual([])
+  })
+
+  it('chip «urgent» использует canonical isHomeUrgentTicket, а не SLA-warning', () => {
+    const s = read('mobileHomeListUtils.ts')
+    expect(s).toContain("import { isHomeUrgentTicket } from './home/homeUrgent'")
+    expect(s).toContain("case 'urgent':")
+    expect(s).toContain('return isHomeUrgentTicket(ticket)')
+    expect(s).not.toContain("getSlaState(ticket, nowMs) === 'warning'")
+    expect(s).not.toContain('function isUrgentTicket')
+  })
+
+  it('HomeUrgentCard: count/превью из canonical homeUrgent; max 3; пустой → null; строки → ticket flow', () => {
+    const c = read('home/HomeUrgentCard.tsx')
+    expect(c).toContain("from './homeUrgent'")
+    expect(c).toContain('HOME_URGENT_PREVIEW_MAX')
+    expect(c).toContain('tickets.slice(0, HOME_URGENT_PREVIEW_MAX)')
+    expect(c).toContain('if (!tickets.length) return null')
+    expect(c).toContain('to={ticketHref(ticket)}')
   })
 })
