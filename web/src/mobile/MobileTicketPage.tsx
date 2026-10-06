@@ -1937,6 +1937,16 @@ export function MobileTicketPage() {
             </div>
           ) : null}
 
+          {/*
+            SMA-EQUIPMENT-V2-FOUNDATION: перехода в мобильную карточку
+            оборудования здесь НЕТ намеренно.
+            /m/equipment/:id области не принимает и не выводит: он зовёт
+            getEquipment без companyId, а тот разрешается в компанию самого
+            актора. Оборудование принадлежит компании клиента, поэтому для
+            техника провайдера — а это и есть полевой сценарий — ссылка
+            вела бы в «не найдено». Чинить это нужно областью в самой
+            мобильной странице, отдельным решением.
+          */}
           {ticket.children?.length ? (
             <div className="mobileSection" style={{ marginTop: 4 }}>
               <h2 className="mobileSectionTitle">Связанные заявки</h2>

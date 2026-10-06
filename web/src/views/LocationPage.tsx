@@ -2,6 +2,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { equipmentCardPath, equipmentStatusLabel, locationsListPath } from '../lib/equipmentCard'
 import { appendBoardNavigationContextToPath } from '../lib/boardNavigationContext'
 import {
   pluralizeRu,
@@ -66,7 +67,34 @@ export function LocationPage() {
    * провайдер в linked-scope получил бы 404 на собственную же точку.
    */
   const [searchParams] = useSearchParams()
-  const companyId = searchParams.get('companyId') || ''
+  /*
+   * Область принимается любым из двух параметров.
+   *
+   * Значение здесь и так контур-независимо: ниже оно уходит в
+   * analyticsLocations и как companyId, и как linkedClientCompanyId, а
+   * getLocation документирует, что у провайдера это id клиента. Читать при
+   * этом только companyId значило заставлять ссылки присылать именно его —
+   * а Shell на каждом переходе перезаписывает сохранённую пару целиком, и
+   * «?companyId=…» затирал провайдеру linkedClientCompanyId: следующее
+   * создание заявки упиралось в скрытую форму.
+   */
+  const scopeFromCompanyId = (searchParams.get('companyId') || '').trim()
+  const scopeFromLinkedClient = (searchParams.get('linkedClientCompanyId') || '').trim()
+  const companyId = scopeFromCompanyId || scopeFromLinkedClient
+
+  /*
+   * Исходящие ссылки возвращают область ТЕМ ЖЕ параметром, которым она
+   * пришла.
+   *
+   * Инвариант простой: переход не меняет контур. Своей области страница не
+   * выводит, поэтому «угадывать» параметр не нужно и нельзя: Shell на
+   * каждом переходе перезаписывает сохранённую пару целиком, и отдать
+   * провайдеру «?companyId=…» значило затереть ему linkedClientCompanyId —
+   * контур сменился бы от одного клика по ссылке.
+   */
+  const outboundScope = scopeFromCompanyId
+    ? { companyId: scopeFromCompanyId }
+    : { linkedClientCompanyId: scopeFromLinkedClient }
 
   const locationQ = useQuery({
     queryKey: ['location', locationId, companyId],
@@ -115,7 +143,15 @@ export function LocationPage() {
   const tickets = summarizeTickets(ticketsQ.data)
   const schedules = summarizeSchedules(schedulesQ.data)
 
-  const backTo = companyId ? `/locations?companyId=${encodeURIComponent(companyId)}` : '/locations'
+  /* Оборудование объекта: существующая ручка, область та же. */
+  const locationEquipmentQ = useQuery({
+    queryKey: ['location-equipment', locationId, companyId],
+    queryFn: () => api.equipmentByLocation(locationId, companyId || undefined),
+    enabled: !!locationId,
+    retry: false,
+  })
+
+  const backTo = locationsListPath(outboundScope)
   /* Ссылка на заявки объекта строится существующим контрактом доски (boardLocationId). */
   const ticketsTo = appendBoardNavigationContextToPath('/tickets', { selectedLocationId: locationId })
 
@@ -276,6 +312,36 @@ export function LocationPage() {
                 </Link>
               </div>
             </>
+          )}
+        </div>
+      )}
+
+      {/*
+        SMA-EQUIPMENT-V2-FOUNDATION: оборудование объекта.
+        Читается существующей ручкой equipmentByLocation в области актора;
+        своего доступа блок не вводит и при отказе не выдаёт пустой список
+        за успешный ответ.
+      */}
+      {/*
+        Отказ гасит раздел целиком, как и у остальных сводок: даже пустой
+        заголовок не раскрывает недоступный раздел.
+      */}
+      {locationEquipmentQ.isError ? null : (
+        <div className="panel" style={{ marginTop: 12 }}>
+          <h3 style={{ marginBottom: 10 }}>Оборудование</h3>
+          {locationEquipmentQ.isLoading ? (
+            <div className="muted small">Загружаем оборудование…</div>
+          ) : !locationEquipmentQ.data || locationEquipmentQ.data.length === 0 ? (
+            <div className="muted small">Нет оборудования</div>
+          ) : (
+            <div style={{ display: 'grid', gap: 8 }}>
+              {locationEquipmentQ.data.map((unit) => (
+                <div key={unit.id}>
+                  <Link to={equipmentCardPath(unit.id, outboundScope)}>{unit.name}</Link>
+                  <span className="muted small"> · {equipmentStatusLabel(unit.status)}</span>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}

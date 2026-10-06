@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { EQUIPMENT_PARTS_MANAGER_ROLES, equipmentCardPath } from '../lib/equipmentCard'
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
 import { EquipmentHistoryTab } from '../components/equipment/EquipmentHistoryTab'
 import { EquipmentPartsTab } from '../components/equipment/EquipmentPartsTab'
@@ -18,7 +19,8 @@ import { EquipmentPartsTab } from '../components/equipment/EquipmentPartsTab'
  */
 
 /** Роли, у которых по канонической матрице есть LOCATIONS_MANAGE. Подсказка интерфейса: решает бэкенд. */
-const MANAGER_ROLES = ['ADMIN', 'MASTER', 'DISPATCHER']
+// Общий с карточкой список: см. EQUIPMENT_PARTS_MANAGER_ROLES.
+const MANAGER_ROLES = EQUIPMENT_PARTS_MANAGER_ROLES
 
 const STATUS_ORDER = ['ACTIVE', 'REPAIR', 'INACTIVE', 'DECOMMISSIONED']
 
@@ -393,8 +395,8 @@ export function EquipmentPage() {
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {rows.map((item) => (
-                <button
-                  key={item.id}
+                <div key={item.id} style={{ display: 'grid', gap: 2 }}>
+                  <button
                   className="ghost"
                   onClick={() => {
                     setSelectedId(item.id)
@@ -425,7 +427,31 @@ export function EquipmentPage() {
                     </span>
                   </span>
                   <span className="muted small">{statusLabel(item.status)}</span>
-                </button>
+                  </button>
+                  {/*
+                    SMA-EQUIPMENT-V2-FOUNDATION: прямая ссылка на карточку.
+                    Выбор слева остаётся — он удобен для быстрой правки, — но
+                    ссылкой не является, а на карточку нужно уметь ссылаться.
+                  */}
+                  <Link
+                    /*
+                      Область берётся та же, которой отфильтрован список
+                      (scopeCompanyId), а не сохранённая: иначе провайдер,
+                      смотрящий контур клиента, получал «не найдено» на
+                      оборудование, которое только что видел в списке.
+                    */
+                    to={equipmentCardPath(
+                      item.id,
+                      isProviderScope
+                        ? { linkedClientCompanyId: scopeCompanyId }
+                        : { companyId: scopeCompanyId },
+                    )}
+                    className="muted small"
+                    style={{ paddingLeft: 10 }}
+                  >
+                    Открыть карточку
+                  </Link>
+                </div>
               ))}
             </div>
           )}
