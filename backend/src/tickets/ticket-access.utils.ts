@@ -1120,30 +1120,16 @@ export async function resolveTicketReadScope(params: {
 /**
  * SMA-SECONDARY-CONTRACT-VISIBILITY-004C.
  * Операционный охват SECONDARY-подрядчика — назначение на исполнителя компании либо
- * привязка её пользователей к локации — это ограничение уровня ИСПОЛНИТЕЛЯ.
+ * привязка её пользователей к локации — это часть relationship scope.
  *
- * Управленческие роли (ADMIN / MASTER / DISPATCHER) ограничены самим договором:
- * его роль, локации и специализации проверяются отдельно и раньше. В частности
- * resolveActorLocationScope уже пересекает привязки актора с локациями договора,
- * включая режим INHERIT_PRIMARY, поэтому снятие операционного охвата НЕ расширяет
- * доступ за пределы контекста договора.
- *
- * Раньше охват применялся ко всем ролям, из-за чего SECONDARY ADMIN получал 404 на
- * заявке собственного договора, если она не назначена исполнителю его компании и
- * ни один её пользователь не привязан к локации заявки.
- *
- * Список ролей закрытый и намеренно узкий: NETWORK_DIRECTOR и TERRITORIAL_MANAGER
- * на стороне подрядчика остаются под операционным охватом — ограничение для них
- * закрывало утечку обзорного пути (см. «leak closed» в ticket-access.utils.spec).
+ * ALL_LOCATIONS в runtime/object scope не расширяет SECONDARY relationship:
+ * capability + location scope still intersects with assigned provider executors
+ * or provider-bound client locations. This applies to management roles too, so
+ * SECONDARY ADMIN / MASTER / DISPATCHER cannot receive a full client board just
+ * because their own location scope is tenant-wide.
  */
-const SECONDARY_CONTRACT_SCOPED_MANAGEMENT_ROLES = new Set<UserRole>([
-  UserRole.ADMIN,
-  UserRole.MASTER,
-  UserRole.DISPATCHER,
-])
-
-export function secondaryOperationalScopeAppliesTo(role: UserRole): boolean {
-  return !SECONDARY_CONTRACT_SCOPED_MANAGEMENT_ROLES.has(role)
+export function secondaryOperationalScopeAppliesTo(_role: UserRole): boolean {
+  return true
 }
 
 /**
@@ -1158,8 +1144,8 @@ async function buildSecondaryOperationalScopeWhere(params: {
   linkedClientCompanyId: string
   actor?: TicketAccessActor
 }): Promise<Prisma.TicketWhereInput> {
-  // SMA-SECONDARY-CONTRACT-VISIBILITY-004C: управленческие роли ограничены только
-  // контекстом договора, операционный охват к ним не применяется.
+  // SMA-SECONDARY-CONTRACT-VISIBILITY-004C: no role may turn a SECONDARY
+  // relationship into full-client visibility through ALL_LOCATIONS.
   if (params.actor && !secondaryOperationalScopeAppliesTo(params.actor.role)) {
     return {}
   }
@@ -1673,8 +1659,6 @@ export async function resolveReadableTicketAccess(params: {
 
       // SECONDARY providers only get detail access inside their operational scope
       // (assigned executor / bound location) — same restriction as board/list.
-      // Ограничение применяется только к исполнительским ролям: см.
-      // secondaryOperationalScopeAppliesTo (SMA-SECONDARY-CONTRACT-VISIBILITY-004C).
       if (access.role === ServiceContractRole.SECONDARY) {
         const secondaryScopeWhere = await buildSecondaryOperationalScopeWhere({
           prisma: params.prisma,

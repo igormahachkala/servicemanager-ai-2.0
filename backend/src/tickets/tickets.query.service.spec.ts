@@ -49,6 +49,9 @@ function makePrisma(
       findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn().mockResolvedValue(null),
     },
+    ticketAttachment: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
     domainEvent: { findMany: jest.fn().mockResolvedValue([]) },
     user: {
       findFirst: jest.fn().mockResolvedValue({ isExecutor: false }),
@@ -362,6 +365,84 @@ describe('TicketsQueryService.list', () => {
     expect(
       JSON.stringify(prisma.ticket.findMany.mock.calls[0][0].where),
     ).toContain('__no_access__')
+  })
+
+  it('004C: SECONDARY ADMIN default all-locations list does not expand to full client board', async () => {
+    spyReadScope.mockResolvedValue(makeProviderLinkedScope(CLIENT_ID))
+    spyLocationScope.mockResolvedValue(wideLocationScope)
+    const rows = [
+      {
+        id: 'ticket-outside-secondary-relationship',
+        companyId: CLIENT_ID,
+        locationId: 'client-loc',
+        assignedTechnicianId: null,
+        status: TicketStatus.NEW,
+        problemCategory: { specializationLinks: [] },
+      },
+    ]
+    const prisma = makePrisma()
+    prisma.ticket.findMany.mockImplementation(async ({ where }: any) =>
+      rows.filter((ticket) => ticketMatchesWhere(where, ticket)),
+    )
+    const svc = makeService(prisma, makeSecondaryContracts())
+
+    const result = await svc.list(
+      PROVIDER_ID,
+      USER_ID,
+      UserRole.ADMIN,
+      undefined,
+      undefined,
+      CLIENT_ID,
+    )
+
+    expect(result).toEqual([])
+    expect(
+      JSON.stringify(prisma.ticket.findMany.mock.calls[0][0].where),
+    ).toContain('__no_access__')
+  })
+
+  it('004C: SECONDARY ADMIN selected relationship location remains readable', async () => {
+    spyReadScope.mockResolvedValue(makeProviderLinkedScope(CLIENT_ID))
+    spyLocationScope.mockResolvedValue({
+      mode: 'bound_locations',
+      locationIds: ['loc-secondary-bound'],
+    })
+    const rows = [
+      {
+        id: 'ticket-secondary-location',
+        companyId: CLIENT_ID,
+        locationId: 'loc-secondary-bound',
+        assignedTechnicianId: null,
+        status: TicketStatus.NEW,
+        problemCategory: { specializationLinks: [] },
+      },
+      {
+        id: 'ticket-foreign-location',
+        companyId: CLIENT_ID,
+        locationId: 'loc-foreign',
+        assignedTechnicianId: null,
+        status: TicketStatus.NEW,
+        problemCategory: { specializationLinks: [] },
+      },
+    ]
+    const prisma = makePrisma({ boundLocationIds: ['loc-secondary-bound'] })
+    prisma.ticket.findMany.mockImplementation(async ({ where }: any) =>
+      rows.filter((ticket) => ticketMatchesWhere(where, ticket)),
+    )
+    const svc = makeService(prisma, makeSecondaryContracts())
+
+    const result = await svc.list(
+      PROVIDER_ID,
+      USER_ID,
+      UserRole.ADMIN,
+      undefined,
+      undefined,
+      CLIENT_ID,
+    )
+
+    expect(result.map((ticket: any) => ticket.id)).toEqual([
+      'ticket-secondary-location',
+    ])
   })
 
   it('ADMIN list composes location and specialization scopes through one ticket predicate', async () => {
@@ -806,6 +887,67 @@ describe('TicketsQueryService.board', () => {
     ).toBe(true)
   })
 
+  it('004C: SECONDARY ADMIN default all-locations board does not return full client board', async () => {
+    spyReadScope.mockResolvedValue(makeProviderLinkedScope(CLIENT_ID))
+    spyLocationScope.mockResolvedValue(wideLocationScope)
+    const rows = [
+      {
+        id: 'ticket-outside-secondary-relationship',
+        companyId: CLIENT_ID,
+        locationId: 'client-loc',
+        assignedTechnicianId: null,
+        status: TicketStatus.NEW,
+        problemText: 'outside relationship',
+        problemCategory: {
+          id: 'cat-1',
+          name: 'Category',
+          specializationLinks: [],
+        },
+        company: null,
+        ticketNumber: null,
+        urgency: 'NOT_URGENT',
+        priority: 'NORMAL',
+        urgencyReason: null,
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+        slaDueAt: null,
+        slaBreachedAt: null,
+        plannedDueAt: null,
+        requesterName: null,
+        createdByUserId: null,
+        createdByUser: null,
+        pointName: null,
+        location: null,
+        equipment: null,
+        assignedTechnician: null,
+        parentId: null,
+      },
+    ]
+    const prisma = makePrisma()
+    prisma.ticket.findMany.mockImplementation(async ({ where }: any) =>
+      rows.filter((ticket) => ticketMatchesWhere(where, ticket)),
+    )
+    const svc = makeService(prisma, makeSecondaryContracts())
+
+    const result = await svc.board(
+      PROVIDER_ID,
+      USER_ID,
+      UserRole.ADMIN,
+      {},
+      undefined,
+      CLIENT_ID,
+    )
+
+    expect(result.meta.totalTickets).toBe(0)
+    expect(
+      result.columns.every(
+        (column) => column.total === 0 && column.cards.length === 0,
+      ),
+    ).toBe(true)
+    expect(
+      JSON.stringify(prisma.ticket.findMany.mock.calls[0][0].where),
+    ).toContain('__no_access__')
+  })
+
   it('ADMIN board uses the same location and specialization predicate as list/mobile data', async () => {
     spyReadScope.mockResolvedValue(makeProviderLinkedScope(CLIENT_ID))
     spyLocationScope.mockResolvedValue({
@@ -1000,6 +1142,42 @@ describe('TicketsQueryService.contextAnalytics', () => {
       prisma.ticket.findMany.mock.calls[0][0].where,
     )
     expect(whereStr).toContain('__no_access__')
+  })
+
+  it('004C: SECONDARY ADMIN default all-locations analytics does not count full client board', async () => {
+    spyReadScope.mockResolvedValue(makeProviderLinkedScope(CLIENT_ID))
+    spyLocationScope.mockResolvedValue(wideLocationScope)
+    const rows = [
+      {
+        id: 'ticket-outside-secondary-relationship',
+        companyId: CLIENT_ID,
+        locationId: 'client-loc',
+        assignedTechnicianId: null,
+        status: TicketStatus.NEW,
+        location: { id: 'client-loc', name: 'Client location' },
+        equipment: null,
+        problemCategory: { specializationLinks: [] },
+      },
+    ]
+    const prisma = makePrisma()
+    prisma.ticket.findMany.mockImplementation(async ({ where }: any) =>
+      rows.filter((ticket) => ticketMatchesWhere(where, ticket)),
+    )
+    const svc = makeService(prisma, makeSecondaryContracts())
+
+    const result = await svc.contextAnalytics(
+      PROVIDER_ID,
+      USER_ID,
+      UserRole.ADMIN,
+      undefined,
+      CLIENT_ID,
+    )
+
+    expect(result.meta.totalTickets).toBe(0)
+    expect(result.byLocation).toEqual([])
+    expect(
+      JSON.stringify(prisma.ticket.findMany.mock.calls[0][0].where),
+    ).toContain('__no_access__')
   })
 
   it('context analytics applies specialization scope consistently with board/list', async () => {
