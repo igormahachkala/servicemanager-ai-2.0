@@ -1638,6 +1638,17 @@ export function getHomeRoute(role?: string | null): string {
   const resolvedRole = role || getUserRole()
   if (resolvedRole === 'PLATFORM_ADMIN') return '/companies'
   if (resolvedRole === 'TECHNICIAN') return '/m'
+  // Navigation V2 (решение владельца): роль с доступом к аналитике → Главная.
+  // ANALYTICS_VIEW у `me` не приходит, поэтому по ролям backend-аналитики.
+  if (
+    resolvedRole === 'ADMIN' ||
+    resolvedRole === 'ADMIN_PROVIDER' ||
+    resolvedRole === 'MASTER' ||
+    resolvedRole === 'DISPATCHER' ||
+    resolvedRole === 'NETWORK_DIRECTOR'
+  ) {
+    return '/dashboard'
+  }
   return '/board'
 }
 
