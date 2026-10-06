@@ -14,7 +14,7 @@ type ManagementLink = {
   to: string
 }
 
-const WORKFORCE_ROLES = new Set<api.Role>(['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TERRITORIAL_MANAGER'])
+const WORKFORCE_ROLES = new Set<api.Role>(['ADMIN', 'CLIENT_ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TERRITORIAL_MANAGER'])
 const INSPECTION_TEMPLATE_ROLES = new Set<api.Role>(['PLATFORM_ADMIN', 'ADMIN', 'DISPATCHER', 'MASTER', 'NETWORK_DIRECTOR'])
 
 function ChevronRight() {

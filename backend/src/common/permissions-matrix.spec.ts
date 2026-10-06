@@ -17,7 +17,7 @@ describe('ROLE_GRANTS', () => {
       ),
     );
 
-    expect(rows).toHaveLength(80);
+    expect(rows).toHaveLength(81);
     expect(new Set(rows).size).toBe(rows.length);
 
     expect(codesFor(UserRole.ADMIN, CompanyType.CLIENT)).not.toEqual(
@@ -33,6 +33,7 @@ describe('ROLE_GRANTS', () => {
     ).not.toContain(PERMISSIONS.TICKETS_STATUS_CHANGE);
     expect(codesFor(UserRole.CLIENT_ADMIN, CompanyType.CLIENT)).toEqual([
       PERMISSIONS.TICKETS_VIEW,
+      PERMISSIONS.WORKFORCE_VIEW,
     ]);
 
     const wildcardRoles = ROLE_GRANTS.filter(

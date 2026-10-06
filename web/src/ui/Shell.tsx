@@ -114,7 +114,7 @@ function isNavItemVisible(item: NavItem, role?: api.Role, canAccessEngineeringAg
     return fullAdmin
   }
   if (item.to === '/workforce') {
-    return role === 'ADMIN' || role === 'MASTER' || role === 'DISPATCHER' || role === 'NETWORK_DIRECTOR' || role === 'TERRITORIAL_MANAGER'
+    return role === 'ADMIN' || role === 'CLIENT_ADMIN' || role === 'MASTER' || role === 'DISPATCHER' || role === 'NETWORK_DIRECTOR' || role === 'TERRITORIAL_MANAGER'
   }
   if (item.to === '/access-constructor') {
     return fullAdmin
