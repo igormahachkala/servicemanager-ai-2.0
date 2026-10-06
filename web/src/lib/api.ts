@@ -1897,10 +1897,32 @@ export function persistScopeFromSearchParams(search: URLSearchParams, owner?: Sc
   if (typeof window === 'undefined') return
   const resolvedOwner = coerceScopeOwner(owner) || readScopeOwnerContext()
   if (!resolvedOwner.userId || !resolvedOwner.companyId) return
+
+  /*
+   * Область обновляется ПОКЛЮЧЕВО, а не парой целиком.
+   *
+   * Раньше сохранялось ровно то, что стояло в адресе: ссылка с одним
+   * «?companyId=…» обнуляла провайдеру linkedClientCompanyId, и следующая
+   * страница открывалась не в том контуре — создание заявки, например,
+   * упиралось в скрытую форму. Ранний выход ниже спасал только случай,
+   * когда в адресе нет ни одного параметра.
+   *
+   * Поэтому ключ, которого в адресе нет, берётся из сохранённой области —
+   * и только если она принадлежит тому же владельцу (ownerMatches), иначе
+   * чужая область подмешалась бы в свою. Второго механизма не появляется:
+   * это тот же LAST_SCOPE_KEY и те же нормализаторы.
+   */
+  const persisted = readPersistedScope()
+  const inherited = ownerMatches(resolvedOwner, persisted) ? persisted : null
+
+  const requestedLinkedClientCompanyId = (search.get('linkedClientCompanyId') || '').trim()
+  const requestedCompanyId = (search.get('companyId') || '').trim()
+
   const normalized = normalizeScopeForOwner(
     {
-      linkedClientCompanyId: (search.get('linkedClientCompanyId') || '').trim() || undefined,
-      companyId: (search.get('companyId') || '').trim() || undefined,
+      linkedClientCompanyId:
+        requestedLinkedClientCompanyId || (inherited?.linkedClientCompanyId || '').trim() || undefined,
+      companyId: requestedCompanyId || (inherited?.companyId || '').trim() || undefined,
     },
     resolvedOwner,
   )
