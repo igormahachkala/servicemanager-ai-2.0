@@ -114,7 +114,22 @@ function makeSuite(options: { contracts?: any[]; schedules?: any[] } = {}) {
     },
   } as any
 
-  return { svc: new InspectionScheduleService(prisma, serviceContracts), prisma, contractsPrisma }
+  const assignmentEligibility = {
+    listLocationAssignableExecutors: jest.fn(async () =>
+      USERS.filter((user) =>
+        user.companyId === PROVIDER_ID &&
+        user.isExecutor &&
+        user.isActive &&
+        user.deletedAt === null,
+      ).map((user) => ({ ...user, activeLoad: 0 })),
+    ),
+  } as any
+
+  return {
+    svc: new InspectionScheduleService(prisma, serviceContracts, assignmentEligibility),
+    prisma,
+    contractsPrisma,
+  }
 }
 
 function scheduleRow(overrides: any = {}) {
