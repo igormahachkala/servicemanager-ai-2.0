@@ -107,7 +107,6 @@ export const MANAGEMENT_ROUTES: readonly ManagementRouteMeta[] = Object.freeze([
   { path: '/locations/:id', section: 'objects', pageLabel: 'Объект', breadcrumbLabel: 'Объект', parentPath: '/locations', entity: 'location', primaryNav: false },
   { path: '/objects', section: 'objects', pageLabel: 'Точки', breadcrumbLabel: 'Точки', parentPath: null, entity: null, primaryNav: false },
   { path: '/equipment', section: 'objects', pageLabel: 'Оборудование', breadcrumbLabel: 'Оборудование', parentPath: null, entity: null, primaryNav: true },
-  { path: '/equipment/:id', section: 'objects', pageLabel: 'Оборудование', breadcrumbLabel: 'Оборудование', parentPath: '/equipment', entity: 'equipment', primaryNav: false },
   { path: '/map', section: 'objects', pageLabel: 'Карта', breadcrumbLabel: 'Карта', parentPath: null, entity: null, primaryNav: true },
 
   // ── Сотрудники и работа ───────────────────────────────────────────────────

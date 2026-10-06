@@ -17,7 +17,6 @@ import { logTicketActionError, mapTicketActionError } from '../lib/ticketOperati
 import { canOfferTicketClaimAction } from '../lib/ticketActionCapabilities'
 import { OperationsViewSwitcher, type OperationsViewMode } from '../components/operations/OperationsViewSwitcher'
 import { compactTicketAssigneeLabel, compactTicketCreatorLabel } from '../lib/ticketActorIdentity'
-import { boardEquipmentOptions, boardFilterReconciliation } from '../lib/equipmentCard'
 
 function fmt(dt?: string | null) {
   if (!dt) return '—'
@@ -387,30 +386,27 @@ export function BoardPage() {
     }
     return Array.from(map.entries()).map(([id, label]) => ({ id, label }))
   }, [cardsAll])
-  const equipmentOptions = useMemo(
-    () => boardEquipmentOptions(cardsAll, selectedLocationId, selectedEquipmentId),
-    [cardsAll, selectedLocationId, selectedEquipmentId],
-  )
+  const equipmentOptions = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const card of cardsAll) {
+      if (selectedLocationId && card.location?.id !== selectedLocationId) continue
+      if (card.equipment?.id) {
+        map.set(card.equipment.id, [card.equipment.name, card.equipment.type].filter(Boolean).join(' · '))
+      }
+    }
+    return Array.from(map.entries()).map(([id, label]) => ({ id, label }))
+  }, [cardsAll, selectedLocationId])
+
   useEffect(() => {
-    /*
-     * SMA-EQUIPMENT-V2-FOUNDATION: решение вынесено в чистую функцию
-     * (boardFilterReconciliation) и проверяется исполнением.
-     *
-     * Сверять раньше данных нельзя: варианты берутся из загруженных
-     * карточек, и на холодном входе — переход «Заявки оборудования» с
-     * карточки оборудования, ключ запроса новый, кэша нет — список пуст,
-     * и только что восстановленный фильтр затирался. Переход с карточки
-     * заявки это скрывал: его ключ обычно ещё лежал в кэше.
-     */
-    const decision = boardFilterReconciliation({
-      boardLoaded: !!boardData,
-      selectedLocationId,
-      selectedEquipmentId,
-      locationOptions,
-    })
-    if (decision.clearLocation) setSelectedLocationId('')
-    if (decision.clearEquipment) setSelectedEquipmentId('')
-  }, [boardData, selectedLocationId, selectedEquipmentId, locationOptions])
+    if (selectedLocationId && !locationOptions.some((item) => item.id === selectedLocationId)) {
+      setSelectedLocationId('')
+      setSelectedEquipmentId('')
+      return
+    }
+    if (selectedEquipmentId && !equipmentOptions.some((item) => item.id === selectedEquipmentId)) {
+      setSelectedEquipmentId('')
+    }
+  }, [selectedLocationId, selectedEquipmentId, locationOptions, equipmentOptions])
 
   const stats = useMemo(() => {
     const now = new Date()

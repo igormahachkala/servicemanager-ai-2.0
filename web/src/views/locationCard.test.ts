@@ -265,7 +265,6 @@ describe('098/8-12 объём среза не расширен', () => {
     const apiCalls = [...locationPageCode.matchAll(/api\.([A-Za-z0-9_]+)\(/g)].map((m) => m[1])
     expect([...new Set(apiCalls)].sort()).toEqual([
       'analyticsLocations',
-      'equipmentByLocation',
       'getInspectionSchedules',
       'getLocation',
       'listEquipment',
