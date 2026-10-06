@@ -69,7 +69,7 @@ export function ticketMatchesMobileHomeSearch(ticket: TicketCard, queryRaw: stri
   return ticketHaystack(ticket).includes(q)
 }
 
-function isUrgentTicket(t: TicketCard): boolean {
+export function isUrgentTicket(t: TicketCard): boolean {
   return (t.priority ?? 'NORMAL') === 'URGENT' || t.urgency === 'URGENT'
 }
 

@@ -43,6 +43,8 @@ import { HomeTabs } from './HomeTabs'
 import { HomeChips } from './HomeChips'
 import { HomeList, type TicketCloseModalState } from './HomeList'
 import { HomeQuickCards, type MobileHomeQuickFilter } from './HomeQuickCards'
+import { HomeUrgentCard } from './HomeUrgentCard'
+import { selectHomeUrgentTickets } from './urgentCardData'
 import { HomeFAB } from './HomeFAB'
 import { HomeOfflineCachePanel } from './HomeOfflineCachePanel'
 import { useTicketOfflineCache } from './useTicketOfflineCache'
@@ -380,7 +382,7 @@ export function MobileHome() {
     <div className="mobileHomeQuickCards">
       <button
         type="button"
-        className="mobileHomeQuickCard"
+        className="mobileHomeQuickCard mobileHomeQuickCard--blue"
         onClick={() => navigate(materialsHomeHref)}
         aria-label={materialsEntry.label}
       >
@@ -622,6 +624,16 @@ export function MobileHome() {
     return api.appendScopeToPath(mobilePath(location.pathname, `/tickets/${ticket.id}`), compactTicketScope(linkScope), meQ.data)
   }
   const ticketLinkState = (ticket: api.TicketCard) => mobileTicketNavState('home', ticket.companyId, { tab: boardTab, chips: [...activeChips], search: searchQuery.trim() || undefined })
+
+  // SMA-MOBILE-HOME — операционная карточка «Срочные заявки» из основной доски
+  // (срочные + в работе). «Все срочные →» включает canonical urgent-фильтр списка.
+  const urgentTickets = useMemo(() => selectHomeUrgentTickets(baseCards), [baseCards])
+  const showAllUrgent = () => {
+    setQuickFilter(null)
+    setBoardTab('all')
+    setSearchQuery('')
+    setActiveChips(new Set<MobileHomeBoardChipId>(['urgent']))
+  }
   const closeCanSubmit =
     !!closeModal?.file &&
     closeModal.comment.trim().length >= 3 &&
@@ -674,6 +686,7 @@ export function MobileHome() {
         searchQuery={searchQuery}
         setSearchQuery={changeSearchQuery}
       />
+      <HomeUrgentCard tickets={urgentTickets} ticketHref={ticketHref} ticketLinkState={ticketLinkState} onViewAll={showAllUrgent} />
       {materialsHomeCard}
       {showMobileHomeTicketBoard ? (
         <>
