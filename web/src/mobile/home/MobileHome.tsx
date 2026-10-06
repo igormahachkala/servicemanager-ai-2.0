@@ -43,7 +43,8 @@ import { HomeTabs } from './HomeTabs'
 import { HomeChips } from './HomeChips'
 import { HomeList, type TicketCloseModalState } from './HomeList'
 import { HomeQuickCards, type MobileHomeQuickFilter } from './HomeQuickCards'
-import { HomeFAB } from './HomeFAB'
+import { HomeShiftStatus } from './HomeShiftStatus'
+import { isHomeUrgentTicket, selectHomeUrgentTickets } from './homeUrgent'
 import { HomeOfflineCachePanel } from './HomeOfflineCachePanel'
 import { useTicketOfflineCache } from './useTicketOfflineCache'
 
@@ -170,6 +171,9 @@ export function MobileHome() {
     [completedBoardQ.data],
   )
   const cards = boardTab === 'done' && completedBoardQ.data ? completedCards : baseCards
+  // SMA-MOBILE-SERVICE-OS Phase 0+1: срочные берём из основной доски (не из done-среза),
+  // чтобы блок не зависел от выбранной вкладки.
+  const urgentTickets = useMemo(() => selectHomeUrgentTickets(baseCards), [baseCards])
   const canAssignProvider = api.isProviderTicketAssignRole(meQ.data?.role)
   // E4: быстрая приёмка на карте — тот же гейт, что «Принять» в карточке (MobileTicketPage canShowClientAcceptance):
   // своя client-компания (не наблюдатель) + клиент-управленческая роль (ADMIN/TM/ND, не CLIENT-заявитель).
@@ -252,12 +256,13 @@ export function MobileHome() {
   const quickTickets = useMemo(() => {
     if (!quickFilter) return null
     const list = dedupeBoardCards(cards)
+    if (quickFilter === 'urgent') return list.filter(isHomeUrgentTicket)
     if (quickFilter === 'awaiting') return list.filter(isAwaitingAcceptanceTicket)
     if (quickFilter === 'rework') return list.filter((t) => t.status === 'IN_PROGRESS' && reworkTicketIds.has(t.id))
     return list.filter((t) => ticketRequiresMyAction(t, meQ.data?.id, meQ.data?.role, canAssignProvider))
   }, [quickFilter, cards, meQ.data?.id, meQ.data?.role, canAssignProvider, reworkTicketIds])
   const quickFilterLabel =
-    quickFilter === 'awaiting' ? 'На приёмке' : quickFilter === 'myaction' ? 'Требует моего действия' : quickFilter === 'rework' ? 'Требуют доработки' : ''
+    quickFilter === 'urgent' ? 'Срочные заявки' : quickFilter === 'awaiting' ? 'На приёмке' : quickFilter === 'myaction' ? 'Требует моего действия' : quickFilter === 'rework' ? 'Требуют доработки' : ''
   const renderedTickets = quickFilter ? quickTickets ?? [] : visibleTickets
   const homeListTickets = useMemo(
     () =>
@@ -645,6 +650,7 @@ export function MobileHome() {
           <h1 className="mobileTitle">Главная</h1>
           <div className="mobileSubtitle">Операционный экран без desktop-шумов</div>
         </div>
+        <HomeShiftStatus role={meQ.data?.role} />
         <div className="mobileNotice" role="status">
           Выберите клиентский контур в верхней панели, чтобы открыть заявки.
         </div>
@@ -674,18 +680,20 @@ export function MobileHome() {
         searchQuery={searchQuery}
         setSearchQuery={changeSearchQuery}
       />
+      <HomeShiftStatus role={meQ.data?.role} />
       {materialsHomeCard}
       {showMobileHomeTicketBoard ? (
         <>
           <HomeQuickCards
+            urgentCount={urgentTickets.length}
             awaitingCount={awaitingCount}
             myActionCount={myActionCount}
             reworkCount={reworkCount}
             activeQuickFilter={quickFilter}
+            onToggleUrgent={() => activateQuickFilter('urgent')}
             onToggleAwaiting={() => activateQuickFilter('awaiting')}
             onToggleMyAction={() => activateQuickFilter('myaction')}
             onToggleRework={() => activateQuickFilter('rework')}
-            onPlanning={() => setMobileActionToast('Планирование — раздел в разработке')}
           />
           <div className="mobileHomeBoardSticky" data-mobile-tour="ticket-filters">
             <HomeTabs
@@ -789,7 +797,6 @@ export function MobileHome() {
           ) : null}
         </>
       ) : null}
-      <HomeFAB me={meQ.data} pageScope={pageScope} />
     </div>
   )
 }

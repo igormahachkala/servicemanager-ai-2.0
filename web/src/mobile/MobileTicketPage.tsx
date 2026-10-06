@@ -22,6 +22,7 @@ import {
   MOBILE_HOME_TAB_LABELS,
   type MobileHomeBoardChipId,
 } from './mobileHomeBoardFilters'
+import { notificationSectionToDetailTab } from './mobileTicketDetailTab'
 import { getOnlineStatus } from './offlineQueue'
 import { queueOffline, useOfflineStatus } from './offline/useOffline'
 import { listOfflineQueue } from './offline/runtime'
@@ -287,21 +288,8 @@ function RowIcon({ name }: { name: 'tool' | 'map-pin' | 'bolt' | 'alert-triangle
   }
 }
 
-function notificationSectionToDetailTab(value?: string | null): 'chat' | 'info' | 'photos' | 'actions' {
-  switch ((value || '').trim()) {
-    case 'attachments':
-      return 'photos'
-    case 'actions':
-    case 'acceptance':
-      return 'actions'
-    case 'overview':
-    case 'history':
-      return 'info'
-    case 'comments':
-    default:
-      return 'chat'
-  }
-}
+// SMA-MOBILE-SERVICE-OS Phase 0+1: маппинг section→вкладка вынесен в
+// ./mobileTicketDetailTab (единый источник, покрыт тестом).
 
 /**
  * SMA-TICKET-REPLY-MOBILE-UI-121G — предпросмотр исходного сообщения.
@@ -1893,10 +1881,8 @@ export function MobileTicketPage() {
                   </span>
                 </div>
               ) : null}
-              <div className="mobileDetailRow" style={{ borderBottom: 'none' }}>
-                <span className="mobileDetailRowLabel"><RowIcon name="hash" />ID</span>
-                <span className="mobileDetailRowValue" style={{ fontSize: '0.72rem', color: '#9ca3af', wordBreak: 'break-all', fontFamily: 'var(--font-mono)' }}>{ticket.id}</span>
-              </div>
+              {/* SMA-MOBILE-SERVICE-OS Phase 0+1: технический UUID убран из карточки
+                  как значимая строка — полю в поле он не нужен. */}
             </div>
 
             {shouldShowClientTicketLifecycleHint(meQ.data, ticket) && ticket.problemCategory?.name ? (
