@@ -47,6 +47,7 @@ const cardCode = codeOf(readSrc('views/EquipmentCardPage.tsx'))
 const routerCode = readSrc('router.tsx')
 const publicPageCode = codeOf(readSrc('views/PublicQuickRequestPage.tsx'))
 const createTicketCode = codeOf(readSrc('views/CreateTicketPage.tsx'))
+const mobileEquipmentCode = codeOf(readSrc('mobile/MobileEquipmentPage.tsx'))
 
 describe('V2 карточка оборудования: маршрут и крошки', () => {
   it('маршрут /equipment/:id объявлен в управленческом Shell', () => {
@@ -816,6 +817,43 @@ describe('V2 доступ: новой модели прав не вводитс�
     expect(cardCode).toContain('Оборудование не найдено')
     expect(cardCode).not.toContain('403')
     expect(cardCode).not.toContain('Нет доступа')
+  })
+})
+
+describe('V2 mobile linked-client scope', () => {
+  it('передаёт canonical client scope в list, detail, history и parts', () => {
+    expect(mobileEquipmentCode).toContain("search.get('linkedClientCompanyId')")
+    expect(mobileEquipmentCode).toContain('api.getLinkedClientCompanyId(meQ.data)')
+    expect(mobileEquipmentCode).toContain('scope.linkedClientCompanyId || scope.companyId')
+    expect(mobileEquipmentCode).toContain(
+      'api.listEquipment({ companyId: scopeCompanyId || undefined, search: search || undefined })',
+    )
+    expect(mobileEquipmentCode).toContain(
+      'api.getEquipment(equipmentId, scopeCompanyId || undefined)',
+    )
+    expect(mobileEquipmentCode).toContain(
+      'api.getEquipmentHistory(equipmentId, scopeCompanyId || undefined, { limit: 20, cursor })',
+    )
+    expect(mobileEquipmentCode).toContain(
+      'api.getEquipmentParts(equipmentId, scopeCompanyId || undefined)',
+    )
+  })
+
+  it('сохраняет scope в list/detail и связанных mobile-переходах', () => {
+    expect(mobileEquipmentCode).toContain(
+      'api.appendScopeToPath(mobilePath(location.pathname, path), scope)',
+    )
+    expect(mobileEquipmentCode).toContain("scopedPath('/equipment')")
+    expect(mobileEquipmentCode).toContain('scopedPath(`/equipment/${item.id}`)')
+    expect(mobileEquipmentCode).toContain(
+      'api.appendScopeToPath(`${mobileRoot}/tickets/${e.ticketId}`, scope)',
+    )
+  })
+
+  it('не вводит второй access resolver или frontend permission model', () => {
+    expect(mobileEquipmentCode).not.toContain('PERMISSIONS')
+    expect(mobileEquipmentCode).not.toContain('hasPermission')
+    expect(mobileEquipmentCode).not.toContain('canAccessEquipment')
   })
 })
 
