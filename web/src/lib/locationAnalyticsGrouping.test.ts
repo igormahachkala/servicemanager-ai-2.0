@@ -75,24 +75,32 @@ describe('ANALYTICS V2 Phase 1: город → точки', () => {
      * этот порядок трогать: иначе на первом же экране, когда пользователь
      * ничего не выбрал, точка с 500 заявками оказывается ниже точек с одной.
      */
+    /*
+     * Идентификаторы намеренно НЕ по алфавиту: иначе проверка прошла бы и
+     * при сортировке на фронтенде, которой тут быть не должно вовсе.
+     */
     const items = [
-      row('a', 'Ярославль', 500),
-      row('b', 'Абакан', 1),
-      row('c', 'Абакан', 1),
+      row('z', 'Ярославль', 500),
+      row('a', 'Абакан', 1),
+      row('m', 'Абакан', 1),
     ]
 
     const visible = selectVisibleLocations(items, ALL_CITIES_KEY)
 
     expect(visible.map((l) => l.totalTickets)).toEqual([500, 1, 1])
-    expect(visible.map((l) => l.locationId)).toEqual(['a', 'b', 'c'])
-
-    // Алфавит города на порядок строк не влияет вовсе.
+    // Ни алфавит города, ни алфавит идентификатора порядок не меняют.
+    expect(visible.map((l) => l.locationId)).toEqual(['z', 'a', 'm'])
     expect(groupLocationsByCity(items).map((g) => g.cityLabel)).toEqual(['Абакан', 'Ярославль'])
 
-    // Внутри выбранного города — тоже порядок ответа.
+    // Внутри выбранного города — тоже порядок ответа, не алфавит.
     expect(
       selectVisibleLocations(items, normalizeCityKey('Абакан')).map((l) => l.locationId),
-    ).toEqual(['b', 'c'])
+    ).toEqual(['a', 'm'])
+
+    // И при выборе нескольких точек порядок остаётся ответным.
+    expect(
+      selectVisibleLocations(items, ALL_CITIES_KEY, ['m', 'z']).map((l) => l.locationId),
+    ).toEqual(['z', 'm'])
   })
 
   it('3. city = null/пустая строка/пробелы — одна понятная группа', () => {
@@ -186,13 +194,15 @@ describe('ANALYTICS V2 Phase 1: город → точки', () => {
 
   it('9. порядок строк внутри города — как у бэкенда, не пересортирован', () => {
     // Бэкенд отдаёт по убыванию заявок; группировка этот порядок сохраняет.
-    const groups = groupLocationsByCity([
-      row('l1', 'Казань', 40),
-      row('l2', 'Казань', 7),
-      row('l3', 'Казань', 19),
-    ])
+    // Идентификаторы не по алфавиту — сортировка была бы заметна.
+    const items = [row('l9', 'Казань', 40), row('l2', 'Казань', 7), row('l5', 'Казань', 19)]
+    const groups = groupLocationsByCity(items)
 
     expect(groups[0].locations.map((l) => l.totalTickets)).toEqual([40, 7, 19])
+    expect(groups[0].locations.map((l) => l.locationId)).toEqual(['l9', 'l2', 'l5'])
+    expect(
+      selectVisibleLocations(items, normalizeCityKey('Казань')).map((l) => l.locationId),
+    ).toEqual(['l9', 'l2', 'l5'])
   })
 
   it('10. агрегаты заявок на фронтенде не пересчитываются', () => {
