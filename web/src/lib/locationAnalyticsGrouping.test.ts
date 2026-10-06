@@ -193,5 +193,13 @@ describe('ANALYTICS V2 Phase 1: город → точки', () => {
 
     // Канонический summary остаётся от бэкенда.
     expect(page).toContain('summary?.totalTickets')
+
+    /*
+     * Список обязан рисоваться ПО ОТОБРАННЫМ строкам. Без этого выбор
+     * города и точек остался бы украшением: контроль показал, что замена
+     * visibleLocations на items не ломала ни одной проверки.
+     */
+    expect(page).toContain('visibleLocations.map(')
+    expect(page).not.toContain('items.map(')
   })
 })
