@@ -132,11 +132,26 @@ describe('Видимость: fail-closed', () => {
     }
   })
 
-  it('Workforce: текущий прод-набор; CLIENT_ADMIN скрыт (нет подтверждения WORKFORCE_VIEW)', () => {
-    for (const role of ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TERRITORIAL_MANAGER'] as Role[]) {
+  it('Workforce: прод-набор плюс CLIENT_ADMIN (read-only, решение владельца)', () => {
+    for (const role of [
+      'ADMIN',
+      'MASTER',
+      'DISPATCHER',
+      'NETWORK_DIRECTOR',
+      'TERRITORIAL_MANAGER',
+      'CLIENT_ADMIN',
+    ] as Role[]) {
       expect(isManagementNavItemVisible('/workforce', { role })).toBe(true)
     }
-    expect(isManagementNavItemVisible('/workforce', { role: 'CLIENT_ADMIN' })).toBe(false)
+
+    /*
+     * Пункт виден — права не выданы. Это affordance: доступ решает бэкенд
+     * (WORKFORCE_VIEW в матрице + PermissionsGuard). Роли без гранта пункт
+     * по-прежнему не видят.
+     */
+    for (const role of ['CLIENT', 'TECHNICIAN', 'STAFF'] as Role[]) {
+      expect(isManagementNavItemVisible('/workforce', { role })).toBe(false)
+    }
   })
 
   it('План обходов и Шаблоны — roundsManage', () => {
