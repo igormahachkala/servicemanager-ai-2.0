@@ -1,9 +1,6 @@
 import { CompanyType } from '@prisma/client'
 
-import {
-  STANDARD_FAILURE_CAUSE_NAMES,
-  ensureDefaultFailureCauses,
-} from './standard-failure-causes'
+import { STANDARD_FAILURE_CAUSE_NAMES, ensureDefaultFailureCauses } from './standard-failure-causes'
 
 interface Row {
   companyId: string
@@ -15,10 +12,7 @@ interface Row {
  * In-memory Prisma-двойник, который соблюдает @@unique([companyId, name]) —
  * так тесты ловят реальные дубли/изоляцию арендаторов, а не только вызовы.
  */
-function makeFakePrisma(seed: {
-  companies: { id: string; type: CompanyType }[]
-  causes?: Row[]
-}) {
+function makeFakePrisma(seed: { companies: { id: string; type: CompanyType }[]; causes?: Row[] }) {
   const companies = new Map(seed.companies.map((c) => [c.id, c]))
   const rows: Row[] = [...(seed.causes ?? [])]
 
@@ -79,8 +73,71 @@ describe('ensureDefaultFailureCauses (standard dictionary bootstrap)', () => {
     await ensureDefaultFailureCauses(prisma, 'client-a')
     const second = await ensureDefaultFailureCauses(prisma, 'client-a')
 
-    expect(second).toEqual({ companyId: 'client-a', created: 0, skipped: 'already-has-causes' })
+    expect(second).toEqual({
+      companyId: 'client-a',
+      created: 0,
+      skipped: 'already-has-causes',
+    })
     expect(countFor('client-a')).toBe(12)
+  })
+
+  it('is race-safe: two concurrent bootstraps create 12 unique rows for only the requested company', async () => {
+    const rows: Row[] = [{ companyId: 'client-b', name: 'Client B custom cause', active: true }]
+    let countCalls = 0
+    let releaseCounts!: () => void
+    const bothCountsStarted = new Promise<void>((resolve) => {
+      releaseCounts = resolve
+    })
+
+    const prisma = {
+      company: {
+        findUnique: async ({ where }: { where: { id: string } }) => ({
+          id: where.id,
+          type: CompanyType.CLIENT,
+        }),
+      },
+      failureCause: {
+        count: async () => {
+          countCalls++
+          if (countCalls === 2) releaseCounts()
+          await bothCountsStarted
+          return 0
+        },
+        createMany: async ({
+          data,
+          skipDuplicates,
+        }: {
+          data: { companyId: string; name: string }[]
+          skipDuplicates?: boolean
+        }) => {
+          let count = 0
+          for (const row of data) {
+            const duplicate = rows.some(
+              (existing) => existing.companyId === row.companyId && existing.name === row.name,
+            )
+            if (duplicate && skipDuplicates) continue
+            if (duplicate) throw new Error('unique [companyId, name] violation')
+            rows.push({ ...row, active: true })
+            count++
+          }
+          return { count }
+        },
+      },
+    }
+
+    const results = await Promise.all([
+      ensureDefaultFailureCauses(prisma, 'client-a'),
+      ensureDefaultFailureCauses(prisma, 'client-a'),
+    ])
+
+    const clientARows = rows.filter((row) => row.companyId === 'client-a')
+    expect(results.map((result) => result.created).sort((a, b) => a - b)).toEqual([0, 12])
+    expect(clientARows).toHaveLength(12)
+    expect(new Set(clientARows.map((row) => row.name))).toEqual(new Set(STANDARD_FAILURE_CAUSE_NAMES))
+    expect(rows.filter((row) => row.companyId === 'client-b')).toEqual([
+      { companyId: 'client-b', name: 'Client B custom cause', active: true },
+    ])
+    expect(new Set(rows.map((row) => row.companyId))).toEqual(new Set(['client-a', 'client-b']))
   })
 
   it('partial existing dictionary: no duplicates, nothing re-created', async () => {
@@ -88,7 +145,11 @@ describe('ensureDefaultFailureCauses (standard dictionary bootstrap)', () => {
       companies: [{ id: 'client-a', type: CompanyType.CLIENT }],
       causes: [
         { companyId: 'client-a', name: 'Внешнее воздействие', active: true },
-        { companyId: 'client-a', name: 'Перегрев / нарушение охлаждения', active: true },
+        {
+          companyId: 'client-a',
+          name: 'Перегрев / нарушение охлаждения',
+          active: true,
+        },
       ],
     })
 
@@ -102,13 +163,23 @@ describe('ensureDefaultFailureCauses (standard dictionary bootstrap)', () => {
   it('preserves a custom cause and does not add standard ones on top of it', async () => {
     const { prisma, rows, countFor } = makeFakePrisma({
       companies: [{ id: 'client-a', type: CompanyType.CLIENT }],
-      causes: [{ companyId: 'client-a', name: 'Корпоративная причина X', active: true }],
+      causes: [
+        {
+          companyId: 'client-a',
+          name: 'Корпоративная причина X',
+          active: true,
+        },
+      ],
     })
 
     await ensureDefaultFailureCauses(prisma, 'client-a')
 
     expect(countFor('client-a')).toBe(1)
-    expect(rows[0]).toEqual({ companyId: 'client-a', name: 'Корпоративная причина X', active: true })
+    expect(rows[0]).toEqual({
+      companyId: 'client-a',
+      name: 'Корпоративная причина X',
+      active: true,
+    })
   })
 
   it('does NOT reactivate / overwrite an edited or deactivated cause (no destructive sync)', async () => {
@@ -149,7 +220,11 @@ describe('ensureDefaultFailureCauses (standard dictionary bootstrap)', () => {
 
     const res = await ensureDefaultFailureCauses(prisma, 'provider-1')
 
-    expect(res).toEqual({ companyId: 'provider-1', created: 0, skipped: 'not-client' })
+    expect(res).toEqual({
+      companyId: 'provider-1',
+      created: 0,
+      skipped: 'not-client',
+    })
     expect(countFor('provider-1')).toBe(0)
   })
 
@@ -158,7 +233,11 @@ describe('ensureDefaultFailureCauses (standard dictionary bootstrap)', () => {
 
     const res = await ensureDefaultFailureCauses(prisma, 'ghost')
 
-    expect(res).toEqual({ companyId: 'ghost', created: 0, skipped: 'company-missing' })
+    expect(res).toEqual({
+      companyId: 'ghost',
+      created: 0,
+      skipped: 'company-missing',
+    })
   })
 
   it('declares exactly the 12 required standard names', () => {
