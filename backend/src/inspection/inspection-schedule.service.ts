@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { InspectionFrequency, Prisma } from '@prisma/client'
 
+import { AssignmentEligibilityResolver } from '../assignment/assignment-eligibility.resolver'
 import { isExecutorEligible } from '../common/executor.utils'
 import { assertAllowed } from '../policy/policy.utils'
 import { InspectionPolicy, type InspectionUserCtx } from '../policy/inspection.policy'
@@ -37,6 +38,7 @@ export class InspectionScheduleService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly serviceContracts: ServiceContractsService,
+    private readonly assignmentEligibility: AssignmentEligibilityResolver,
   ) {}
 
   // ── read ───────────────────────────────────────────────────────────────────
@@ -77,6 +79,29 @@ export class InspectionScheduleService {
     return visible.map(withLastRun)
   }
 
+  async listAssignableTechnicians(user: InspectionUserCtx, locationId: string) {
+    assertAllowed(this.policy.canManageSchedule(user))
+    if (!locationId) throw new BadRequestException('locationId is required')
+
+    const location = await this.requireAccessibleLocation(user, locationId)
+    const candidates = await this.assignmentEligibility.listLocationAssignableExecutors({
+      employerCompanyId: user.companyId,
+      scopeCompanyId: location.clientCompanyId,
+      locationId: location.id,
+    })
+
+    return candidates
+      .filter((candidate) => isExecutorEligible({ role: candidate.role, isExecutor: true }))
+      .map((candidate) => ({
+        id: candidate.id,
+        email: candidate.email,
+        firstName: candidate.firstName,
+        lastName: candidate.lastName,
+        role: candidate.role,
+        activeLoad: candidate.activeLoad,
+      }))
+  }
+
   async get(user: InspectionUserCtx, scheduleId: string) {
     assertAllowed(this.policy.canViewSchedules(user))
 
@@ -102,7 +127,7 @@ export class InspectionScheduleService {
     const template = await this.requireOwnedTemplate(user, dto.templateId)
     const location = await this.requireAccessibleLocation(user, dto.locationId)
     const equipmentId = await this.resolveEquipmentId(dto.equipmentId, location)
-    const assignedToUserId = await this.resolveAssigneeId(user, dto.assignedToUserId)
+    const assignedToUserId = await this.resolveAssigneeId(user, dto.assignedToUserId, location)
 
     const startDate = this.parseStartDate(dto.startDate)
     const intervalDays = this.resolveIntervalDays(dto.frequency, dto.intervalDays)
@@ -167,8 +192,10 @@ export class InspectionScheduleService {
     }
 
     if (dto.assignedToUserId !== undefined) {
-      const assignedToUserId = await this.resolveAssigneeId(user, dto.assignedToUserId ?? undefined)
+      const assignedToUserId = await this.resolveAssigneeId(user, dto.assignedToUserId ?? undefined, location)
       data.assignedTo = assignedToUserId ? { connect: { id: assignedToUserId } } : { disconnect: true }
+    } else if (dto.locationId !== undefined && current.assignedToUserId) {
+      await this.resolveAssigneeId(user, current.assignedToUserId, location)
     }
 
     if (dto.name !== undefined) {
@@ -285,6 +312,7 @@ export class InspectionScheduleService {
   private async resolveAssigneeId(
     user: InspectionUserCtx,
     assignedToUserId: string | undefined,
+    location: { id: string; clientCompanyId: string },
   ): Promise<string | null> {
     if (!assignedToUserId) return null
 
@@ -292,16 +320,20 @@ export class InspectionScheduleService {
       // Same company as the manager: a provider plans work for its own people. A technician of
       // another provider is not a candidate even when both service the same client.
       where: { id: assignedToUserId, companyId: user.companyId, isActive: true, deletedAt: null },
-      select: { id: true, role: true, isExecutor: true },
+      select: { id: true },
     })
     if (!candidate) throw new NotFoundException('Assignee not found')
 
-    // Canonical executor rule, shared with ticket claiming and the assignment engine.
-    if (!isExecutorEligible({ role: candidate.role, isExecutor: candidate.isExecutor })) {
-      throw new BadRequestException('Assignee is not eligible to execute rounds')
+    const eligible = await this.assignmentEligibility.listLocationAssignableExecutors({
+      employerCompanyId: user.companyId,
+      scopeCompanyId: location.clientCompanyId,
+      locationId: location.id,
+    })
+    if (!eligible.some((item) => item.id === assignedToUserId)) {
+      throw new BadRequestException('Assignee is not eligible to execute rounds at this location')
     }
 
-    return candidate.id
+    return assignedToUserId
   }
 
   private parseStartDate(value: string) {
@@ -341,6 +373,7 @@ export class InspectionScheduleService {
         frequency: true,
         intervalDays: true,
         lastGeneratedAt: true,
+        assignedToUserId: true,
         location: { select: { id: true, clientCompanyId: true } },
         _count: { select: { runs: true } },
       },

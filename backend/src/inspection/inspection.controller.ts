@@ -67,6 +67,14 @@ export class InspectionController {
     return this.schedules.list(this.userFromRequest(req), query)
   }
 
+  @Get('schedules/assignable-technicians')
+  @ManagementSurface()
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
+  @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
+  listAssignableTechnicians(@Req() req: any, @Query('locationId') locationId: string) {
+    return this.schedules.listAssignableTechnicians(this.userFromRequest(req), (locationId || '').trim())
+  }
+
   @Get('schedules/:id')
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
