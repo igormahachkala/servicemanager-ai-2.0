@@ -442,6 +442,7 @@ export function MobileTicketPage() {
       offline.pending,
       offline.attention,
       offline.ready,
+      offline.connectivity,
     ],
     queryFn: async () => {
       if (!ticketId) throw new Error('Нет идентификатора заявки')
@@ -454,7 +455,7 @@ export function MobileTicketPage() {
         throw new Error('Локальная заявка не найдена в очереди на устройстве.')
       }
 
-      if (!getOnlineStatus()) {
+      if (offline.connectivity === 'offline') {
         const cached = await readCachedTicketDetail<api.TicketGetOne, api.TicketAttachmentItem, api.TimelineResponse>(
           ticketId,
           [scopeNorm],
