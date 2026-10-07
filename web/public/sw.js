@@ -185,47 +185,13 @@ function pickWindowClient(clientList) {
 // авторизованные ответы API в кэш Service Worker нельзя ещё и потому, что
 // он общий для всех, кто открывал браузер: на общем планшете следующий
 // техник увидел бы чужие данные.
-const APP_SHELL_CACHE = 'sma-app-shell-v4'
-const APP_SHELL_URL = '/index.html'
-const BUILD_ASSET_MANIFEST_URL = '/asset-manifest.json'
+importScripts('/sw-app-shell.js')
 // F5 при связи должен взять свежий index.html. Полный timeout сети на
 // iOS cold-start недопустим, поэтому гонка с коротким бюджетом, затем кэш.
 const NAV_NETWORK_BUDGET_MS = 800
 
-function manifestAssetUrls(manifest) {
-  const urls = new Set()
-  for (const entry of Object.values(manifest || {})) {
-    if (!entry || typeof entry !== 'object') continue
-    for (const value of [entry.file, ...(entry.css || []), ...(entry.assets || [])]) {
-      const path = safeString(value)
-      if (!path) continue
-      // MozJPEG WASM грузится при первом фото. В оболочку его не класть:
-      // install не должен ждать кодек, а офлайн без WASM оставляет исходник.
-      if (/\.wasm$/i.test(path)) continue
-      urls.add(path.startsWith('/') ? path : `/${path}`)
-    }
-  }
-  return [...urls]
-}
-
-async function precacheApplication() {
-  const cache = await caches.open(APP_SHELL_CACHE)
-  const manifestResponse = await fetch(BUILD_ASSET_MANIFEST_URL, { cache: 'no-store' })
-  if (!manifestResponse.ok) throw new Error('Build asset manifest is unavailable')
-  const manifest = await manifestResponse.json()
-  const urls = [APP_SHELL_URL, '/', '/m', BUILD_ASSET_MANIFEST_URL, ...manifestAssetUrls(manifest)]
-
-  // An incomplete cache must not take control: that recreates the physical
-  // iPhone failure where the shell opens but a lazy route crashes offline.
-  await Promise.all(urls.map(async (url) => {
-    const response = await fetch(url, { cache: 'no-store' })
-    if (!response.ok) throw new Error(`Unable to precache ${url}`)
-    await cache.put(url, response)
-  }))
-}
-
 self.addEventListener('install', (event) => {
-  event.waitUntil(precacheApplication().then(() => self.skipWaiting()))
+  event.waitUntil(precacheApplication())
 })
 
 self.addEventListener('activate', (event) => {
@@ -289,11 +255,12 @@ self.addEventListener('fetch', (event) => {
   // not wait for a full network timeout. Race the network against a short
   // budget, then fall back to the installed shell.
   event.respondWith((async () => {
-    const cached = await caches.match(APP_SHELL_URL)
+    const live = await caches.open(APP_SHELL_CACHE)
+    const cached = await live.match(APP_SHELL_URL)
     const networkPromise = fetch(request).then((response) => {
       if (response && response.ok && response.type === 'basic') {
         const copy = response.clone()
-        caches.open(APP_SHELL_CACHE).then((cache) => cache.put(APP_SHELL_URL, copy)).catch(() => undefined)
+        live.put(APP_SHELL_URL, copy).catch(() => undefined)
       }
       return response
     })

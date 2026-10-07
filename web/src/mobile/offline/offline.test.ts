@@ -601,24 +601,25 @@ test('24. Service Worker кэширует оболочку и не кэширу�
   assert.match(sw, /request\.mode !== 'navigate'/, 'кэшируется только навигация')
   assert.match(sw, /request\.method !== 'GET'/, 'мутации не кэшируются')
   assert.match(sw, /\/uploads\//, 'защищённая раздача исключена явно')
-  // Ответы API в кэш не кладутся. Записи: manifest assets, оболочка и
-  // runtime build asset. Без precache hashed lazy chunk экран, который
-  // техник не открывал до потери связи, на iOS не открывается.
-  const puts = sw.match(/cache\.put\([^)]*\)/g) ?? []
-  assert.equal(puts.length, 3, `в кэш пишутся только manifest assets, оболочка и сборочный файл, найдено: ${puts.length}`)
-  assert.ok(puts.some((p) => /\(url, response\)/.test(p)), 'manifest assets сохраняются по хэшированному URL')
-  assert.ok(puts.some((p) => /APP_SHELL_URL/.test(p)), 'оболочка сохраняется')
+  // Ответы API в кэш не кладутся. Install пишет hashed chunks в next.
+  // Runtime в sw.js пишет только свежую оболочку и сборочный файл.
+  const puts = sw.match(/cache\.put\([^)]*\)|live\.put\([^)]*\)/g) ?? []
+  assert.equal(puts.length, 2, `в sw.js runtime пишет только сборочный файл и свежую оболочку, найдено: ${puts.length}`)
+  assert.ok(puts.some((p) => /APP_SHELL_URL/.test(p)), 'оболочка сохраняется в боевой кэш')
   assert.ok(puts.some((p) => /\(request, copy\)/.test(p)), 'сборочный файл сохраняется по своему запросу')
 
-  // Отбор сборочных файлов ограничен каталогом сборки и известными
-  // расширениями: под него не должен попасть ни один ответ с данными.
+  const helper = readFileSync(new URL('../../../public/sw-app-shell.js', import.meta.url), 'utf8')
+  assert.match(sw, /importScripts\('\/sw-app-shell\.js'\)/)
   assert.match(sw, /function isBuildAsset/, 'отбор сборочных файлов выделен явно')
   assert.match(sw, /url\.pathname\.startsWith\('\/assets\/'\)/, 'только каталог /assets/')
   assert.match(sw, /\\\.\(js\|css\|woff2\?\|svg\|png\|jpg\|webp\)\$/, 'runtime cache оболочки без wasm')
-  assert.match(sw, /\\\.wasm\$/, 'install не precache-ит wasm кодека')
-  assert.match(sw, /sma-app-shell-v4/, 'полный precache отделён от прежнего cache поколения')
-  assert.match(sw, /BUILD_ASSET_MANIFEST_URL/, 'install читает build manifest')
-  assert.doesNotMatch(sw, /caches\.delete/, 'cache живой старой страницы не удаляется при activate')
+  assert.match(helper, /\\\.wasm\$/, 'install не precache-ит wasm кодека')
+  assert.match(helper, /sma-app-shell-v4/, 'боевой кэш того же поколения')
+  assert.match(helper, /sma-app-shell-next/, 'докачка идёт в next')
+  assert.match(helper, /BUILD_ASSET_MANIFEST_URL/, 'install читает build manifest')
+  assert.match(helper, /App shell precache incomplete/, 'неполный набор не активирует worker')
+  assert.doesNotMatch(sw, /caches\.delete/, 'activate не удаляет боевой кэш')
+  assert.match(sw, /live\.match\(APP_SHELL_URL\)/, 'навигация читает index только из боевого кэша')
   assert.match(sw, /NAV_NETWORK_BUDGET_MS/, 'navigation ждёт короткую сеть, затем оболочку из кэша')
   assert.doesNotMatch(sw, /if \(cached\) return cached/)
 })
@@ -2277,6 +2278,41 @@ test('узкие места 1. deliverCheckpointUpdate offline сразу в que
     enqueue: (input) => store.enqueue(input),
   })
   assert.equal(result.kind, 'queued')
+})
+
+test('старт. checking не пишет Нет сети, чтение доски не ждёт liveApiAllowed', async () => {
+  const { offlineHeadline } = await import('./useOffline.js')
+  const { readFileSync } = await import('node:fs')
+  const checking = offlineHeadline({
+    ready: false,
+    connectivity: 'checking',
+    online: false,
+    liveApiAllowed: false,
+    pending: 0,
+    attention: 0,
+    syncing: false,
+  })
+  assert.equal(checking?.text, 'Проверяем связь')
+  assert.notEqual(checking?.text, 'Нет сети')
+  const offline = offlineHeadline({
+    ready: true,
+    connectivity: 'offline',
+    online: false,
+    liveApiAllowed: false,
+    pending: 0,
+    attention: 0,
+    syncing: false,
+  })
+  assert.equal(offline?.text, 'Нет сети')
+
+  const runtime = readFileSync(new URL('../../../src/mobile/offline/runtime.ts', import.meta.url), 'utf8')
+  const home = readFileSync(new URL('../../../src/mobile/home/MobileHome.tsx', import.meta.url), 'utf8')
+  const shell = readFileSync(new URL('../../../src/mobile/MobileShell.tsx', import.meta.url), 'utf8')
+  assert.match(runtime, /connectivity: 'checking'/)
+  assert.match(home, /offline\.connectivity === 'offline'/)
+  assert.doesNotMatch(home, /if \(!getOnlineStatus\(\)\)/)
+  assert.match(shell, /offline\.connectivity === 'offline'/)
+  assert.match(shell, /Проверяем связь/)
 })
 
 test('узкие места 1–4. экраны на deliver* и liveApiAllowed', async () => {
