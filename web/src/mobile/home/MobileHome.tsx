@@ -31,7 +31,6 @@ import {
   writePersistedMobileHomeBoardUi,
 } from '../mobileHomeListUtils'
 import { formatMobileMutationError } from '../mobileActionErrors'
-import { getOnlineStatus } from '../offlineQueue'
 import { readCachedBoard, saveBoardCache } from '../offline/boardCache'
 import { queueOffline, useOfflineStatus } from '../offline/useOffline'
 import { deliverTicketStatus } from '../offline/statusDelivery'
@@ -43,7 +42,8 @@ import { HomeTabs } from './HomeTabs'
 import { HomeChips } from './HomeChips'
 import { HomeList, type TicketCloseModalState } from './HomeList'
 import { HomeQuickCards, type MobileHomeQuickFilter } from './HomeQuickCards'
-import { HomeFAB } from './HomeFAB'
+import { HomeShiftStatus } from './HomeShiftStatus'
+import { isHomeUrgentTicket, selectHomeUrgentTickets } from './homeUrgent'
 import { HomeOfflineCachePanel } from './HomeOfflineCachePanel'
 import { useTicketOfflineCache } from './useTicketOfflineCache'
 
@@ -60,6 +60,7 @@ export function MobileHome() {
   const offline = useOfflineStatus()
   const isOnline = offline.online
   const liveApiAllowed = offline.liveApiAllowed
+  const cacheUiOpen = offline.connectivity !== 'offline'
   const [startQueuedIds, setStartQueuedIds] = useState<Set<string>>(() => new Set())
   const linkedClientCompanyId = (search.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
   const companyId = (search.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
@@ -116,10 +117,10 @@ export function MobileHome() {
   }, [meQ.data, linkedClientCompanyId, techBoundDefaultsQ.isSuccess, techBoundDefaultsQ.data, navigate, companyId, location.pathname, location.search])
 
   const boardQ = useQuery({
-    queryKey: ['mobile-home-board', linkedClientCompanyId, companyId, offline.ready],
+    queryKey: ['mobile-home-board', linkedClientCompanyId, companyId, offline.ready, offline.connectivity],
     queryFn: async () => {
       const cachedBoard = async () => readCachedBoard<api.BoardResponse>(pageScope)
-      if (!getOnlineStatus()) {
+      if (offline.connectivity === 'offline') {
         const cached = await cachedBoard()
         if (cached) return cached
         throw new Error('Нет сохранённых заявок. Откройте главную при подключении к сети хотя бы раз.')
@@ -170,6 +171,9 @@ export function MobileHome() {
     [completedBoardQ.data],
   )
   const cards = boardTab === 'done' && completedBoardQ.data ? completedCards : baseCards
+  // SMA-MOBILE-SERVICE-OS Phase 0+1: срочные берём из основной доски (не из done-среза),
+  // чтобы блок не зависел от выбранной вкладки.
+  const urgentTickets = useMemo(() => selectHomeUrgentTickets(baseCards), [baseCards])
   const canAssignProvider = api.isProviderTicketAssignRole(meQ.data?.role)
   // E4: быстрая приёмка на карте — тот же гейт, что «Принять» в карточке (MobileTicketPage canShowClientAcceptance):
   // своя client-компания (не наблюдатель) + клиент-управленческая роль (ADMIN/TM/ND, не CLIENT-заявитель).
@@ -252,12 +256,13 @@ export function MobileHome() {
   const quickTickets = useMemo(() => {
     if (!quickFilter) return null
     const list = dedupeBoardCards(cards)
+    if (quickFilter === 'urgent') return list.filter(isHomeUrgentTicket)
     if (quickFilter === 'awaiting') return list.filter(isAwaitingAcceptanceTicket)
     if (quickFilter === 'rework') return list.filter((t) => t.status === 'IN_PROGRESS' && reworkTicketIds.has(t.id))
     return list.filter((t) => ticketRequiresMyAction(t, meQ.data?.id, meQ.data?.role, canAssignProvider))
   }, [quickFilter, cards, meQ.data?.id, meQ.data?.role, canAssignProvider, reworkTicketIds])
   const quickFilterLabel =
-    quickFilter === 'awaiting' ? 'На приёмке' : quickFilter === 'myaction' ? 'Требует моего действия' : quickFilter === 'rework' ? 'Требуют доработки' : ''
+    quickFilter === 'urgent' ? 'Срочные заявки' : quickFilter === 'awaiting' ? 'На приёмке' : quickFilter === 'myaction' ? 'Требует моего действия' : quickFilter === 'rework' ? 'Требуют доработки' : ''
   const renderedTickets = quickFilter ? quickTickets ?? [] : visibleTickets
   const homeListTickets = useMemo(
     () =>
@@ -279,7 +284,7 @@ export function MobileHome() {
     meId: meQ.data?.id,
     scope: pageScope,
     enabled: meQ.data?.role === 'TECHNICIAN',
-    online: isOnline,
+    online: cacheUiOpen,
     storageReady: offline.ready,
   })
 
@@ -542,7 +547,7 @@ export function MobileHome() {
 
   const closeM = useMutation({
     mutationFn: async () => {
-      if (!getOnlineStatus()) {
+      if (!liveApiAllowed) {
         setCloseModal((prev) => (prev ? { ...prev, err: ONLINE_ONLY_ACTION_MESSAGE } : prev))
         throw new Error(ONLINE_ONLY_ACTION_MESSAGE)
       }
@@ -631,7 +636,7 @@ export function MobileHome() {
   const closeFailureCausesQ = useQuery({
     queryKey: ['ticket-failure-causes', closeModal?.ticketId, pageScope],
     queryFn: () => api.ticketFailureCauses(closeModal!.ticketId, pageScope),
-    enabled: !!closeModal?.ticketId && getOnlineStatus(),
+    enabled: !!closeModal?.ticketId && liveApiAllowed,
   })
 
   const techWillRedirectForScope = techNoLinked && techBoundDefaultsQ.isSuccess && (techBoundDefaultsQ.data?.length ?? 0) > 0
@@ -645,6 +650,7 @@ export function MobileHome() {
           <h1 className="mobileTitle">Главная</h1>
           <div className="mobileSubtitle">Операционный экран без desktop-шумов</div>
         </div>
+        <HomeShiftStatus role={meQ.data?.role} />
         <div className="mobileNotice" role="status">
           Выберите клиентский контур в верхней панели, чтобы открыть заявки.
         </div>
@@ -658,6 +664,7 @@ export function MobileHome() {
       <HomeHeader
         me={meQ.data}
         isOnline={isOnline}
+        connectivity={offline.connectivity}
         boardHasData={activeBoardHasData}
         boardError={activeBoardError}
         companyPrimaryLine={companyPrimaryLine}
@@ -674,18 +681,20 @@ export function MobileHome() {
         searchQuery={searchQuery}
         setSearchQuery={changeSearchQuery}
       />
+      <HomeShiftStatus role={meQ.data?.role} />
       {materialsHomeCard}
       {showMobileHomeTicketBoard ? (
         <>
           <HomeQuickCards
+            urgentCount={urgentTickets.length}
             awaitingCount={awaitingCount}
             myActionCount={myActionCount}
             reworkCount={reworkCount}
             activeQuickFilter={quickFilter}
+            onToggleUrgent={() => activateQuickFilter('urgent')}
             onToggleAwaiting={() => activateQuickFilter('awaiting')}
             onToggleMyAction={() => activateQuickFilter('myaction')}
             onToggleRework={() => activateQuickFilter('rework')}
-            onPlanning={() => setMobileActionToast('Планирование — раздел в разработке')}
           />
           <div className="mobileHomeBoardSticky" data-mobile-tour="ticket-filters">
             <HomeTabs
@@ -720,7 +729,7 @@ export function MobileHome() {
           </div>
           <HomeOfflineCachePanel
             enabled={meQ.data?.role === 'TECHNICIAN'}
-            online={isOnline}
+            online={cacheUiOpen}
             storageReady={offline.ready}
             selectedCount={ticketOfflineCache.selectedIds.size}
             busy={ticketOfflineCache.busy}
@@ -779,8 +788,8 @@ export function MobileHome() {
             mobileActionToast={mobileActionToast}
             cacheStates={ticketOfflineCache.states}
             cacheSelectedIds={ticketOfflineCache.selectedIds}
-            onToggleCache={isOnline ? ticketOfflineCache.toggleSelected : undefined}
-            onRefreshCache={isOnline ? ticketOfflineCache.refreshTicket : undefined}
+            onToggleCache={cacheUiOpen ? ticketOfflineCache.toggleSelected : undefined}
+            onRefreshCache={cacheUiOpen ? ticketOfflineCache.refreshTicket : undefined}
           />
           {boardQ.data && boardQ.data.meta.totalTickets >= boardQ.data.meta.limitedToLast && boardQ.data.meta.limitedToLast >= 500 ? (
             <div className="mobileNotice" style={{ textAlign: 'center', fontSize: '0.82rem', marginTop: 4 }}>
@@ -789,7 +798,6 @@ export function MobileHome() {
           ) : null}
         </>
       ) : null}
-      <HomeFAB me={meQ.data} pageScope={pageScope} />
     </div>
   )
 }

@@ -5,6 +5,7 @@ import type { MobileHomeBoardFilterTab } from '../mobileHomeBoardFilters'
 type Props = {
   me: Awaited<ReturnType<typeof api.me>> | undefined
   isOnline: boolean
+  connectivity: 'checking' | 'online' | 'offline'
   boardHasData: boolean
   boardError: unknown
   companyPrimaryLine: string
@@ -26,6 +27,7 @@ export function HomeHeader(props: Props) {
   const {
     me,
     isOnline,
+    connectivity,
     boardHasData,
     boardError,
     companyPrimaryLine,
@@ -63,7 +65,7 @@ export function HomeHeader(props: Props) {
         </div>
         <div className="mobileHomeHeaderOnline">
           <span className="mobileHomeHeaderOnlineDot" aria-hidden />
-          {isOnline ? 'Онлайн' : 'Оффлайн'} · {roleLabel}
+          {isOnline ? 'Онлайн' : connectivity === 'checking' ? 'Проверяем связь' : 'Оффлайн'} · {roleLabel}
         </div>
         {/* Figma HomeScreen search bar (prominent, moved up from the filters panel) */}
         <label className="mobileHomeSearchBar">
@@ -93,7 +95,7 @@ export function HomeHeader(props: Props) {
           ) : null}
         </label>
       </div>
-      {!isOnline && boardHasData ? (
+      {connectivity === 'offline' && boardHasData ? (
         <div style={{ marginBottom: 4 }}>
           <div className="mobileStaleDataBanner" role="status">Показаны сохранённые данные</div>
         </div>

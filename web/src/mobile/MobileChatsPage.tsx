@@ -773,13 +773,9 @@ export function MobileChatsPage() {
               </div>
             ) : null}
 
+            {/* SMA-MOBILE-SERVICE-OS Phase 0+1: неработающие кнопки «Вложение»/«Фото»
+                (без обработчиков) убраны. Отправка фото в заявку — на экране заявки. */}
             <div className="mobileChatsComposer">
-              <button className="mobileChatsComposerButton" type="button" aria-label="Вложение">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M15 7l-6.5 6.5a1.5 1.5 0 0 0 3 3l6.5 -6.5a3 3 0 0 0 -6 -6l-6.5 6.5a4.5 4.5 0 0 0 9 9l6.5 -6.5" /></svg>
-              </button>
-              <button className="mobileChatsComposerButton" type="button" aria-label="Фото">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 7h2l2 -2h6l2 2h2a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-9a2 2 0 0 1 2 -2" /><circle cx="12" cy="13" r="3" /></svg>
-              </button>
               <textarea
                 className="mobileChatsComposerInput"
                 placeholder="Сообщение..."

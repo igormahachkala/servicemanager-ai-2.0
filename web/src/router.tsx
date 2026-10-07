@@ -107,6 +107,7 @@ const MobileTicketPage = lazyExport(() => import('./mobile/MobileTicketPage'), '
 const MobileNotificationsPage = lazyExport(() => import('./mobile/MobileNotificationsPage'), 'MobileNotificationsPage')
 const MobilePushSettingsPage = lazyExport(() => import('./mobile/MobilePushSettingsPage'), 'MobilePushSettingsPage')
 const MobileSettingsPage = lazyExport(() => import('./mobile/MobileSettingsPage'), 'MobileSettingsPage')
+const MobileMorePage = lazyExport(() => import('./mobile/MobileMorePage'), 'MobileMorePage')
 const MobileMaterialsPage = lazyExport(() => import('./mobile/MobileMaterialsPage'), 'MobileMaterialsPage')
 const MobileAnalytics = lazyExport(() => import('./mobile/MobileAnalytics'), 'MobileAnalytics')
 const MobileChatsPage = lazyExport(() => import('./mobile/MobileChatsPage'), 'MobileChatsPage')
@@ -313,6 +314,7 @@ export function AppRoutes() {
         <Route path="notifications" element={<LazyRoute component={MobileNotificationsPage} />} />
         <Route path="push-settings" element={<LazyRoute component={MobilePushSettingsPage} />} />
         <Route path="settings" element={<LazyRoute component={MobileSettingsPage} />} />
+        <Route path="more" element={<LazyRoute component={MobileMorePage} />} />
         <Route path="materials" element={<LazyRoute component={MobileMaterialsPage} />} />
         <Route path="analytics" element={<LazyRoute component={MobileAnalytics} />} />
         <Route path="shift" element={<LazyRoute component={MobileShiftPage} />} />
@@ -394,6 +396,7 @@ export function AppRoutes() {
           <Route path="notifications" element={<LazyRoute component={MobileNotificationsPage} />} />
           <Route path="push-settings" element={<LazyRoute component={MobilePushSettingsPage} />} />
           <Route path="settings" element={<LazyRoute component={MobileSettingsPage} />} />
+        <Route path="more" element={<LazyRoute component={MobileMorePage} />} />
           <Route path="analytics" element={<LazyRoute component={MobileAnalytics} />} />
           <Route path="shift" element={<LazyRoute component={MobileShiftPage} />} />
           <Route path="workforce" element={<LazyRoute component={MobileWorkforcePage} />} />

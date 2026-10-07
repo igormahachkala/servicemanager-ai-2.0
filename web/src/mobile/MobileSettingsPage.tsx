@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
@@ -16,6 +16,55 @@ type ManagementLink = {
 
 const WORKFORCE_ROLES = new Set<api.Role>(['ADMIN', 'CLIENT_ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TERRITORIAL_MANAGER'])
 const INSPECTION_TEMPLATE_ROLES = new Set<api.Role>(['PLATFORM_ADMIN', 'ADMIN', 'DISPATCHER', 'MASTER', 'NETWORK_DIRECTOR'])
+
+/**
+ * SMA-MOBILE-SERVICE-OS — сворачиваемые группы настроек. Группируем ТОЛЬКО реально
+ * существующие пункты MobileSettingsPage (личных Профиль/Смена/Offline на этом экране
+ * нет — они живут в MobileProfile). Доступность пунктов не меняется: группировка
+ * чисто визуальная, список строится прежней ролевой логикой (managementLinks).
+ */
+type SettingsGroupId = 'manage' | 'work' | 'notifications'
+const SETTINGS_GROUP_LABELS: Record<SettingsGroupId, string> = {
+  manage: 'Управление',
+  work: 'Работа и обходы',
+  notifications: 'Уведомления',
+}
+const LINK_GROUP: Record<string, SettingsGroupId> = {
+  desktop: 'manage',
+  companies: 'manage',
+  permissions: 'manage',
+  company: 'manage',
+  employees: 'manage',
+  locations: 'manage',
+  access: 'manage',
+  workforce: 'work',
+  materials: 'work',
+  inspection: 'work',
+  inspectionTemplates: 'work',
+}
+const SETTINGS_GROUPS_LS = 'sma.mobileSettings.openGroups.v1'
+
+function readOpenGroups(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(SETTINGS_GROUPS_LS)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, boolean>) : {}
+  } catch {
+    return {}
+  }
+}
+
+function GroupChevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      className={`mobileSettingsGroupChevron${open ? ' mobileSettingsGroupChevron--open' : ''}`}
+      width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden
+    >
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  )
+}
 
 function ChevronRight() {
   return (
@@ -220,6 +269,46 @@ export function MobileSettingsPage() {
     return links
   }, [currentScope, location.pathname, meQ.data])
 
+  // Группы: только непустые. Порядок — Управление → Работа и обходы → Уведомления.
+  const groups = useMemo(() => {
+    const out: Array<{ id: SettingsGroupId; label: string; links: ManagementLink[] | null }> = []
+    const manage = managementLinks.filter((l) => LINK_GROUP[l.id] === 'manage')
+    const work = managementLinks.filter((l) => LINK_GROUP[l.id] === 'work')
+    if (manage.length) out.push({ id: 'manage', label: SETTINGS_GROUP_LABELS.manage, links: manage })
+    if (work.length) out.push({ id: 'work', label: SETTINGS_GROUP_LABELS.work, links: work })
+    if (showPersonalNotificationPreferences) out.push({ id: 'notifications', label: SETTINGS_GROUP_LABELS.notifications, links: null })
+    return out
+  }, [managementLinks, showPersonalNotificationPreferences])
+
+  // Группа с текущим активным маршрутом раскрывается автоматически (на /m/settings
+  // ссылки ведут на другие экраны, поэтому обычно null → открыта первая группа).
+  const activeGroupId = useMemo(() => {
+    const path = location.pathname
+    for (const g of groups) {
+      if (g.links?.some((l) => path.startsWith(l.to.split('?')[0]))) return g.id
+    }
+    return null
+  }, [groups, location.pathname])
+  const defaultOpenId = activeGroupId ?? groups[0]?.id ?? null
+
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(readOpenGroups)
+  const isGroupOpen = (id: SettingsGroupId) => {
+    if (id === activeGroupId) return true
+    if (id in openGroups) return openGroups[id]
+    return id === defaultOpenId
+  }
+  const toggleGroup = (id: SettingsGroupId) => {
+    setOpenGroups((prev) => {
+      const next = { ...prev, [id]: !isGroupOpen(id) }
+      try {
+        localStorage.setItem(SETTINGS_GROUPS_LS, JSON.stringify(next))
+      } catch {
+        /* localStorage недоступен — состояние на эту сессию */
+      }
+      return next
+    })
+  }
+
   const backHref = api.appendScopeToPath(mobilePath(location.pathname, ''), currentScope, meQ.data)
 
   return (
@@ -239,38 +328,58 @@ export function MobileSettingsPage() {
 
       <ClientContourCard />
 
-      {showPersonalNotificationPreferences ? (
-        <div className="notifPrefMobileWrap">
-          <NotificationPreferencesPanel />
+      {meQ.isLoading ? <div className="mobileCard mobileMeta" style={{ marginTop: 8 }}>Загружаем доступные разделы…</div> : null}
+      {meQ.isError ? (
+        <div className="mobileNotice mobileNoticeError" style={{ marginTop: 8 }}>
+          {(meQ.error as { message?: string } | null)?.message || String(meQ.error)}
+        </div>
+      ) : null}
+      {!meQ.isLoading && !meQ.isError && groups.length === 0 ? (
+        <div className="mobileCard mobileEmptyState" role="status" style={{ marginTop: 8 }}>
+          <div className="mobileEmptyStateTitle">Для вашей роли нет доступных системных разделов</div>
         </div>
       ) : null}
 
-      <div className="mobileCard mobileProfileMenu" style={{ marginTop: 8 }}>
-        <div className="mobileProfileSectionLabel" style={{ padding: '2px 0 4px' }}>Управление</div>
-        {meQ.isLoading ? <div className="mobileMeta">Загружаем доступные разделы…</div> : null}
-        {meQ.isError ? (
-          <div className="mobileNotice mobileNoticeError">
-            {(meQ.error as { message?: string } | null)?.message || String(meQ.error)}
+      {groups.map((group) => {
+        const open = isGroupOpen(group.id)
+        const regionId = `settingsGroup-${group.id}`
+        return (
+          <div key={group.id} className="mobileCard mobileSettingsGroup" style={{ marginTop: 8 }}>
+            <button
+              type="button"
+              className="mobileSettingsGroupHeader"
+              aria-expanded={open}
+              aria-controls={regionId}
+              onClick={() => toggleGroup(group.id)}
+            >
+              <span className="mobileSettingsGroupTitle">{group.label}</span>
+              <GroupChevron open={open} />
+            </button>
+            {open ? (
+              <div id={regionId} className="mobileSettingsGroupBody">
+                {group.id === 'notifications' ? (
+                  <div className="notifPrefMobileWrap">
+                    <NotificationPreferencesPanel />
+                  </div>
+                ) : (
+                  (group.links || []).map((item) => (
+                    <Link key={item.id} to={item.to} className="mobileProfileMenuItem">
+                      <span className="mobileProfileMenuIcon" aria-hidden>
+                        <ManagementIcon id={item.id} />
+                      </span>
+                      <span className="mobileProfileMenuLabel">
+                        {item.label}
+                        <span className="mobileFieldHint" style={{ display: 'block', margin: 0, fontWeight: 400 }}>{item.hint}</span>
+                      </span>
+                      <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
+                    </Link>
+                  ))
+                )}
+              </div>
+            ) : null}
           </div>
-        ) : null}
-        {!meQ.isLoading && !meQ.isError && managementLinks.length === 0 ? (
-          <div className="mobileEmptyState" role="status">
-            <div className="mobileEmptyStateTitle">Для вашей роли нет доступных системных разделов</div>
-          </div>
-        ) : null}
-        {managementLinks.map((item) => (
-          <Link key={item.id} to={item.to} className="mobileProfileMenuItem">
-            <span className="mobileProfileMenuIcon" aria-hidden>
-              <ManagementIcon id={item.id} />
-            </span>
-            <span className="mobileProfileMenuLabel">
-              {item.label}
-              <span className="mobileFieldHint" style={{ display: 'block', margin: 0, fontWeight: 400 }}>{item.hint}</span>
-            </span>
-            <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
-          </Link>
-        ))}
-      </div>
+        )
+      })}
 
       <div className="mobileCard" style={{ marginTop: 8, textAlign: 'center' }}>
         <div className="mobileMeta">Сервис Менеджер · Mobile Workspace V1</div>

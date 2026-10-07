@@ -13,9 +13,8 @@ import { dateTimeLocalToIso } from '../lib/plannedDueAt'
 import { orderProblemCategories, reconcileCategorySelection } from '../lib/problemCategoryOrdering'
 import {
   TICKET_MEDIA_ACCEPT,
-  normalizeTicketMediaFile,
+  prepareOutgoingTicketMedia,
   ticketMediaKind,
-  validateTicketMediaFile,
 } from '../lib/ticketAttachmentMedia'
 import { cacheLocationSnapshot } from './offline/locationCache'
 
@@ -309,7 +308,7 @@ export function MobileCreateTicket() {
     try {
       for (let i = 0; i < files.length; i++) {
         setDraftUploadProgress({ current: i + 1, total: files.length })
-        const uploaded = await api.uploadDraftTicketAttachment(normalizeTicketMediaFile(files[i]))
+        const uploaded = await api.uploadDraftTicketAttachment(files[i])
         setDraftAttachments((prev) => [...prev, uploaded])
       }
     } catch (e: any) {
@@ -403,7 +402,7 @@ export function MobileCreateTicket() {
     },
   })
 
-  function handlePickedMedia(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handlePickedMedia(e: React.ChangeEvent<HTMLInputElement>) {
     setUploadError(null)
     setError('')
     const list = e.target.files
@@ -412,13 +411,12 @@ export function MobileCreateTicket() {
     if (files.length === 0) return
     const valid: File[] = []
     for (const rawFile of files) {
-      const file = normalizeTicketMediaFile(rawFile)
-      const validationError = validateTicketMediaFile(file)
-      if (validationError) {
-        setUploadError(validationError)
+      const prepared = await prepareOutgoingTicketMedia(rawFile)
+      if (prepared.error) {
+        setUploadError(prepared.error)
         return
       }
-      valid.push(file)
+      valid.push(prepared.file)
     }
     void uploadDraftFiles(valid)
   }

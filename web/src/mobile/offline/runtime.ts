@@ -26,9 +26,17 @@ import { reportApiReachability, subscribeApiReachability } from '../../lib/apiRe
 import { createReachabilityMonitor } from './reachabilityMonitor.js'
 import { requestPersistentStorage } from './persistentStorage.js'
 
+export type Connectivity = 'checking' | 'online' | 'offline'
+
 export type OfflineStatus = {
   /** Хранилище доступно и офлайн-работа сохранится. */
   ready: boolean
+  /**
+   * Проверка связи ещё идёт, два /health подтвердили online,
+   * либо сеть уже доказанно недоступна.
+   * Стартовое checking не есть offline: шапка не пишет «Нет сети».
+   */
+  connectivity: Connectivity
   /**
    * Устойчивый online: два успешных /health подряд после offline
    * (или ещё не теряли связь после подтверждения).
@@ -90,7 +98,7 @@ function enterOffline(reason: 'navigator' | 'transport' | 'health') {
   healthSuccessStreak = 0
   awaitingInitialSyncAfterOnline = false
   const wasOnline = status.online || status.liveApiAllowed
-  emit({ online: false, liveApiAllowed: false })
+  emit({ connectivity: 'offline', online: false, liveApiAllowed: false })
   cancelRetry()
   ensureHealthPolling()
   if (wasOnline) {
@@ -123,7 +131,7 @@ function onHealthProbeResult(ok: boolean) {
     clearHealthConfirmTimer()
     healthSuccessStreak = 0
     reportApiReachability(false)
-    emit({ online: false, liveApiAllowed: false })
+    emit({ connectivity: 'offline', online: false, liveApiAllowed: false })
     return
   }
 
@@ -143,7 +151,7 @@ function onHealthProbeResult(ok: boolean) {
   stopHealthPolling()
   awaitingInitialSyncAfterOnline = true
   reportApiReachability(true)
-  emit({ online: true, liveApiAllowed: false })
+  emit({ connectivity: 'online', online: true, liveApiAllowed: false })
   cancelRetry()
   void finishInitialSyncAfterOnline()
 }
@@ -231,7 +239,8 @@ const listeners = new Set<Listener>()
 
 let status: OfflineStatus = {
   ready: false,
-  // Не доверяем navigator при старте: online только после двух /health.
+  // Связь ещё не проверена. Это не offline: иначе шапка врёт «Нет сети».
+  connectivity: 'checking',
   online: false,
   liveApiAllowed: false,
   pending: 0,
@@ -431,6 +440,12 @@ export async function waitForOfflineStore(timeoutMs = 2000): Promise<OfflineStor
 export function isLiveApiAllowed(): boolean {
   watchConnectivity()
   return status.liveApiAllowed
+}
+
+/** Чтение доски и карточки. checking ещё не offline, в сеть ходить можно. */
+export function canReadFromNetwork(): boolean {
+  watchConnectivity()
+  return status.connectivity !== 'offline'
 }
 
 /**

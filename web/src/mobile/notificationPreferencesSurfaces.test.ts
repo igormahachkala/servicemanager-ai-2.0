@@ -44,7 +44,8 @@ describe('122E поверхность личных настроек', () => {
     // Экран общий для обоих корней — второй реализации для MAX не заводится.
     expect((router().match(/path="settings" element=\{<LazyRoute component=\{MobileSettingsPage\}/g) || []).length).toBe(2)
     expect(source).toMatch(/supportsPersonalNotificationPreferences\(location\.pathname\)/)
-    expect(source).toMatch(/showPersonalNotificationPreferences \?/)
+    // Панель гейтится /m-флагом (теперь — через группу «Уведомления»).
+    expect(source).toContain('if (showPersonalNotificationPreferences)')
     // Панель на экране ровно одна.
     expect((source.match(/<NotificationPreferencesPanel \/>/g) || []).length).toBe(1)
   })
@@ -52,10 +53,10 @@ describe('122E поверхность личных настроек', () => {
   it('5. мобильные настройки не уводят в Management и не редиректят', () => {
     const source = mobileSettings()
     // Ссылки в управленческую часть на экране есть и были до задачи, но
-    // сами настройки уведомлений никуда не перенаправляют.
-    // Срез — ровно охраняемый блок: от условия до его закрытия.
-    const start = source.indexOf('showPersonalNotificationPreferences ?')
-    const guarded = source.slice(start, source.indexOf(') : null}', start))
+    // сами настройки уведомлений никуда не перенаправляют. Панель теперь внутри
+    // сворачиваемой группы «Уведомления»; срез — ровно её блок рендера.
+    const start = source.indexOf("group.id === 'notifications' ?")
+    const guarded = source.slice(start, source.indexOf(') : (', start))
     expect(guarded).toContain('NotificationPreferencesPanel')
     expect(guarded).not.toMatch(/Navigate|workspaces|managementHomePath/)
     expect(panel()).not.toMatch(/Navigate|workspaces|managementHomePath|\/management/)

@@ -11,7 +11,8 @@ import { formatPendingActionsLabel, offlinePendingBannerText, syncNow, useOfflin
 import { getOfflineStatus } from './offline/runtime'
 import { MobileGuidedTour } from './MobileGuidedTour'
 import { MobileShiftGatePrompt } from './MobileShiftGatePrompt'
-import { getMobileRouteRoot, mobilePath } from './mobileRoute'
+import { getMobileRouteRoot, inspectionNavSuffix, mobilePath } from './mobileRoute'
+import { mobileNavSectionForPath, ticketsSlotLabel } from './mobileBottomNav'
 import { syncMaxChatBinding } from '../max/syncMaxChatBinding'
 import './mobile.css'
 
@@ -72,18 +73,20 @@ function NavIcon({ id, active }: { id: string; active: boolean }) {
       <circle cx="12" cy="12" r="3"/>
     </svg>
   )
+  if (id === 'more') return (
+    <svg width={22} height={22} viewBox="0 0 24 24" {...base} aria-hidden>
+      <rect x="4" y="4" width="7" height="7" rx="1.5"/>
+      <rect x="13" y="4" width="7" height="7" rx="1.5"/>
+      <rect x="4" y="13" width="7" height="7" rx="1.5"/>
+      <rect x="13" y="13" width="7" height="7" rx="1.5"/>
+    </svg>
+  )
   return (
     <svg width={22} height={22} viewBox="0 0 24 24" {...base} aria-hidden>
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
       <circle cx="12" cy="7" r="4"/>
     </svg>
   )
-}
-
-function isActivePath(pathname: string, target: string) {
-  const root = getMobileRouteRoot(pathname)
-  if (target === root) return pathname === root
-  return pathname.startsWith(target)
 }
 
 function isProviderLinkedClientRole(role?: api.Role | null) {
@@ -268,12 +271,21 @@ export function MobileShell() {
 
   const unread = notifQ.data?.unreadCount ?? 0
   const mobileRoot = getMobileRouteRoot(location.pathname)
+  // SMA-MOBILE-SERVICE-OS — ролевая нижняя навигация (5 слотов). Второй слот ведёт в
+  // существующий surface /my: техник — «Мои задачи», остальные — «Заявки». Аналитика
+  // убрана из прайм-слота (живёт в «Ещё»). Create — canonical flow /create.
+  const activeNavSection = mobileNavSectionForPath(location.pathname)
   const mobileNavItems: MobileNavItem[] = [
     { id: 'home', label: 'Главная', to: mobileRoot },
-    { id: 'inspection', label: 'Обходы', to: mobilePath(location.pathname, '/inspection') },
+    { id: 'tickets', label: ticketsSlotLabel(meQ.data?.role), to: mobilePath(location.pathname, '/my') },
     { id: 'create', label: '+', to: mobilePath(location.pathname, '/create') },
-    { id: 'analytics', label: 'Аналитика', to: mobilePath(location.pathname, '/analytics') },
-    { id: 'settings', label: 'Настройки', to: mobilePath(location.pathname, '/settings') },
+    {
+      id: 'inspection',
+      label: 'Обходы',
+      // Техник приземляется на «Сегодня»; подсветка — по всему /inspection.
+      to: mobilePath(location.pathname, inspectionNavSuffix(meQ.data?.role)),
+    },
+    { id: 'more', label: 'Ещё', to: mobilePath(location.pathname, '/more') },
   ]
 
   const notificationsHref = api.appendScopeToPath(mobilePath(location.pathname, '/notifications'), scope, meQ.data)
@@ -291,7 +303,7 @@ export function MobileShell() {
               aria-live="polite"
             >
               <span className="mobileConnDot" aria-hidden />
-              <span className="mobileConnText">{isOnline ? 'Онлайн' : 'Офлайн'}</span>
+              <span className="mobileConnText">{isOnline ? 'Онлайн' : offline.connectivity === 'checking' ? 'Проверяем связь' : 'Офлайн'}</span>
             </div>
           </div>
           {canShowLinkedClients ? (
@@ -348,14 +360,14 @@ export function MobileShell() {
             <div>Требует внимания: {offline.attention}</div>
             <span className="mobileOfflineBannerLinkHint">Открыть очередь ›</span>
           </Link>
-        ) : !offline.online && offline.pending > 0 ? (
+        ) : offline.connectivity === 'offline' && offline.pending > 0 ? (
           <Link
             className="mobileOfflineBanner mobileOfflineBannerWarning mobileOfflineBannerLink"
             to={mobilePath(location.pathname, '/offline-queue')}
           >
             <div>{offlinePendingBannerText(offline.pending)}</div>
           </Link>
-        ) : !offline.online ? (
+        ) : offline.connectivity === 'offline' ? (
           <div className="mobileOfflineBanner mobileOfflineBannerWarning">
             <div>Нет сети. Показываем сохранённые данные.</div>
           </div>
@@ -396,7 +408,7 @@ export function MobileShell() {
       <nav className="mobileBottomNav" aria-label="Мобильная навигация" data-mobile-tour="main-menu">
         <div className="mobileBottomNavInner">
           {mobileNavItems.map((item) => {
-            const active = isActivePath(location.pathname, item.to)
+            const active = activeNavSection === item.id
             const isCreate = item.id === 'create'
             if (isCreate) {
               return (
