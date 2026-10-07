@@ -1,15 +1,11 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
-import { mobilePath } from './mobileRoute'
 import { getMobileMoreEntries } from './mobileMoreEntries'
-
-/**
- * SMA-MOBILE-SERVICE-OS — экран «Ещё». Обычный список входов в существующие функции
- * (не огромный popup). Видимость — по существующим ролевым сигналам (getMobileMoreEntries).
- */
+import { mobileReturnToState } from './mobileReturnTo'
+import { MobileModalBackdrop } from './MobileModalBackdrop'
 
 function ChevronRight() {
   return (
@@ -74,7 +70,6 @@ function MoreIcon({ id }: { id: string }) {
       </svg>
     )
   }
-  // profile
   return (
     <svg {...common}>
       <path d="M20 21v-2a4 4 0 0 0 -4 -4H8a4 4 0 0 0 -4 4v2" />
@@ -83,9 +78,20 @@ function MoreIcon({ id }: { id: string }) {
   )
 }
 
-export function MobileMorePage() {
+type Props = { onClose: () => void }
+
+/** Окно списка «Ещё». Маршрут под ним не меняется, пока не выбран пункт. */
+export function MobileMoreSheet({ onClose }: Props) {
   const location = useLocation()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
 
   const currentScope = useMemo(() => {
     const params = new URLSearchParams(location.search)
@@ -96,45 +102,40 @@ export function MobileMorePage() {
 
   const scoped = (to: string) => api.appendScopeToPath(to, currentScope, meQ.data)
   const entries = useMemo(() => getMobileMoreEntries(meQ.data, location.pathname), [meQ.data, location.pathname])
-  const backHref = scoped(mobilePath(location.pathname, ''))
+  const returnState = mobileReturnToState(location.pathname, location.search)
 
   return (
-    <div className="mobileSection">
-      <div className="mobileTicketDetailsToolbar">
-        <Link to={backHref} className="mobileDetailsBackLink mobilePatrolBackLink">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <line x1="19" y1="12" x2="5" y2="12" />
-            <polyline points="12 19 5 12 12 5" />
-          </svg>
-          Главная
-        </Link>
+    <MobileModalBackdrop ariaLabel="Ещё" onClose={onClose} backdropClassName="mobileMoreSheetBackdrop">
+      <div className="mobileMoreSheet">
+        <h1 className="mobileTitle">Ещё</h1>
+        <div className="mobileSubtitle">Разделы, доступные вашей роли</div>
+        <div className="mobileCard mobileProfileMenu" style={{ marginTop: 8 }}>
+          {meQ.isLoading ? <div className="mobileMeta">Загружаем доступные разделы…</div> : null}
+          {!meQ.isLoading && entries.length === 0 ? (
+            <div className="mobileEmptyState" role="status">
+              <div className="mobileEmptyStateTitle">Для вашей роли нет дополнительных разделов</div>
+            </div>
+          ) : null}
+          {entries.map((entry) => (
+            <Link
+              key={entry.id}
+              to={scoped(entry.to)}
+              state={returnState}
+              className="mobileProfileMenuItem"
+              onClick={onClose}
+            >
+              <span className="mobileProfileMenuIcon" aria-hidden>
+                <MoreIcon id={entry.id} />
+              </span>
+              <span className="mobileProfileMenuLabel">
+                {entry.label}
+                <span className="mobileFieldHint" style={{ display: 'block', margin: 0, fontWeight: 400 }}>{entry.hint}</span>
+              </span>
+              <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
+            </Link>
+          ))}
+        </div>
       </div>
-
-      <h1 className="mobileTitle">Ещё</h1>
-      <div className="mobileSubtitle">Разделы, доступные вашей роли</div>
-
-      <div className="mobileCard mobileProfileMenu" style={{ marginTop: 8 }}>
-        {meQ.isLoading ? <div className="mobileMeta">Загружаем доступные разделы…</div> : null}
-        {!meQ.isLoading && entries.length === 0 ? (
-          <div className="mobileEmptyState" role="status">
-            <div className="mobileEmptyStateTitle">Для вашей роли нет дополнительных разделов</div>
-          </div>
-        ) : null}
-        {entries.map((entry) => (
-          <Link key={entry.id} to={scoped(entry.to)} className="mobileProfileMenuItem">
-            <span className="mobileProfileMenuIcon" aria-hidden>
-              <MoreIcon id={entry.id} />
-            </span>
-            <span className="mobileProfileMenuLabel">
-              {entry.label}
-              <span className="mobileFieldHint" style={{ display: 'block', margin: 0, fontWeight: 400 }}>{entry.hint}</span>
-            </span>
-            <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
-          </Link>
-        ))}
-      </div>
-    </div>
+    </MobileModalBackdrop>
   )
 }
-
-export default MobileMorePage

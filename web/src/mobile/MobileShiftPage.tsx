@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
 import { mobilePath } from './mobileRoute'
+import { MobileSectionBackLink } from './MobileSectionBackLink'
 
 function durationLabel(start: string, end?: string | null, now = Date.now()) {
   const startMs = new Date(start).getTime()
@@ -74,6 +75,7 @@ export function MobileShiftPage() {
 
   return (
     <div className="mobileSection">
+      <MobileSectionBackLink />
       <div>
         <h1 className="mobileTitle">Рабочая смена</h1>
         <div className="mobileSubtitle">

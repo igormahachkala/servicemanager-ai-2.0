@@ -5,6 +5,8 @@ import * as api from '../lib/api'
 import { canAccessManagementDesktop, managementHomePath } from '../lib/navigation'
 import { ClientContourCard } from './ClientContourCard'
 import { getMobileRouteRoot, mobilePath, supportsPersonalNotificationPreferences } from './mobileRoute'
+import { MobileSectionBackLink } from './MobileSectionBackLink'
+import { mobileReturnToState } from './mobileReturnTo'
 import { NotificationPreferencesPanel } from '../components/notifications/NotificationPreferencesPanel'
 
 type ManagementLink = {
@@ -309,19 +311,9 @@ export function MobileSettingsPage() {
     })
   }
 
-  const backHref = api.appendScopeToPath(mobilePath(location.pathname, ''), currentScope, meQ.data)
-
   return (
     <div className="mobileSection">
-      <div className="mobileTicketDetailsToolbar">
-        <Link to={backHref} className="mobileDetailsBackLink mobilePatrolBackLink">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <line x1="19" y1="12" x2="5" y2="12" />
-            <polyline points="12 19 5 12 12 5" />
-          </svg>
-          Главная
-        </Link>
-      </div>
+      <MobileSectionBackLink />
 
       <h1 className="mobileTitle">Настройки</h1>
       <div className="mobileSubtitle">Системные и управленческие разделы</div>
@@ -363,7 +355,12 @@ export function MobileSettingsPage() {
                   </div>
                 ) : (
                   (group.links || []).map((item) => (
-                    <Link key={item.id} to={item.to} className="mobileProfileMenuItem">
+                    <Link
+                      key={item.id}
+                      to={item.to}
+                      state={item.id === 'materials' ? mobileReturnToState(location.pathname, location.search) : undefined}
+                      className="mobileProfileMenuItem"
+                    >
                       <span className="mobileProfileMenuIcon" aria-hidden>
                         <ManagementIcon id={item.id} />
                       </span>

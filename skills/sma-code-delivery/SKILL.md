@@ -81,8 +81,9 @@ sma-agent-setup (skills/sma-agent-setup/SKILL.md). Часть шагов тре�
 <step id="2" name="создать ветку задачи">
 <command>
 git fetch origin
-git worktree add &lt;скратчпад&gt;/wt-&lt;тема&gt; -b &lt;тип&gt;/&lt;тема&gt; origin/prod
-cd &lt;скратчпад&gt;/wt-&lt;тема&gt;
+mkdir -p "$HOME/.cursor/worktrees"
+git worktree add "$HOME/.cursor/worktrees/wt-&lt;тема&gt;" -b &lt;тип&gt;/&lt;тема&gt; origin/prod
+cd "$HOME/.cursor/worktrees/wt-&lt;тема&gt;"
 </command>
 <constraint>
 Дальше вся работа идёт в этом каталоге: правки, коммиты, оба деплойных скила.
@@ -103,13 +104,19 @@ cd &lt;скратчпад&gt;/wt-&lt;тема&gt;
 поверх beta вместо её ветки.
 </why_worktree>
 <where>
-Каталог дерева заводится в скратчпаде сессии — том, что отведён ей под
-временные файлы. Путь свой у каждой сессии, агент знает его из своего
-окружения.
+Каталог дерева заводится только в `$HOME/.cursor/worktrees/`.
+Пример. `$HOME/.cursor/worktrees/wt-more-navigation`.
 
-Внутри каталога проекта дерево не заводить: оно попадёт в вывод
-git status основного каталога неотслеживаемым каталогом и сломает проверки
-чистоты копии в деплойных скилах.
+Не заводить дерево в каталоге проекта. Оно попадёт в вывод git status
+основного каталога неотслеживаемым каталогом и сломает проверки чистоты
+копии в деплойных скилах.
+
+Не заводить дерево в AgentStores
+(`Application Support/Cursor/AgentStores/...`). Это store агента, не
+скратчпад worktree. Cursor считает этот путь вне workspace и на каждый
+Read/Write/Delete просит разрешение.
+
+`CURSOR_AGENT_STORE_FILES_DIR` и store агента для worktree не использовать.
 </where>
 <branch_busy>
 Отказ вида
@@ -241,7 +248,7 @@ git diff --check
 Выполняется после того, как ветка влита в prod и удалена из origin —
 шаг 12 sma-deploy-prod.
 
-git worktree remove &lt;скратчпад&gt;/wt-&lt;тема&gt;
+git worktree remove "$HOME/.cursor/worktrees/wt-&lt;тема&gt;"
 
 Команда удаляет каталог дерева вместе с файлами, поэтому спросить
 пользователя до запуска и показать путь. Отказ означает несохранённые

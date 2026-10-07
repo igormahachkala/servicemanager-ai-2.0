@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
 import { mobilePath } from './mobileRoute'
+import { mobileReturnToState } from './mobileReturnTo'
 
 function timerLabel(startedAt: string, now: number) {
   const seconds = Math.max(0, Math.floor((now - new Date(startedAt).getTime()) / 1000))
@@ -71,7 +72,7 @@ export function MobileTicketWorkTimer(props: {
       </div>
 
       {!data?.shift ? (
-        <Link className="mobileBtn mobileBtnSecondary" to={mobilePath(location.pathname, '/shift')} style={{ display: 'block', textAlign: 'center', marginTop: 10 }}>
+        <Link className="mobileBtn mobileBtnSecondary" to={mobilePath(location.pathname, '/shift')} state={mobileReturnToState(location.pathname, location.search)} style={{ display: 'block', textAlign: 'center', marginTop: 10 }}>
           Открыть смену
         </Link>
       ) : runningThisTicket ? (

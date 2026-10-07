@@ -13,13 +13,15 @@ import { MobileGuidedTour } from './MobileGuidedTour'
 import { MobileShiftGatePrompt } from './MobileShiftGatePrompt'
 import { getMobileRouteRoot, inspectionNavSuffix, mobilePath } from './mobileRoute'
 import { mobileNavSectionForPath, ticketsSlotLabel } from './mobileBottomNav'
+import { MobileMoreSheet } from './MobileMoreSheet'
+import { mobileReturnToState } from './mobileReturnTo'
 import { syncMaxChatBinding } from '../max/syncMaxChatBinding'
 import './mobile.css'
 
 type MobileNavItem = {
   id: string
   label: string
-  to: string
+  to?: string
 }
 
 function NavIcon({ id, active }: { id: string; active: boolean }) {
@@ -275,6 +277,13 @@ export function MobileShell() {
   // существующий surface /my: техник — «Мои задачи», остальные — «Заявки». Аналитика
   // убрана из прайм-слота (живёт в «Ещё»). Create — canonical flow /create.
   const activeNavSection = mobileNavSectionForPath(location.pathname)
+  const here = `${location.pathname}${location.search}`
+  const [moreHere, setMoreHere] = useState(here)
+  const [moreOpen, setMoreOpen] = useState(false)
+  if (moreHere !== here) {
+    setMoreHere(here)
+    setMoreOpen(false)
+  }
   const mobileNavItems: MobileNavItem[] = [
     { id: 'home', label: 'Главная', to: mobileRoot },
     { id: 'tickets', label: ticketsSlotLabel(meQ.data?.role), to: mobilePath(location.pathname, '/my') },
@@ -285,7 +294,7 @@ export function MobileShell() {
       // Техник приземляется на «Сегодня»; подсветка — по всему /inspection.
       to: mobilePath(location.pathname, inspectionNavSuffix(meQ.data?.role)),
     },
-    { id: 'more', label: 'Ещё', to: mobilePath(location.pathname, '/more') },
+    { id: 'more', label: 'Ещё' },
   ]
 
   const notificationsHref = api.appendScopeToPath(mobilePath(location.pathname, '/notifications'), scope, meQ.data)
@@ -327,6 +336,7 @@ export function MobileShell() {
           <Link
             className="mobileTopBarAction"
             to={profileHref}
+            state={mobileReturnToState(location.pathname, location.search)}
             aria-label="Личный аккаунт"
           >
             <svg className="mobileTopBarActionIcon" width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -408,16 +418,17 @@ export function MobileShell() {
       <nav className="mobileBottomNav" aria-label="Мобильная навигация" data-mobile-tour="main-menu">
         <div className="mobileBottomNavInner">
           {mobileNavItems.map((item) => {
-            const active = activeNavSection === item.id
+            const active = moreOpen ? item.id === 'more' : activeNavSection === item.id
             const isCreate = item.id === 'create'
             if (isCreate) {
               return (
                 <Link
                   key={item.id}
                   className="mobileNavItemCreate"
-                  to={api.appendScopeToPath(item.to, scope, meQ.data)}
+                  to={api.appendScopeToPath(item.to || '', scope, meQ.data)}
                   aria-label="Создать заявку"
                   data-mobile-tour="create-ticket"
+                  onClick={() => setMoreOpen(false)}
                 >
                   <button type="button" className="mobileNavCreateButton" aria-hidden>
                     +
@@ -425,12 +436,32 @@ export function MobileShell() {
                 </Link>
               )
             }
+            if (item.id === 'more') {
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="mobileNavItem"
+                  aria-expanded={moreOpen}
+                  aria-current={active ? 'page' : undefined}
+                  onClick={() => setMoreOpen((open) => !open)}
+                >
+                  <div className={active ? 'mobileNavButton mobileNavButtonActive' : 'mobileNavButton'}>
+                    <span className="mobileNavIconWrap">
+                      <NavIcon id={item.id} active={active} />
+                    </span>
+                    <span className="mobileNavLabel">{item.label}</span>
+                  </div>
+                </button>
+              )
+            }
             return (
               <Link
                 key={item.id}
                 className="mobileNavItem"
-                to={api.appendScopeToPath(item.to, scope, meQ.data)}
+                to={api.appendScopeToPath(item.to || '', scope, meQ.data)}
                 aria-current={active ? 'page' : undefined}
+                onClick={() => setMoreOpen(false)}
               >
                 <div className={active ? 'mobileNavButton mobileNavButtonActive' : 'mobileNavButton'}>
                   <span className="mobileNavIconWrap">
@@ -444,6 +475,7 @@ export function MobileShell() {
           })}
         </div>
       </nav>
+      {moreOpen ? <MobileMoreSheet onClose={() => setMoreOpen(false)} /> : null}
       <MobileShiftGatePrompt user={meQ.data} />
       <MobileGuidedTour userKey={meQ.data?.id || meQ.data?.email || null} />
     </div>
