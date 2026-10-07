@@ -1,10 +1,16 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 
 import * as api from '../lib/api'
-import { readLocationFilterFromSearch } from '../lib/locationCardSections'
+import {
+  clearLocationFilterPath,
+  locationFilterChipLabel,
+  readLocationFilterFromSearch,
+  readOutboundScopeFromSearch,
+} from '../lib/locationCardSections'
+import { locationCardPath } from '../lib/equipmentCard'
 
 /**
  * SMA-ROUNDS-V1-SCHEDULE-CRUD-098 — минимальный экран планирования обходов.
@@ -57,6 +63,7 @@ export function InspectionSchedulesPage() {
   const qc = useQueryClient()
 
   const [searchParams] = useSearchParams()
+  const routerLocation = useLocation()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const canManage = MANAGER_ROLES.includes(String(meQ.data?.role || ''))
 
@@ -142,6 +149,23 @@ export function InspectionSchedulesPage() {
   })
 
   const schedules = schedulesQ.data || []
+  /* Исходящие ссылки возвращают область тем параметром, которым она пришла. */
+  const outboundScope = readOutboundScopeFromSearch(searchParams)
+
+  /*
+   * Phase 2: сужение по точке должно быть ВИДНО.
+   *
+   * Фильтр приходит из адреса (переход с карточки точки), и без подписи
+   * список выглядел полным — пользователь не понимал, почему обходов
+   * меньше, и не мог снять сужение. Название берётся из доступных данных;
+   * идентификатор не показывается.
+   */
+  const filteredLocationName =
+    locations.find((row) => row.id === locationFilter)?.name
+    || schedules.find((row) => row.location.id === locationFilter)?.location.name
+    || ''
+  const locationChip = locationFilterChipLabel({ locationId: locationFilter, locationName: filteredLocationName })
+  const clearLocationFilterTo = clearLocationFilterPath(routerLocation.pathname, searchParams)
 
   return (
     <div>
@@ -155,6 +179,21 @@ export function InspectionSchedulesPage() {
           </div>
         </div>
       </div>
+
+      {locationChip ? (
+        <div className="panel" style={{ marginBottom: 12, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span className="tag">{locationChip}</span>
+          <span className="muted small">Показаны обходы только этой точки.</span>
+          <Link to={clearLocationFilterTo}>
+            <button className="ghost">Показать все обходы</button>
+          </Link>
+          {locationFilter ? (
+            <Link to={locationCardPath(locationFilter, outboundScope)}>
+              <button className="ghost">Карточка точки</button>
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
 
       {error ? <div className="alert">{error}</div> : null}
       {schedulesQ.isError ? (
@@ -275,7 +314,9 @@ export function InspectionSchedulesPage() {
                 <div>
                   <div style={{ fontWeight: 700 }}>{s.name}</div>
                   <div className="muted small">
-                    {s.template.name} · {s.location.name}
+                    {s.template.name} ·{' '}
+                    {/* Phase 2: из обхода — обратно в карточку точки, с сохранением области. */}
+                    <Link to={locationCardPath(s.location.id, outboundScope)}>{s.location.name}</Link>
                     {s.location.city ? ` · ${s.location.city}` : ''}
                   </div>
                 </div>

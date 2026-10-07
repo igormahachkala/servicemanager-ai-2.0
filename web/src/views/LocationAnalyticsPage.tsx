@@ -2,7 +2,8 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
-import { readLocationFilterFromSearch } from '../lib/locationCardSections'
+import { readLocationFilterFromSearch, readOutboundScopeFromSearch } from '../lib/locationCardSections'
+import { locationCardPath } from '../lib/equipmentCard'
 
 function fmtNumber(v?: number | null) {
   if (typeof v !== 'number' || Number.isNaN(v)) return '—'
@@ -51,6 +52,8 @@ export function LocationAnalyticsPage() {
   const summary = data?.summary
 
   const backLink = buildBackLink({ companyId: scopeCompanyId, linkedClientCompanyId: scopeLinkedClientCompanyId })
+  /* Исходящие ссылки возвращают область тем же параметром, которым она пришла. */
+  const outboundScope = readOutboundScopeFromSearch(searchParams)
 
   function toggleExpand(locId: string) {
     setExpandedLocationId((prev) => (prev === locId ? null : locId))
@@ -174,7 +177,15 @@ export function LocationAnalyticsPage() {
                 onKeyDown={(e) => e.key === 'Enter' && toggleExpand(loc.locationId)}
               >
                 <div style={{ flex: '1 1 200px', minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, marginBottom: 2 }}>{loc.locationName}</div>
+                  {/*
+                    Phase 2: из строки аналитики — обратно в карточку точки.
+                    Область уезжает тем параметром, которым пришла.
+                  */}
+                  <div style={{ fontWeight: 700, marginBottom: 2 }}>
+                    <Link to={locationCardPath(loc.locationId, outboundScope)} onClick={(e) => e.stopPropagation()}>
+                      {loc.locationName}
+                    </Link>
+                  </div>
                   {(loc.city || loc.address) ? (
                     <div className="muted small">{[loc.city, loc.address].filter(Boolean).join(', ')}</div>
                   ) : null}

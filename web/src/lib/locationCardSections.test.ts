@@ -4,7 +4,14 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { isManagementNavItemVisible } from './navigation'
-import { locationSectionLinks, readLocationFilterFromSearch } from './locationCardSections'
+import {
+  clearLocationFilterPath,
+  locationFilterChipLabel,
+  locationSectionLinks,
+  readLocationFilterFromSearch,
+  readOutboundScopeFromSearch,
+} from './locationCardSections'
+import { locationCardPath } from './equipmentCard'
 import type { Role } from './api'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -145,5 +152,128 @@ describe('LOCATION CARD V2 Phase 1: переходы узла', () => {
     // Модуль решает только маршрутизацию: ни запросов, ни прав.
     expect(sections).not.toMatch(/fetch\(|api\./)
     expect(sections).not.toMatch(/PERMISSION|ANALYTICS_VIEW|LOCATIONS_MANAGE/)
+  })
+})
+
+describe('LOCATION CARD V2 Phase 2: обратные переходы и видимый фильтр', () => {
+  it('12. область исходящих ссылок = тот параметр, которым пришла', () => {
+    expect(readOutboundScopeFromSearch(new URLSearchParams('linkedClientCompanyId=client-A'))).toEqual({
+      linkedClientCompanyId: 'client-A',
+    })
+    expect(readOutboundScopeFromSearch(new URLSearchParams('companyId=observed-1'))).toEqual({
+      companyId: 'observed-1',
+    })
+    // Пустая область — чистый объект, ничего не затирается.
+    expect(readOutboundScopeFromSearch(new URLSearchParams(''))).toEqual({})
+    expect(readOutboundScopeFromSearch(null)).toEqual({})
+    expect(readOutboundScopeFromSearch(new URLSearchParams('companyId=   '))).toEqual({})
+  })
+
+  it('13. ИНВАРИАНТ Phase 2: provider contour не превращается в companyId', () => {
+    const scope = readOutboundScopeFromSearch(new URLSearchParams('linkedClientCompanyId=client-A'))
+    const href = locationCardPath('loc-1', scope)
+    expect(href).toBe('/locations/loc-1?linkedClientCompanyId=client-A')
+    expect(href).not.toContain('companyId=client-A')
+  })
+
+  it('14. Equipment → Location и разделы точки сохраняют область', () => {
+    const card = codeOf(readSrc('views/EquipmentCardPage.tsx'))
+    // Обратный переход в карточку точки уже был — проверяем, что он с областью.
+    expect(card).toContain('locationCardPath(item.location.id, createScope)')
+    // Разделы точки добавлены и тоже с областью.
+    expect(card).toContain('locationSectionLinks({')
+    expect(card).toContain('scope: createScope')
+    expect(card).toContain('to={locationSections.rounds}')
+    expect(card).toContain('to={locationSections.analytics}')
+    // Аналитика — по каноническому гейту, не по своему условию.
+    expect(card).toContain("isManagementNavItemVisible('/analytics/locations'")
+  })
+
+  it('15. подписи не обещают фильтра по оборудованию, которого нет в API', () => {
+    /*
+     * Ни InspectionScheduleFilters, ни analyticsLocations не принимают
+     * equipmentId, поэтому разделы названы «точки», а сужение идёт по
+     * locationId. Декоративных ссылок не добавляем.
+     */
+    const card = readSrc('views/EquipmentCardPage.tsx')
+    expect(card).toContain('Обходы точки')
+    expect(card).toContain('Аналитика точки')
+    expect(card).not.toMatch(/Обходы оборудования|Аналитика оборудования/)
+
+    const apiSrc = readSrc('lib/api.ts')
+    const filters = apiSrc.slice(
+      apiSrc.indexOf('export type InspectionScheduleFilters'),
+      apiSrc.indexOf('}', apiSrc.indexOf('export type InspectionScheduleFilters')),
+    )
+    expect(filters).toContain('locationId')
+    expect(filters).not.toContain('equipmentId')
+  })
+
+  it('16. Rounds → Location: строка обхода ведёт в карточку с областью', () => {
+    const page = codeOf(readSrc('views/InspectionSchedulesPage.tsx'))
+    expect(page).toContain('locationCardPath(s.location.id, outboundScope)')
+    expect(page).toContain('readOutboundScopeFromSearch(searchParams)')
+  })
+
+  it('17. Analytics → Location: строка аналитики ведёт в карточку с областью', () => {
+    const page = codeOf(readSrc('views/LocationAnalyticsPage.tsx'))
+    expect(page).toContain('locationCardPath(loc.locationId, outboundScope)')
+    expect(page).toContain('readOutboundScopeFromSearch(searchParams)')
+  })
+
+  it('18. видимый фильтр по точке: подпись без идентификатора', () => {
+    expect(locationFilterChipLabel({ locationId: 'loc-1', locationName: 'Фудзияма' })).toBe('Точка: Фудзияма')
+    // Названия нет — подпись общая, UUID не показывается.
+    const noName = locationFilterChipLabel({ locationId: 'loc-1' })
+    expect(noName).toBe('Фильтр по точке')
+    expect(noName).not.toContain('loc-1')
+    // Фильтра нет — чипа нет.
+    expect(locationFilterChipLabel({ locationId: '', locationName: 'Фудзияма' })).toBeNull()
+    expect(locationFilterChipLabel({ locationId: '  ' })).toBeNull()
+  })
+
+  it('19. очистка фильтра снимает только точку, контур остаётся', () => {
+    const cleared = clearLocationFilterPath(
+      '/inspection/schedules',
+      new URLSearchParams('locationId=loc-1&linkedClientCompanyId=client-A&active=true'),
+    )
+    expect(cleared).not.toContain('locationId')
+    expect(cleared).toContain('linkedClientCompanyId=client-A')
+    expect(cleared).toContain('active=true')
+
+    // Без прочих параметров — чистый путь.
+    expect(clearLocationFilterPath('/inspection/schedules', new URLSearchParams('locationId=loc-1'))).toBe(
+      '/inspection/schedules',
+    )
+  })
+
+  it('20. Rounds показывает чип и действие очистки', () => {
+    const page = codeOf(readSrc('views/InspectionSchedulesPage.tsx'))
+    expect(page).toContain('locationFilterChipLabel({')
+    expect(page).toContain('clearLocationFilterPath(')
+    expect(page).toContain('{locationChip}')
+    expect(page).toContain('Показать все обходы')
+    // Чип не показывается без фильтра.
+    expect(page).toContain('{locationChip ? (')
+  })
+
+  it('21. чип не расширяет доступ: сужение остаётся запросом к бэкенду', () => {
+    const page = codeOf(readSrc('views/InspectionSchedulesPage.tsx'))
+    // Фильтр уходит в API, а не фильтруется на клиенте поверх полного списка.
+    expect(page).toContain('locationFilter ? { locationId: locationFilter } : undefined')
+    expect(page).not.toMatch(/schedules\.filter\(/)
+  })
+
+  it('22. скрытая сущность не открывается навигацией', () => {
+    /*
+     * Ссылки ведут на существующие маршруты с существующими правами:
+     * карточка точки отвечает 404 на недоступную точку (бэкенд), и
+     * одинаково — на несуществующую. Навигация прав не выдаёт.
+     */
+    const sections = codeOf(readSrc('lib/locationCardSections.ts'))
+    expect(sections).not.toMatch(/fetch\(|api\./)
+    expect(sections).not.toMatch(/PERMISSION|ROLE|isAdmin/)
+    // Аналитика скрывается гейтом, а не доверием к серверу.
+    expect(locationSectionLinks({ locationId: 'loc-1', canViewAnalytics: false }).analytics).toBeNull()
   })
 })

@@ -86,3 +86,56 @@ export function locationSectionLinks(input: {
 export function readLocationFilterFromSearch(search: URLSearchParams | null | undefined): string {
   return (search?.get('locationId') || '').trim()
 }
+
+/**
+ * Область для исходящих ссылок — тем параметром, которым она пришла.
+ *
+ * Phase 2: обратные переходы (оборудование → точка, обход → точка,
+ * аналитика → точка) обязаны сохранять контур. Своей области принимающие
+ * страницы не выводят, поэтому «угадывать» параметр нельзя: пришедший
+ * параметр и есть контур пользователя.
+ *
+ * Отсутствующий ключ ничего не затирает: возвращается ровно один,
+ * и пустая область даёт чистый путь.
+ */
+export function readOutboundScopeFromSearch(
+  search: URLSearchParams | null | undefined,
+): ScopeParams {
+  const companyId = (search?.get('companyId') || '').trim()
+  if (companyId) return { companyId }
+  const linkedClientCompanyId = (search?.get('linkedClientCompanyId') || '').trim()
+  if (linkedClientCompanyId) return { linkedClientCompanyId }
+  return {}
+}
+
+/**
+ * Подпись активного фильтра по точке.
+ *
+ * Идентификатор пользователю не показывается: если названия нет, подпись
+ * остаётся общей. Показывать UUID в интерфейсе нельзя.
+ */
+export function locationFilterChipLabel(input: {
+  locationId: string
+  locationName?: string | null
+}): string | null {
+  const locationId = (input.locationId || '').trim()
+  if (!locationId) return null
+  const name = (input.locationName || '').trim()
+  return name ? `Точка: ${name}` : 'Фильтр по точке'
+}
+
+/**
+ * Путь без сужения по точке — для действия «очистить фильтр».
+ *
+ * Остальные параметры сохраняются: снимается только точка, а не контур.
+ * Доступ этим не расширяется — список и так ограничен бэкендом.
+ */
+export function clearLocationFilterPath(
+  pathname: string,
+  search: URLSearchParams | null | undefined,
+): string {
+  const next = new URLSearchParams(search ? search.toString() : '')
+  next.delete('locationId')
+  const query = next.toString()
+  return query ? `${pathname}?${query}` : pathname
+}
