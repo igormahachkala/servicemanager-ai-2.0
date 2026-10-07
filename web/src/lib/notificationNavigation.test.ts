@@ -38,6 +38,7 @@ function loadServiceWorker() {
     setTimeout,
     clearTimeout,
     fetch: async () => undefined,
+    importScripts() {},
     self,
   })
   vm.runInContext(swSource, context, { filename: 'sw.js' })
