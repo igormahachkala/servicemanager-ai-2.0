@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { locationCardPath } from '../lib/equipmentCard'
+import { readOutboundScopeFromSearch } from '../lib/locationCardSections'
 
 function fmtDateTime(value?: string | null) {
   if (!value) return '—'
@@ -51,6 +53,8 @@ function durationLabel(startedAt?: string | null, completedAt?: string | null) {
 const EMPTY_FILTER: api.InspectionRunsFilter = {}
 
 export function InspectionRunsPage() {
+  const [searchParams] = useSearchParams()
+  const outboundScope = readOutboundScopeFromSearch(searchParams)
   const [filter, setFilter] = useState<api.InspectionRunsFilter>(EMPTY_FILTER)
 
   const runsQ = useQuery({
@@ -199,7 +203,9 @@ export function InspectionRunsPage() {
                     {/* Снимок названия на момент запуска, не живое имя шаблона. */}
                     <div style={{ fontWeight: 700 }}>{run.title}</div>
                     <div className="muted small">
-                      {run.location.name}{run.location.city ? ` · ${run.location.city}` : ''}
+                      {/* Phase 3: из строки обхода — в карточку точки. */}
+                      <Link to={locationCardPath(run.location.id, outboundScope)}>{run.location.name}</Link>
+                      {run.location.city ? ` · ${run.location.city}` : ''}
                       {run.equipment?.name ? ` · ${run.equipment.name}` : ''}
                     </div>
                   </div>

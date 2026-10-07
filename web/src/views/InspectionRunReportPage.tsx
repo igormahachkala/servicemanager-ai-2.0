@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { locationCardPath } from '../lib/equipmentCard'
+import { readOutboundScopeFromSearch } from '../lib/locationCardSections'
 import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 import { ProtectedUploadThumbLink } from '../ui/ProtectedUploadMedia'
 
@@ -62,6 +64,8 @@ function reportStatusLabel(status: api.InspectionReportStatus) {
 
 export function InspectionRunReportPage() {
   const { id = '' } = useParams<{ id: string }>()
+  const [searchParams] = useSearchParams()
+  const outboundScope = readOutboundScopeFromSearch(searchParams)
   const queryClient = useQueryClient()
   const [reviewComment, setReviewComment] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
@@ -207,7 +211,12 @@ export function InspectionRunReportPage() {
           <section className="workActMetaGrid">
             <div className="workActMetaCard">
               <div className="muted small">Локация</div>
-              <div className="workActStrong">{report.run.location.name}</div>
+              <div className="workActStrong">
+                {/* Phase 3: из отчёта — обратно в карточку точки. */}
+                <Link to={locationCardPath(report.run.location.id, outboundScope)}>
+                  {report.run.location.name}
+                </Link>
+              </div>
               <div className="muted small">{report.run.location.platformCode || '—'}{report.run.location.city ? ` · ${report.run.location.city}` : ''}</div>
               <div className="muted small">{report.run.location.address || '—'}</div>
             </div>

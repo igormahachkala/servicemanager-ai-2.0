@@ -557,9 +557,20 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
     expect(cardCode).toContain("const backTo = '/equipment'")
     expect(cardCode).not.toMatch(/backTo = companyId \?/)
 
-    // Проверяем само утверждение: список действительно не читает адрес.
+    /*
+     * Проверяется само утверждение, от которого зависит «К списку» без
+     * области: список НЕ берёт свою область доступа из адреса.
+     *
+     * Прежняя редакция проверяла это через отсутствие useSearchParams
+     * вообще. После Phase 1/3 список читает адрес — но только для сужения
+     * по точке и для исходящих ссылок чипа; область доступа по-прежнему
+     * выводится из выбранного клиента. Поэтому проверка стала точной, а
+     * не приблизительной.
+     */
     const listCode = codeOf(readSrc('views/EquipmentPage.tsx'))
-    expect(listCode).not.toContain('useSearchParams')
+    expect(listCode).toContain("const scopeCompanyId = isProviderScope ? selectedClientId : ''")
+    expect(listCode).not.toMatch(/scopeCompanyId\s*=\s*[^\n]*searchParams/)
+    expect(listCode).not.toMatch(/companyId:\s*searchParams\.get/)
   })
 
   it('мобильная заявка не ведёт в карточку без области', () => {

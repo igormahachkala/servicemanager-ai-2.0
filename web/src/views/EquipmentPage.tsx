@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
-import { readLocationFilterFromSearch } from '../lib/locationCardSections'
-import { EQUIPMENT_PARTS_MANAGER_ROLES, equipmentCardPath } from '../lib/equipmentCard'
+import {
+  clearLocationFilterPath,
+  locationFilterChipLabel,
+  readLocationFilterFromSearch,
+  readOutboundScopeFromSearch,
+} from '../lib/locationCardSections'
+import { EQUIPMENT_PARTS_MANAGER_ROLES, equipmentCardPath, locationCardPath } from '../lib/equipmentCard'
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
 import { EquipmentHistoryTab } from '../components/equipment/EquipmentHistoryTab'
 import { EquipmentPartsTab } from '../components/equipment/EquipmentPartsTab'
@@ -197,11 +202,30 @@ export function EquipmentPage() {
   })
 
   const rows = listQ.data || []
+  const [searchParams] = useSearchParams()
+  const routerLocation = useLocation()
+
+  /*
+   * SMA-MANAGEMENT-UX Phase 3: сужение по точке должно быть ВИДНО.
+   *
+   * Phase 1 научила список читать locationId из адреса, но подписи не
+   * было: переход с карточки точки давал короткий список без объяснения,
+   * и снять сужение было нечем. Название берётся из уже загруженных
+   * точек; идентификатор пользователю не показывается.
+   */
+  const outboundScope = readOutboundScopeFromSearch(searchParams)
+  const clearLocationFilterTo = clearLocationFilterPath(routerLocation.pathname, searchParams)
+
   const locationOptions = useMemo(() => {
     const list = [...(locationsQ.data || [])]
     list.sort((a, b) => `${a.platformCode || ''} ${a.name}`.localeCompare(`${b.platformCode || ''} ${b.name}`))
     return list
   }, [locationsQ.data])
+
+  const locationChip = locationFilterChipLabel({
+    locationId: locationFilter,
+    locationName: locationOptions.find((row) => row.id === locationFilter)?.name || '',
+  })
 
   const selected = rows.find((row) => row.id === selectedId) || null
 
@@ -310,6 +334,18 @@ export function EquipmentPage() {
         <div className="row">
           <div>
             <h2 style={{ marginBottom: 4 }}>Оборудование</h2>
+            {locationChip ? (
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 4 }}>
+                <span className="tag">{locationChip}</span>
+                <span className="muted small">Показано оборудование только этой точки.</span>
+                <Link to={clearLocationFilterTo}>
+                  <button className="ghost">Показать всё оборудование</button>
+                </Link>
+                <Link to={locationCardPath(locationFilter, outboundScope)}>
+                  <button className="ghost">Карточка точки</button>
+                </Link>
+              </div>
+            ) : null}
             <div className="muted small">
               {listQ.isFetching ? 'Загрузка…' : `Найдено единиц: ${rows.length}`}
             </div>

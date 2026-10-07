@@ -277,3 +277,96 @@ describe('LOCATION CARD V2 Phase 2: обратные переходы и вид�
     expect(locationSectionLinks({ locationId: 'loc-1', canViewAnalytics: false }).analytics).toBeNull()
   })
 })
+
+describe('MANAGEMENT UX Phase 3: переходы в Location Hub', () => {
+  it('23. Tickets → Location: объект заявки ведёт в карточку с областью', () => {
+    const page = codeOf(readSrc('views/TicketPage.tsx'))
+    expect(page).toContain('locationCardPath(ticket.location.id, { companyId: observerCompanyId, linkedClientCompanyId: effectiveLinkedClientCompanyId })')
+    // Отдельного запроса ради ссылки не появилось: данные уже в ответе заявки.
+    expect(page).not.toMatch(/useQuery\([^)]*getLocation\(/)
+  })
+
+  it('24. Rounds run/result → Location: все три страницы с областью', () => {
+    for (const file of ['views/InspectionRunPage.tsx', 'views/InspectionRunReportPage.tsx', 'views/InspectionRunsPage.tsx']) {
+      const page = codeOf(readSrc(file))
+      expect(page, file).toContain('readOutboundScopeFromSearch(searchParams)')
+      expect(page, file).toMatch(/locationCardPath\([^)]*outboundScope\)/)
+    }
+  })
+
+  it('25. Equipment list: сужение по точке видно и снимается', () => {
+    const page = codeOf(readSrc('views/EquipmentPage.tsx'))
+    expect(page).toContain('locationFilterChipLabel({')
+    expect(page).toContain('{locationChip}')
+    expect(page).toContain('Показать всё оборудование')
+    expect(page).toContain('clearLocationFilterPath(')
+    expect(page).toContain('locationCardPath(locationFilter, outboundScope)')
+    // Чипа нет, когда фильтра нет.
+    expect(page).toContain('{locationChip ? (')
+    // Сужение остаётся запросом к бэкенду, не фильтром поверх полного списка.
+    expect(page).toContain('locationId: locationFilter || undefined')
+  })
+
+  it('26. очистка фильтра сохраняет контур и прочие параметры', () => {
+    const cleared = clearLocationFilterPath(
+      '/equipment',
+      new URLSearchParams('locationId=loc-1&linkedClientCompanyId=client-A&status=ACTIVE'),
+    )
+    expect(cleared).not.toContain('locationId')
+    expect(cleared).toContain('linkedClientCompanyId=client-A')
+    expect(cleared).toContain('status=ACTIVE')
+  })
+
+  it('27. ИНВАРИАНТ: provider linked-client контур не downgrade ни в одной новой ссылке', () => {
+    const scope = readOutboundScopeFromSearch(new URLSearchParams('linkedClientCompanyId=client-A'))
+    expect(scope).toEqual({ linkedClientCompanyId: 'client-A' })
+    const href = locationCardPath('loc-1', scope)
+    expect(href).toBe('/locations/loc-1?linkedClientCompanyId=client-A')
+    expect(href).not.toContain('companyId=client-A')
+
+    // Наблюдательский контур остаётся companyId.
+    const observer = readOutboundScopeFromSearch(new URLSearchParams('companyId=observed-1'))
+    expect(locationCardPath('loc-1', observer)).toBe('/locations/loc-1?companyId=observed-1')
+  })
+
+  it('28. UUID в подписях не показывается ни в одном чипе', () => {
+    const noName = locationFilterChipLabel({ locationId: 'b3f1c2d4-aaaa-bbbb-cccc-ddddeeeeffff' })
+    expect(noName).toBe('Фильтр по точке')
+    expect(noName).not.toMatch(/[0-9a-f]{8}-/)
+  })
+
+  it('29. consistency: ссылки на точку собираются helper-ом, а не руками', () => {
+    for (const file of [
+      'views/TicketPage.tsx',
+      'views/EquipmentPage.tsx',
+      'views/InspectionRunPage.tsx',
+      'views/InspectionRunReportPage.tsx',
+      'views/InspectionRunsPage.tsx',
+      'views/InspectionSchedulesPage.tsx',
+      'views/LocationAnalyticsPage.tsx',
+    ]) {
+      const page = codeOf(readSrc(file))
+      // Ручной сборки пути к карточке точки не осталось.
+      expect(page, file).not.toMatch(/`\/locations\/\$\{/)
+      expect(page, file).not.toMatch(/'\/locations\/'\s*\+/)
+    }
+  })
+
+  it('30. подписи не обещают equipment-level фильтров', () => {
+    /*
+     * Бэкенд принимает только locationId; equipmentId ни в обходах, ни в
+     * аналитике не поддержан, и обещать его нельзя.
+     */
+    for (const file of ['views/EquipmentCardPage.tsx', 'views/EquipmentPage.tsx']) {
+      const page = readSrc(file)
+      expect(page, file).not.toMatch(/Обходы оборудования|Аналитика оборудования/)
+    }
+  })
+
+  it('31. навигация прав не выдаёт: роли и права не трогаются', () => {
+    const sections = codeOf(readSrc('lib/locationCardSections.ts'))
+    expect(sections).not.toMatch(/PERMISSION|UserRole|isAdmin|canManage/)
+    // Аналитика по-прежнему скрывается гейтом.
+    expect(locationSectionLinks({ locationId: 'loc-1', canViewAnalytics: false }).analytics).toBeNull()
+  })
+})
