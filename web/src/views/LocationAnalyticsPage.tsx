@@ -2,6 +2,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { readLocationFilterFromSearch } from '../lib/locationCardSections'
 
 function fmtNumber(v?: number | null) {
   if (typeof v !== 'number' || Number.isNaN(v)) return '—'
@@ -24,7 +25,8 @@ export function LocationAnalyticsPage() {
 
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
-  const [locationId, setLocationId] = useState('')
+  /* SMA-LOCATION-CARD-V2: точка приходит из адреса — иначе переход с карточки не сужает. */
+  const [locationId, setLocationId] = useState(() => readLocationFilterFromSearch(searchParams))
   const [categoryId, setCategoryId] = useState('')
   const [minTickets, setMinTickets] = useState('')
   const [expandedLocationId, setExpandedLocationId] = useState<string | null>(null)

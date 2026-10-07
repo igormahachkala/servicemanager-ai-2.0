@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
+import { useSearchParams } from 'react-router-dom'
+
 import * as api from '../lib/api'
+import { readLocationFilterFromSearch } from '../lib/locationCardSections'
 
 /**
  * SMA-ROUNDS-V1-SCHEDULE-CRUD-098 — минимальный экран планирования обходов.
@@ -53,10 +56,20 @@ function toIsoStartDate(date: string, time: string) {
 export function InspectionSchedulesPage() {
   const qc = useQueryClient()
 
+  const [searchParams] = useSearchParams()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const canManage = MANAGER_ROLES.includes(String(meQ.data?.role || ''))
 
-  const schedulesQ = useQuery({ queryKey: ['inspection-schedules'], queryFn: () => api.getInspectionSchedules() })
+  /*
+   * SMA-LOCATION-CARD-V2: переход с карточки точки сужает план обходов до
+   * этой точки. Фильтр уже поддержан API (getInspectionSchedules.locationId),
+   * страница его просто не читала — ссылка открывала полный план.
+   */
+  const locationFilter = readLocationFilterFromSearch(searchParams)
+  const schedulesQ = useQuery({
+    queryKey: ['inspection-schedules', locationFilter],
+    queryFn: () => api.getInspectionSchedules(locationFilter ? { locationId: locationFilter } : undefined),
+  })
   const templatesQ = useQuery({ queryKey: ['inspection-templates'], queryFn: api.getInspectionTemplates, enabled: canManage })
   const techniciansQ = useQuery({ queryKey: ['technicians'], queryFn: api.technicians, enabled: canManage })
   const linkedClientsQ = useQuery({ queryKey: ['linked-clients'], queryFn: api.getLinkedClients, enabled: canManage })

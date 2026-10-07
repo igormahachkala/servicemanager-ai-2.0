@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { readLocationFilterFromSearch } from '../lib/locationCardSections'
 import { EQUIPMENT_PARTS_MANAGER_ROLES, equipmentCardPath } from '../lib/equipmentCard'
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
 import { EquipmentHistoryTab } from '../components/equipment/EquipmentHistoryTab'
@@ -125,7 +126,15 @@ export function EquipmentPage() {
   const [success, setSuccess] = useState<string | null>(null)
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
-  const [locationFilter, setLocationFilter] = useState('')
+  /*
+   * SMA-LOCATION-CARD-V2: сужение до точки приходит из адреса.
+   *
+   * Без этого ссылка с карточки точки открывала бы полный список —
+   * переход выглядел бы рабочим, но контекст точки терялся.
+   */
+  const [locationFilter, setLocationFilter] = useState(() =>
+    readLocationFilterFromSearch(new URLSearchParams(window.location.search)),
+  )
   const [statusFilter, setStatusFilter] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mode, setMode] = useState<'view' | 'edit' | 'create'>('view')
