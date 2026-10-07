@@ -23,6 +23,7 @@ import {
   boardFilterReconciliation,
   equipmentTicketsLink,
   locationCardPath,
+  resolveEquipmentClientScope,
   locationsListPath,
   isEquipmentRetired,
   isWarrantyExpired,
@@ -558,19 +559,19 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
     expect(cardCode).not.toMatch(/backTo = companyId \?/)
 
     /*
-     * Проверяется само утверждение, от которого зависит «К списку» без
-     * области: список НЕ берёт свою область доступа из адреса.
+     * Прежняя редакция опиралась на то, что список вообще не читает адрес.
+     * Независимое ревью это опровергло: список ОБЯЗАН потреблять область
+     * из адреса, иначе переход «точка → оборудование» у провайдера с
+     * несколькими клиентами открывал чужой контур.
      *
-     * Прежняя редакция проверяла это через отсутствие useSearchParams
-     * вообще. После Phase 1/3 список читает адрес — но только для сужения
-     * по точке и для исходящих ссылок чипа; область доступа по-прежнему
-     * выводится из выбранного клиента. Поэтому проверка стала точной, а
-     * не приблизительной.
+     * «К списку» при этом остаётся без параметров, и контур не теряется:
+     * область берётся каноническим помощником, который при пустом адресе
+     * падает на сохранённую область — а она к этому моменту уже равна
+     * нужному клиенту. Именно это и проверяется.
      */
     const listCode = codeOf(readSrc('views/EquipmentPage.tsx'))
-    expect(listCode).toContain("const scopeCompanyId = isProviderScope ? selectedClientId : ''")
-    expect(listCode).not.toMatch(/scopeCompanyId\s*=\s*[^\n]*searchParams/)
-    expect(listCode).not.toMatch(/companyId:\s*searchParams\.get/)
+    expect(listCode).toContain('api.getLinkedClientCompanyId(meQ.data)')
+    expect(listCode).not.toMatch(/scopeCompanyId\s*=\s*[^\n]*searchParams\.get\('linkedClientCompanyId'\)/)
   })
 
   it('мобильная заявка не ведёт в карточку без области', () => {
@@ -886,5 +887,120 @@ describe('V2 объём фундамента', () => {
   it('схема и миграции не затронуты этим фундаментом', () => {
     // Решение владельца: lifecycle enum и FailureCause — отдельной задачей.
     expect(cardCode).not.toContain('lifecycleStatus')
+  })
+})
+
+describe('P1: список оборудования потребляет область из адреса', () => {
+  const AB = ['client-A', 'client-B']
+
+  it('МНОГО КЛИЕНТОВ: URL говорит B — выбирается B, а не A', () => {
+    /*
+     * Ровно тот дефект: провайдер связан с A и B, подсказка профиля — A,
+     * переход с карточки точки несёт linkedClientCompanyId=B. Прежняя
+     * логика брала подсказку и запрашивала A с точкой клиента B: пустой
+     * либо чужой контур.
+     */
+    expect(
+      resolveEquipmentClientScope({
+        isProviderScope: true,
+        linkedClientIds: AB,
+        requestedLinkedClientCompanyId: 'client-B',
+        profileHintClientCompanyId: 'client-A',
+      }),
+    ).toBe('client-B')
+  })
+
+  it('URL важнее уже выбранного клиента', () => {
+    expect(
+      resolveEquipmentClientScope({
+        isProviderScope: true,
+        linkedClientIds: AB,
+        requestedLinkedClientCompanyId: 'client-B',
+        currentSelectedClientId: 'client-A',
+        profileHintClientCompanyId: 'client-A',
+      }),
+    ).toBe('client-B')
+  })
+
+  it('без области в адресе работает прежний fallback', () => {
+    // Подсказка профиля.
+    expect(
+      resolveEquipmentClientScope({
+        isProviderScope: true,
+        linkedClientIds: AB,
+        profileHintClientCompanyId: 'client-A',
+      }),
+    ).toBe('client-A')
+
+    // Единственный клиент.
+    expect(
+      resolveEquipmentClientScope({ isProviderScope: true, linkedClientIds: ['client-A'] }),
+    ).toBe('client-A')
+
+    // Уже выбранный клиент не сбрасывается.
+    expect(
+      resolveEquipmentClientScope({
+        isProviderScope: true,
+        linkedClientIds: AB,
+        currentSelectedClientId: 'client-B',
+      }),
+    ).toBe('client-B')
+
+    // Несколько клиентов и ничего не выбрано — выбор за пользователем.
+    expect(resolveEquipmentClientScope({ isProviderScope: true, linkedClientIds: AB })).toBe('')
+  })
+
+  it('ЧУЖАЯ область из адреса доступа не даёт', () => {
+    // Не среди связанных клиентов — игнорируется, подставляется fallback.
+    expect(
+      resolveEquipmentClientScope({
+        isProviderScope: true,
+        linkedClientIds: AB,
+        requestedLinkedClientCompanyId: 'client-FOREIGN',
+        profileHintClientCompanyId: 'client-A',
+      }),
+    ).toBe('client-A')
+
+    // И без fallback остаётся пусто, а не чужой идентификатор.
+    expect(
+      resolveEquipmentClientScope({
+        isProviderScope: true,
+        linkedClientIds: AB,
+        requestedLinkedClientCompanyId: 'client-FOREIGN',
+      }),
+    ).toBe('')
+  })
+
+  it('не провайдер — клиентского контура нет', () => {
+    expect(
+      resolveEquipmentClientScope({
+        isProviderScope: false,
+        linkedClientIds: [],
+        requestedLinkedClientCompanyId: 'client-B',
+      }),
+    ).toBe('')
+  })
+
+  it('страница ДЕЙСТВИТЕЛЬНО потребляет область из адреса', () => {
+    const page = codeOf(readSrc('views/EquipmentPage.tsx'))
+
+    // Канонический помощник, а не второй резолвер.
+    expect(page).toContain('api.getLinkedClientCompanyId(meQ.data)')
+    expect(page).toContain('resolveEquipmentClientScope({')
+    expect(page).toContain('requestedLinkedClientCompanyId,')
+
+    // Область уходит в запрос списка.
+    expect(page).toContain('companyId: scopeCompanyId || undefined')
+    // Наблюдательский контур тоже учитывается.
+    expect(page).toContain('const scopeCompanyId = isProviderScope ? selectedClientId : requestedObserverCompanyId')
+
+    // linkedClientCompanyId не превращается в companyId при чтении.
+    expect(page).not.toMatch(/companyId:\s*requestedLinkedClientCompanyId/)
+  })
+
+  it('locationId из адреса по-прежнему сужает список', () => {
+    const page = codeOf(readSrc('views/EquipmentPage.tsx'))
+    expect(page).toContain('readLocationFilterFromSearch(')
+    expect(page).toContain('locationId: locationFilter || undefined')
   })
 })
