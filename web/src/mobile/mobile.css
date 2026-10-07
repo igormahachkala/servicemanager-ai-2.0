@@ -1562,23 +1562,25 @@ a.mobileBtn.mobileCreateTicketLink {
   min-width: 0;
 }
 
-/** Нижняя панель действий на карточке заявки — не перекрывать контент скролла. */
+/** Нижняя панель действий на карточке заявки — не перекрывать контент скролла.
+ *  Высота: панель (~132px) + нижнее меню (~82px) + safe-area. */
 .mobileTicketDetailsRoot--opsDock {
-  padding-bottom: calc(132px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(214px + env(safe-area-inset-bottom, 0px));
 }
 
 .mobileTicketOpsDock.mobileTicketOpsDock--fixed {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
+  /* Над .mobileBottomNav (~74–82px), как toastViewport */
+  bottom: calc(82px + env(safe-area-inset-bottom, 0px));
   z-index: 45;
   margin: 0 auto;
   margin-top: 0 !important;
   width: 100%;
   max-width: 720px;
   border-radius: 16px 16px 0 0;
-  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: 12px;
   box-shadow: 0 -8px 24px rgba(17, 24, 39, 0.12);
   border: 1px solid #e5e7eb;
   border-bottom: none;
