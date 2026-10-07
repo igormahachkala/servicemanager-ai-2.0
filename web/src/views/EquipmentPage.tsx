@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
 import { readLocationFilterFromSearch } from '../lib/locationCardSections'
-import { EQUIPMENT_PARTS_MANAGER_ROLES, equipmentCardPath } from '../lib/equipmentCard'
+import {
+  EQUIPMENT_PARTS_MANAGER_ROLES,
+  equipmentCardPath,
+  resolveEquipmentClientScope,
+} from '../lib/equipmentCard'
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
 import { EquipmentHistoryTab } from '../components/equipment/EquipmentHistoryTab'
 import { EquipmentPartsTab } from '../components/equipment/EquipmentPartsTab'
@@ -152,6 +156,32 @@ export function EquipmentPage() {
   const isProviderScope = linkedClients.length > 0
   const [selectedClientId, setSelectedClientId] = useState('')
 
+  const [searchParams] = useSearchParams()
+
+  /*
+   * Канонический контур из адреса.
+   *
+   * Переход «точка → оборудование» несёт linkedClientCompanyId, но список
+   * выбирал клиента только по подсказке профиля либо по единственному
+   * связанному клиенту. У провайдера с несколькими клиентами адрес говорил
+   * «клиент B», а запрос уходил за клиента A с точкой клиента B — пустой
+   * либо чужой контур. Поэтому используется существующий канонический
+   * помощник: он читает адрес, а при его отсутствии — сохранённую область.
+   * Второго резолвера не появляется.
+   *
+   * linkedClientCompanyId остаётся linkedClientCompanyId и в companyId не
+   * превращается.
+   */
+  const requestedLinkedClientCompanyId = api.getLinkedClientCompanyId(meQ.data)
+
+  /*
+   * Наблюдательский контур берётся ТОЛЬКО из адреса: у обычного арендатора
+   * сохранённая область ничего не должна менять, иначе поведение изменилось
+   * бы и для тех, кто пришёл без ссылки. Доступ всё равно решает бэкенд
+   * (resolveReadableCompanyId), чужая область его не расширяет.
+   */
+  const requestedObserverCompanyId = (searchParams.get('companyId') || '').trim()
+
   // Контур клиента выбирается так же, как в «Локациях»: подсказка из профиля,
   // иначе единственный доступный клиент.
   useEffect(() => {
@@ -159,16 +189,19 @@ export function EquipmentPage() {
       if (selectedClientId) setSelectedClientId('')
       return
     }
-    if (selectedClientId && linkedClients.some((c) => c.clientCompany.id === selectedClientId)) return
-    const hint = api.getLinkedClientCompanyIdFromMe(meQ.data)
-    const fromHint = hint && linkedClients.some((c) => c.clientCompany.id === hint) ? hint : ''
-    const onlyOne = linkedClients.length === 1 ? linkedClients[0].clientCompany.id : ''
-    const next = fromHint || onlyOne || ''
+    /* Решение вынесено в чистую функцию и проверяется исполнением. */
+    const next = resolveEquipmentClientScope({
+      isProviderScope,
+      linkedClientIds: linkedClients.map((c) => c.clientCompany.id),
+      requestedLinkedClientCompanyId,
+      profileHintClientCompanyId: api.getLinkedClientCompanyIdFromMe(meQ.data),
+      currentSelectedClientId: selectedClientId,
+    })
     if (next !== selectedClientId) setSelectedClientId(next)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isProviderScope, linkedClientsQ.dataUpdatedAt, meQ.dataUpdatedAt])
+  }, [isProviderScope, linkedClientsQ.dataUpdatedAt, meQ.dataUpdatedAt, requestedLinkedClientCompanyId])
 
-  const scopeCompanyId = isProviderScope ? selectedClientId : ''
+  const scopeCompanyId = isProviderScope ? selectedClientId : requestedObserverCompanyId
   const scopeReady = !isProviderScope || !!scopeCompanyId
   const canManage = MANAGER_ROLES.includes(String(meQ.data?.role || ''))
 
