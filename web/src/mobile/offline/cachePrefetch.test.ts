@@ -255,7 +255,7 @@ test('fix-cache 12. Home wires auto/manual cache and media reads IDB before netw
   const panel = readFileSync(new URL('../../../src/mobile/home/HomeOfflineCachePanel.tsx', import.meta.url), 'utf8')
   const card = readFileSync(new URL('../../../src/mobile/home/TicketCard.tsx', import.meta.url), 'utf8')
   assert.match(home, /HomeOfflineCachePanel/)
-  assert.match(home, /onToggleCache=\{isOnline \? ticketOfflineCache.toggleSelected : undefined\}/)
+  assert.match(home, /onToggleCache=\{cacheUiOpen \? ticketOfflineCache.toggleSelected : undefined\}/)
   assert.match(panel, /!props\.enabled \|\| !props\.online/)
   assert.match(panel, /mobileOfflineCachePanelHead/)
   assert.match(card, /onToggleCache \?/)

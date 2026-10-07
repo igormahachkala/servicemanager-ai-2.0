@@ -2313,6 +2313,8 @@ test('старт. checking не пишет Нет сети, чтение дос�
   assert.doesNotMatch(home, /if \(!getOnlineStatus\(\)\)/)
   assert.match(shell, /offline\.connectivity === 'offline'/)
   assert.match(shell, /Проверяем связь/)
+  assert.doesNotMatch(shell, /Проверяем связь…/)
+  assert.match(home, /cacheUiOpen/)
 })
 
 test('узкие места 1–4. экраны на deliver* и liveApiAllowed', async () => {
