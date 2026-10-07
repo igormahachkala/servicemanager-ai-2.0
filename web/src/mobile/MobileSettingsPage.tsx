@@ -5,6 +5,7 @@ import * as api from '../lib/api'
 import { canAccessManagementDesktop, managementHomePath } from '../lib/navigation'
 import { ClientContourCard } from './ClientContourCard'
 import { getMobileRouteRoot, mobilePath, supportsPersonalNotificationPreferences } from './mobileRoute'
+import { canUseManagementMaterials } from './mobileMaterialsEntry'
 import { MobileSectionBackLink } from './MobileSectionBackLink'
 import { mobileReturnToState } from './mobileReturnTo'
 import { NotificationPreferencesPanel } from '../components/notifications/NotificationPreferencesPanel'
@@ -235,12 +236,13 @@ export function MobileSettingsPage() {
         to: scoped(mobilePath(location.pathname, '/workforce')),
       })
     }
+    // Materials visibility — ЕДИНЫЙ canonical-предикат canUseManagementMaterials
+    // (тот же, что Home/«Ещё»/страница). Старый loose-check
+    // (canAccessManagementSurface && role !== PLATFORM_ADMIN) показывал CLIENT_ADMIN
+    // мёртвый управленческий вход — backend его и так отказывал.
     if (
       getMobileRouteRoot(location.pathname) === '/m'
-      && (
-        role === 'TECHNICIAN'
-        || (meQ.data?.canAccessManagementSurface === true && role !== 'PLATFORM_ADMIN')
-      )
+      && (role === 'TECHNICIAN' || canUseManagementMaterials(meQ.data))
     ) {
       links.push({
         id: 'materials',
