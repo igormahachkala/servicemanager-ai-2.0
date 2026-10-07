@@ -3948,10 +3948,12 @@ a.mobileBtn.mobileCreateTicketLink {
   align-items: center;
   gap: 12px;
   width: 100%;
+  height: auto;
   padding: 12px 14px;
   border-radius: 16px;
   border: 1px solid transparent;
   background: #f8fafc;
+  color: #111827;
   text-align: left;
   cursor: pointer;
   transition: transform 0.1s ease, box-shadow 0.15s ease;
@@ -3984,11 +3986,13 @@ a.mobileBtn.mobileCreateTicketLink {
   font-size: 0.82rem;
   font-weight: 700;
   line-height: 1.2;
+  color: inherit;
 }
 
 .mobileHomeQuickCardSub {
   font-size: 0.69rem;
   line-height: 1.2;
+  color: #6b7280;
 }
 
 .mobileHomeQuickCardChevron {

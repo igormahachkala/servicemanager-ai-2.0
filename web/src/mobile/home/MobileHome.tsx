@@ -31,7 +31,6 @@ import {
   writePersistedMobileHomeBoardUi,
 } from '../mobileHomeListUtils'
 import { formatMobileMutationError } from '../mobileActionErrors'
-import { getOnlineStatus } from '../offlineQueue'
 import { readCachedBoard, saveBoardCache } from '../offline/boardCache'
 import { queueOffline, useOfflineStatus } from '../offline/useOffline'
 import { deliverTicketStatus } from '../offline/statusDelivery'
@@ -62,6 +61,7 @@ export function MobileHome() {
   const offline = useOfflineStatus()
   const isOnline = offline.online
   const liveApiAllowed = offline.liveApiAllowed
+  const cacheUiOpen = offline.connectivity !== 'offline'
   const [startQueuedIds, setStartQueuedIds] = useState<Set<string>>(() => new Set())
   const linkedClientCompanyId = (search.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
   const companyId = (search.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
@@ -118,10 +118,10 @@ export function MobileHome() {
   }, [meQ.data, linkedClientCompanyId, techBoundDefaultsQ.isSuccess, techBoundDefaultsQ.data, navigate, companyId, location.pathname, location.search])
 
   const boardQ = useQuery({
-    queryKey: ['mobile-home-board', linkedClientCompanyId, companyId, offline.ready],
+    queryKey: ['mobile-home-board', linkedClientCompanyId, companyId, offline.ready, offline.connectivity],
     queryFn: async () => {
       const cachedBoard = async () => readCachedBoard<api.BoardResponse>(pageScope)
-      if (!getOnlineStatus()) {
+      if (offline.connectivity === 'offline') {
         const cached = await cachedBoard()
         if (cached) return cached
         throw new Error('Нет сохранённых заявок. Откройте главную при подключении к сети хотя бы раз.')
@@ -285,7 +285,7 @@ export function MobileHome() {
     meId: meQ.data?.id,
     scope: pageScope,
     enabled: meQ.data?.role === 'TECHNICIAN',
-    online: isOnline,
+    online: cacheUiOpen,
     storageReady: offline.ready,
   })
 
@@ -548,7 +548,7 @@ export function MobileHome() {
 
   const closeM = useMutation({
     mutationFn: async () => {
-      if (!getOnlineStatus()) {
+      if (!liveApiAllowed) {
         setCloseModal((prev) => (prev ? { ...prev, err: ONLINE_ONLY_ACTION_MESSAGE } : prev))
         throw new Error(ONLINE_ONLY_ACTION_MESSAGE)
       }
@@ -637,7 +637,7 @@ export function MobileHome() {
   const closeFailureCausesQ = useQuery({
     queryKey: ['ticket-failure-causes', closeModal?.ticketId, pageScope],
     queryFn: () => api.ticketFailureCauses(closeModal!.ticketId, pageScope),
-    enabled: !!closeModal?.ticketId && getOnlineStatus(),
+    enabled: !!closeModal?.ticketId && liveApiAllowed,
   })
 
   const techWillRedirectForScope = techNoLinked && techBoundDefaultsQ.isSuccess && (techBoundDefaultsQ.data?.length ?? 0) > 0
@@ -665,6 +665,7 @@ export function MobileHome() {
       <HomeHeader
         me={meQ.data}
         isOnline={isOnline}
+        connectivity={offline.connectivity}
         boardHasData={activeBoardHasData}
         boardError={activeBoardError}
         companyPrimaryLine={companyPrimaryLine}
@@ -728,7 +729,7 @@ export function MobileHome() {
           </div>
           <HomeOfflineCachePanel
             enabled={meQ.data?.role === 'TECHNICIAN'}
-            online={isOnline}
+            online={cacheUiOpen}
             storageReady={offline.ready}
             selectedCount={ticketOfflineCache.selectedIds.size}
             busy={ticketOfflineCache.busy}
@@ -787,8 +788,8 @@ export function MobileHome() {
             mobileActionToast={mobileActionToast}
             cacheStates={ticketOfflineCache.states}
             cacheSelectedIds={ticketOfflineCache.selectedIds}
-            onToggleCache={isOnline ? ticketOfflineCache.toggleSelected : undefined}
-            onRefreshCache={isOnline ? ticketOfflineCache.refreshTicket : undefined}
+            onToggleCache={cacheUiOpen ? ticketOfflineCache.toggleSelected : undefined}
+            onRefreshCache={cacheUiOpen ? ticketOfflineCache.refreshTicket : undefined}
           />
           {boardQ.data && boardQ.data.meta.totalTickets >= boardQ.data.meta.limitedToLast && boardQ.data.meta.limitedToLast >= 500 ? (
             <div className="mobileNotice" style={{ textAlign: 'center', fontSize: '0.82rem', marginTop: 4 }}>

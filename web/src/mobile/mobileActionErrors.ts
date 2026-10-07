@@ -75,6 +75,7 @@ export function formatMobileMutationError(
 ): string {
   logMobileMutationDebug(e)
   const msg = rawMessage(e)
+  if (msg.includes('Нет сохранённых заявок')) return msg
   if (isNetworkError(msg)) return NETWORK
   if (msg.includes('ACTIVE_SHIFT_REQUIRED') || msg.includes('Откройте рабочую смену')) {
     return 'Откройте рабочую смену, чтобы выполнить это действие.'

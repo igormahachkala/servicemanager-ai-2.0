@@ -303,7 +303,7 @@ export function MobileShell() {
               aria-live="polite"
             >
               <span className="mobileConnDot" aria-hidden />
-              <span className="mobileConnText">{isOnline ? 'Онлайн' : 'Офлайн'}</span>
+              <span className="mobileConnText">{isOnline ? 'Онлайн' : offline.connectivity === 'checking' ? 'Проверяем связь' : 'Офлайн'}</span>
             </div>
           </div>
           {canShowLinkedClients ? (
@@ -360,14 +360,14 @@ export function MobileShell() {
             <div>Требует внимания: {offline.attention}</div>
             <span className="mobileOfflineBannerLinkHint">Открыть очередь ›</span>
           </Link>
-        ) : !offline.online && offline.pending > 0 ? (
+        ) : offline.connectivity === 'offline' && offline.pending > 0 ? (
           <Link
             className="mobileOfflineBanner mobileOfflineBannerWarning mobileOfflineBannerLink"
             to={mobilePath(location.pathname, '/offline-queue')}
           >
             <div>{offlinePendingBannerText(offline.pending)}</div>
           </Link>
-        ) : !offline.online ? (
+        ) : offline.connectivity === 'offline' ? (
           <div className="mobileOfflineBanner mobileOfflineBannerWarning">
             <div>Нет сети. Показываем сохранённые данные.</div>
           </div>

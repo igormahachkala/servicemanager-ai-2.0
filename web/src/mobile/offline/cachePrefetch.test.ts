@@ -255,7 +255,7 @@ test('fix-cache 12. Home wires auto/manual cache and media reads IDB before netw
   const panel = readFileSync(new URL('../../../src/mobile/home/HomeOfflineCachePanel.tsx', import.meta.url), 'utf8')
   const card = readFileSync(new URL('../../../src/mobile/home/TicketCard.tsx', import.meta.url), 'utf8')
   assert.match(home, /HomeOfflineCachePanel/)
-  assert.match(home, /onToggleCache=\{isOnline \? ticketOfflineCache.toggleSelected : undefined\}/)
+  assert.match(home, /onToggleCache=\{cacheUiOpen \? ticketOfflineCache.toggleSelected : undefined\}/)
   assert.match(panel, /!props\.enabled \|\| !props\.online/)
   assert.match(panel, /mobileOfflineCachePanelHead/)
   assert.match(card, /onToggleCache \?/)
@@ -309,4 +309,21 @@ test('fix-cache 13. offline queries read IDB instead of pausing react-query', as
   const store = await waitForOfflineStore(200)
   assert.equal(store?.available, true)
   await closeMemorySession()
+})
+
+test('prefetch write-path does not squash server originals', async () => {
+  const { readFileSync } = await import('node:fs')
+  for (const name of ['serverMediaCache.ts', 'ticketPrefetch.ts', 'ticketDetailCache.ts', 'roundCache.ts']) {
+    const src = readFileSync(new URL(`../../../src/mobile/offline/${name}`, import.meta.url), 'utf8')
+    assert.equal(src.includes('squashOutgoingImage'), false, `${name} не зовёт squash`)
+    assert.equal(src.includes('@jsquash/jpeg'), false, `${name} не тянет MozJPEG`)
+  }
+  const ticket = readFileSync(new URL('../../../src/mobile/MobileTicketPage.tsx', import.meta.url), 'utf8')
+  const create = readFileSync(new URL('../../../src/mobile/MobileCreateTicket.tsx', import.meta.url), 'utf8')
+  const home = readFileSync(new URL('../../../src/mobile/home/HomeList.tsx', import.meta.url), 'utf8')
+  const inspection = readFileSync(new URL('../../../src/mobile/MobileInspectionRunPage.tsx', import.meta.url), 'utf8')
+  assert.match(ticket, /prepareOutgoingTicketMedia/)
+  assert.match(create, /prepareOutgoingTicketMedia/)
+  assert.match(home, /prepareOutgoingTicketMedia/)
+  assert.match(inspection, /prepareOutgoingTicketMedia/)
 })

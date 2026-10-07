@@ -11,6 +11,7 @@ import { deliverCheckpointUpdate } from './offline/statusDelivery'
 import { ONLINE_ONLY_ACTION_MESSAGE } from './offline/onlineOnlyMessage'
 import { LOCAL_ID_PREFIX } from './offline/store'
 import { cacheRoundSnapshot, readPendingRoundTicketItemIds, readRoundSnapshot } from './offline/roundCache'
+import { prepareOutgoingTicketMedia } from '../lib/ticketAttachmentMedia'
 import {
   compactTicketScope,
   mobileTicketNavState,
@@ -435,8 +436,13 @@ export function MobileInspectionRunPage() {
     const itemId = uploadTargetItemId
     setUploadBusyItemIds((s) => new Set(s).add(itemId))
     try {
-      for (const file of Array.from(files)) {
-        await uploadM.mutateAsync({ itemId, file })
+      for (const raw of Array.from(files)) {
+        const prepared = await prepareOutgoingTicketMedia(raw)
+        if (prepared.error) {
+          flash('err', prepared.error)
+          return
+        }
+        await uploadM.mutateAsync({ itemId, file: prepared.file })
       }
       await invalidate()
     } catch (err: unknown) {

@@ -46,8 +46,11 @@ export function offlinePendingBannerText(count: number): string {
  * Подпись общего состояния для шапки. Порядок ветвей — по важности для
  * техника: сначала то, что требует его вмешательства.
  */
-export function offlineHeadline(status: OfflineStatus): { state: OfflineSyncState | 'offline'; text: string } | null {
-  if (!status.online) {
+export function offlineHeadline(status: OfflineStatus): { state: OfflineSyncState | 'offline' | 'checking'; text: string } | null {
+  if (status.connectivity === 'checking' && !status.online) {
+    return { state: 'checking', text: 'Проверяем связь' }
+  }
+  if (status.connectivity === 'offline' || !status.online) {
     if (status.pending > 0) {
       return { state: 'offline', text: offlinePendingBannerText(status.pending) }
     }

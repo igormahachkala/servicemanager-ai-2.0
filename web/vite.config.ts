@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
+import wasm from 'vite-plugin-wasm'
 
 function vendorChunk(id: string) {
   if (!id.includes('node_modules')) return undefined
@@ -18,7 +19,7 @@ function vendorChunk(id: string) {
 }
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), wasm()],
   test: {
     environment: 'node',
     exclude: [
@@ -26,6 +27,7 @@ export default defineConfig({
       '**/dist/**',
       '**/offline/offline.test.ts',
       '**/offline/cachePrefetch.test.ts',
+      '**/offline/appShellPrecache.test.ts',
       /**
        * Сборка офлайн-тестов: test:offline компилирует их сюда и запускает
        * через node --test. Vitest подбирал этот .js как свой набор и падал
@@ -37,9 +39,9 @@ export default defineConfig({
     ],
   },
   build: {
-    // The Service Worker reads this manifest during install and precaches every
-    // hashed route chunk. iOS may otherwise open the shell successfully and
-    // fail only when a previously unopened lazy route is needed offline.
+    // The Service Worker reads this manifest during install and precaches the
+    // /m shell plus its hashed chunks. Desktop routes are not required for
+    // install. Incomplete next-cache must not take control.
     manifest: 'asset-manifest.json',
     rollupOptions: {
       output: {
