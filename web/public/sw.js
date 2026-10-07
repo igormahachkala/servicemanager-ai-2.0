@@ -198,7 +198,11 @@ function manifestAssetUrls(manifest) {
     if (!entry || typeof entry !== 'object') continue
     for (const value of [entry.file, ...(entry.css || []), ...(entry.assets || [])]) {
       const path = safeString(value)
-      if (path) urls.add(path.startsWith('/') ? path : `/${path}`)
+      if (!path) continue
+      // MozJPEG WASM грузится при первом фото. В оболочку его не класть:
+      // install не должен ждать кодек, а офлайн без WASM оставляет исходник.
+      if (/\.wasm$/i.test(path)) continue
+      urls.add(path.startsWith('/') ? path : `/${path}`)
     }
   }
   return [...urls]

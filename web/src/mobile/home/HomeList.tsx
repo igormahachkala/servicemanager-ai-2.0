@@ -10,9 +10,8 @@ import { defaultExpandedLocationIds, groupTicketsByLocation, type MobileHomeLoca
 import { compactIdentityLabel, presentActorIdentity } from '../../lib/ticketActorIdentity'
 import {
   TICKET_MEDIA_ACCEPT,
-  normalizeTicketMediaFile,
+  prepareOutgoingTicketMedia,
   ticketMediaKind,
-  validateTicketMediaFile,
 } from '../../lib/ticketAttachmentMedia'
 import type { TicketDetailCacheState } from '../offline/ticketDetailCache'
 
@@ -493,14 +492,23 @@ export function TicketCloseModal(props: {
   const submitBusyLabel = props.submitBusyLabel ?? 'Завершаем…'
   if (!closeModal) return null
   const setReportFile = (rawFile: File | null) => {
-    const file = rawFile ? normalizeTicketMediaFile(rawFile) : null
-    const validationError = file ? validateTicketMediaFile(file) : null
-    setCloseModal((prev) => {
-      if (!prev) return prev
-      if (prev.previewUrl) URL.revokeObjectURL(prev.previewUrl)
-      if (validationError) return { ...prev, file: null, previewUrl: '', err: validationError }
-      return { ...prev, file, previewUrl: file ? URL.createObjectURL(file) : '', err: '' }
-    })
+    void (async () => {
+      if (!rawFile) {
+        setCloseModal((prev) => {
+          if (!prev) return prev
+          if (prev.previewUrl) URL.revokeObjectURL(prev.previewUrl)
+          return { ...prev, file: null, previewUrl: '', err: '' }
+        })
+        return
+      }
+      const prepared = await prepareOutgoingTicketMedia(rawFile)
+      setCloseModal((prev) => {
+        if (!prev) return prev
+        if (prev.previewUrl) URL.revokeObjectURL(prev.previewUrl)
+        if (prepared.error) return { ...prev, file: null, previewUrl: '', err: prepared.error }
+        return { ...prev, file: prepared.file, previewUrl: URL.createObjectURL(prepared.file), err: '' }
+      })
+    })()
   }
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(17, 24, 39, 0.55)', zIndex: 60, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 12 }}>
