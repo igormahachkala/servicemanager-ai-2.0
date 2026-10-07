@@ -2280,6 +2280,41 @@ test('узкие места 1. deliverCheckpointUpdate offline сразу в que
   assert.equal(result.kind, 'queued')
 })
 
+test('старт. checking не пишет Нет сети, чтение доски не ждёт liveApiAllowed', async () => {
+  const { offlineHeadline } = await import('./useOffline.js')
+  const { readFileSync } = await import('node:fs')
+  const checking = offlineHeadline({
+    ready: false,
+    connectivity: 'checking',
+    online: false,
+    liveApiAllowed: false,
+    pending: 0,
+    attention: 0,
+    syncing: false,
+  })
+  assert.equal(checking?.text, 'Проверяем связь')
+  assert.notEqual(checking?.text, 'Нет сети')
+  const offline = offlineHeadline({
+    ready: true,
+    connectivity: 'offline',
+    online: false,
+    liveApiAllowed: false,
+    pending: 0,
+    attention: 0,
+    syncing: false,
+  })
+  assert.equal(offline?.text, 'Нет сети')
+
+  const runtime = readFileSync(new URL('../../../src/mobile/offline/runtime.ts', import.meta.url), 'utf8')
+  const home = readFileSync(new URL('../../../src/mobile/home/MobileHome.tsx', import.meta.url), 'utf8')
+  const shell = readFileSync(new URL('../../../src/mobile/MobileShell.tsx', import.meta.url), 'utf8')
+  assert.match(runtime, /connectivity: 'checking'/)
+  assert.match(home, /offline\.connectivity === 'offline'/)
+  assert.doesNotMatch(home, /if \(!getOnlineStatus\(\)\)/)
+  assert.match(shell, /offline\.connectivity === 'offline'/)
+  assert.match(shell, /Проверяем связь/)
+})
+
 test('узкие места 1–4. экраны на deliver* и liveApiAllowed', async () => {
   const { readFileSync } = await import('node:fs')
   const ticketPage = readFileSync(new URL('../../../src/mobile/MobileTicketPage.tsx', import.meta.url), 'utf8')

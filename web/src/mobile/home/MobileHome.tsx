@@ -31,7 +31,6 @@ import {
   writePersistedMobileHomeBoardUi,
 } from '../mobileHomeListUtils'
 import { formatMobileMutationError } from '../mobileActionErrors'
-import { getOnlineStatus } from '../offlineQueue'
 import { readCachedBoard, saveBoardCache } from '../offline/boardCache'
 import { queueOffline, useOfflineStatus } from '../offline/useOffline'
 import { deliverTicketStatus } from '../offline/statusDelivery'
@@ -117,10 +116,10 @@ export function MobileHome() {
   }, [meQ.data, linkedClientCompanyId, techBoundDefaultsQ.isSuccess, techBoundDefaultsQ.data, navigate, companyId, location.pathname, location.search])
 
   const boardQ = useQuery({
-    queryKey: ['mobile-home-board', linkedClientCompanyId, companyId, offline.ready],
+    queryKey: ['mobile-home-board', linkedClientCompanyId, companyId, offline.ready, offline.connectivity],
     queryFn: async () => {
       const cachedBoard = async () => readCachedBoard<api.BoardResponse>(pageScope)
-      if (!getOnlineStatus()) {
+      if (offline.connectivity === 'offline') {
         const cached = await cachedBoard()
         if (cached) return cached
         throw new Error('Нет сохранённых заявок. Откройте главную при подключении к сети хотя бы раз.')
@@ -547,7 +546,7 @@ export function MobileHome() {
 
   const closeM = useMutation({
     mutationFn: async () => {
-      if (!getOnlineStatus()) {
+      if (!liveApiAllowed) {
         setCloseModal((prev) => (prev ? { ...prev, err: ONLINE_ONLY_ACTION_MESSAGE } : prev))
         throw new Error(ONLINE_ONLY_ACTION_MESSAGE)
       }
@@ -636,7 +635,7 @@ export function MobileHome() {
   const closeFailureCausesQ = useQuery({
     queryKey: ['ticket-failure-causes', closeModal?.ticketId, pageScope],
     queryFn: () => api.ticketFailureCauses(closeModal!.ticketId, pageScope),
-    enabled: !!closeModal?.ticketId && getOnlineStatus(),
+    enabled: !!closeModal?.ticketId && liveApiAllowed,
   })
 
   const techWillRedirectForScope = techNoLinked && techBoundDefaultsQ.isSuccess && (techBoundDefaultsQ.data?.length ?? 0) > 0
@@ -664,6 +663,7 @@ export function MobileHome() {
       <HomeHeader
         me={meQ.data}
         isOnline={isOnline}
+        connectivity={offline.connectivity}
         boardHasData={activeBoardHasData}
         boardError={activeBoardError}
         companyPrimaryLine={companyPrimaryLine}
