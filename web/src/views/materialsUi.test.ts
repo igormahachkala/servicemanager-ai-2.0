@@ -49,9 +49,19 @@ describe('Materials V0 integrated surfaces', () => {
 
   it('provides one /m-only navigation entry for technicians and management', () => {
     expect(mobileSettings).toContain("getMobileRouteRoot(location.pathname) === '/m'")
-    expect(mobileSettings).toContain("meQ.data?.canAccessManagementSurface === true && role !== 'PLATFORM_ADMIN'")
     expect(mobileSettings).toContain("to: scoped('/m/materials')")
     expect(mobileSettings).not.toContain('/max/materials')
+  })
+
+  it('Settings materials visibility uses the shared canUseManagementMaterials predicate (CLIENT_ADMIN excluded)', () => {
+    // Settings — тот же canonical-предикат, что Home/«Ещё»/страница.
+    expect(mobileSettings).toContain('canUseManagementMaterials(meQ.data)')
+    // Регрессионный барьер: возврат старого loose-механизма ловится здесь.
+    // (canAccessManagementSurface === true → true для CLIENT_ADMIN → мёртвый вход).
+    expect(mobileSettings).not.toMatch(/canAccessManagementSurface === true && role !== 'PLATFORM_ADMIN'/)
+    expect(mobileSettings).not.toMatch(/canAccessManagementSurface === true && meQ\.data[.?]*role !== 'PLATFORM_ADMIN'/)
+    // техник сохраняет «Мои материалы»
+    expect(mobileSettings).toContain("role === 'TECHNICIAN' ? 'Мои материалы' : 'Материалы'")
   })
 
   it('supports the mobile management workflow through canonical APIs', () => {
@@ -61,7 +71,13 @@ describe('Materials V0 integrated surfaces', () => {
     expect(mobile).toContain('api.technicianMaterialBalances')
     expect(mobile).toContain('api.technicianMaterialMovements')
     expect(mobile).toContain('api.issueMaterialToTechnician')
-    expect(mobile).toContain("canAccessManagementSurface === true && meQ.data.role !== 'PLATFORM_ADMIN'")
+    /*
+     * Управленческий признак теперь один на вход и на страницу
+     * (canUseManagementMaterials): прежняя широкая проверка пускала в
+     * разделы CLIENT_ADMIN, которому бэкенд отказывает на каждой ручке.
+     */
+    expect(mobile).toContain('canUseManagementMaterials(meQ.data)')
+    expect(mobile).not.toContain("canAccessManagementSurface === true && meQ.data.role !== 'PLATFORM_ADMIN'")
     expect(mobile).not.toContain('materialCompanyStock')
     expect(mobile).not.toContain('setMaterialStatus')
   })
