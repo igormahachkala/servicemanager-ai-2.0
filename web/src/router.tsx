@@ -5,6 +5,7 @@ import { ErrorBoundary, type FallbackProps } from 'react-error-boundary'
 import * as api from './lib/api'
 import { offlineAwareLogout } from './lib/offlineSessionLogout'
 import { isDynamicImportFailure, MOBILE_CHUNK_RECOVERY_MESSAGE } from './lib/lazyRouteFailure'
+import { getMobileRouteRoot } from './mobile/mobileRoute'
 import { IT_COMPANY_ROUTES } from './it-company/routes'
 import { LoginPage } from './views/LoginPage'
 import { VhodPage } from './views/VhodPage'
@@ -107,7 +108,6 @@ const MobileTicketPage = lazyExport(() => import('./mobile/MobileTicketPage'), '
 const MobileNotificationsPage = lazyExport(() => import('./mobile/MobileNotificationsPage'), 'MobileNotificationsPage')
 const MobilePushSettingsPage = lazyExport(() => import('./mobile/MobilePushSettingsPage'), 'MobilePushSettingsPage')
 const MobileSettingsPage = lazyExport(() => import('./mobile/MobileSettingsPage'), 'MobileSettingsPage')
-const MobileMorePage = lazyExport(() => import('./mobile/MobileMorePage'), 'MobileMorePage')
 const MobileMaterialsPage = lazyExport(() => import('./mobile/MobileMaterialsPage'), 'MobileMaterialsPage')
 const MobileAnalytics = lazyExport(() => import('./mobile/MobileAnalytics'), 'MobileAnalytics')
 const MobileChatsPage = lazyExport(() => import('./mobile/MobileChatsPage'), 'MobileChatsPage')
@@ -121,6 +121,11 @@ const MobileInspectionTodayPage = lazyExport(() => import('./mobile/MobileInspec
 const MobileShiftPage = lazyExport(() => import('./mobile/MobileShiftPage'), 'MobileShiftPage')
 const MobileWorkforcePage = lazyExport(() => import('./mobile/MobileWorkforcePage'), 'MobileWorkforcePage')
 const MaxApp = lazyExport(() => import('./max/MaxApp'), 'MaxApp')
+
+function MobileMoreRedirect() {
+  const { pathname, search } = useLocation()
+  return <Navigate to={`${getMobileRouteRoot(pathname)}${search}`} replace />
+}
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = api.getToken()
@@ -314,7 +319,7 @@ export function AppRoutes() {
         <Route path="notifications" element={<LazyRoute component={MobileNotificationsPage} />} />
         <Route path="push-settings" element={<LazyRoute component={MobilePushSettingsPage} />} />
         <Route path="settings" element={<LazyRoute component={MobileSettingsPage} />} />
-        <Route path="more" element={<LazyRoute component={MobileMorePage} />} />
+        <Route path="more" element={<MobileMoreRedirect />} />
         <Route path="materials" element={<LazyRoute component={MobileMaterialsPage} />} />
         <Route path="analytics" element={<LazyRoute component={MobileAnalytics} />} />
         <Route path="shift" element={<LazyRoute component={MobileShiftPage} />} />
@@ -396,7 +401,7 @@ export function AppRoutes() {
           <Route path="notifications" element={<LazyRoute component={MobileNotificationsPage} />} />
           <Route path="push-settings" element={<LazyRoute component={MobilePushSettingsPage} />} />
           <Route path="settings" element={<LazyRoute component={MobileSettingsPage} />} />
-        <Route path="more" element={<LazyRoute component={MobileMorePage} />} />
+        <Route path="more" element={<MobileMoreRedirect />} />
           <Route path="analytics" element={<LazyRoute component={MobileAnalytics} />} />
           <Route path="shift" element={<LazyRoute component={MobileShiftPage} />} />
           <Route path="workforce" element={<LazyRoute component={MobileWorkforcePage} />} />

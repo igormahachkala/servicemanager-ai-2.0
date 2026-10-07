@@ -1562,23 +1562,25 @@ a.mobileBtn.mobileCreateTicketLink {
   min-width: 0;
 }
 
-/** Нижняя панель действий на карточке заявки — не перекрывать контент скролла. */
+/** Нижняя панель действий на карточке заявки — не перекрывать контент скролла.
+ *  Высота: панель (~132px) + нижнее меню (~68px) + safe-area. */
 .mobileTicketDetailsRoot--opsDock {
-  padding-bottom: calc(132px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(200px + env(safe-area-inset-bottom, 0px));
 }
 
 .mobileTicketOpsDock.mobileTicketOpsDock--fixed {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
-  z-index: 45;
+  /* Над .mobileBottomNav */
+  bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  z-index: 35;
   margin: 0 auto;
   margin-top: 0 !important;
   width: 100%;
   max-width: 720px;
   border-radius: 16px 16px 0 0;
-  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: 12px;
   box-shadow: 0 -8px 24px rgba(17, 24, 39, 0.12);
   border: 1px solid #e5e7eb;
   border-bottom: none;
@@ -5088,7 +5090,8 @@ a.mobileBtn.mobileCreateTicketLink {
   flex: 1;
   min-width: 0;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 8px;
 }
 
@@ -6903,4 +6906,31 @@ a.mobileBtn.mobileCreateTicketLink {
   .mobileMaterialsHome {
     grid-template-columns: 1fr;
   }
+}
+
+button.mobileNavItem {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  width: 100%;
+}
+
+.mobileMoreSheetBackdrop {
+  bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+  padding-bottom: 8px;
+}
+
+.mobileMoreSheet {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+  padding: 14px 14px 8px;
+  overflow: auto;
+  min-height: 0;
 }

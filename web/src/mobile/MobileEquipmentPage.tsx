@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
 import { getMobileRouteRoot, mobilePath } from './mobileRoute'
+import { MobileSectionBackLink } from './MobileSectionBackLink'
 
 /**
  * SMA-EQUIPMENT-V2-110A.
@@ -322,6 +323,7 @@ export function MobileEquipmentPage() {
 
   return (
     <div className="mobileSection">
+      <MobileSectionBackLink />
       <div>
         <h1 className="mobileTitle">Оборудование</h1>
         <div className="mobileSubtitle">

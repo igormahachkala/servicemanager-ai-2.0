@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link, useLocation } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
@@ -14,7 +13,7 @@ import {
   type Material,
   type UpdateMaterialInput,
 } from '../lib/materials'
-import { mobilePath } from './mobileRoute'
+import { MobileSectionBackLink } from './MobileSectionBackLink'
 
 type Section = 'mine' | 'stock' | 'technicians' | 'directory'
 type MaterialDraft = { name: string; unit: string; sku: string; category: string }
@@ -35,7 +34,6 @@ function materialInput(draft: MaterialDraft): CreateMaterialInput {
 
 export function MobileMaterialsPage() {
   const qc = useQueryClient()
-  const location = useLocation()
   const [section, setSection] = useState<Section>('mine')
   const [selectedTechnicianId, setSelectedTechnicianId] = useState('')
   const [editing, setEditing] = useState<(MaterialDraft & { id: string }) | null>(null)
@@ -132,11 +130,7 @@ export function MobileMaterialsPage() {
 
   return (
     <div className="mobileSection">
-      <div className="mobileTicketDetailsToolbar">
-        <Link to={mobilePath(location.pathname, '/settings')} className="mobileDetailsBackLink mobilePatrolBackLink">
-          ← Настройки
-        </Link>
-      </div>
+      <MobileSectionBackLink />
       <h1 className="mobileTitle">Материалы</h1>
       <div className="mobileSubtitle">
         {canManage ? 'Склад, техники и справочник' : 'Мои остатки, покупки и история'}

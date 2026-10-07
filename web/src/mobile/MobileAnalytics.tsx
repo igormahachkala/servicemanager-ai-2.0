@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
 import { mobilePath } from './mobileRoute'
+import { MobileSectionBackLink } from './MobileSectionBackLink'
 import { mobileTicketNumberTitle, mobileTicketStatusLabelRu } from './mobileTicketDisplay'
 
 /**
@@ -428,6 +429,7 @@ export function MobileAnalytics() {
 
   return (
     <div className="mobileSection">
+      <MobileSectionBackLink />
       <div className="mobileAnalyticsHead">
         <div>
           <h1 className="mobileTitle">Аналитика</h1>
