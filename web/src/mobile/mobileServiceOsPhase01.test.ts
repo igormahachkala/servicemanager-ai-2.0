@@ -2,9 +2,9 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-import type { Role, TicketCard } from '../lib/api'
+import { appendScopeToPath, type Role, type TicketCard } from '../lib/api'
 import { notificationSectionToDetailTab } from './mobileTicketDetailTab'
-import { canAccessMobileInspection, inspectionNavSuffix } from './mobileRoute'
+import { canAccessMobileInspection, inspectionNavSuffix, mobilePath } from './mobileRoute'
 import { formatShiftDuration, homeShiftView, shouldShowHomeShiftStatus } from './home/shiftStatusView'
 import { isHomeUrgentTicket, selectHomeUrgentTickets } from './home/homeUrgent'
 
@@ -51,6 +51,23 @@ describe('Обходы: посадка нижнего пункта по роли
     }
     expect(inspectionNavSuffix(undefined)).toBe('/inspection')
     expect(inspectionNavSuffix(null)).toBe('/inspection')
+  })
+
+  it('Planning с Главной сохраняет linked-client scope для техника и management', () => {
+    const scope = { linkedClientCompanyId: 'client-linked' }
+
+    expect(appendScopeToPath(mobilePath('/m', inspectionNavSuffix('TECHNICIAN')), scope)).toBe(
+      '/m/inspection/today?linkedClientCompanyId=client-linked',
+    )
+    expect(appendScopeToPath(mobilePath('/m', inspectionNavSuffix('ADMIN')), scope)).toBe(
+      '/m/inspection?linkedClientCompanyId=client-linked',
+    )
+
+    const home = readFileSync(join(__dirname, 'home/MobileHome.tsx'), 'utf8')
+    const planningBlock = home.slice(home.indexOf('const planningHomeHref'), home.indexOf('const companyPrimaryLine'))
+    expect(planningBlock).toContain('api.appendScopeToPath(')
+    expect(planningBlock).toContain('pageScope')
+    expect(planningBlock).toContain('inspectionNavSuffix(meQ.data.role)')
   })
 })
 
