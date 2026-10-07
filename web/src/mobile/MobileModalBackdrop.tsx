@@ -6,14 +6,21 @@ type Props = {
   ariaLabel: string
   onClose?: () => void
   align?: 'bottom' | 'center'
+  backdropClassName?: string
 }
 
-export function MobileModalBackdrop({ children, ariaLabel, onClose, align = 'bottom' }: Props) {
+export function MobileModalBackdrop({ children, ariaLabel, onClose, align = 'bottom', backdropClassName }: Props) {
   if (typeof document === 'undefined') return null
+
+  const backdropClass = [
+    'mobileModalBackdrop',
+    align === 'center' ? 'mobileModalBackdropCenter' : '',
+    backdropClassName || '',
+  ].filter(Boolean).join(' ')
 
   return createPortal(
     <div
-      className={`mobileModalBackdrop${align === 'center' ? ' mobileModalBackdropCenter' : ''}`}
+      className={backdropClass}
       role="presentation"
       onClick={onClose}
     >

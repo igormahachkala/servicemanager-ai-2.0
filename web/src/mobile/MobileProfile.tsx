@@ -8,6 +8,8 @@ import { offlineAwareLogout } from '../lib/offlineSessionLogout'
 import { useOfflineStatus } from './offline/useOffline'
 import { startMobileGuidedTour } from './MobileGuidedTourEvents'
 import { mobilePath } from './mobileRoute'
+import { MobileSectionBackLink } from './MobileSectionBackLink'
+import { mobileReturnToState } from './mobileReturnTo'
 
 function roleLabel(role?: string) {
   if (!role) return '—'
@@ -112,17 +114,10 @@ export function MobileProfile() {
     : (meQ.data?.email || '?')[0].toUpperCase()
   const roleBadgeTone = meQ.data?.role === 'TECHNICIAN' ? 'tech' : meQ.data?.role === 'CLIENT' ? 'client' : 'admin'
   const notificationsPath = mobilePath(location.pathname, '/notifications')
-  const backHref = api.appendScopeToPath(
-    mobilePath(location.pathname, ''),
-    currentScope,
-    meQ.data,
-  )
 
   return (
     <>
-      <div className="mobileTicketDetailsToolbar">
-        <Link to={backHref} className="mobileDetailsBackLink">Назад</Link>
-      </div>
+      <MobileSectionBackLink />
       <div className="mobileSection">
         {meQ.isError ? <div className="mobileNotice mobileNoticeError">{String((meQ.error as { message?: string } | null)?.message || meQ.error)}</div> : null}
 
@@ -164,7 +159,7 @@ export function MobileProfile() {
         {/* Menu */}
         <div className="mobileCard mobileProfileMenu">
           {meQ.data?.role && ['ADMIN', 'MASTER', 'DISPATCHER', 'TECHNICIAN'].includes(meQ.data.role) ? (
-            <Link to={mobilePath(location.pathname, '/shift')} className="mobileProfileMenuItem">
+            <Link to={mobilePath(location.pathname, '/shift')} state={mobileReturnToState(location.pathname, location.search)} className="mobileProfileMenuItem">
               <span className="mobileProfileMenuIcon" aria-hidden>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="12" r="9" />
