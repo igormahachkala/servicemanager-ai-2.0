@@ -320,11 +320,27 @@ describe('102/10 объём среза не расширен', () => {
   })
 
   it('10. ссылки ведут только на существующие маршруты', () => {
-    expect(pageCode).toContain("to=\"/equipment\"")
-    expect(pageCode).toContain("to=\"/inspection/schedules\"")
+    /*
+     * LOCATION CARD V2 Phase 1: пути те же, но переходы теперь несут саму
+     * точку и область (locationSectionLinks). Прежняя редакция закрепляла
+     * ссылки без контекста — «/equipment» и «/inspection/schedules» без
+     * параметров, — то есть ровно то состояние, которое исправлено.
+     */
+    expect(pageCode).toContain('locationSectionLinks({')
+    expect(pageCode).toContain('to={sections.equipment}')
+    expect(pageCode).toContain('to={sections.rounds}')
     expect(pageCode).toContain('to={ticketsTo}')
-    // Ссылка на заявки строится существующим контрактом доски, а не выдуманным параметром.
+
+    // Новых маршрутов не появилось: только существующие разделы.
+    for (const route of ['/equipment', '/inspection/schedules', '/analytics/locations']) {
+      expect(readSrc('lib/locationCardSections.ts'), route).toContain(`'${route}'`)
+    }
+
+    /*
+     * Заявки по-прежнему строятся каноническим контрактом доски, а не
+     * параметром locationId: второго механизма переноса фильтров нет.
+     */
     expect(pageCode).toContain('appendBoardNavigationContextToPath')
-    expect(pageCode).not.toContain('?locationId=')
+    expect(pageCode).not.toMatch(/ticketsTo\s*=\s*[^\n]*\?locationId=/)
   })
 })

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode 
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
-import { equipmentCardPath } from '../lib/equipmentCard'
+import { equipmentCardPath, locationCardPath } from '../lib/equipmentCard'
 import { TicketMaterialsPanel } from '../components/tickets/TicketMaterialsPanel'
 import { mapReason } from '../lib/assignmentExplain'
 import {
@@ -1095,6 +1095,29 @@ export function TicketPage() {
               <Skeleton w={120} h={24} />
             </div>
           </div>
+        </div>
+      ) : null}
+
+      {/*
+        SMA-MANAGEMENT-UX Phase 3: объект заявки видно и он ведёт в карточку точки.
+        Раньше точка была только в форме правки — со страницы прочитать, по
+        какому объекту заявка, было нельзя. Данные уже в ответе заявки,
+        отдельного запроса ради ссылки не появляется.
+        Область уезжает той же парой, что и ссылка на оборудование.
+      */}
+      {ticket?.location?.id ? (
+        <div className="panel" style={{ marginBottom: 12 }}>
+          <h3 style={{ marginBottom: 6 }}>Объект</h3>
+          <div>
+            <Link to={locationCardPath(ticket.location.id, { companyId: observerCompanyId, linkedClientCompanyId: effectiveLinkedClientCompanyId })}>
+              {ticket.location.name || 'Без названия'}
+            </Link>
+          </div>
+          {ticket.location.city || ticket.location.address ? (
+            <div className="muted small">
+              {[ticket.location.city, ticket.location.address].filter(Boolean).join(', ')}
+            </div>
+          ) : null}
         </div>
       ) : null}
 

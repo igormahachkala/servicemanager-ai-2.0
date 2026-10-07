@@ -4,6 +4,8 @@ import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { equipmentCardPath, equipmentStatusLabel, locationsListPath } from '../lib/equipmentCard'
 import { appendBoardNavigationContextToPath } from '../lib/boardNavigationContext'
+import { isManagementNavItemVisible } from '../lib/navigation'
+import { locationSectionLinks } from '../lib/locationCardSections'
 import {
   pluralizeRu,
   summarizeEquipment,
@@ -96,6 +98,9 @@ export function LocationPage() {
     ? { companyId: scopeFromCompanyId }
     : { linkedClientCompanyId: scopeFromLinkedClient }
 
+  /* Роль нужна только для видимости раздела аналитики — тем же гейтом, что меню. */
+  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+
   const locationQ = useQuery({
     queryKey: ['location', locationId, companyId],
     queryFn: () => api.getLocation(locationId, companyId || undefined),
@@ -154,6 +159,25 @@ export function LocationPage() {
   const backTo = locationsListPath(outboundScope)
   /* Ссылка на заявки объекта строится существующим контрактом доски (boardLocationId). */
   const ticketsTo = appendBoardNavigationContextToPath('/tickets', { selectedLocationId: locationId })
+
+  /*
+   * SMA-LOCATION-CARD-V2 Phase 1: карточка точки как узел.
+   *
+   * Разделы связываются существующими маршрутами: оборудование, заявки,
+   * обходы и аналитика уже есть, второй подсистемы не заводится. Переходы
+   * несут и саму точку, и область — иначе провайдер в контуре клиента
+   * терял бы контур на первом же переходе (дефект Equipment V2, который
+   * повторять нельзя).
+   *
+   * Аналитика показывается по тому же гейту, что и пункт меню
+   * (Navigation V2, isManagementNavItemVisible): видимость прав не выдаёт,
+   * доступ решает бэкенд (ANALYTICS_VIEW + analytics.controller @Roles).
+   */
+  const sections = locationSectionLinks({
+    locationId,
+    scope: outboundScope,
+    canViewAnalytics: isManagementNavItemVisible('/analytics/locations', { role: meQ.data?.role }),
+  })
 
   if (locationQ.isLoading) {
     return (
@@ -259,7 +283,7 @@ export function LocationPage() {
               </div>
               <div className="muted small">В работе: {equipment.active}</div>
               <div style={{ marginTop: 10 }}>
-                <Link to="/equipment">
+                <Link to={sections.equipment}>
                   <button className="ghost">Открыть оборудование</button>
                 </Link>
               </div>
@@ -307,7 +331,7 @@ export function LocationPage() {
               </div>
               <div style={{ marginTop: 10 }}>
                 {/* Маршрут планов фильтра по объекту не принимает: ссылка ведёт в раздел. */}
-                <Link to="/inspection/schedules">
+                <Link to={sections.rounds}>
                   <button className="ghost">Открыть планы</button>
                 </Link>
               </div>
@@ -355,6 +379,23 @@ export function LocationPage() {
           <div style={{ marginTop: 10 }}>
             <Link to="/map">
               <button className="ghost">Открыть карту</button>
+            </Link>
+          </div>
+        </div>
+      ) : null}
+
+      {/*
+        Аналитика точки — существующий раздел «По объектам» с сужением до
+        этой точки. Раздел показывается тем же гейтом, что пункт меню; прав
+        это не выдаёт, доступ решает бэкенд.
+      */}
+      {sections.analytics ? (
+        <div className="panel" style={{ marginTop: 12 }}>
+          <h3 style={{ marginBottom: 10 }}>Аналитика</h3>
+          <div className="muted small">Распределение заявок и просрочек по этой точке.</div>
+          <div style={{ marginTop: 10 }}>
+            <Link to={sections.analytics}>
+              <button className="ghost">Открыть аналитику точки</button>
             </Link>
           </div>
         </div>

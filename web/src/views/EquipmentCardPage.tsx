@@ -18,6 +18,8 @@ import {
   isWarrantyExpired,
   locationCardPath,
 } from '../lib/equipmentCard'
+import { isManagementNavItemVisible } from '../lib/navigation'
+import { locationSectionLinks } from '../lib/locationCardSections'
 
 /**
  * SMA-EQUIPMENT-V2-FOUNDATION — карточка оборудования.
@@ -132,6 +134,23 @@ export function EquipmentCardPage() {
    */
   const createScope = boardScope
 
+  /*
+   * SMA-LOCATION-CARD-V2 Phase 2: разделы ТОЧКИ этого оборудования.
+   *
+   * Переходы привязаны к точке, а не к единице оборудования, сознательно:
+   * ни план обходов (InspectionScheduleFilters), ни аналитика
+   * (analyticsLocations) фильтра по оборудованию не принимают, и ссылка
+   * «обходы этого оборудования» была бы декоративной. Поэтому подписи
+   * говорят про точку, а сужение реальное — по locationId.
+   */
+  const locationSections = locationId
+    ? locationSectionLinks({
+        locationId,
+        scope: createScope,
+        canViewAnalytics: isManagementNavItemVisible('/analytics/locations', { role: meQ.data?.role }),
+      })
+    : null
+
   if (equipmentQ.isLoading) {
     return (
       <div className="panel">
@@ -184,6 +203,20 @@ export function EquipmentCardPage() {
           {canCreateTicketForEquipment(item) ? (
             <Link to={equipmentCreateTicketPath({ id: item.id, locationId }, createScope)}>
               <button>Создать заявку</button>
+            </Link>
+          ) : null}
+          {/*
+            Разделы точки. Подписи говорят «точки» намеренно: фильтра по
+            оборудованию эти разделы не принимают, и обещать его нельзя.
+          */}
+          {locationSections ? (
+            <Link to={locationSections.rounds}>
+              <button className="ghost">Обходы точки</button>
+            </Link>
+          ) : null}
+          {locationSections?.analytics ? (
+            <Link to={locationSections.analytics}>
+              <button className="ghost">Аналитика точки</button>
             </Link>
           ) : null}
           <Link {...equipmentTicketsLink({ id: item.id }, boardScope)}>
