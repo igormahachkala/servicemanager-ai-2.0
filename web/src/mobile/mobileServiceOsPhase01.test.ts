@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { Role, TicketCard } from '../lib/api'
 import { notificationSectionToDetailTab } from './mobileTicketDetailTab'
-import { inspectionNavSuffix } from './mobileRoute'
+import { canAccessMobileInspection, inspectionNavSuffix } from './mobileRoute'
 import { formatShiftDuration, homeShiftView, shouldShowHomeShiftStatus } from './home/shiftStatusView'
 import { isHomeUrgentTicket, selectHomeUrgentTickets } from './home/homeUrgent'
 
@@ -34,6 +34,16 @@ describe('Ticket default landing (section → вкладка)', () => {
 describe('Обходы: посадка нижнего пункта по роли', () => {
   it('техник → сегодняшние визиты', () => {
     expect(inspectionNavSuffix('TECHNICIAN')).toBe('/inspection/today')
+  })
+
+  it('Planning entry видят только роли canonical inspection controller', () => {
+    for (const role of ['TECHNICIAN', 'MASTER', 'DISPATCHER', 'ADMIN', 'ADMIN_PROVIDER', 'NETWORK_DIRECTOR'] as Role[]) {
+      expect(canAccessMobileInspection(role)).toBe(true)
+    }
+    for (const role of ['CLIENT_ADMIN', 'CLIENT', 'TERRITORIAL_MANAGER', 'STAFF', 'PLATFORM_ADMIN'] as Role[]) {
+      expect(canAccessMobileInspection(role)).toBe(false)
+    }
+    expect(canAccessMobileInspection(null)).toBe(false)
   })
   it('остальные роли → общий список (без изменений)', () => {
     for (const role of ['MASTER', 'DISPATCHER', 'ADMIN', 'NETWORK_DIRECTOR'] as Role[]) {
@@ -116,10 +126,11 @@ describe('Приоритетный блок срочных', () => {
 describe('Source-contract: убран шум, добавлены блоки', () => {
   const read = (p: string) => readFileSync(join(__dirname, p), 'utf8')
 
-  it('HomeQuickCards: заглушка удалена; «Срочные» вынесены из quick-cards (один urgent surface)', () => {
+  it('HomeQuickCards: рабочее Планирование восстановлено; «Срочные» остаются одним отдельным surface', () => {
     const s = read('home/HomeQuickCards.tsx')
-    expect(s).not.toContain('Планирование')
-    expect(s).not.toContain('onPlanning')
+    expect(s).toContain('Планирование')
+    expect(s).toContain('Обходы и запланированные работы')
+    expect(s).toContain('planningHref')
     expect(s).not.toContain('--stub')
     // compact urgent quick-card убрана — срочные теперь в HomeUrgentCard
     expect(s).not.toContain('mobileHomeQuickCard--urgent')
@@ -139,6 +150,9 @@ describe('Source-contract: убран шум, добавлены блоки', ()
     expect(s).toContain("onViewAll={() => activateQuickFilter('urgent')}")
     // Materials — новый светло-синий visual state
     expect(s).toContain('mobileHomeQuickCard--blue')
+    expect(s).toContain('planningHref={planningHomeHref}')
+    expect(s).toContain('canAccessMobileInspection(meQ.data.role)')
+    expect(s).toContain('inspectionNavSuffix(meQ.data.role)')
   })
 
   it('MobileChatsPage: убраны неработающие кнопки композера', () => {

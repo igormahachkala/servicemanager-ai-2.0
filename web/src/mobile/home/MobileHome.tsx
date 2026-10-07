@@ -36,7 +36,7 @@ import { queueOffline, useOfflineStatus } from '../offline/useOffline'
 import { deliverTicketStatus } from '../offline/statusDelivery'
 import { ONLINE_ONLY_ACTION_MESSAGE } from '../offline/onlineOnlyMessage'
 import { getMobileMaterialsEntry } from '../mobileMaterialsEntry'
-import { mobilePath } from '../mobileRoute'
+import { canAccessMobileInspection, inspectionNavSuffix, mobilePath } from '../mobileRoute'
 import { HomeHeader } from './HomeHeader'
 import { HomeTabs } from './HomeTabs'
 import { HomeChips } from './HomeChips'
@@ -409,6 +409,13 @@ export function MobileHome() {
       </button>
     </div>
   ) : null
+  const planningHomeHref = meQ.data && canAccessMobileInspection(meQ.data.role)
+    ? api.appendScopeToPath(
+        mobilePath(location.pathname, inspectionNavSuffix(meQ.data.role)),
+        pageScope,
+        meQ.data,
+      )
+    : null
 
   const companyPrimaryLine = useMemo(() => {
     const fromMe = (meQ.data?.companyName || '').trim()
@@ -695,6 +702,7 @@ export function MobileHome() {
             onToggleAwaiting={() => activateQuickFilter('awaiting')}
             onToggleMyAction={() => activateQuickFilter('myaction')}
             onToggleRework={() => activateQuickFilter('rework')}
+            planningHref={planningHomeHref}
           />
           <div className="mobileHomeBoardSticky" data-mobile-tour="ticket-filters">
             <HomeTabs

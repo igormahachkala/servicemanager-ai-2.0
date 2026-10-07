@@ -3954,6 +3954,7 @@ a.mobileBtn.mobileCreateTicketLink {
   border: 1px solid transparent;
   background: #f8fafc;
   color: #111827;
+  text-decoration: none;
   text-align: left;
   cursor: pointer;
   transition: transform 0.1s ease, box-shadow 0.15s ease;
