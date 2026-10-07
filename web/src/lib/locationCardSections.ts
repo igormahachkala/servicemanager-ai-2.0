@@ -100,7 +100,7 @@ export function readLocationFilterFromSearch(search: URLSearchParams | null | un
  */
 export function readOutboundScopeFromSearch(
   search: URLSearchParams | null | undefined,
-): ScopeParams {
+): { companyId?: string; linkedClientCompanyId?: string } {
   const companyId = (search?.get('companyId') || '').trim()
   if (companyId) return { companyId }
   const linkedClientCompanyId = (search?.get('linkedClientCompanyId') || '').trim()

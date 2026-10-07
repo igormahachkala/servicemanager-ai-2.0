@@ -12,6 +12,7 @@ import {
   readOutboundScopeFromSearch,
 } from './locationCardSections'
 import { locationCardPath } from './equipmentCard'
+import { appendScopeToPath } from './api'
 import type { Role } from './api'
 
 const here = dirname(fileURLToPath(import.meta.url))
@@ -368,5 +369,106 @@ describe('MANAGEMENT UX Phase 3: переходы в Location Hub', () => {
     expect(sections).not.toMatch(/PERMISSION|UserRole|isAdmin|canManage/)
     // Аналитика по-прежнему скрывается гейтом.
     expect(locationSectionLinks({ locationId: 'loc-1', canViewAnalytics: false }).analytics).toBeNull()
+  })
+})
+
+describe('NAV V2(5) P1: контур живёт по всей цепочке обходов', () => {
+  /*
+   * Цепочка выполняется ПО ШАГАМ: на каждом шаге из адреса предыдущего
+   * шага читается область и собирается следующий путь. Так проверяется
+   * именно сохранение, а не совпадение по тексту исходника.
+   */
+  function hop(href: string) {
+    const query = href.includes('?') ? href.slice(href.indexOf('?') + 1) : ''
+    return readOutboundScopeFromSearch(new URLSearchParams(query))
+  }
+
+  it('32. Runs → Run → Report → Location сохраняет linked-client контур B', () => {
+    // Шаг 0: провайдер в контуре клиента B.
+    const atList = hop('/inspection/runs?linkedClientCompanyId=client-B')
+    expect(atList).toEqual({ linkedClientCompanyId: 'client-B' })
+
+    // Шаг 1: «Открыть» → страница обхода.
+    const toRun = appendScopeToPath('/inspection/runs/run-1', atList)
+    expect(toRun).toBe('/inspection/runs/run-1?linkedClientCompanyId=client-B')
+    const atRun = hop(toRun)
+    expect(atRun).toEqual({ linkedClientCompanyId: 'client-B' })
+
+    // Шаг 2: обход → отчёт.
+    const toReport = appendScopeToPath('/inspection/runs/run-1/report', atRun)
+    expect(toReport).toBe('/inspection/runs/run-1/report?linkedClientCompanyId=client-B')
+    const atReport = hop(toReport)
+    expect(atReport).toEqual({ linkedClientCompanyId: 'client-B' })
+
+    // Шаг 3: отчёт → карточка точки. Контур дожил до конца цепочки.
+    const toLocation = locationCardPath('loc-B', atReport)
+    expect(toLocation).toBe('/locations/loc-B?linkedClientCompanyId=client-B')
+    expect(toLocation).not.toContain('companyId=client-B')
+  })
+
+  it('33. тот же путь из обхода напрямую в точку сохраняет B', () => {
+    const atRun = hop('/inspection/runs/run-1?linkedClientCompanyId=client-B')
+    expect(locationCardPath('loc-B', atRun)).toBe('/locations/loc-B?linkedClientCompanyId=client-B')
+  })
+
+  it('34. возврат отчёт → обход → список тоже несёт контур', () => {
+    const atReport = hop('/inspection/runs/run-1/report?linkedClientCompanyId=client-B')
+    expect(appendScopeToPath('/inspection/runs/run-1', atReport)).toBe(
+      '/inspection/runs/run-1?linkedClientCompanyId=client-B',
+    )
+    expect(appendScopeToPath('/inspection/runs', atReport)).toBe(
+      '/inspection/runs?linkedClientCompanyId=client-B',
+    )
+  })
+
+  it('35. наблюдательский контур companyId проходит цепочку как companyId', () => {
+    const atList = hop('/inspection/runs?companyId=observed-1')
+    const toRun = appendScopeToPath('/inspection/runs/run-1', atList)
+    expect(toRun).toBe('/inspection/runs/run-1?companyId=observed-1')
+    const atRun = hop(toRun)
+    expect(locationCardPath('loc-1', atRun)).toBe('/locations/loc-1?companyId=observed-1')
+    expect(toRun).not.toContain('linkedClientCompanyId')
+  })
+
+  it('36. без области в адресе цепочка остаётся чистой (fallback не ломается)', () => {
+    const empty = hop('/inspection/runs')
+    expect(empty).toEqual({})
+    expect(appendScopeToPath('/inspection/runs/run-1', empty)).toBe('/inspection/runs/run-1')
+    expect(locationCardPath('loc-1', empty)).toBe('/locations/loc-1')
+  })
+
+  it('37. промежуточные ссылки собираются helper-ом, а не вручную', () => {
+    /*
+     * Негативный контроль P1: если хотя бы один переход снова станет
+     * сырым /inspection/runs/:id, эта проверка упадёт.
+     */
+    const runs = codeOf(readSrc('views/InspectionRunsPage.tsx'))
+    expect(runs).toContain("api.appendScopeToPath('/inspection/runs/' + run.id, outboundScope)")
+    expect(runs).toContain('api.appendScopeToPath(`/inspection/runs/${run.id}/report`, outboundScope)')
+    expect(runs).not.toMatch(/to=\{'\/inspection\/runs\/' \+ run\.id\}/)
+    expect(runs).not.toMatch(/to=\{`\/inspection\/runs\/\$\{run\.id\}\/report`\}/)
+
+    const run = codeOf(readSrc('views/InspectionRunPage.tsx'))
+    expect(run).toContain('api.appendScopeToPath(`/inspection/runs/${run.id}/report`, outboundScope)')
+    expect(run).not.toMatch(/to=\{`\/inspection\/runs\/\$\{run\.id\}\/report`\}/)
+
+    const report = codeOf(readSrc('views/InspectionRunReportPage.tsx'))
+    expect(report).toContain('api.appendScopeToPath(`/inspection/runs/${id}`, outboundScope)')
+    expect(report).toContain("api.appendScopeToPath('/inspection/runs', outboundScope)")
+    expect(report).not.toMatch(/to="\/inspection\/runs"/)
+  })
+
+  it('38. чужой контур в адресе доступа не даёт: решает бэкенд', () => {
+    /*
+     * Ссылка чужой идентификатор перенесёт — это просто строка адреса.
+     * Доступ закрывает бэкенд: карточка точки отвечает одинаковым 404 и
+     * на недоступную, и на несуществующую точку.
+     */
+    const foreign = hop('/inspection/runs?linkedClientCompanyId=client-FOREIGN')
+    expect(locationCardPath('loc-1', foreign)).toBe('/locations/loc-1?linkedClientCompanyId=client-FOREIGN')
+
+    const page = codeOf(readSrc('views/LocationPage.tsx'))
+    // Страница не различает «нет доступа» и «не существует».
+    expect(page).not.toMatch(/403|Нет доступа|Forbidden/)
   })
 })

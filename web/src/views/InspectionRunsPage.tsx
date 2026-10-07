@@ -212,9 +212,15 @@ export function InspectionRunsPage() {
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     <span className="tag">{runStatusLabel(run.status)}</span>
                     {run.reportStatus ? <span className="tag">Акт: {reportStatusLabel(run.reportStatus)}</span> : null}
-                    <Link to={'/inspection/runs/' + run.id}><button className="ghost">Открыть</button></Link>
+                    {/*
+                      Phase 3 fix (NAV V2(5) P1): промежуточные переходы несут
+                      контур. Без него страница обхода получала пустую область,
+                      и переход «обход → точка» строился уже без клиента —
+                      бэкенд корректно отвечал 404.
+                    */}
+                    <Link to={api.appendScopeToPath('/inspection/runs/' + run.id, outboundScope)}><button className="ghost">Открыть</button></Link>
                     {completed ? (
-                      <Link to={`/inspection/runs/${run.id}/report`}><button className="ghost">Итог обхода</button></Link>
+                      <Link to={api.appendScopeToPath(`/inspection/runs/${run.id}/report`, outboundScope)}><button className="ghost">Итог обхода</button></Link>
                     ) : null}
                   </div>
                 </div>

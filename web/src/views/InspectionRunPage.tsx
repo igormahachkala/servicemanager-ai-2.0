@@ -327,8 +327,9 @@ export function InspectionRunPage() {
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <span className="tag">{run.status}</span>
+                {/* Контур сохраняется и здесь: иначе отчёт потеряет клиента. */}
                 {isCompleted ? (
-                  <Link to={`/inspection/runs/${run.id}/report`}>
+                  <Link to={api.appendScopeToPath(`/inspection/runs/${run.id}/report`, outboundScope)}>
                     <button type="button" className="ghost">Открыть отчёт</button>
                   </Link>
                 ) : null}

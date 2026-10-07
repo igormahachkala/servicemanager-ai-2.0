@@ -150,8 +150,9 @@ export function InspectionRunReportPage() {
           <div className="muted small">Печатная версия клиентского документа по completed inspection run.</div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Link to={`/inspection/runs/${id}`}><button className="ghost">Назад к обходу</button></Link>
-          <Link to="/inspection/runs"><button className="ghost">История обходов</button></Link>
+          {/* Возврат тоже несёт контур — цепочка не теряет клиента ни в одну сторону. */}
+          <Link to={api.appendScopeToPath(`/inspection/runs/${id}`, outboundScope)}><button className="ghost">Назад к обходу</button></Link>
+          <Link to={api.appendScopeToPath('/inspection/runs', outboundScope)}><button className="ghost">История обходов</button></Link>
           <button type="button" onClick={() => window.print()}>Печать / PDF</button>
         </div>
       </div>
