@@ -60,6 +60,7 @@ export function MobileHome() {
   const offline = useOfflineStatus()
   const isOnline = offline.online
   const liveApiAllowed = offline.liveApiAllowed
+  const cacheUiOpen = offline.connectivity !== 'offline'
   const [startQueuedIds, setStartQueuedIds] = useState<Set<string>>(() => new Set())
   const linkedClientCompanyId = (search.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
   const companyId = (search.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
@@ -283,7 +284,7 @@ export function MobileHome() {
     meId: meQ.data?.id,
     scope: pageScope,
     enabled: meQ.data?.role === 'TECHNICIAN',
-    online: isOnline,
+    online: cacheUiOpen,
     storageReady: offline.ready,
   })
 
@@ -728,7 +729,7 @@ export function MobileHome() {
           </div>
           <HomeOfflineCachePanel
             enabled={meQ.data?.role === 'TECHNICIAN'}
-            online={isOnline}
+            online={cacheUiOpen}
             storageReady={offline.ready}
             selectedCount={ticketOfflineCache.selectedIds.size}
             busy={ticketOfflineCache.busy}
@@ -787,8 +788,8 @@ export function MobileHome() {
             mobileActionToast={mobileActionToast}
             cacheStates={ticketOfflineCache.states}
             cacheSelectedIds={ticketOfflineCache.selectedIds}
-            onToggleCache={isOnline ? ticketOfflineCache.toggleSelected : undefined}
-            onRefreshCache={isOnline ? ticketOfflineCache.refreshTicket : undefined}
+            onToggleCache={cacheUiOpen ? ticketOfflineCache.toggleSelected : undefined}
+            onRefreshCache={cacheUiOpen ? ticketOfflineCache.refreshTicket : undefined}
           />
           {boardQ.data && boardQ.data.meta.totalTickets >= boardQ.data.meta.limitedToLast && boardQ.data.meta.limitedToLast >= 500 ? (
             <div className="mobileNotice" style={{ textAlign: 'center', fontSize: '0.82rem', marginTop: 4 }}>
