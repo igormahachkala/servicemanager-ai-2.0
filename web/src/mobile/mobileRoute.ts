@@ -1,3 +1,5 @@
+import type { Role } from '../lib/api'
+
 export type MobileRouteRoot = '/m' | '/max'
 
 export function getMobileRouteRoot(pathname?: string | null): MobileRouteRoot {
@@ -23,4 +25,18 @@ export function supportsPersonalNotificationPreferences(pathname?: string | null
  */
 export function inspectionNavSuffix(role?: string | null): string {
   return role === 'TECHNICIAN' ? '/inspection/today' : '/inspection'
+}
+
+const MOBILE_INSPECTION_ROLES: ReadonlySet<Role> = new Set([
+  'ADMIN',
+  'ADMIN_PROVIDER',
+  'MASTER',
+  'DISPATCHER',
+  'NETWORK_DIRECTOR',
+  'TECHNICIAN',
+])
+
+/** Mirrors the existing inspection controller role gate for navigation visibility only. */
+export function canAccessMobileInspection(role?: Role | null): boolean {
+  return !!role && MOBILE_INSPECTION_ROLES.has(role)
 }

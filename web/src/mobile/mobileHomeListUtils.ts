@@ -9,6 +9,7 @@ import {
   MOBILE_HOME_BOARD_CHIP_IDS,
 } from './mobileHomeBoardFilters'
 import type { MobileHomeQuickFilter } from './home/HomeQuickCards'
+import { isHomeUrgentTicket } from './home/homeUrgent'
 
 const LS_KEY = 'sma.mobileHome.boardUi.v1'
 
@@ -69,10 +70,6 @@ export function ticketMatchesMobileHomeSearch(ticket: TicketCard, queryRaw: stri
   return ticketHaystack(ticket).includes(q)
 }
 
-function isUrgentTicket(t: TicketCard): boolean {
-  return (t.priority ?? 'NORMAL') === 'URGENT' || t.urgency === 'URGENT'
-}
-
 export type TicketSlaState = 'none' | 'breached' | 'warning' | 'ok'
 
 export function getSlaState(ticket: TicketCard, nowMs: number): TicketSlaState {
@@ -111,7 +108,9 @@ function ticketMatchesChip(
 ): boolean {
   switch (chip) {
     case 'urgent':
-      return getSlaState(ticket, nowMs) === 'warning'
+      // SMA-MOBILE-HOME — «Срочные» = canonical isHomeUrgentTicket (priority/urgency
+      // URGENT), единый предикат с операционной карточкой и urgent quick-filter.
+      return isHomeUrgentTicket(ticket)
     case 'overdue':
       return getSlaState(ticket, nowMs) === 'breached'
     case 'unassigned':
@@ -154,7 +153,7 @@ export function sortTicketsForMobileHome(
   const score = (t: TicketCard): [number, number, number, number, number] => {
     const slaState = getSlaState(t, nowMs)
     const slaRank = slaPriority[slaState]
-    const urgent = isUrgentTicket(t) ? 0 : 1
+    const urgent = isHomeUrgentTicket(t) ? 0 : 1
     const deadlinePressure =
       slaState === 'breached' || slaState === 'warning' || isNearDeadlineTicket(t, nowMs, atRiskMs) ? 0 : 1
     const newUn = t.status === 'NEW' && !t.assignedTechnician ? 0 : 1
