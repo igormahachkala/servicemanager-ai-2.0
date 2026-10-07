@@ -367,10 +367,6 @@ export function MobileShell() {
           >
             <div>{offlinePendingBannerText(offline.pending)}</div>
           </Link>
-        ) : offline.connectivity === 'checking' ? (
-          <div className="mobileOfflineBanner mobileOfflineBannerPending">
-            <div>Проверяем связь…</div>
-          </div>
         ) : offline.connectivity === 'offline' ? (
           <div className="mobileOfflineBanner mobileOfflineBannerWarning">
             <div>Нет сети. Показываем сохранённые данные.</div>
