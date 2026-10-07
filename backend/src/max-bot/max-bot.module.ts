@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { InspectionModule } from '../inspection/inspection.module';
+import { FailureCausesModule } from '../failure-causes/failure-causes.module';
 import { ProblemCategoriesModule } from '../problem-categories/problem-categories.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { ServiceContractsModule } from '../service-contracts/service-contracts.module';
@@ -27,6 +28,7 @@ import { MaxTechnicianWorkplaceService } from './max-technician-workplace.servic
     forwardRef(() => TicketsModule),
     WorkforceModule,
     forwardRef(() => InspectionModule),
+    FailureCausesModule,
     ProblemCategoriesModule,
   ],
   controllers: [MaxBotController, MaxBotWebhookController, MaxBindingController],

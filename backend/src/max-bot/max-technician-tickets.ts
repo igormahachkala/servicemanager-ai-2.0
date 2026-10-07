@@ -68,6 +68,7 @@ export type TechnicianTicketAction =
   | { kind: 'comment'; ticketId: string }
   | { kind: 'photo'; ticketId: string }
   | { kind: 'complete'; ticketId: string }
+  | { kind: 'completeCause'; ticketId: string; failureCauseId: string }
   | { kind: 'completePhoto'; ticketId: string }
   | { kind: 'completeAsk'; ticketId: string }
   | { kind: 'completeSkip'; ticketId: string }
@@ -125,6 +126,12 @@ export function parseTechnicianTicketAction(payload: string): TechnicianTicketAc
   if (photo && TICKET_ID_RE.test(photo[1])) return { kind: 'photo', ticketId: photo[1] };
   const complete = payload.match(/^tku:(.+)$/);
   if (complete && TICKET_ID_RE.test(complete[1])) return { kind: 'complete', ticketId: complete[1] };
+  const completeCause = payload.match(
+    new RegExp(`^tkfc:(${TICKET_ID_RE.source.slice(1, -1)}):(${TICKET_ID_RE.source.slice(1, -1)})$`),
+  );
+  if (completeCause) {
+    return { kind: 'completeCause', ticketId: completeCause[1], failureCauseId: completeCause[2] };
+  }
   const completePhoto = payload.match(/^tkq:(.+)$/);
   if (completePhoto && TICKET_ID_RE.test(completePhoto[1])) return { kind: 'completePhoto', ticketId: completePhoto[1] };
   const completeAsk = payload.match(/^tky:(.+)$/);

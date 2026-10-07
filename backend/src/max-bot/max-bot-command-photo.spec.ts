@@ -3,6 +3,7 @@ import { UserRole } from '@prisma/client';
 import { MaxBotCommandService } from './max-bot-command.service';
 
 const TICKET_ID = '11111111-1111-4111-8111-111111111111';
+const CAUSE_ID = '22222222-2222-4222-8222-222222222222';
 
 function makeForbiddenPrisma() {
   const boom = () => {
@@ -68,6 +69,10 @@ function makeTechnicianService(overrides: Record<string, unknown> = {}) {
   };
   const workplace = {
     ticketCard: jest.fn().mockResolvedValue({ ok: true, value: card }),
+    ticketFailureCauses: jest.fn().mockResolvedValue({
+      ok: true,
+      value: [{ id: CAUSE_ID, name: 'Естественный износ' }],
+    }),
     addMyTicketPhoto: jest.fn().mockResolvedValue({
       ok: true,
       value: { ticketId: TICKET_ID, ticketNumber: 12, count: 2 },
@@ -116,12 +121,17 @@ describe('MaxBotCommandService — ticket photo and complete', () => {
     expect(second?.text).toContain('Фото добавлено к #12');
   });
 
-  it('completes with report text, optional photo, and skip that hits the kernel', async () => {
+  it('requires a failure cause before MAX completion reaches the kernel', async () => {
     const { service, workplace, files } = makeTechnicianService();
     const report = await service.handleUpdate(callback(`tku:${TICKET_ID}`));
     expect(report?.text).toBe('Опишите выполненные работы');
 
-    const ask = await service.handleUpdate(textFrom('Заменил компрессор'));
+    const causes = await service.handleUpdate(textFrom('Заменил компрессор'));
+    expect(causes?.text).toContain('Выберите причину неисправности');
+    expect(buttonsOf(causes).map((button) => button.text)).toEqual(['Естественный износ', 'Отмена', 'Меню']);
+    expect(workplace.completeMyTicket).not.toHaveBeenCalled();
+
+    const ask = await service.handleUpdate(callback(`tkfc:${TICKET_ID}:${CAUSE_ID}`));
     expect(ask?.text).toContain('Добавить фото результата?');
     expect(buttonsOf(ask).map((button) => button.text)).toEqual(['Добавить фото', 'Пропустить', 'Отмена', 'Меню']);
 
@@ -134,6 +144,7 @@ describe('MaxBotCommandService — ticket photo and complete', () => {
       expect.objectContaining({ userId: 'tech-1' }),
       TICKET_ID,
       'Заменил компрессор',
+      CAUSE_ID,
       undefined,
     );
     expect(skipped?.text).toContain('Нужно хотя бы одно фото результата');
@@ -146,12 +157,24 @@ describe('MaxBotCommandService — ticket photo and complete', () => {
       expect.anything(),
       TICKET_ID,
       'Заменил компрессор',
+      CAUSE_ID,
       expect.objectContaining({ mimetype: 'image/jpeg' }),
     );
     expect(done?.text).toContain('Статус: Ожидает приёмки');
     expect(buttonsOf(done).map((button) => button.text)).toEqual(
       expect.arrayContaining(['К заявке', 'Мои заявки', 'Меню']),
     );
+  });
+
+  it('does not silently complete when no failure causes are configured', async () => {
+    const { service, workplace } = makeTechnicianService({
+      ticketFailureCauses: jest.fn().mockResolvedValue({ ok: true, value: [] }),
+    });
+    await service.handleUpdate(callback(`tku:${TICKET_ID}`));
+    const res = await service.handleUpdate(textFrom('Заменил компрессор'));
+    expect(res?.text).toContain('Причины неисправности не настроены');
+    expect(res?.text).toContain('нельзя отправить на приёмку без причины');
+    expect(workplace.completeMyTicket).not.toHaveBeenCalled();
   });
 
   it('does not enter complete when the kernel hid canComplete', async () => {
@@ -206,6 +229,7 @@ describe('MaxBotCommandService — ticket photo and complete', () => {
     const { service, workplace } = makeTechnicianService();
     await service.handleUpdate(callback(`tku:${TICKET_ID}`));
     await service.handleUpdate(textFrom('Заменил компрессор'));
+    await service.handleUpdate(callback(`tkfc:${TICKET_ID}:${CAUSE_ID}`));
     await service.handleUpdate(callback(`tkq:${TICKET_ID}`));
     const done = await service.handleUpdate({
       message: {
@@ -223,6 +247,7 @@ describe('MaxBotCommandService — ticket photo and complete', () => {
       expect.anything(),
       TICKET_ID,
       'Заменил компрессор',
+      CAUSE_ID,
       expect.objectContaining({ mimetype: 'image/jpeg' }),
     );
     expect(done?.text).toContain('Статус: Ожидает приёмки');

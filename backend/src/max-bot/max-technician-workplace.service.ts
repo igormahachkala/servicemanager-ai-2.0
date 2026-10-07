@@ -7,10 +7,12 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { TicketStatus, UserRole } from '@prisma/client';
 
 import { PERMISSIONS } from '../common/permissions.constants';
+import { FailureCausesService } from '../failure-causes/failure-causes.service';
 import { InspectionService } from '../inspection/inspection.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TicketsService } from '../tickets/tickets.service';
@@ -58,6 +60,7 @@ export class MaxTechnicianWorkplaceService {
     private readonly workforce: WorkforceService,
     @Inject(forwardRef(() => TicketsService)) private readonly tickets: TicketsService,
     @Inject(forwardRef(() => InspectionService)) private readonly inspection: InspectionService,
+    @Optional() private readonly failureCauses?: FailureCausesService,
   ) {}
 
   async today(identity: ResolvedTechnician): Promise<WorkplaceOutcome<TechnicianTodaySummary>> {
@@ -339,16 +342,34 @@ export class MaxTechnicianWorkplaceService {
     });
   }
 
+  async ticketFailureCauses(
+    identity: ResolvedTechnician,
+    ticketId: string,
+  ): Promise<WorkplaceOutcome<Array<{ id: string; name: string }>>> {
+    return this.run(async () => {
+      if (!this.failureCauses) throw new Error('Failure causes service is unavailable');
+      const actor = await this.actor(identity);
+      const rows = await this.failureCauses.listActiveForTicket(actor, ticketId);
+      return (Array.isArray(rows) ? rows : [])
+        .map((row) => ({ id: row.id, name: row.name }))
+        .filter((row) => row.id && row.name);
+    });
+  }
+
   async completeMyTicket(
     identity: ResolvedTechnician,
     ticketId: string,
     report: string,
+    failureCauseId: string,
     file?: { buffer: Buffer; size: number; mimetype: string; originalname: string },
   ): Promise<WorkplaceOutcome<TechnicianTicketCardView>> {
     return this.run(async () => {
       const actor = await this.actor(identity);
       const before = await this.loadCard(identity, actor, ticketId);
       if (!before.canComplete) return before;
+      const safeFailureCauseId = (failureCauseId || '').trim();
+      if (!safeFailureCauseId) throw new BadRequestException('failureCauseId is required');
+      await this.assertFailureCauseAvailable(actor, ticketId, safeFailureCauseId);
       if (file) {
         await this.tickets.uploadTicketAttachment(
           identity.companyId,
@@ -360,8 +381,8 @@ export class MaxTechnicianWorkplaceService {
         );
       }
       try {
-        await this.tickets.updateStatus(identity.companyId, actor, UserRole.TECHNICIAN, ticketId, {
-          status: TicketStatus.DONE,
+        await this.tickets.submitAcceptance(identity.companyId, actor, UserRole.TECHNICIAN, ticketId, {
+          failureCauseId: safeFailureCauseId,
           comment: report,
         });
       } catch (err) {
@@ -377,6 +398,18 @@ export class MaxTechnicianWorkplaceService {
       }
       return this.loadCard(identity, actor, ticketId);
     });
+  }
+
+  private async assertFailureCauseAvailable(
+    actor: { id: string; companyId: string; role: UserRole; accessFlags: Record<string, boolean> },
+    ticketId: string,
+    failureCauseId: string,
+  ) {
+    if (!this.failureCauses) throw new Error('Failure causes service is unavailable');
+    const causes = await this.failureCauses.listActiveForTicket(actor, ticketId);
+    if (!causes.some((cause) => cause.id === failureCauseId)) {
+      throw new BadRequestException('Failure cause is not available for this ticket');
+    }
   }
 
   private async photoCount(
