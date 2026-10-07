@@ -261,4 +261,36 @@ describe('WorkforceService.updateSettings — provider shift policy', () => {
       BadRequestException,
     )
   })
+
+  it('listWorkforce scopes CLIENT_ADMIN to its own tenant, ignoring observerCompanyId (foreign tenant denied)', async () => {
+    const prisma = makePrisma()
+    prisma.company.findUnique.mockResolvedValue({ id: 'client-1', name: 'C', timezone: 'UTC', shiftAutoCloseTime: null })
+    const service = new WorkforceService(prisma, {} as any)
+    const clientAdmin = { id: 'ca-1', companyId: 'client-1', role: UserRole.CLIENT_ADMIN }
+
+    // WORKFORCE_VIEW — это capability, а не scope grant: observerCompanyId чужой
+    // компании должен игнорироваться для всех, кроме PLATFORM_ADMIN.
+    await service.listWorkforce({ actor: clientAdmin as any, observerCompanyId: 'foreign-company' })
+
+    expect(prisma.company.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'client-1' } }),
+    )
+    expect(prisma.workShift.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ companyId: 'client-1' }) }),
+    )
+  })
+
+  it('listWorkforce lets only PLATFORM_ADMIN target another company via observerCompanyId', async () => {
+    const prisma = makePrisma()
+    prisma.company.findUnique.mockResolvedValue({ id: 'other', name: 'O', timezone: 'UTC', shiftAutoCloseTime: null })
+    const service = new WorkforceService(prisma, {} as any)
+    const platform = { id: 'pa-1', companyId: 'platform', role: UserRole.PLATFORM_ADMIN }
+
+    await service.listWorkforce({ actor: platform as any, observerCompanyId: 'other' })
+
+    expect(prisma.workShift.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ companyId: 'other' }) }),
+    )
+  })
+
 })

@@ -132,11 +132,15 @@ describe('Видимость: fail-closed', () => {
     }
   })
 
-  it('Workforce: текущий прод-набор; CLIENT_ADMIN скрыт (нет подтверждения WORKFORCE_VIEW)', () => {
+  it('Workforce: management-набор + CLIENT_ADMIN read-only (WORKFORCE_VIEW утверждён)', () => {
     for (const role of ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TERRITORIAL_MANAGER'] as Role[]) {
       expect(isManagementNavItemVisible('/workforce', { role })).toBe(true)
     }
-    expect(isManagementNavItemVisible('/workforce', { role: 'CLIENT_ADMIN' })).toBe(false)
+    // CLIENT_ADMIN теперь видит /workforce (read-only affordance под WORKFORCE_VIEW).
+    expect(isManagementNavItemVisible('/workforce', { role: 'CLIENT_ADMIN' })).toBe(true)
+    // Но не получает управленческие/write-поверхности — видимость ≠ capability.
+    expect(isManagementNavItemVisible('/employees', { role: 'CLIENT_ADMIN' })).toBe(false)
+    expect(isManagementNavItemVisible('/access-constructor', { role: 'CLIENT_ADMIN' })).toBe(false)
   })
 
   it('План обходов и Шаблоны — roundsManage', () => {
