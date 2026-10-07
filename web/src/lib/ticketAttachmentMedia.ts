@@ -1,3 +1,5 @@
+import { squashOutgoingImage, type SquashCodec } from './squashOutgoingImage'
+
 export const TICKET_MEDIA_ACCEPT = 'image/*,video/mp4,video/quicktime,video/webm,video/x-m4v,.mov,.m4v'
 export const MAX_TICKET_IMAGE_BYTES = 25 * 1024 * 1024
 export const MAX_TICKET_VIDEO_BYTES = 100 * 1024 * 1024
@@ -62,4 +64,16 @@ export function validateTicketMediaFile(file: File): string | null {
 
 export function ticketMediaNoun(value: Parameters<typeof ticketMediaKind>[0]) {
   return ticketMediaKind(value) === 'video' ? 'Видео' : 'Фото'
+}
+
+export async function prepareOutgoingTicketMedia(
+  file: File,
+  codec?: SquashCodec,
+): Promise<{ file: File; error: string | null }> {
+  const normalized = normalizeTicketMediaFile(file)
+  const outgoing =
+    ticketMediaKind(normalized) === 'image'
+      ? await squashOutgoingImage(normalized, codec)
+      : normalized
+  return { file: outgoing, error: validateTicketMediaFile(outgoing) }
 }

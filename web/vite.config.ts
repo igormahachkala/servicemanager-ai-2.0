@@ -1,5 +1,6 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
+import wasm from 'vite-plugin-wasm'
 
 function vendorChunk(id: string) {
   if (!id.includes('node_modules')) return undefined
@@ -18,7 +19,7 @@ function vendorChunk(id: string) {
 }
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), wasm()],
   test: {
     environment: 'node',
     exclude: [

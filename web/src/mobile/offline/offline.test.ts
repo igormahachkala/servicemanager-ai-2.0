@@ -614,6 +614,8 @@ test('24. Service Worker кэширует оболочку и не кэширу�
   // расширениями: под него не должен попасть ни один ответ с данными.
   assert.match(sw, /function isBuildAsset/, 'отбор сборочных файлов выделен явно')
   assert.match(sw, /url\.pathname\.startsWith\('\/assets\/'\)/, 'только каталог /assets/')
+  assert.match(sw, /\\\.\(js\|css\|woff2\?\|svg\|png\|jpg\|webp\)\$/, 'runtime cache оболочки без wasm')
+  assert.match(sw, /\\\.wasm\$/, 'install не precache-ит wasm кодека')
   assert.match(sw, /sma-app-shell-v4/, 'полный precache отделён от прежнего cache поколения')
   assert.match(sw, /BUILD_ASSET_MANIFEST_URL/, 'install читает build manifest')
   assert.doesNotMatch(sw, /caches\.delete/, 'cache живой старой страницы не удаляется при activate')
