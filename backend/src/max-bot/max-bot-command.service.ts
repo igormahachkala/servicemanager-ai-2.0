@@ -364,6 +364,9 @@ export class MaxBotCommandService {
     if (action.kind === 'comment') return this.dialog.beginComment(technician, action.ticketId);
     if (action.kind === 'photo') return this.dialog.beginPhoto(technician, action.ticketId);
     if (action.kind === 'complete') return this.dialog.beginComplete(technician, action.ticketId);
+    if (action.kind === 'completeCause') {
+      return this.dialog.selectCompleteFailureCause(technician, action.ticketId, action.failureCauseId);
+    }
     if (action.kind === 'completePhoto') return this.dialog.requestCompletePhoto(technician, action.ticketId);
     if (action.kind === 'completeAsk') return this.dialog.backToCompleteAsk(technician, action.ticketId);
     return this.dialog.skipCompletePhoto(technician, action.ticketId);

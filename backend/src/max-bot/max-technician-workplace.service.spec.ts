@@ -10,6 +10,7 @@ const technician = {
   role: UserRole.TECHNICIAN,
   maxUserId: '4242',
 };
+const failureCauseId = '22222222-2222-4222-8222-222222222222';
 
 function makePrisma() {
   return {
@@ -545,7 +546,7 @@ describe('MaxTechnicianWorkplaceService', () => {
     );
   });
 
-  it('completes through updateStatus DONE plus work-log stop, and maps missing photo', async () => {
+  it('completes through submitAcceptance with a failure cause, stops work-log, and maps missing photo', async () => {
     const cardTicket = {
       id: '11111111-1111-4111-8111-111111111111',
       ticketNumber: 11,
@@ -565,34 +566,130 @@ describe('MaxTechnicianWorkplaceService', () => {
     };
     const tickets = {
       getOne: jest.fn().mockResolvedValueOnce(cardTicket).mockResolvedValueOnce(doneTicket),
-      updateStatus: jest.fn().mockResolvedValue({}),
+      updateStatus: jest.fn(),
+      submitAcceptance: jest.fn().mockResolvedValue({}),
     };
     const workforce = { getMyState: jest.fn(), stopTicketWork: jest.fn().mockResolvedValue({}) };
+    const failureCauses = {
+      listActiveForTicket: jest.fn().mockResolvedValue([{ id: failureCauseId, name: 'Естественный износ' }]),
+    };
     const service = new MaxTechnicianWorkplaceService(
       makePrisma() as any,
       workforce as any,
       tickets as any,
       { listRuns: jest.fn() } as any,
+      failureCauses as any,
     );
 
-    const done = await service.completeMyTicket(technician, cardTicket.id, 'Починил');
-    expect(tickets.updateStatus).toHaveBeenCalledWith(
+    const done = await service.completeMyTicket(technician, cardTicket.id, 'Починил', failureCauseId);
+    expect(tickets.submitAcceptance).toHaveBeenCalledWith(
       'company-1',
       expect.objectContaining({ id: 'tech-1' }),
       UserRole.TECHNICIAN,
       cardTicket.id,
-      { status: TicketStatus.DONE, comment: 'Починил' },
+      { failureCauseId, comment: 'Починил' },
     );
+    expect(tickets.updateStatus).not.toHaveBeenCalled();
     expect(workforce.stopTicketWork).toHaveBeenCalled();
     expect(done.ok && done.value.statusLabel).toBe('Ожидает приёмки');
 
-    tickets.updateStatus.mockRejectedValueOnce(
+    tickets.submitAcceptance.mockRejectedValueOnce(
       new BadRequestException('Cannot complete ticket without at least 1 work report photo or video'),
     );
     tickets.getOne.mockResolvedValue(cardTicket);
-    await expect(service.completeMyTicket(technician, cardTicket.id, 'Починил')).resolves.toEqual({
+    await expect(service.completeMyTicket(technician, cardTicket.id, 'Починил', failureCauseId)).resolves.toEqual({
       ok: false,
       message: 'Нужно хотя бы одно фото результата',
     });
+  });
+
+  it('does not submit MAX completion without a failure cause', async () => {
+    const cardTicket = {
+      id: '11111111-1111-4111-8111-111111111111',
+      ticketNumber: 11,
+      status: TicketStatus.IN_PROGRESS,
+      problemText: 'Капает',
+      location: { name: 'Кухня' },
+      meta: { availableActions: { canStart: false, canComplete: true }, availableStatusTransitions: [] },
+    };
+    const file = { buffer: Buffer.from('jpeg'), size: 4, mimetype: 'image/jpeg', originalname: 'photo.jpg' };
+    const tickets = {
+      getOne: jest.fn().mockResolvedValue(cardTicket),
+      uploadTicketAttachment: jest.fn(),
+      submitAcceptance: jest.fn(),
+      updateStatus: jest.fn(),
+    };
+    const service = new MaxTechnicianWorkplaceService(
+      makePrisma() as any,
+      { getMyState: jest.fn(), stopTicketWork: jest.fn() } as any,
+      tickets as any,
+      { listRuns: jest.fn() } as any,
+      { listActiveForTicket: jest.fn() } as any,
+    );
+
+    await expect(service.completeMyTicket(technician, cardTicket.id, 'Починил', '', file)).resolves.toEqual({
+      ok: false,
+      message: 'failureCauseId is required',
+    });
+    expect(tickets.uploadTicketAttachment).not.toHaveBeenCalled();
+    expect(tickets.submitAcceptance).not.toHaveBeenCalled();
+    expect(tickets.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it('denies invalid or foreign failure causes before MAX uploads/submits', async () => {
+    const cardTicket = {
+      id: '11111111-1111-4111-8111-111111111111',
+      ticketNumber: 11,
+      status: TicketStatus.IN_PROGRESS,
+      problemText: 'Капает',
+      location: { name: 'Кухня' },
+      meta: { availableActions: { canStart: false, canComplete: true }, availableStatusTransitions: [] },
+    };
+    const file = { buffer: Buffer.from('jpeg'), size: 4, mimetype: 'image/jpeg', originalname: 'photo.jpg' };
+    const tickets = {
+      getOne: jest.fn().mockResolvedValue(cardTicket),
+      uploadTicketAttachment: jest.fn(),
+      submitAcceptance: jest.fn(),
+      updateStatus: jest.fn(),
+    };
+    const service = new MaxTechnicianWorkplaceService(
+      makePrisma() as any,
+      { getMyState: jest.fn(), stopTicketWork: jest.fn() } as any,
+      tickets as any,
+      { listRuns: jest.fn() } as any,
+      { listActiveForTicket: jest.fn().mockResolvedValue([{ id: failureCauseId, name: 'Естественный износ' }]) } as any,
+    );
+
+    await expect(
+      service.completeMyTicket(technician, cardTicket.id, 'Починил', '33333333-3333-4333-8333-333333333333', file),
+    ).resolves.toEqual({
+      ok: false,
+      message: 'Failure cause is not available for this ticket',
+    });
+    expect(tickets.uploadTicketAttachment).not.toHaveBeenCalled();
+    expect(tickets.submitAcceptance).not.toHaveBeenCalled();
+    expect(tickets.updateStatus).not.toHaveBeenCalled();
+  });
+
+  it('lists ticket-scoped active failure causes for MAX completion', async () => {
+    const failureCauses = {
+      listActiveForTicket: jest.fn().mockResolvedValue([{ id: failureCauseId, name: 'Естественный износ' }]),
+    };
+    const service = new MaxTechnicianWorkplaceService(
+      makePrisma() as any,
+      { getMyState: jest.fn() } as any,
+      { list: jest.fn() } as any,
+      { listRuns: jest.fn() } as any,
+      failureCauses as any,
+    );
+
+    await expect(service.ticketFailureCauses(technician, '11111111-1111-4111-8111-111111111111')).resolves.toEqual({
+      ok: true,
+      value: [{ id: failureCauseId, name: 'Естественный износ' }],
+    });
+    expect(failureCauses.listActiveForTicket).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'tech-1', role: UserRole.TECHNICIAN, companyId: 'company-1' }),
+      '11111111-1111-4111-8111-111111111111',
+    );
   });
 });

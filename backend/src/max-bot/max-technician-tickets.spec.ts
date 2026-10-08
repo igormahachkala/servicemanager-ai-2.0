@@ -170,6 +170,11 @@ describe('max-technician-tickets', () => {
     expect(parseTechnicianTicketAction(`tkc:${ID_OLD}`)).toEqual({ kind: 'comment', ticketId: ID_OLD });
     expect(parseTechnicianTicketAction(`tkf:${ID_OLD}`)).toEqual({ kind: 'photo', ticketId: ID_OLD });
     expect(parseTechnicianTicketAction(`tku:${ID_OLD}`)).toEqual({ kind: 'complete', ticketId: ID_OLD });
+    expect(parseTechnicianTicketAction(`tkfc:${ID_OLD}:${ID_NEW}`)).toEqual({
+      kind: 'completeCause',
+      ticketId: ID_OLD,
+      failureCauseId: ID_NEW,
+    });
     expect(parseTechnicianTicketAction(`tkq:${ID_OLD}`)).toEqual({ kind: 'completePhoto', ticketId: ID_OLD });
     expect(parseTechnicianTicketAction(`tky:${ID_OLD}`)).toEqual({ kind: 'completeAsk', ticketId: ID_OLD });
     expect(parseTechnicianTicketAction(`tkz:${ID_OLD}`)).toEqual({ kind: 'completeSkip', ticketId: ID_OLD });
