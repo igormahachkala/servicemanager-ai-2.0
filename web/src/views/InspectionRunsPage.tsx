@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { locationCardPath } from '../lib/equipmentCard'
+import { readOutboundScopeFromSearch } from '../lib/locationCardSections'
 
 function fmtDateTime(value?: string | null) {
   if (!value) return '—'
@@ -51,6 +53,8 @@ function durationLabel(startedAt?: string | null, completedAt?: string | null) {
 const EMPTY_FILTER: api.InspectionRunsFilter = {}
 
 export function InspectionRunsPage() {
+  const [searchParams] = useSearchParams()
+  const outboundScope = readOutboundScopeFromSearch(searchParams)
   const [filter, setFilter] = useState<api.InspectionRunsFilter>(EMPTY_FILTER)
 
   const runsQ = useQuery({
@@ -199,16 +203,24 @@ export function InspectionRunsPage() {
                     {/* Снимок названия на момент запуска, не живое имя шаблона. */}
                     <div style={{ fontWeight: 700 }}>{run.title}</div>
                     <div className="muted small">
-                      {run.location.name}{run.location.city ? ` · ${run.location.city}` : ''}
+                      {/* Phase 3: из строки обхода — в карточку точки. */}
+                      <Link to={locationCardPath(run.location.id, outboundScope)}>{run.location.name}</Link>
+                      {run.location.city ? ` · ${run.location.city}` : ''}
                       {run.equipment?.name ? ` · ${run.equipment.name}` : ''}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     <span className="tag">{runStatusLabel(run.status)}</span>
                     {run.reportStatus ? <span className="tag">Акт: {reportStatusLabel(run.reportStatus)}</span> : null}
-                    <Link to={'/inspection/runs/' + run.id}><button className="ghost">Открыть</button></Link>
+                    {/*
+                      Phase 3 fix (NAV V2(5) P1): промежуточные переходы несут
+                      контур. Без него страница обхода получала пустую область,
+                      и переход «обход → точка» строился уже без клиента —
+                      бэкенд корректно отвечал 404.
+                    */}
+                    <Link to={api.appendScopeToPath('/inspection/runs/' + run.id, outboundScope)}><button className="ghost">Открыть</button></Link>
                     {completed ? (
-                      <Link to={`/inspection/runs/${run.id}/report`}><button className="ghost">Итог обхода</button></Link>
+                      <Link to={api.appendScopeToPath(`/inspection/runs/${run.id}/report`, outboundScope)}><button className="ghost">Итог обхода</button></Link>
                     ) : null}
                   </div>
                 </div>
