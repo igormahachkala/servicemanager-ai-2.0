@@ -1,6 +1,9 @@
 import { extractMaxUserId, MaxIdentity } from './max-identity.service';
 import { MaxIncomingMedia, MaxFileClient } from './max-file.client';
-import { MaxBotReportStore } from './max-bot-report.store';
+import {
+  MaxBotReportStore,
+  type MaxBotReportPhotoInput,
+} from './max-bot-report.store';
 import { MaxBotScreenJournal, type ScreenEntry } from './max-bot-screen-journal';
 import { renderInlineKeyboard } from './max-menu.builder';
 import {
@@ -260,7 +263,7 @@ export class MaxBotReportDialog {
     }
 
     try {
-      const photos = [];
+      const photos: MaxBotReportPhotoInput[] = [];
       for (const media of state.photos) {
         const downloaded = await this.files.download(media);
         photos.push({
