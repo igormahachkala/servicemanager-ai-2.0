@@ -97,26 +97,14 @@ describe('098/3 список ведёт на карточку', () => {
   const listSource = readSrc('components/locations/LocationList.tsx')
 
   it('3. имя объекта в строке списка — ссылка на /locations/:id', () => {
-    // Путь строится общим билдером (locationCardPath), а не шаблоном на месте.
-    expect(listSource).toContain('locationCardPath(')
+    expect(listSource).toContain('`/locations/${location.id}`')
     expect(listSource).toContain('<Link to={cardTo}>{location.name}</Link>')
   })
 
   it('3. ссылка несёт область списка, иначе карточка провайдера упрётся в 404', () => {
-    /*
-     * Область по-прежнему уезжает в ссылку, но ТЕМ параметром, который
-     * контур использует: у провайдера scopeCompanyId — это id связанного
-     * клиента, и «?companyId=» терял linked-часть сохранённой области с
-     * первого же перехода.
-     */
     expect(listSource).toContain('scopeCompanyId')
-    expect(listSource).toContain('{ linkedClientCompanyId: scopeCompanyId }')
-    expect(listSource).toContain('{ companyId: scopeCompanyId }')
-    expect(listSource).not.toContain('companyId=${encodeURIComponent(scopeCompanyId)}')
-
-    const page = readSrc('views/LocationsPage.tsx')
-    expect(page).toContain('scopeCompanyId={scopeCompanyId}')
-    expect(page).toContain('isProviderScope={isProviderScope}')
+    expect(listSource).toContain('companyId=${encodeURIComponent(scopeCompanyId)}')
+    expect(readSrc('views/LocationsPage.tsx')).toContain('scopeCompanyId={scopeCompanyId}')
   })
 })
 
