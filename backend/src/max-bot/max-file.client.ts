@@ -74,6 +74,62 @@ export class MaxFileClient {
     };
   }
 
+  /**
+   * Upload a local image buffer to MAX and return an attachment token.
+   * Never pass file:// paths to /messages — only this token.
+   */
+  async uploadImage(buffer: Buffer, filename: string): Promise<string> {
+    if (!this.token) throw new Error('MAX bot token is not configured');
+    if (!buffer.length) throw new Error('Пустой файл изображения');
+    const initResponse = await this.fetchImpl(`${this.baseUrl}/uploads?type=image`, {
+      method: 'POST',
+      headers: { Authorization: this.token, Accept: 'application/json' },
+    });
+    if (!initResponse.ok) throw new Error('Не удалось получить URL загрузки');
+    const initBody = (await initResponse.json().catch(() => null)) as Record<string, unknown> | null;
+    const uploadUrl = readString(initBody?.url);
+    if (!uploadUrl) throw new Error('Не удалось получить URL загрузки');
+    let token = readString(initBody?.token);
+
+    const form = new FormData();
+    const bytes = new Uint8Array(buffer);
+    form.append(
+      'data',
+      new Blob([bytes], { type: guessMime(filename, 'image') }),
+      filename || 'photo.png',
+    );
+    const uploadResponse = await this.fetchImpl(uploadUrl, {
+      method: 'POST',
+      headers: { Authorization: this.token },
+      body: form,
+    });
+    if (!uploadResponse.ok) throw new Error('Не удалось загрузить изображение');
+    const uploadBody = (await uploadResponse.json().catch(() => null)) as unknown;
+    token = extractUploadToken(uploadBody) || token;
+    if (!token) throw new Error('Не удалось получить токен изображения');
+    return token;
+  }
+
+  async sendImageMessage(chatId: number, caption: string, imageToken: string): Promise<void> {
+    if (!this.token) throw new Error('MAX bot token is not configured');
+    const response = await this.fetchImpl(
+      `${this.baseUrl}/messages?chat_id=${encodeURIComponent(String(chatId))}`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: this.token,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          text: caption,
+          attachments: [{ type: 'image', payload: { token: imageToken } }],
+        }),
+      },
+    );
+    if (!response.ok) throw new Error('Не удалось отправить изображение');
+  }
+
   private async resolveTokenUrl(token: string | null, type: string): Promise<string | null> {
     if (!token || !this.token) return null;
     const path = type === 'video' ? `/videos/${encodeURIComponent(token)}` : `/files/${encodeURIComponent(token)}`;
@@ -87,6 +143,21 @@ export class MaxFileClient {
     const url = body.url ?? payload?.url;
     return typeof url === 'string' && url.trim() ? url.trim() : null;
   }
+}
+
+function extractUploadToken(body: unknown): string | null {
+  const root = asRecord(body);
+  if (!root) return null;
+  const direct = readString(root.token);
+  if (direct) return direct;
+  const photos = asRecord(root.photos);
+  if (!photos) return null;
+  for (const value of Object.values(photos)) {
+    const nested = asRecord(value);
+    const token = readString(nested?.token);
+    if (token) return token;
+  }
+  return null;
 }
 
 function toIncomingMedia(item: unknown): MaxIncomingMedia | null {

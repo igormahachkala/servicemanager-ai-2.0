@@ -17,6 +17,7 @@ import { MaxBotService } from './max-bot.service';
 import { MaxBotScreenJournal } from './max-bot-screen-journal';
 import { MaxBotReportStore } from './max-bot-report.store';
 import { MaxFileClient } from './max-file.client';
+import { MaxBotMemosService } from './max-bot-memos.service';
 import { MaxMasterCommandService } from './max-master-command.service';
 import { MaxMasterWorkplaceService } from './max-master-workplace.service';
 import { MaxTechnicianRoundsService } from './max-technician-rounds.service';
@@ -36,6 +37,7 @@ import { MaxTechnicianWorkplaceService } from './max-technician-workplace.servic
     MaxBotService,
     MaxBotScreenJournal,
     MaxBotReportStore,
+    MaxBotMemosService,
     MaxBotCommandService,
     MaxBotPollingService,
     MaxIdentityService,

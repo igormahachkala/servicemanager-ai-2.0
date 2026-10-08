@@ -242,6 +242,7 @@ describe('MaxBotCommandService — unbound identity leaks nothing', () => {
       'Без исполнителя',
       'Техники',
       'Обходы',
+      'Памятки',
       'Сообщить об ошибке',
     ]);
     expect(res?.text).not.toContain('Мои заявки');
@@ -590,6 +591,7 @@ describe('MaxBotCommandService — technician chat menu', () => {
       'Доступные',
       'Обходы',
       'Поиск заявки',
+      'Памятки',
       'Сообщить об ошибке',
     ]);
     expect(buttonsOf(start).every((button) => button.type === 'callback')).toBe(true);
@@ -636,6 +638,7 @@ describe('MaxBotCommandService — technician chat menu', () => {
       'Доступные',
       'Обходы',
       'Поиск заявки',
+      'Памятки',
       'Сообщить об ошибке',
     ]);
   });
@@ -942,6 +945,7 @@ describe('MaxBotCommandService — master chat menu', () => {
       'Без исполнителя',
       'Техники',
       'Обходы',
+      'Памятки',
       'Сообщить об ошибке',
     ]);
   });

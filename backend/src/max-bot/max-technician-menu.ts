@@ -1,5 +1,6 @@
 import { renderInlineKeyboard, renderPersistentMenuMessage } from './max-menu.builder';
 import { MaxBotCommandResponse, MaxBotInlineKeyboardButton } from './max-bot.types';
+import { memosMenuButton } from './max-bot-memos';
 import { boundServiceFooterRow, reportErrorMenuRow } from './max-bot-report-footer';
 
 export type TechnicianSectionPayload = 'today' | 'my' | 'avail' | 'rounds' | 'shift' | 'find';
@@ -59,6 +60,7 @@ function technicianMenuRows(): MaxBotInlineKeyboardButton[][] {
     [byPayload.today, byPayload.shift],
     [byPayload.my, byPayload.avail],
     [byPayload.rounds, byPayload.find],
+    [memosMenuButton()],
     ...reportErrorMenuRow(),
   ];
 }

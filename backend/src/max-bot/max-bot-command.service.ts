@@ -66,6 +66,8 @@ import { MaxBotCommandResponse, MaxBotUpdate } from './max-bot.types';
 import { MaxBotReportDialog, isReportCallbackPayload } from './max-bot-report-dialog';
 import { MaxBotReportStore } from './max-bot-report.store';
 import { MaxBotScreenJournal } from './max-bot-screen-journal';
+import { isMemosCallbackPayload } from './max-bot-memos';
+import { MaxBotMemosService } from './max-bot-memos.service';
 
 const LEGACY_DATA_COMMANDS = new Set(['/tickets', '/ticket', '/open']);
 
@@ -79,6 +81,7 @@ export class MaxBotCommandService {
   private readonly botUsername: string;
   private readonly dialog: MaxTechnicianDialog;
   private readonly reportDialog: MaxBotReportDialog;
+  private readonly memos: MaxBotMemosService;
 
   constructor(
     private readonly prisma?: PrismaService,
@@ -89,10 +92,12 @@ export class MaxBotCommandService {
     @Optional() private readonly master?: MaxMasterCommandService,
     @Optional() screenJournal?: MaxBotScreenJournal,
     @Optional() reportStore?: MaxBotReportStore,
+    @Optional() memos?: MaxBotMemosService,
   ) {
     this.botUsername = normalizeMaxBotUsername(process.env.MAX_BOT_USERNAME);
     this.dialog = new MaxTechnicianDialog(workplace, files, rounds);
     this.reportDialog = new MaxBotReportDialog(screenJournal, reportStore, files);
+    this.memos = memos ?? new MaxBotMemosService(files);
   }
 
   async handleUpdate(update: MaxBotUpdate): Promise<MaxBotCommandResponse | null> {
@@ -272,6 +277,9 @@ export class MaxBotCommandService {
     if (isReportCallbackPayload(payload)) {
       return this.handleReportCallback(update, payload);
     }
+    if (isMemosCallbackPayload(payload)) {
+      return this.handleMemosCallback(update, payload);
+    }
 
     const master = await this.resolvedMaster(update);
     if (master && this.master) {
@@ -332,6 +340,26 @@ export class MaxBotCommandService {
     }
     this.logger.log({ payload }, 'max_bot_callback_handled');
     return this.reportDialog.handleCallback(identity, payload);
+  }
+
+  private async handleMemosCallback(
+    update: MaxBotUpdate,
+    payload: string,
+  ): Promise<MaxBotCommandResponse> {
+    const technician = await this.resolvedTechnician(update);
+    if (technician) {
+      this.clearAllDialogs(update);
+      this.logger.log({ payload }, 'max_bot_callback_handled');
+      return this.memos.handleCallback(update, payload, 'technician');
+    }
+    const master = await this.resolvedMaster(update);
+    if (master) {
+      this.clearAllDialogs(update);
+      this.logger.log({ payload }, 'max_bot_callback_handled');
+      return this.memos.handleCallback(update, payload, 'master');
+    }
+    this.logger.log({ payload }, 'max_bot_callback_fallback');
+    return this.menuMessage(update);
   }
 
   private async tryReportContent(

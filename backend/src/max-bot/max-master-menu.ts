@@ -2,6 +2,7 @@ import { UserRole } from '@prisma/client';
 
 import { renderInlineKeyboard, renderPersistentMenuMessage } from './max-menu.builder';
 import { MaxBotCommandResponse, MaxBotInlineKeyboardButton } from './max-bot.types';
+import { memosMenuButton } from './max-bot-memos';
 import { appendBoundServiceFooter, reportErrorMenuRow } from './max-bot-report-footer';
 
 export type MasterSectionPayload = 'today' | 'tickets' | 'unassigned' | 'techs' | 'rounds' | 'sla';
@@ -105,6 +106,7 @@ function masterMenuRows(showChangeClient: boolean): MaxBotInlineKeyboardButton[]
     [byPayload.techs, byPayload.rounds],
   ];
   if (showChangeClient) rows.push([callbackButton('Сменить клиента', 'mcc')]);
+  rows.push([memosMenuButton()]);
   rows.push(...reportErrorMenuRow());
   return rows;
 }
