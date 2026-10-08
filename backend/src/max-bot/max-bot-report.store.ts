@@ -80,7 +80,11 @@ function safeExtension(originalname?: string | null, mimetype?: string | null): 
 
 @Injectable()
 export class MaxBotReportStore {
-  constructor(private readonly baseDir = resolveReportsDir()) {}
+  private readonly baseDir: string;
+
+  constructor() {
+    this.baseDir = resolveReportsDir();
+  }
 
   getBaseDir(): string {
     return this.baseDir;

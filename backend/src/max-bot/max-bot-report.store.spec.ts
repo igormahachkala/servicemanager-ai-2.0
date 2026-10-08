@@ -12,11 +12,13 @@ describe('MaxBotReportStore', () => {
   });
 
   afterEach(async () => {
+    delete process.env.MAX_BOT_REPORTS_DIR;
     await rm(baseDir, { recursive: true, force: true });
   });
 
   it('writes report.json and photos under YYYY/MM/DD/<id>/', async () => {
-    const store = new MaxBotReportStore(baseDir);
+    process.env.MAX_BOT_REPORTS_DIR = baseDir;
+    const store = new MaxBotReportStore();
     const created = await store.createErrorReport({
       maxUserId: '42',
       userId: 'user-1',
@@ -54,7 +56,8 @@ describe('MaxBotReportStore', () => {
   });
 
   it('allows empty text and no photos', async () => {
-    const store = new MaxBotReportStore(baseDir);
+    process.env.MAX_BOT_REPORTS_DIR = baseDir;
+    const store = new MaxBotReportStore();
     const created = await store.createErrorReport({
       maxUserId: '7',
       screens: [],
@@ -66,7 +69,8 @@ describe('MaxBotReportStore', () => {
   });
 
   it('never uses /opt when base dir is tmp', () => {
-    const store = new MaxBotReportStore(baseDir);
+    process.env.MAX_BOT_REPORTS_DIR = baseDir;
+    const store = new MaxBotReportStore();
     expect(store.getBaseDir()).toBe(baseDir);
     expect(store.getBaseDir().startsWith('/opt')).toBe(false);
   });
