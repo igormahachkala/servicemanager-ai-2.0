@@ -2,7 +2,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
-import { equipmentCardPath, equipmentStatusLabel, locationsListPath } from '../lib/equipmentCard'
+import { equipmentCardPath, equipmentListPath, equipmentStatusLabel, locationsListPath } from '../lib/equipmentCard'
 import { appendBoardNavigationContextToPath } from '../lib/boardNavigationContext'
 import {
   pluralizeRu,
@@ -259,7 +259,7 @@ export function LocationPage() {
               </div>
               <div className="muted small">В работе: {equipment.active}</div>
               <div style={{ marginTop: 10 }}>
-                <Link to="/equipment">
+                <Link to={equipmentListPath(outboundScope)}>
                   <button className="ghost">Открыть оборудование</button>
                 </Link>
               </div>
