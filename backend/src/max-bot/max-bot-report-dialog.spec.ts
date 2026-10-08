@@ -41,7 +41,8 @@ describe('MaxBotReportDialog', () => {
   beforeEach(async () => {
     baseDir = await mkdtemp(join(tmpdir(), 'maxbot-report-dialog-'));
     journal = new MaxBotScreenJournal();
-    store = new MaxBotReportStore(baseDir);
+    process.env.MAX_BOT_REPORTS_DIR = baseDir;
+    store = new MaxBotReportStore();
     files = {
       download: jest.fn().mockResolvedValue({
         buffer: Buffer.from('jpeg-bytes'),
@@ -60,6 +61,7 @@ describe('MaxBotReportDialog', () => {
   });
 
   afterEach(async () => {
+    delete process.env.MAX_BOT_REPORTS_DIR;
     await rm(baseDir, { recursive: true, force: true });
   });
 
