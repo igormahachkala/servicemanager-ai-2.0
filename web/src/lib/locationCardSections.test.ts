@@ -458,6 +458,30 @@ describe('NAV V2(5) P1: контур живёт по всей цепочке о�
     expect(report).not.toMatch(/to="\/inspection\/runs"/)
   })
 
+  it('37a. ВСЕ переходы цепочки обходов несут контур, включая возврат в историю', () => {
+    /*
+     * Регрессия, найденная аудитом навигации: близнец этой ссылки на
+     * странице отчёта («История обходов») был исправлен, а «История» на
+     * странице обхода осталась литералом to="/inspection/runs" — провайдер
+     * из контура клиента попадал на неотфильтрованную историю, и список
+     * откатывался на клиента из подсказки профиля.
+     *
+     * Проверяются ОБЕ страницы, чтобы асимметрия не вернулась.
+     */
+    const run = codeOf(readSrc('views/InspectionRunPage.tsx'))
+    expect(run).toContain("api.appendScopeToPath('/inspection/runs', outboundScope)")
+    expect(run).not.toMatch(/to="\/inspection\/runs"/)
+
+    const report = codeOf(readSrc('views/InspectionRunReportPage.tsx'))
+    expect(report).toContain("api.appendScopeToPath('/inspection/runs', outboundScope)")
+    expect(report).not.toMatch(/to="\/inspection\/runs"/)
+
+    // И сам возврат действительно сохраняет контур.
+    const back = appendScopeToPath('/inspection/runs', { linkedClientCompanyId: 'client-B' })
+    expect(back).toBe('/inspection/runs?linkedClientCompanyId=client-B')
+    expect(back).not.toContain('companyId=client-B')
+  })
+
   it('38. чужой контур в адресе доступа не даёт: решает бэкенд', () => {
     /*
      * Ссылка чужой идентификатор перенесёт — это просто строка адреса.

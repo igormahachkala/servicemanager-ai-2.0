@@ -298,7 +298,7 @@ export function InspectionRunPage() {
             </Link>
           ) : null}
           <Link to="/inspection/templates"><button className="ghost">Все шаблоны</button></Link>
-          <Link to="/inspection/runs"><button className="ghost">История</button></Link>
+          <Link to={api.appendScopeToPath('/inspection/runs', outboundScope)}><button className="ghost">История</button></Link>
         </div>
       </div>
 
