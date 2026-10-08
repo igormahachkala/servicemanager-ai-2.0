@@ -4,7 +4,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import * as api from './api'
-import { locationCardPath } from './equipmentCard'
+import { equipmentListPath, locationCardPath } from './equipmentCard'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const readSrc = (relative: string) => readFileSync(resolve(here, '..', relative), 'utf8')
@@ -135,6 +135,23 @@ describe('2. список точек сохраняет канонический
     expect(page).toContain("searchParams.get('linkedClientCompanyId')")
     expect(page).toContain('const companyId = scopeFromCompanyId || scopeFromLinkedClient')
     expect(page).toContain('equipmentCardPath(unit.id, outboundScope)')
+  })
+
+  it('переход к списку оборудования сохраняет ровно входной контур', () => {
+    expect(equipmentListPath({ linkedClientCompanyId: 'client-A' })).toBe(
+      '/equipment?linkedClientCompanyId=client-A',
+    )
+    expect(equipmentListPath({ linkedClientCompanyId: 'client-B' })).toBe(
+      '/equipment?linkedClientCompanyId=client-B',
+    )
+    expect(equipmentListPath({ companyId: 'client-own' })).toBe(
+      '/equipment?companyId=client-own',
+    )
+    expect(equipmentListPath({})).toBe('/equipment')
+
+    const page = readSrc('views/LocationPage.tsx')
+    expect(page).toContain('equipmentListPath(outboundScope)')
+    expect(page).not.toContain('<Link to="/equipment">')
   })
 })
 
