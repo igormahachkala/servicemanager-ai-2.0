@@ -36,12 +36,13 @@ import { queueOffline, useOfflineStatus } from '../offline/useOffline'
 import { deliverTicketStatus } from '../offline/statusDelivery'
 import { ONLINE_ONLY_ACTION_MESSAGE } from '../offline/onlineOnlyMessage'
 import { getMobileMaterialsEntry } from '../mobileMaterialsEntry'
-import { mobilePath } from '../mobileRoute'
+import { canAccessMobileInspection, inspectionNavSuffix, mobilePath } from '../mobileRoute'
 import { HomeHeader } from './HomeHeader'
 import { HomeTabs } from './HomeTabs'
 import { HomeChips } from './HomeChips'
 import { HomeList, type TicketCloseModalState } from './HomeList'
 import { HomeQuickCards, type MobileHomeQuickFilter } from './HomeQuickCards'
+import { HomeUrgentCard } from './HomeUrgentCard'
 import { HomeShiftStatus } from './HomeShiftStatus'
 import { isHomeUrgentTicket, selectHomeUrgentTickets } from './homeUrgent'
 import { HomeOfflineCachePanel } from './HomeOfflineCachePanel'
@@ -385,7 +386,7 @@ export function MobileHome() {
     <div className="mobileHomeQuickCards">
       <button
         type="button"
-        className="mobileHomeQuickCard"
+        className="mobileHomeQuickCard mobileHomeQuickCard--blue"
         onClick={() => navigate(materialsHomeHref)}
         aria-label={materialsEntry.label}
       >
@@ -408,6 +409,13 @@ export function MobileHome() {
       </button>
     </div>
   ) : null
+  const planningHomeHref = meQ.data && canAccessMobileInspection(meQ.data.role)
+    ? api.appendScopeToPath(
+        mobilePath(location.pathname, inspectionNavSuffix(meQ.data.role)),
+        pageScope,
+        meQ.data,
+      )
+    : null
 
   const companyPrimaryLine = useMemo(() => {
     const fromMe = (meQ.data?.companyName || '').trim()
@@ -682,19 +690,19 @@ export function MobileHome() {
         setSearchQuery={changeSearchQuery}
       />
       <HomeShiftStatus role={meQ.data?.role} />
+      <HomeUrgentCard tickets={urgentTickets} ticketHref={ticketHref} ticketLinkState={ticketLinkState} onViewAll={() => activateQuickFilter('urgent')} />
       {materialsHomeCard}
       {showMobileHomeTicketBoard ? (
         <>
           <HomeQuickCards
-            urgentCount={urgentTickets.length}
             awaitingCount={awaitingCount}
             myActionCount={myActionCount}
             reworkCount={reworkCount}
             activeQuickFilter={quickFilter}
-            onToggleUrgent={() => activateQuickFilter('urgent')}
             onToggleAwaiting={() => activateQuickFilter('awaiting')}
             onToggleMyAction={() => activateQuickFilter('myaction')}
             onToggleRework={() => activateQuickFilter('rework')}
+            planningHref={planningHomeHref}
           />
           <div className="mobileHomeBoardSticky" data-mobile-tour="ticket-filters">
             <HomeTabs
