@@ -320,7 +320,7 @@ describe('102/10 объём среза не расширен', () => {
   })
 
   it('10. ссылки ведут только на существующие маршруты', () => {
-    expect(pageCode).toContain("to=\"/equipment\"")
+    expect(pageCode).toContain('to={equipmentListPath(outboundScope)}')
     expect(pageCode).toContain("to=\"/inspection/schedules\"")
     expect(pageCode).toContain('to={ticketsTo}')
     // Ссылка на заявки строится существующим контрактом доски, а не выдуманным параметром.
