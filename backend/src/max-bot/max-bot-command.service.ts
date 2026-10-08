@@ -63,6 +63,9 @@ import {
 import { MaxTechnicianRoundsService } from './max-technician-rounds.service';
 import { MaxTechnicianWorkplaceService } from './max-technician-workplace.service';
 import { MaxBotCommandResponse, MaxBotUpdate } from './max-bot.types';
+import { MaxBotReportDialog, isReportCallbackPayload } from './max-bot-report-dialog';
+import { MaxBotReportStore } from './max-bot-report.store';
+import { MaxBotScreenJournal } from './max-bot-screen-journal';
 
 const LEGACY_DATA_COMMANDS = new Set(['/tickets', '/ticket', '/open']);
 
@@ -75,6 +78,7 @@ export class MaxBotCommandService {
   private readonly logger = new Logger(MaxBotCommandService.name);
   private readonly botUsername: string;
   private readonly dialog: MaxTechnicianDialog;
+  private readonly reportDialog: MaxBotReportDialog;
 
   constructor(
     private readonly prisma?: PrismaService,
@@ -83,9 +87,12 @@ export class MaxBotCommandService {
     files: MaxFileClient = new MaxFileClient(),
     @Optional() private readonly rounds?: MaxTechnicianRoundsService,
     @Optional() private readonly master?: MaxMasterCommandService,
+    @Optional() screenJournal?: MaxBotScreenJournal,
+    @Optional() reportStore?: MaxBotReportStore,
   ) {
     this.botUsername = normalizeMaxBotUsername(process.env.MAX_BOT_USERNAME);
     this.dialog = new MaxTechnicianDialog(workplace, files, rounds);
+    this.reportDialog = new MaxBotReportDialog(screenJournal, reportStore, files);
   }
 
   async handleUpdate(update: MaxBotUpdate): Promise<MaxBotCommandResponse | null> {
@@ -95,8 +102,7 @@ export class MaxBotCommandService {
     }
 
     if (this.isBotStarted(update)) {
-      this.dialog.clear(update);
-      this.master?.clearDialog(update);
+      this.clearAllDialogs(update);
       this.logger.log(
         { update_type: this.safeString(update.update_type), source: 'update_type', command: '/start' },
         'max_bot_command_parsed',
@@ -133,18 +139,20 @@ export class MaxBotCommandService {
         return this.handleParsedCommand(cmd, this.testMessage());
       }
       if (!isCommand) {
+        const reportReply = await this.tryReportContent(update, trimmed, media);
+        if (reportReply) return this.handleParsedCommand('report', reportReply);
+
         const masterSection = matchMasterMenuLabel(trimmed);
         if (masterSection) {
           const master = await this.resolvedMaster(update);
           if (master && this.master) {
-            this.dialog.clear(update);
-            this.master.clearDialog(update);
+            this.clearAllDialogs(update);
             return this.handleParsedCommand(masterSection, this.master.section(master, masterSection));
           }
         }
         const section = matchTechnicianMenuLabel(trimmed);
         if (section) {
-          this.dialog.clear(update);
+          this.clearAllDialogs(update);
           return this.handleParsedCommand(section, this.technicianSection(update, section));
         }
         const technician = await this.resolvedTechnician(update);
@@ -163,8 +171,7 @@ export class MaxBotCommandService {
         }
       }
       if (cmd === '/start' || cmd === '/menu') {
-        this.dialog.clear(update);
-        this.master?.clearDialog(update);
+        this.clearAllDialogs(update);
         const maxUserId = extractMaxUserId(update);
         if (maxUserId) clearTicketListBack(maxUserId);
         return this.handleParsedCommand(cmd, this.menuMessage(update));
@@ -179,8 +186,7 @@ export class MaxBotCommandService {
       if (masterSlash) {
         const master = await this.resolvedMaster(update);
         if (master && this.master) {
-          this.dialog.clear(update);
-          this.master.clearDialog(update);
+          this.clearAllDialogs(update);
           return this.handleParsedCommand(cmd, this.master.section(master, masterSlash));
         }
       }
@@ -263,9 +269,14 @@ export class MaxBotCommandService {
   }
 
   private async handleCallback(update: MaxBotUpdate, payload: string): Promise<MaxBotCommandResponse> {
+    if (isReportCallbackPayload(payload)) {
+      return this.handleReportCallback(update, payload);
+    }
+
     const master = await this.resolvedMaster(update);
     if (master && this.master) {
       this.dialog.clear(update);
+      this.reportDialog.clear(update);
       if (payload === 'help') return this.helpMessage();
       this.logger.log({ payload }, 'max_bot_callback_handled');
       return this.master.handleCallback(master, update, payload);
@@ -281,6 +292,7 @@ export class MaxBotCommandService {
     ) {
       this.dialog.clear(update);
     }
+    this.reportDialog.clear(update);
     if (payload === 'menu') {
       const maxUserId = extractMaxUserId(update);
       if (maxUserId) clearTicketListBack(maxUserId);
@@ -303,6 +315,49 @@ export class MaxBotCommandService {
     }
     this.logger.log({ payload }, 'max_bot_callback_handled');
     return payload === 'help' ? this.helpMessage() : this.menuMessage(update);
+  }
+
+  private async handleReportCallback(
+    update: MaxBotUpdate,
+    payload: string,
+  ): Promise<MaxBotCommandResponse> {
+    const identity = await this.resolvedReportIdentity(update);
+    if (!identity || !isReportCallbackPayload(payload)) {
+      this.logger.log({ payload }, 'max_bot_callback_fallback');
+      return this.menuMessage(update);
+    }
+    if (payload === 'report:error') {
+      this.dialog.clear(update);
+      this.master?.clearDialog(update);
+    }
+    this.logger.log({ payload }, 'max_bot_callback_handled');
+    return this.reportDialog.handleCallback(identity, payload);
+  }
+
+  private async tryReportContent(
+    update: MaxBotUpdate,
+    text: string,
+    media: ReturnType<typeof extractMaxIncomingMedia>,
+  ): Promise<MaxBotCommandResponse | null> {
+    if (!this.reportDialog.isActive(update)) return null;
+    const identity = await this.resolvedReportIdentity(update);
+    if (!identity) {
+      this.reportDialog.clear(update);
+      return null;
+    }
+    return this.reportDialog.submitContent(identity, text, media);
+  }
+
+  private async resolvedReportIdentity(update: MaxBotUpdate): Promise<ResolvedTechnician | null> {
+    const technician = await this.resolvedTechnician(update);
+    if (technician) return technician;
+    return this.resolvedMaster(update);
+  }
+
+  private clearAllDialogs(update: MaxBotUpdate): void {
+    this.dialog.clear(update);
+    this.master?.clearDialog(update);
+    this.reportDialog.clear(update);
   }
 
   private async technicianSection(

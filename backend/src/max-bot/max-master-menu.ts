@@ -2,6 +2,7 @@ import { UserRole } from '@prisma/client';
 
 import { renderInlineKeyboard, renderPersistentMenuMessage } from './max-menu.builder';
 import { MaxBotCommandResponse, MaxBotInlineKeyboardButton } from './max-bot.types';
+import { appendBoundServiceFooter, reportErrorMenuRow } from './max-bot-report-footer';
 
 export type MasterSectionPayload = 'today' | 'tickets' | 'unassigned' | 'techs' | 'rounds' | 'sla';
 
@@ -78,21 +79,9 @@ export function chunk2(buttons: MaxBotInlineKeyboardButton[]): MaxBotInlineKeybo
   return rows;
 }
 
-function rowHasMenu(row: MaxBotInlineKeyboardButton[] | undefined): boolean {
-  return (
-    !!row &&
-    row.some(
-      (button) =>
-        button.type === 'callback' && button.text === 'Меню' && button.payload === 'menu',
-    )
-  );
-}
-
 export function withKeyboard(text: string, rows: MaxBotInlineKeyboardButton[][]): MaxBotCommandResponse {
-  const withMenu = rowHasMenu(rows[rows.length - 1])
-    ? rows
-    : [...rows, [callbackButton('Меню', 'menu')]];
-  const keyboard = renderInlineKeyboard(withMenu);
+  const withFooter = appendBoundServiceFooter(rows);
+  const keyboard = renderInlineKeyboard(withFooter);
   return {
     text,
     ...(keyboard ? { attachments: [keyboard] } : {}),
@@ -116,6 +105,7 @@ function masterMenuRows(showChangeClient: boolean): MaxBotInlineKeyboardButton[]
     [byPayload.techs, byPayload.rounds],
   ];
   if (showChangeClient) rows.push([callbackButton('Сменить клиента', 'mcc')]);
+  rows.push(...reportErrorMenuRow());
   return rows;
 }
 

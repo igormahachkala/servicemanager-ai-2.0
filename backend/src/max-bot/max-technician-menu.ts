@@ -1,5 +1,6 @@
 import { renderInlineKeyboard, renderPersistentMenuMessage } from './max-menu.builder';
 import { MaxBotCommandResponse, MaxBotInlineKeyboardButton } from './max-bot.types';
+import { boundServiceFooterRow, reportErrorMenuRow } from './max-bot-report-footer';
 
 export type TechnicianSectionPayload = 'today' | 'my' | 'avail' | 'rounds' | 'shift' | 'find';
 
@@ -58,11 +59,13 @@ function technicianMenuRows(): MaxBotInlineKeyboardButton[][] {
     [byPayload.today, byPayload.shift],
     [byPayload.my, byPayload.avail],
     [byPayload.rounds, byPayload.find],
+    ...reportErrorMenuRow(),
   ];
 }
 
+/** Shared footer for technician screens: «Сообщить об ошибке» | «Меню». */
 export function technicianMenuRow(): MaxBotInlineKeyboardButton[][] {
-  return [[callbackButton('Меню', 'menu')]];
+  return boundServiceFooterRow();
 }
 
 export function paginationRows(
