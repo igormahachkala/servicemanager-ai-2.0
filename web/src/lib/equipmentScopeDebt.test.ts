@@ -4,7 +4,11 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import * as api from './api'
-import { equipmentListPath, locationCardPath } from './equipmentCard'
+import {
+  equipmentListPath,
+  locationCardPath,
+  resolveEquipmentClientSelection,
+} from './equipmentCard'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const readSrc = (relative: string) => readFileSync(resolve(here, '..', relative), 'utf8')
@@ -152,6 +156,51 @@ describe('2. список точек сохраняет канонический
     const page = readSrc('views/LocationPage.tsx')
     expect(page).toContain('equipmentListPath(outboundScope)')
     expect(page).not.toContain('<Link to="/equipment">')
+  })
+
+  it('полный переход Location → Equipment восстанавливает selector из URL', () => {
+    const allowedClientIds = ['client-A', 'client-B']
+    const pathA = equipmentListPath({ linkedClientCompanyId: 'client-A' })
+    const pathB = equipmentListPath({ linkedClientCompanyId: 'client-B' })
+
+    for (const [path, expected] of [[pathA, 'client-A'], [pathB, 'client-B']] as const) {
+      const requestedClientId = new URL(path, 'https://example.test').searchParams.get('linkedClientCompanyId')
+      expect(resolveEquipmentClientSelection({
+        requestedClientId,
+        selectedClientId: '',
+        profileClientId: expected === 'client-A' ? 'client-B' : 'client-A',
+        allowedClientIds,
+      })).toBe(expected)
+    }
+
+    // Явный URL не может быть подменён profile hint, если клиент не разрешён Relationship-ом.
+    expect(resolveEquipmentClientSelection({
+      requestedClientId: 'foreign-client',
+      selectedClientId: '',
+      profileClientId: 'client-A',
+      allowedClientIds,
+    })).toBe('')
+
+    // Обычный provider flow без URL сохраняет прежний profile/only-client fallback.
+    expect(resolveEquipmentClientSelection({
+      requestedClientId: '',
+      selectedClientId: '',
+      profileClientId: 'client-B',
+      allowedClientIds,
+    })).toBe('client-B')
+
+    // CLIENT/CLIENT_ADMIN не получают linked-контур, когда canonical список пуст.
+    expect(resolveEquipmentClientSelection({
+      requestedClientId: 'client-A',
+      selectedClientId: '',
+      profileClientId: 'client-A',
+      allowedClientIds: [],
+    })).toBe('')
+
+    const page = readSrc('views/EquipmentPage.tsx')
+    expect(page).toContain("searchParams.get('linkedClientCompanyId')")
+    expect(page).toContain('resolveEquipmentClientSelection({')
+    expect(page).toContain('companyId: scopeCompanyId || undefined')
   })
 })
 

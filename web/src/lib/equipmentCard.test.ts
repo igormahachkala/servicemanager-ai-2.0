@@ -547,19 +547,22 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
     expect(locationCode).toContain('const companyId = scopeFromCompanyId || scopeFromLinkedClient')
   })
 
-  it('«К списку» не несёт области: иначе она затрётся', () => {
+  it('«К списку» не несёт области, а список принимает canonical URL scope', () => {
     /*
-     * Список оборудования адресную область не читает вовсе, а Shell на
-     * каждом переходе перезаписывает сохранённую пару целиком. «?companyId=…» затирал провайдеру linkedClientCompanyId, и
-     * следующее создание заявки упиралось в скрытую форму.
+     * Back-link остаётся без области: Shell сохраняет уже выбранный contour.
+     * Входящий Location → Equipment переход, напротив, несёт canonical
+     * linkedClientCompanyId, и список валидирует его по getLinkedClients().
      */
     const cardCode = codeOf(readSrc('views/EquipmentCardPage.tsx'))
     expect(cardCode).toContain("const backTo = '/equipment'")
     expect(cardCode).not.toMatch(/backTo = companyId \?/)
 
-    // Проверяем само утверждение: список действительно не читает адрес.
+    // Список читает только canonical linked-client параметр; back-link без
+    // параметров по-прежнему не затирает сохранённый scope.
     const listCode = codeOf(readSrc('views/EquipmentPage.tsx'))
-    expect(listCode).not.toContain('useSearchParams')
+    expect(listCode).toContain('useSearchParams')
+    expect(listCode).toContain("searchParams.get('linkedClientCompanyId')")
+    expect(listCode).toContain('resolveEquipmentClientSelection({')
   })
 
   it('мобильная заявка не ведёт в карточку без области', () => {
