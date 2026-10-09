@@ -11,7 +11,7 @@ import {
   readLocationFilterFromSearch,
   readOutboundScopeFromSearch,
 } from './locationCardSections'
-import { locationCardPath } from './equipmentCard'
+import { equipmentListPath, locationCardPath, resolveEquipmentClientSelection } from './equipmentCard'
 import { appendScopeToPath } from './api'
 import type { Role } from './api'
 
@@ -572,5 +572,144 @@ describe('SCOPE NAVIGATION COMPLETION: обходы не теряют конту
     expect(appendScopeToPath('/inspection/runs', B)).toContain('linkedClientCompanyId=client-B')
     // Пустой контур даёт чистый путь — существующий fallback не ломается.
     expect(appendScopeToPath('/inspection/runs', {})).toBe('/inspection/runs')
+  })
+})
+
+describe('RECONCILE WITH PRODUCTION: канонический scope и fail-closed', () => {
+  const AB = ['client-A', 'client-B']
+
+  /*
+   * Канонической реализацией области принята CURRENT Production. Этот
+   * набор закрепляет именно это: встречного резолвера нет, путь
+   * «/equipment» строит equipmentListPath, а чужой контур закрывается
+   * наглухо — и во фронтенде тоже, не только на бэкенде.
+   */
+
+  it('45. второго резолвера области в дереве не существует', () => {
+    for (const file of [
+      'lib/equipmentCard.ts',
+      'lib/locationCardSections.ts',
+      'views/EquipmentPage.tsx',
+      'views/LocationPage.tsx',
+      'views/EquipmentCardPage.tsx',
+    ]) {
+      expect(readSrc(file), file).not.toContain('resolveEquipmentClientScope')
+    }
+    // И собственной сборки scope-query в разделах карточки точки тоже нет.
+    const sections = codeOf(readSrc('lib/locationCardSections.ts'))
+    expect(sections).toContain('appendScopeToPath(')
+    expect(sections).not.toMatch(/params\.set\('linkedClientCompanyId'/)
+    expect(sections).not.toMatch(/params\.set\('companyId'/)
+  })
+
+  it('46. путь списка оборудования строит ТОЛЬКО канонический equipmentListPath', () => {
+    const card = codeOf(readSrc('views/LocationPage.tsx'))
+    expect(card).toContain('equipmentPath: equipmentListPath(outboundScope)')
+    expect(card).not.toContain('to="/equipment"')
+
+    const unit = codeOf(readSrc('views/EquipmentCardPage.tsx'))
+    expect(unit).toContain('equipmentPath: equipmentListPath(createScope)')
+
+    // Сужение по точке добавляется к каноническому пути, не вместо него.
+    const links = locationSectionLinks({
+      locationId: 'loc-1',
+      scope: { linkedClientCompanyId: 'client-B' },
+      canViewAnalytics: true,
+      equipmentPath: equipmentListPath({ linkedClientCompanyId: 'client-B' }),
+    })
+    expect(links.equipment).toBe('/equipment?linkedClientCompanyId=client-B&locationId=loc-1')
+  })
+
+  it('47. Location → Equipment: контур B выбирает клиента B, а не подсказку A', () => {
+    /*
+     * Полная цепочка исполнением: карточка точки клиента B отдаёт ссылку,
+     * список читает из неё контур, канонический резолвер выбирает B —
+     * хотя подсказка профиля говорит A.
+     */
+    const href = locationSectionLinks({
+      locationId: 'loc-b',
+      scope: { linkedClientCompanyId: 'client-B' },
+      canViewAnalytics: false,
+      equipmentPath: equipmentListPath({ linkedClientCompanyId: 'client-B' }),
+    }).equipment
+
+    const search = new URL(href, 'https://example.test').searchParams
+    expect(search.get('locationId')).toBe('loc-b')
+
+    expect(
+      resolveEquipmentClientSelection({
+        requestedClientId: search.get('linkedClientCompanyId'),
+        selectedClientId: '',
+        profileClientId: 'client-A',
+        allowedClientIds: AB,
+      }),
+    ).toBe('client-B')
+  })
+
+  it('48. FAIL-CLOSED: чужой контур из адреса не подменяется ничем', () => {
+    const href = equipmentListPath({ linkedClientCompanyId: 'client-FOREIGN' })
+    const requested = new URL(href, 'https://example.test').searchParams.get('linkedClientCompanyId')
+    expect(requested).toBe('client-FOREIGN')
+
+    // Ни подсказка профиля, ни выбранный, ни единственный клиент не спасают.
+    for (const fallback of [
+      { selectedClientId: '', profileClientId: 'client-A', allowedClientIds: AB },
+      { selectedClientId: 'client-A', profileClientId: 'client-A', allowedClientIds: AB },
+      { selectedClientId: '', profileClientId: 'client-A', allowedClientIds: ['client-A'] },
+    ]) {
+      expect(
+        resolveEquipmentClientSelection({ requestedClientId: requested, ...fallback }),
+        JSON.stringify(fallback),
+      ).toBe('')
+    }
+  })
+
+  it('49. Location → Rounds / Analytics: контур и точка доезжают оба', () => {
+    const links = locationSectionLinks({
+      locationId: 'loc-b',
+      scope: { linkedClientCompanyId: 'client-B' },
+      canViewAnalytics: true,
+      equipmentPath: equipmentListPath({ linkedClientCompanyId: 'client-B' }),
+    })
+    for (const href of [links.rounds, links.analytics as string]) {
+      const search = new URL(href, 'https://example.test').searchParams
+      expect(search.get('linkedClientCompanyId'), href).toBe('client-B')
+      expect(search.get('locationId'), href).toBe('loc-b')
+      // Downgrade провайдерского контура в companyId запрещён.
+      expect(search.get('companyId'), href).toBeNull()
+    }
+  })
+
+  it('50. observer companyId проходит разделы точки как companyId', () => {
+    const links = locationSectionLinks({
+      locationId: 'loc-1',
+      scope: { companyId: 'observed-1' },
+      canViewAnalytics: true,
+      equipmentPath: equipmentListPath({ companyId: 'observed-1' }),
+    })
+    for (const href of [links.equipment, links.rounds, links.analytics as string]) {
+      const search = new URL(href, 'https://example.test').searchParams
+      expect(search.get('companyId'), href).toBe('observed-1')
+      expect(search.get('linkedClientCompanyId'), href).toBeNull()
+    }
+    // И список оборудования наблюдателя действительно берёт этот контур.
+    expect(codeOf(readSrc('views/EquipmentPage.tsx'))).toContain(
+      'const scopeCompanyId = isProviderScope ? selectedClientId : requestedObserverCompanyId',
+    )
+  })
+
+  it('51. бэкенд и права этой сверкой не затронуты', () => {
+    /*
+     * Решение владельца: заменять Production scope implementation нельзя,
+     * менять backend permissions — тоже. Фронтенд границей безопасности
+     * не является: 004C-сужение SECONDARY и PBAC остаются на бэкенде.
+     */
+    const sections = readSrc('lib/locationCardSections.ts')
+    const card = readSrc('views/LocationPage.tsx')
+    for (const src of [sections, card]) {
+      expect(src).not.toContain('PERMISSIONS.')
+      expect(src).not.toContain('RolePermission')
+      expect(src).not.toContain('secondaryOperationalScopeAppliesTo')
+    }
   })
 })
