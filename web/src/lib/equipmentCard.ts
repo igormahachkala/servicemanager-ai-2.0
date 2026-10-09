@@ -172,10 +172,6 @@ function withScope(path: string, scope?: ScopeParams | string | null): string {
   return query ? `${path}?${query}` : path
 }
 
-export function equipmentListPath(scope?: ScopeParams | string | null): string {
-  return withScope('/equipment', scope)
-}
-
 export function equipmentCardPath(equipmentId: string, scope?: ScopeParams | string | null): string {
   return withScope(`/equipment/${equipmentId}`, scope)
 }
