@@ -57,6 +57,7 @@ function makeSetup(attachments: AttachmentRow[]) {
     ticket: {
       findFirst: jest.fn().mockResolvedValue(txTicket),
       update: jest.fn().mockImplementation(async (args: any) => ({ ...txTicket, status: args.data.status })),
+      findMany: jest.fn().mockResolvedValue([]),
     },
     ticketAttachment: {
       updateMany: jest.fn().mockResolvedValue({ count: 0 }),
