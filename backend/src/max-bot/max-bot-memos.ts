@@ -142,12 +142,7 @@ export function renderMemosListMessage(
   const start = safePage * MEMOS_PAGE_SIZE;
   const slice = visible.slice(start, start + MEMOS_PAGE_SIZE);
   const memoButtons = slice.map((entry) => callbackButton(entry.title, `memo:${entry.id}`));
-  const rows: MaxBotInlineKeyboardButton[][] = [
-    ...chunk2(memoButtons),
-    [callbackButton('Получить все памятки', 'memos:all')],
-    [callbackButton('Получить все памятки мастера', 'memos:all:m')],
-    [callbackButton('Получить все памятки техника', 'memos:all:t')],
-  ];
+  const rows: MaxBotInlineKeyboardButton[][] = [...chunk2(memoButtons)];
   const prev = safePage > 0 ? `memos:p:${safePage - 1}` : null;
   const next = start + MEMOS_PAGE_SIZE < visible.length ? `memos:p:${safePage + 1}` : null;
   if (prev || next) {
@@ -156,6 +151,11 @@ export function renderMemosListMessage(
     if (next) pageRow.push(callbackButton('Следующие', next));
     rows.push(pageRow);
   }
+  rows.push(
+    [callbackButton('Получить все памятки', 'memos:all')],
+    [callbackButton('Получить все памятки мастера', 'memos:all:m')],
+    [callbackButton('Получить все памятки техника', 'memos:all:t')],
+  );
   const withFooter = appendBoundServiceFooter(rows);
   const keyboard = renderInlineKeyboard(withFooter);
   const pageLabel =
@@ -170,7 +170,8 @@ export function renderMemosListMessage(
 }
 
 export function renderMemosSentMessage(count: number): MaxBotCommandResponse {
-  const keyboard = renderInlineKeyboard(appendBoundServiceFooter([]));
+  const rows = appendBoundServiceFooter([[callbackButton('Назад', MEMOS_MENU_PAYLOAD)]]);
+  const keyboard = renderInlineKeyboard(rows);
   return {
     text: `Отправлено ${count} памяток`,
     kind: 'memos:sent',
