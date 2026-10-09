@@ -69,7 +69,7 @@ export function isFullAdminDesktopNavRole(role?: Role | null): boolean {
   return role === 'PLATFORM_ADMIN' || role === 'ADMIN' || role === 'ADMIN_PROVIDER'
 }
 
-export type TicketStatus = 'NEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'AWAITING_ACCEPTANCE' | 'DONE' | 'CANCELED'
+export type TicketStatus = 'NEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'AWAITING_ACCEPTANCE' | 'FIELD_COMPLETE' | 'DONE' | 'CANCELED'
 export type TicketUrgency = 'URGENT' | 'NOT_URGENT'
 
 /** SLA-приоритет окна ответа (срок от создания: NORMAL 24ч, URGENT 2ч на бэкенде). */
@@ -801,6 +801,7 @@ export type TicketGetOne = {
   parentId?: string | null
   parent?: {
     id: string
+    ticketNumber?: number
     problemText?: string | null
     status: TicketStatus
     createdAt: string
@@ -812,8 +813,16 @@ export type TicketGetOne = {
       address?: string | null
     } | null
   } | null
+  unresolvedDescendants?: Array<{
+    id: string
+    ticketNumber?: number | null
+    problemText?: string | null
+    status: TicketStatus
+    categoryName?: string | null
+  }>
   children?: Array<{
     id: string
+    ticketNumber?: number | null
     status: TicketStatus
     urgency: TicketUrgency
     priority?: TicketPriority
@@ -918,6 +927,7 @@ export type TimelineResponse = {
 }
 export type CreateTicketInput = {
   locationId: string
+  parentId?: string | null
   createMode?: 'quick' | 'full'
   postCreateAction?: 'leave_unassigned' | 'claim_self' | 'assign_employee'
   assignTechnicianId?: string | null
@@ -982,9 +992,17 @@ export type CreateChildTicketInput = {
 
 export type DraftTicketAttachment = TicketAttachmentItem
 
+export type ChildTicketCloseResolution = 'FIELD_COMPLETE' | 'CANCELED'
+
+export type ChildTicketCloseDraftItem = {
+  ticketId: string
+  resolution: ChildTicketCloseResolution
+}
+
 export type UpdateTicketStatusInput = {
   status: TicketStatus
   comment?: string
+  childResolutions?: ChildTicketCloseDraftItem[]
 }
 
 export type MapDominantStatus = 'NEW' | 'IN_PROGRESS' | 'DONE' | 'NONE'
@@ -3532,11 +3550,18 @@ export type TicketAcceptanceInput = {
   decision: TicketAcceptanceDecision
   comment?: string
   attachmentIds?: string[]
+  childResolutions?: ChildTicketCloseDraftItem[]
 }
 export async function decideTicketAcceptance(id: string, input: TicketAcceptanceInput, scope?: string | TicketScopeParams): Promise<any> {
   return request<any>(`/tickets/${id}/acceptance${buildTicketScopeSuffix(scope)}`, {
     method: 'POST',
     body: input,
+  })
+}
+
+export async function detachTicketFromParent(id: string, scope?: string | TicketScopeParams): Promise<any> {
+  return request<any>(`/tickets/${id}/detach-parent${buildTicketScopeSuffix(scope)}`, {
+    method: 'POST',
   })
 }
 

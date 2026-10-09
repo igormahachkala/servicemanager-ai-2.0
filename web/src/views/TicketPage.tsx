@@ -3,6 +3,12 @@ import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { equipmentCardPath } from '../lib/equipmentCard'
+import { childTicketCreatePath } from '../lib/childTicketCreatePath'
+import { isChildTicket, roleCanDetachChildTicket } from '../lib/ticketIsChild'
+import { ParentCloseChildrenDialog } from '../components/ticket-page/ParentCloseChildrenDialog'
+import { TicketDetachControl } from '../components/ticket-page/TicketDetachControl'
+import { useParentCloseDialog } from '../hooks/useParentCloseDialog'
+import type { ChildCloseDraftItem } from '../lib/ticketParentClose'
 import { TicketMaterialsPanel } from '../components/tickets/TicketMaterialsPanel'
 import { mapReason } from '../lib/assignmentExplain'
 import {
@@ -20,7 +26,7 @@ import { pushToast } from '../lib/appToast'
 import { logTicketActionError, mapTicketActionError } from '../lib/ticketOperationalErrors'
 import { computePrimaryTicketAction } from '../lib/ticketOperationalModel'
 import { readBackendCanClaim } from '../lib/ticketActionCapabilities'
-import { toChatMessages } from '../lib/ticketChat'
+import { toChatMessages, ticketChatParentFromGet } from '../lib/ticketChat'
 import { dateTimeLocalToIso, formatPlannedDueAt, isoToDateTimeLocalValue } from '../lib/plannedDueAt'
 import { orderProblemCategories } from '../lib/problemCategoryOrdering'
 import { resolveAdminProfile } from '../lib/resolveAdminProfile'
@@ -35,7 +41,6 @@ import {
   TicketAcceptancePanel,
   TicketAssignmentPanel,
   TicketChatPanel,
-  TicketChildCreateForm,
   TicketChildTicketsPanel,
   TicketCommentPanel,
   TicketContextPanel,
@@ -51,7 +56,15 @@ const MANAGEMENT_ROLES: api.Role[] = ['ADMIN', 'ADMIN_PROVIDER', 'MASTER', 'DISP
 const EDIT_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TERRITORIAL_MANAGER']
 const STATUS_CHANGE_ROLES: api.Role[] = ['ADMIN', 'ADMIN_PROVIDER', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TECHNICIAN']
 const PHOTO_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TECHNICIAN', 'CLIENT', 'TERRITORIAL_MANAGER']
-const CHILD_CREATE_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER']
+const CHILD_CREATE_ROLES: api.Role[] = [
+  'ADMIN',
+  'MASTER',
+  'DISPATCHER',
+  'NETWORK_DIRECTOR',
+  'CLIENT',
+  'TERRITORIAL_MANAGER',
+  'TECHNICIAN',
+]
 
 function fmt(dt?: string | null) {
   if (!dt) return '—'
@@ -74,6 +87,7 @@ function statusLabel(status: api.TicketStatus) {
   if (status === 'ASSIGNED') return 'Назначена'
   if (status === 'IN_PROGRESS') return 'В работе'
   if (status === 'AWAITING_ACCEPTANCE') return 'Ожидает приёмки'
+  if (status === 'FIELD_COMPLETE') return 'Выполнено'
   if (status === 'DONE') return 'Завершена'
   if (status === 'CANCELED') return 'Отменена'
   return status
@@ -134,6 +148,7 @@ function StatusPill({ status }: { status: api.TicketStatus }) {
   if (status === 'NEW') Object.assign(style, { background: '#eef2ff', borderColor: '#c7d2fe', color: '#3730a3' })
   if (status === 'ASSIGNED') Object.assign(style, { background: '#ecfeff', borderColor: '#a5f3fc', color: '#155e75' })
   if (status === 'IN_PROGRESS') Object.assign(style, { background: '#fffbeb', borderColor: '#fde68a', color: '#92400e' })
+  if (status === 'FIELD_COMPLETE') Object.assign(style, { background: '#fffbeb', borderColor: '#fde68a', color: '#92400e' })
   if (status === 'AWAITING_ACCEPTANCE') Object.assign(style, { background: '#fff7ed', borderColor: '#fdba74', color: '#9a3412' })
   if (status === 'DONE') Object.assign(style, { background: '#ecfdf5', borderColor: '#a7f3d0', color: '#065f46' })
   if (status === 'CANCELED') Object.assign(style, { background: '#f3f4f6', borderColor: '#e5e7eb', color: '#6b7280' })
@@ -226,7 +241,6 @@ export function TicketPage() {
   const [updateError, setUpdateError] = useState<string | null>(null)
   const [showFullTimeline, setShowFullTimeline] = useState(false)
   const [showAssignmentEditor, setShowAssignmentEditor] = useState(false)
-  const [showChildCreateForm, setShowChildCreateForm] = useState(false)
   const [showSubmitToAcceptanceForm, setShowSubmitToAcceptanceForm] = useState(false)
 
   const [editProblemCategoryId, setEditProblemCategoryId] = useState('')
@@ -244,10 +258,8 @@ export function TicketPage() {
   const [acceptanceComment, setAcceptanceComment] = useState('')
   const [closeReportComment, setCloseReportComment] = useState('')
   const [closeReportFailureCauseId, setCloseReportFailureCauseId] = useState('')
-  const [childCategoryId, setChildCategoryId] = useState('')
-  const [childProblemText, setChildProblemText] = useState('')
-  const [childUrgency, setChildUrgency] = useState<api.TicketUrgency>('NOT_URGENT')
-  const [childCreateError, setChildCreateError] = useState<string | null>(null)
+  const [detachError, setDetachError] = useState<string | null>(null)
+  const parentClose = useParentCloseDialog()
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
@@ -549,14 +561,17 @@ export function TicketPage() {
     onSuccess: async (_data, vars) => {
       setStatusError(null)
       clearActionErrors()
+      parentClose.cancel()
       if (vars.status === 'AWAITING_ACCEPTANCE') pushToast('Заявка отправлена на приёмку', 'success')
+      else if (vars.status === 'FIELD_COMPLETE') pushToast('Работа отмечена как выполненная', 'success')
       else if (vars.status === 'DONE') pushToast('Заявка завершена', 'success')
       else if (vars.status === 'IN_PROGRESS') pushToast('Работы начаты', 'success')
       else if (vars.status === 'CANCELED') pushToast('Заявка отменена', 'info')
       setNewComment('')
       await refreshAll()
     },
-    onError: (e: any) => {
+    onError: (e: any, vars) => {
+      if (vars.status === 'CANCELED' && parentClose.openFromRefuse(e, 'CANCELED')) return
       const raw = e?.message || String(e)
       logTicketActionError('status', raw)
       setStatusError(mapTicketActionError(raw))
@@ -564,12 +579,15 @@ export function TicketPage() {
   })
 
   const acceptanceM = useMutation({
-    mutationFn: async (decision: api.TicketAcceptanceDecision) => {
+    mutationFn: async (input: {
+      decision: api.TicketAcceptanceDecision
+      childResolutions?: ChildCloseDraftItem[]
+    }) => {
       if (!ticket) throw new Error('Заявка не загружена')
       if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
 
       const normalizedComment = acceptanceComment.trim()
-      if (decision === 'REJECT' && !normalizedComment) {
+      if (input.decision === 'REJECT' && !normalizedComment) {
         throw new Error('Добавьте комментарий при отказе')
       }
 
@@ -582,26 +600,47 @@ export function TicketPage() {
       return api.decideTicketAcceptance(
         ticketId,
         {
-          decision,
+          decision: input.decision,
           comment: normalizedComment || undefined,
           attachmentIds: attachmentIds.length ? attachmentIds : undefined,
+          childResolutions: input.childResolutions,
         },
         effectiveTicketScope,
       )
     },
-    onSuccess: async (_data, decision) => {
+    onSuccess: async (_data, input) => {
       setAcceptanceComment('')
       setAcceptanceFile(null)
       setAcceptanceFileError(null)
       if (acceptanceFileInputRef.current) acceptanceFileInputRef.current.value = ''
       clearActionErrors()
-      pushToast(decision === 'ACCEPT' ? 'Работа принята' : 'Заявка возвращена в работу', 'success')
+      parentClose.cancel()
+      pushToast(input.decision === 'ACCEPT' ? 'Работа принята' : 'Заявка возвращена в работу', 'success')
+      await refreshAll()
+    },
+    onError: (e: any, input) => {
+      if (input.decision === 'ACCEPT' && parentClose.openFromRefuse(e, 'ACCEPT')) return
+      const raw = e?.message || String(e)
+      logTicketActionError('acceptance', raw)
+      setStatusError(mapTicketActionError(raw))
+    },
+  })
+
+  const detachM = useMutation({
+    mutationFn: () => {
+      if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
+      return api.detachTicketFromParent(ticketId, effectiveTicketScope)
+    },
+    onSuccess: async () => {
+      setDetachError(null)
+      clearActionErrors()
+      pushToast('Подзадача отвязана', 'info')
       await refreshAll()
     },
     onError: (e: any) => {
       const raw = e?.message || String(e)
-      logTicketActionError('acceptance', raw)
-      setStatusError(mapTicketActionError(raw))
+      logTicketActionError('detach', raw)
+      setDetachError(mapTicketActionError(raw))
     },
   })
 
@@ -746,32 +785,44 @@ export function TicketPage() {
     },
   })
 
-  const createChildM = useMutation({
-    mutationFn: () => {
-      if (!ticket) throw new Error('Родительская заявка не загружена')
-      if (!canCreateChildTicket) throw new Error('Недостаточно прав для создания дополнительной работы')
-      if (!childCategoryId.trim()) throw new Error('Выберите категорию')
-      if (!childProblemText.trim()) throw new Error('Опишите проблему')
-      return api.createChildTicket(ticket.id, {
-        problemCategoryId: childCategoryId.trim(),
-        problemText: childProblemText.trim(),
-        urgency: childUrgency,
-      })
-    },
-    onSuccess: async () => {
-      setChildCreateError(null)
-      setChildProblemText('')
-      setShowChildCreateForm(false)
-      await refreshAll()
-    },
-    onError: (e: any) => {
-      const raw = e?.message || String(e)
-      logTicketActionError('child_ticket', raw)
-      setChildCreateError(mapTicketActionError(raw))
-    },
-  })
-
   const ticket = ticketQ.data
+  const ticketIsChild = !!ticket && isChildTicket(ticket)
+
+  function requestTicketStatus(input: api.UpdateTicketStatusInput) {
+    if (input.status === 'CANCELED' && !input.childResolutions && ticket && parentClose.beginIfNeeded(ticket, 'CANCELED')) {
+      return
+    }
+    statusM.mutate(input)
+  }
+
+  function requestAccept(childResolutions?: ChildCloseDraftItem[]) {
+    if (!childResolutions && ticket && parentClose.beginIfNeeded(ticket, 'ACCEPT')) return
+    acceptanceM.mutate({ decision: 'ACCEPT', childResolutions })
+  }
+
+  function confirmParentClose(draft: ChildCloseDraftItem[]) {
+    if (!parentClose.intent) return
+    if (parentClose.intent.kind === 'ACCEPT') {
+      requestAccept(draft)
+      return
+    }
+    requestTicketStatus({ status: 'CANCELED', childResolutions: draft })
+  }
+
+  const childCreateHref = useMemo(() => {
+    const locationId = ticket?.location?.id
+    if (!ticket || !locationId) return ''
+    return childTicketCreatePath({
+      parentId: ticket.id,
+      locationId,
+      surface: 'desktop',
+      scope: {
+        companyId: observerCompanyId || undefined,
+        linkedClientCompanyId: inferredLinkedClientCompanyId || undefined,
+      },
+      owner: meQ.data,
+    })
+  }, [ticket, observerCompanyId, inferredLinkedClientCompanyId, meQ.data])
   const hasAssignedTechnician = !!ticket?.assignedTechnician
   const canClaim = useMemo(() => {
     if (!ticket) return false
@@ -784,7 +835,16 @@ export function TicketPage() {
 
   const assignmentData = assignmentCandidatesQ.data
   const availableStatusTransitions = ticket?.meta?.availableStatusTransitions || []
-  const canTransitionTo = (status: api.TicketStatus) => availableStatusTransitions.includes(status)
+  const canTransitionTo = (status: api.TicketStatus) => {
+    if (ticketIsChild && status === 'AWAITING_ACCEPTANCE') return false
+    if (ticketIsChild && status === 'FIELD_COMPLETE') {
+      if (availableStatusTransitions.includes('FIELD_COMPLETE')) return true
+      if (ticket?.meta?.availableActions?.canComplete) return true
+      if (!ticket?.meta?.availableActions && ticket?.status === 'IN_PROGRESS') return true
+      return false
+    }
+    return availableStatusTransitions.includes(status)
+  }
   const primaryAction = useMemo(
     () =>
       ticket
@@ -802,7 +862,7 @@ export function TicketPage() {
     !!ticket &&
     canChangeStatus &&
     canTransitionTo('CANCELED') &&
-    (!isTechnicianRole || !!ticket.meta?.availableActions?.canClose)
+    (ticketIsChild || !isTechnicianRole || !!ticket.meta?.availableActions?.canClose)
 
   const technicianBarCloseHint = ticket?.meta?.availableActionHints?.canClose ?? null
 
@@ -840,6 +900,7 @@ export function TicketPage() {
   const serverCanReject = ticket?.meta?.availableActions?.canReject
   const isAwaitingAcceptanceClient =
     !!ticket &&
+    !ticketIsChild &&
     canMutateTicket &&
     ticket.status === 'AWAITING_ACCEPTANCE' &&
     (
@@ -863,18 +924,36 @@ export function TicketPage() {
     () => (showFullTimeline ? timelineItems : timelineItems.slice(0, 5)),
     [showFullTimeline, timelineItems],
   )
+
+  function buildTicketHref(targetTicketId: string) {
+    const base = `/tickets/${targetTicketId}`
+    return api.appendScopeToPath(
+      base,
+      {
+        companyId: observerCompanyId || undefined,
+        linkedClientCompanyId: inferredLinkedClientCompanyId || undefined,
+      },
+      meQ.data,
+    )
+  }
+
   const chatMessages = useMemo(
     () =>
       toChatMessages(timelineItems, meQ.data?.id ?? '', {
         categoryName: ticket?.problemCategory?.name ?? null,
         locationName: ticket?.location?.name || ticket?.pointName || null,
         description: ticket?.problemText || ticket?.description || ticket?.title || null,
+        parent: ticketChatParentFromGet(ticket?.parent),
+        ticketHref: buildTicketHref,
       }),
     [
       timelineItems,
-      meQ.data?.id,
+      meQ.data,
+      observerCompanyId,
+      inferredLinkedClientCompanyId,
       ticket?.description,
       ticket?.location?.name,
+      ticket?.parent,
       ticket?.pointName,
       ticket?.problemCategory?.name,
       ticket?.problemText,
@@ -974,20 +1053,14 @@ export function TicketPage() {
     uploadM.mutate(selectedFile)
   }
 
-  function buildTicketHref(targetTicketId: string) {
-    const base = `/tickets/${targetTicketId}`
-    return api.appendScopeToPath(
-      base,
-      {
-        companyId: observerCompanyId || undefined,
-        linkedClientCompanyId: inferredLinkedClientCompanyId || undefined,
-      },
-      meQ.data,
-    )
-  }
-
   const showTechnicianActionBar = !!(ticket && isTechnicianRole && executorActionsAllowed)
-  const canSubmitToAcceptance = !!(ticket && executorActionsAllowed && canChangeStatus && canTransitionTo('AWAITING_ACCEPTANCE'))
+  const canSubmitToAcceptance = !!(
+    ticket &&
+    !ticketIsChild &&
+    executorActionsAllowed &&
+    canChangeStatus &&
+    canTransitionTo('AWAITING_ACCEPTANCE')
+  )
 
   return (
     <div>
@@ -1007,6 +1080,18 @@ export function TicketPage() {
         meUserId={meQ.data?.id}
         hintCanClaim={canClaim}
       />
+
+      {ticket && isChildTicket(ticket) && roleCanDetachChildTicket(role) ? (
+        <div style={{ marginBottom: 12 }}>
+          <TicketDetachControl
+            ticket={ticket}
+            role={role}
+            pending={detachM.isPending}
+            error={detachError}
+            onDetach={() => detachM.mutate()}
+          />
+        </div>
+      ) : null}
 
       {boardNavContext ? (
         <div className="panel uiCard" style={{ marginBottom: 12 }}>
@@ -1132,8 +1217,8 @@ export function TicketPage() {
           onFileChange={handleAcceptanceFileChange}
           pending={acceptanceM.isPending}
           canReject={!acceptanceM.isPending && !!acceptanceComment.trim()}
-          onAccept={() => acceptanceM.mutate('ACCEPT')}
-          onReject={() => acceptanceM.mutate('REJECT')}
+          onAccept={() => requestAccept()}
+          onReject={() => acceptanceM.mutate({ decision: 'REJECT' })}
           errorMessage={acceptanceFileError || statusError}
         />
       ) : null}
@@ -1167,7 +1252,7 @@ export function TicketPage() {
             canAssignSelf={canAssignSelf}
             assignSelfPending={assignSelfM.isPending}
             onAssignSelf={() => assignSelfM.mutate()}
-            onSetStatus={(input) => statusM.mutate(input)}
+            onSetStatus={requestTicketStatus}
             onPickOperationalPhoto={() => operationalFileInputRef.current?.click()}
             operationalPhotoPending={uploadM.isPending}
             hasOperationalPhotoSelected={false}
@@ -1178,14 +1263,12 @@ export function TicketPage() {
             editOpen={editOpen}
             onToggleEdit={() => setEditOpen((value) => !value)}
             canCreateChildTicket={canCreateChildTicket}
-            showChildCreateForm={showChildCreateForm}
-            childCreatePending={createChildM.isPending}
-            onToggleChildCreateForm={() => {
-              setShowChildCreateForm((value) => !value)
-              setChildCreateError(null)
-            }}
+            childCreateHref={childCreateHref}
             isTechnicianRole={isTechnicianRole}
-            onShowSubmitForm={() => setShowSubmitToAcceptanceForm(true)}
+            onShowSubmitForm={() => {
+              if (ticketIsChild) return
+              setShowSubmitToAcceptanceForm(true)
+            }}
           />
         </>
       ) : null}
@@ -1408,26 +1491,6 @@ export function TicketPage() {
         </div>
       ) : null}
 
-      {ticket && canCreateChildTicket && showChildCreateForm ? (
-        <TicketChildCreateForm
-          categoryId={childCategoryId}
-          onCategoryChange={setChildCategoryId}
-          problemText={childProblemText}
-          onProblemTextChange={setChildProblemText}
-          urgency={childUrgency}
-          onUrgencyChange={setChildUrgency}
-          categories={(categoriesQ.data || []).filter((row) => row.isActive !== false)}
-          pending={createChildM.isPending}
-          canSubmit={!createChildM.isPending && !!childCategoryId && !!childProblemText.trim()}
-          onSubmit={() => createChildM.mutate()}
-          onCancel={() => {
-            setShowChildCreateForm(false)
-            setChildCreateError(null)
-          }}
-          errorMessage={(categoriesQ.error as any)?.message || childCreateError}
-        />
-      ) : null}
-
       {ticket && canAssign && !isClientRole ? (
         <TicketAssignmentPanel
           ticket={ticket}
@@ -1530,6 +1593,16 @@ export function TicketPage() {
           />
         </>
       ) : null}
+
+      <ParentCloseChildrenDialog
+        open={!!parentClose.intent}
+        items={parentClose.intent?.items ?? []}
+        ticketHref={buildTicketHref}
+        pending={parentClose.intent?.kind === 'ACCEPT' ? acceptanceM.isPending : statusM.isPending}
+        error={parentClose.error || (parentClose.intent ? statusError : null)}
+        onCancel={parentClose.cancel}
+        onConfirm={confirmParentClose}
+      />
     </div>
   )
 }

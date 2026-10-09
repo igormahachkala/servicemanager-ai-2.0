@@ -8,6 +8,8 @@ export type DomainEntityType =
 
 export type DomainEventType =
   | 'ticket.created'
+  | 'ticket.child_created'
+  | 'ticket.detached_from_parent'
   | 'ticket.assigned'
   | 'ticket.claimed'
   | 'ticket.assignment_changed'

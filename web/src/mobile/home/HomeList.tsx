@@ -57,7 +57,7 @@ type Props = {
   assignErr: string
   assignM: UseMutationResult<void, unknown, { ticketId: string; technicianId: string }, unknown>
   canAcceptOnCard: boolean
-  acceptM: UseMutationResult<void, unknown, api.TicketCard, unknown>
+  acceptM: UseMutationResult<void, unknown, { ticket: api.TicketCard; childResolutions?: Array<{ ticketId: string; resolution: 'FIELD_COMPLETE' | 'CANCELED' }> }, unknown>
   onAccept: (ticket: api.TicketCard) => void
   closeCameraInputRef: MutableRefObject<HTMLInputElement | null>
   closeGalleryInputRef: MutableRefObject<HTMLInputElement | null>
@@ -189,7 +189,7 @@ export function HomeList(props: Props) {
         }
         acceptFooter={
           showAcceptFooter
-            ? { onAccept: () => onAccept(ticket), busy: acceptM.isPending && acceptM.variables?.id === ticket.id }
+            ? { onAccept: () => onAccept(ticket), busy: acceptM.isPending && acceptM.variables?.ticket.id === ticket.id }
             : null
         }
       />

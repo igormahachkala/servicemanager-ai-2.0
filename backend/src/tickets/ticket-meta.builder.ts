@@ -11,6 +11,7 @@ import {
   type TicketVisibilityMode,
 } from './ticket-access.utils'
 import { canAcceptTicket } from './ticket-acceptance-access'
+import { filterChildAvailableStatusTransitions, isChildTicket } from './ticket-is-child'
 import { resolveTicketClaimCapability, type TicketClaimCapability } from './ticket-claim-eligibility'
 import {
   resolveTicketSelfAssignCapability,
@@ -32,6 +33,7 @@ export type TicketMetaBuildParams = {
   ticketCompanyId: string
   ticketCreatedByUserId?: string | null
   ticketStatus: TicketStatus
+  parentId?: string | null
   assignedTechnicianId: string | null
   scopeCompanyId: string
   visibilityMode: TicketVisibilityMode
@@ -154,7 +156,8 @@ export class TicketMetaBuilder {
       hints.canStart = 'Перевод в «В работе» сейчас недоступен для вашей роли или назначения.'
     }
 
-    const canComplete = transitions.includes(TicketStatus.DONE)
+    const canComplete =
+      transitions.includes(TicketStatus.DONE) || transitions.includes(TicketStatus.FIELD_COMPLETE)
     if (shiftBlockReason && params.ticketStatus === TicketStatus.IN_PROGRESS) {
       hints.canComplete = shiftBlockReason
     } else if (!canComplete && params.ticketStatus === TicketStatus.IN_PROGRESS) {
@@ -183,6 +186,7 @@ export class TicketMetaBuilder {
   }
 
   private async resolveAcceptanceAvailability(params: TicketMetaBuildParams): Promise<boolean> {
+    if (isChildTicket(params)) return false
     if (params.ticketStatus !== TicketStatus.AWAITING_ACCEPTANCE) return false
     return canAcceptTicket({
       prisma: this.prisma,
@@ -318,15 +322,22 @@ export class TicketMetaBuilder {
       return []
     }
 
+    const child = isChildTicket(params)
     const allStatuses: TicketStatus[] = [
       TicketStatus.NEW,
       TicketStatus.ASSIGNED,
       TicketStatus.IN_PROGRESS,
       TicketStatus.DONE,
       TicketStatus.CANCELED,
+      TicketStatus.FIELD_COMPLETE,
     ]
 
-    const transitions = allStatuses.filter((nextStatus) => decideTicketTransition(params.ticketStatus, nextStatus).allowed)
+    const transitions = allStatuses.filter((nextStatus) =>
+      decideTicketTransition(params.ticketStatus, nextStatus, { isChild: child }).allowed,
+    )
+    if (child) {
+      return filterChildAvailableStatusTransitions(transitions)
+    }
     if (params.ticketStatus === TicketStatus.AWAITING_ACCEPTANCE) {
       return transitions.filter((nextStatus) => nextStatus !== TicketStatus.DONE)
     }

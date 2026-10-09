@@ -44,6 +44,15 @@ import {
 import { ONLINE_ONLY_ACTION_MESSAGE, OFFLINE_TICKET_NOT_CACHED_MESSAGE } from './offline/onlineOnlyMessage'
 import { formatMobileMutationError } from './mobileActionErrors'
 import { getMobileRouteRoot, mobilePath } from './mobileRoute'
+import { childTicketCreatePath } from '../lib/childTicketCreatePath'
+import { isChildTicket, roleCanCreateChildTicket, roleCanDetachChildTicket } from '../lib/ticketIsChild'
+import { MobileParentCloseChildrenSheet } from './MobileParentCloseChildrenSheet'
+import { useParentCloseDialog } from '../hooks/useParentCloseDialog'
+import {
+  parentCloseNeedsDialog,
+  unresolvedDescendantsForClose,
+  type ChildCloseDraftItem,
+} from '../lib/ticketParentClose'
 import {
   clientTicketLifecycleHintText,
   shouldShowClientTicketLifecycleHint,
@@ -52,7 +61,7 @@ import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { MobileBoardClaimFallbackHint, MobileClaimReasonHintBox } from './MobileUxHints'
 import { TicketCloseModal, type TicketCloseModalState } from './home/HomeList'
 import { MobileAttachmentThumb, mobileAttachmentLabel } from './MobileAttachmentThumb'
-import { toChatMessages, type ChatMessage } from '../lib/ticketChat'
+import { toChatMessages, ticketChatParentFromGet, type ChatMessage } from '../lib/ticketChat'
 import {
   buildAddTicketCommentOptions,
   buildOfflineTicketCommentPayload,
@@ -764,6 +773,7 @@ export function MobileTicketPage() {
   const assigneeIdForMe =
     ticket && meQ.data?.id ? (ticket.assignedTechnicianId || ticket.assignedTechnician?.id || '').trim() : ''
   const isSelfAssigned = !!meQ.data?.id && assigneeIdForMe === meQ.data.id
+  const ticketIsChild = !!ticket && isChildTicket(ticket)
   const canShowTechStart =
     !!ticket &&
     !startQueuedLocally &&
@@ -784,15 +794,32 @@ export function MobileTicketPage() {
     startQueuedLocally && ticket && ticket.status !== 'IN_PROGRESS' ? 'IN_PROGRESS' : ticket?.status || ''
   const canShowComplete =
     !!ticket &&
+    !ticketIsChild &&
     ticket.status === 'IN_PROGRESS' &&
     isSelfAssigned &&
     (aa ? aa.canComplete : transitions.includes('DONE')) &&
+    (meQ.data?.role === 'TECHNICIAN' || canAssignProvider)
+  const canShowChildFieldComplete =
+    ticketIsChild &&
+    !!ticket &&
+    ticket.status === 'IN_PROGRESS' &&
+    isSelfAssigned &&
+    (aa ? aa.canComplete : transitions.includes('FIELD_COMPLETE')) &&
+    (meQ.data?.role === 'TECHNICIAN' || canAssignProvider)
+  const canShowChildCancel =
+    ticketIsChild &&
+    !!ticket &&
+    isSelfAssigned &&
+    ticket.status !== 'CANCELED' &&
+    ticket.status !== 'DONE' &&
+    (aa?.canClose || transitions.includes('CANCELED')) &&
     (meQ.data?.role === 'TECHNICIAN' || canAssignProvider)
 
   const serverCanAccept = aa?.canAccept
   const serverCanReject = aa?.canReject
   const canShowClientAcceptance =
     !!ticket &&
+    !ticketIsChild &&
     ticket.status === 'AWAITING_ACCEPTANCE' &&
     (
       typeof serverCanAccept === 'boolean' || typeof serverCanReject === 'boolean'
@@ -861,6 +888,8 @@ export function MobileTicketPage() {
   const [assignErr, setAssignErr] = useState('')
   const [techActionErr, setTechActionErr] = useState('')
   const [acceptanceErr, setAcceptanceErr] = useState('')
+  const [detachErr, setDetachErr] = useState('')
+  const parentClose = useParentCloseDialog()
   const [assignmentRequestErr, setAssignmentRequestErr] = useState('')
   const [assignmentRequestToast, setAssignmentRequestToast] = useState('')
   const [requestPhotoIndex, setRequestPhotoIndex] = useState<number | null>(null)
@@ -1235,18 +1264,40 @@ export function MobileTicketPage() {
 
   // SMA-ACCEPTANCE-005: клиент принимает работу (контракт POST /tickets/:id/acceptance, decision=ACCEPT → DONE).
   const acceptM = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (childResolutions?: ChildCloseDraftItem[]) => {
       if (!ticket) throw new Error('Нет заявки')
-      await api.decideTicketAcceptance(ticket.id, { decision: 'ACCEPT' }, ticketResourceScope)
+      await api.decideTicketAcceptance(
+        ticket.id,
+        { decision: 'ACCEPT', childResolutions },
+        ticketResourceScope,
+      )
     },
     onSuccess: async () => {
+      parentClose.cancel()
       await invalidateTicketQueries()
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-notifications'] })
       await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
       setOperationalToast('Работа принята. Заявка завершена.')
     },
-    onError: (e: unknown) => setAcceptanceErr(formatMobileMutationError(e, { operation: 'other' })),
+    onError: (e: unknown) => {
+      if (parentClose.openFromRefuse(e, 'ACCEPT')) return
+      setAcceptanceErr(formatMobileMutationError(e, { operation: 'other' }))
+    },
+  })
+
+  const detachM = useMutation({
+    mutationFn: async () => {
+      if (!ticket) throw new Error('Нет заявки')
+      await api.detachTicketFromParent(ticket.id, ticketResourceScope)
+    },
+    onSuccess: async () => {
+      setDetachErr('')
+      await invalidateTicketQueries()
+      await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
+      setOperationalToast('Подзадача отвязана.')
+    },
+    onError: (e: unknown) => setDetachErr(formatMobileMutationError(e, { operation: 'other' })),
   })
 
   // SMA-ACCEPTANCE-005: клиент не принимает работу (decision=REJECT → IN_PROGRESS). Комментарий обязателен, фото желательно.
@@ -1311,6 +1362,22 @@ export function MobileTicketPage() {
 
   const childHref = (childId: string) =>
     api.appendScopeToPath(mobilePath(location.pathname, `/tickets/${childId}`), scopeNorm, meQ.data)
+  const parentHref = ticket?.parent?.id ? childHref(ticket.parent.id) : ''
+  const canCreateChildTicket =
+    !!ticket &&
+    isOnline &&
+    roleCanCreateChildTicket(meQ.data?.role)
+  const childCreateHref =
+    ticket?.location?.id
+      ? childTicketCreatePath({
+          parentId: ticket.id,
+          locationId: ticket.location.id,
+          surface: 'mobile',
+          mobileRoot: getMobileRouteRoot(location.pathname),
+          scope: scopeNorm,
+          owner: meQ.data,
+        })
+      : ''
 
   const desc = ticket ? `${ticket.problemText || ''}`.trim() || ticket.description?.trim() || '—' : '—'
 
@@ -1324,12 +1391,17 @@ export function MobileTicketPage() {
         categoryName: ticket?.problemCategory?.name ?? null,
         locationName: ticket?.location?.name || ticket?.pointName || null,
         description: ticket?.problemText || ticket?.description || ticket?.title || null,
+        parent: ticketChatParentFromGet(ticket?.parent),
+        ticketHref: childHref,
       }),
     [
       timelineItems,
-      meQ.data?.id,
+      meQ.data,
+      scopeNorm,
+      location.pathname,
       ticket?.description,
       ticket?.location?.name,
+      ticket?.parent,
       ticket?.pointName,
       ticket?.problemCategory?.name,
       ticket?.problemText,
@@ -1452,6 +1524,7 @@ export function MobileTicketPage() {
   const rejectCanSubmit = !!rejectModal && rejectModal.comment.trim().length >= 3 && !rejectM.isPending
 
   const showCompleteBlockedHint =
+    !ticketIsChild &&
     (meQ.data?.role === 'TECHNICIAN' || canAssignProvider) &&
     !!ticket &&
     ticket.status === 'IN_PROGRESS' &&
@@ -1465,6 +1538,8 @@ export function MobileTicketPage() {
     canShowTechStart ||
     showAssignButton ||
     canShowComplete ||
+    canShowChildFieldComplete ||
+    canShowChildCancel ||
     showCompleteBlockedHint
   const showTechnicianNoActionsHint =
     meQ.data?.role === 'TECHNICIAN' &&
@@ -1582,6 +1657,72 @@ export function MobileTicketPage() {
     await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
   }
 
+  function requestAccept(childResolutions?: ChildCloseDraftItem[]) {
+    if (!ticket) return
+    setAcceptanceErr('')
+    if (!childResolutions && parentClose.beginIfNeeded(ticket, 'ACCEPT')) return
+    acceptM.mutate(childResolutions)
+  }
+
+  function confirmParentClose(draft: ChildCloseDraftItem[]) {
+    if (!parentClose.intent) return
+    if (parentClose.intent.kind === 'ACCEPT') {
+      requestAccept(draft)
+      return
+    }
+    void handleChildFieldStatus('CANCELED', draft)
+  }
+
+  async function handleChildFieldStatus(
+    status: 'FIELD_COMPLETE' | 'CANCELED',
+    childResolutions?: ChildCloseDraftItem[],
+  ) {
+    if (!ticket) return
+    setTechActionErr('')
+    if (status === 'CANCELED' && !childResolutions) {
+      if (parentCloseNeedsDialog(unresolvedDescendantsForClose(ticket))) {
+        if (!liveApiAllowed) {
+          setTechActionErr(ONLINE_ONLY_ACTION_MESSAGE)
+          return
+        }
+        parentClose.beginIfNeeded(ticket, 'CANCELED')
+        return
+      }
+    }
+    if (childResolutions) {
+      try {
+        await api.updateTicketStatus(ticket.id, { status, childResolutions }, ticketResourceScope)
+        parentClose.cancel()
+        await invalidateTicketQueries()
+        await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
+      } catch (e: unknown) {
+        if (status === 'CANCELED' && parentClose.openFromRefuse(e, 'CANCELED')) return
+        setTechActionErr(formatMobileMutationError(e, { operation: 'other' }))
+      }
+      return
+    }
+    const delivery = await deliverTicketStatus({
+      reportedOnline: liveApiAllowed,
+      queueInput: {
+        kind: 'ticket.status',
+        target: { ticketId: ticket.id },
+        payload: { status, scope: ticketResourceScope },
+      },
+      send: async () => api.updateTicketStatus(ticket.id, { status }, ticketResourceScope),
+      enqueue: queueOffline,
+    })
+    if (delivery.kind === 'queue-failed') {
+      setTechActionErr(delivery.message)
+      return
+    }
+    if (delivery.kind === 'queued') {
+      setOfflineQueuedNotice('Сохранено на устройстве. Будет отправлено после восстановления сети.')
+      return
+    }
+    await invalidateTicketQueries()
+    await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
+  }
+
   function handleAssignmentRequest() {
     if (showAssignmentRequestAck) return
     if (!getOnlineStatus()) {
@@ -1629,8 +1770,28 @@ export function MobileTicketPage() {
                 }),
             }
           : null,
+        canShowChildFieldComplete
+          ? {
+              id: 'field-complete',
+              label: 'Выполнено',
+              icon: 'clipboard-check',
+              onClick: () => {
+                void handleChildFieldStatus('FIELD_COMPLETE')
+              },
+            }
+          : null,
+        canShowChildCancel
+          ? {
+              id: 'child-cancel',
+              label: 'Отменено',
+              icon: 'arrow-back-up',
+              onClick: () => {
+                void handleChildFieldStatus('CANCELED')
+              },
+            }
+          : null,
         canShowClientAcceptance
-          ? { id: 'accept', label: 'Принять работу', icon: 'check', onClick: () => { setAcceptanceErr(''); acceptM.mutate() } }
+          ? { id: 'accept', label: 'Принять работу', icon: 'check', onClick: () => requestAccept() }
           : null,
         canShowClientAcceptance
           ? {
@@ -1679,7 +1840,19 @@ export function MobileTicketPage() {
             </div>
             {(() => {
               const sub = [ticket.problemCategory?.name, ticket.location?.name || ticket.pointName].map((s) => (s || '').trim()).filter(Boolean).join(' · ')
-              return sub ? <div className="mobileTicketHeaderSub">{sub}</div> : null
+              const parentNumber = ticket.parent
+                ? (ticket.parent as { ticketNumber?: number }).ticketNumber
+                : undefined
+              return (
+                <>
+                  {sub ? <div className="mobileTicketHeaderSub">{sub}</div> : null}
+                  {ticket.parent && parentHref ? (
+                    <Link to={parentHref} className="mobileTicketHeaderSub" style={{ display: 'block', marginTop: 2 }}>
+                      {typeof parentNumber === 'number' ? `Подзадача к заявке #${parentNumber}` : 'К родительской заявке'}
+                    </Link>
+                  ) : null}
+                </>
+              )
             })()}
           </div>
         ) : null}
@@ -1944,10 +2117,32 @@ export function MobileTicketPage() {
             вела бы в «не найдено». Чинить это нужно областью в самой
             мобильной странице, отдельным решением.
           */}
-          {ticket.children?.length ? (
+          {ticket.children?.length || (canCreateChildTicket && childCreateHref) ? (
             <div className="mobileSection" style={{ marginTop: 4 }}>
-              <h2 className="mobileSectionTitle">Связанные заявки</h2>
-              {ticket.children.map((ch) => {
+              <h2 className="mobileSectionTitle">Подзадачи</h2>
+              {canCreateChildTicket && childCreateHref ? (
+                <Link to={childCreateHref} className="mobileBtn mobileBtnSecondary" style={{ display: 'block', textAlign: 'center', marginBottom: 10 }}>
+                  + Подзадача
+                </Link>
+              ) : null}
+              {isChildTicket(ticket) && roleCanDetachChildTicket(meQ.data?.role) ? (
+                <div style={{ marginBottom: 10 }}>
+                  <button
+                    type="button"
+                    className="mobileBtn mobileBtnSecondary"
+                    style={{ width: '100%' }}
+                    disabled={detachM.isPending || !isOnline}
+                    onClick={() => detachM.mutate()}
+                  >
+                    {detachM.isPending ? 'Отвязываем…' : 'Отвязать'}
+                  </button>
+                  {detachErr ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 8 }}>{detachErr}</div> : null}
+                </div>
+              ) : null}
+              {!ticket.children?.length ? (
+                <div className="mobileMeta">Подзадач пока нет.</div>
+              ) : null}
+              {(ticket.children || []).map((ch) => {
                 const pc = ch.problemCategory
                 const normalizedProblemCategory = {
                   id: pc?.id || '_',
@@ -2006,7 +2201,7 @@ export function MobileTicketPage() {
                 className="mobileBtn mobileBtn--done"
                 style={{ width: '100%', minHeight: 48 }}
                 disabled={acceptM.isPending || rejectM.isPending || !isOnline}
-                onClick={() => { setAcceptanceErr(''); acceptM.mutate() }}
+                onClick={() => requestAccept()}
               >
                 {acceptM.isPending ? 'Принимаем…' : 'Принять работу'}
               </button>
@@ -2114,6 +2309,28 @@ export function MobileTicketPage() {
                   }}
                 >
                   Отправить на приёмку (фото отчёта)
+                </button>
+              ) : null}
+              {canShowChildFieldComplete ? (
+                <button
+                  type="button"
+                  className="mobileBtn mobileBtn--done"
+                  style={{ width: '100%', marginTop: 8, minHeight: 48 }}
+                  disabled={techActionM.isPending || assignmentRequestM.isPending}
+                  onClick={() => void handleChildFieldStatus('FIELD_COMPLETE')}
+                >
+                  Выполнено
+                </button>
+              ) : null}
+              {canShowChildCancel ? (
+                <button
+                  type="button"
+                  className="mobileBtn mobileBtnSecondary"
+                  style={{ width: '100%', marginTop: 8, minHeight: 48 }}
+                  disabled={techActionM.isPending || assignmentRequestM.isPending}
+                  onClick={() => void handleChildFieldStatus('CANCELED')}
+                >
+                  Отменено
                 </button>
               ) : null}
               {showCompleteBlockedHint ? (
@@ -2319,7 +2536,11 @@ export function MobileTicketPage() {
                     if (msg.kind === 'system') {
                       return (
                         <div className="mobileChatSysRow" key={msg.id}>
-                          <span className="mobileChatSysPill">{msg.text} · {timeStr}</span>
+                          <span className="mobileChatSysPill">
+                            {msg.link?.href ? <Link to={msg.link.href}>{msg.text}</Link> : msg.text}
+                            {' · '}
+                            {timeStr}
+                          </span>
                         </div>
                       )
                     }
@@ -2541,7 +2762,7 @@ export function MobileTicketPage() {
                     className="mobileBtn mobileBtn--done"
                     style={{ width: '100%', minHeight: 48 }}
                     disabled={acceptM.isPending || rejectM.isPending || !isOnline}
-                    onClick={() => { setAcceptanceErr(''); acceptM.mutate() }}
+                    onClick={() => requestAccept()}
                   >
                     {acceptM.isPending ? 'Принимаем…' : 'Принять работу'}
                   </button>
@@ -2639,6 +2860,28 @@ export function MobileTicketPage() {
                       }}
                     >
                       Отправить на приёмку (фото отчёта)
+                    </button>
+                  ) : null}
+                  {canShowChildFieldComplete ? (
+                    <button
+                      type="button"
+                      className="mobileBtn mobileBtn--done"
+                      style={{ width: '100%', marginTop: 8, minHeight: 48 }}
+                      disabled={techActionM.isPending || assignmentRequestM.isPending}
+                      onClick={() => void handleChildFieldStatus('FIELD_COMPLETE')}
+                    >
+                      Выполнено
+                    </button>
+                  ) : null}
+                  {canShowChildCancel ? (
+                    <button
+                      type="button"
+                      className="mobileBtn mobileBtnSecondary"
+                      style={{ width: '100%', marginTop: 8, minHeight: 48 }}
+                      disabled={techActionM.isPending || assignmentRequestM.isPending}
+                      onClick={() => void handleChildFieldStatus('CANCELED')}
+                    >
+                      Отменено
                     </button>
                   ) : null}
                   {showCompleteBlockedHint ? (
@@ -2957,6 +3200,15 @@ export function MobileTicketPage() {
         setState={setRejectModal}
         canSubmit={rejectCanSubmit}
         onSubmit={() => rejectM.mutate()}
+      />
+      <MobileParentCloseChildrenSheet
+        open={!!parentClose.intent}
+        items={parentClose.intent?.items ?? []}
+        ticketHref={childHref}
+        pending={parentClose.intent?.kind === 'ACCEPT' ? acceptM.isPending : false}
+        error={parentClose.error || (parentClose.intent?.kind === 'CANCELED' ? techActionErr : acceptanceErr) || null}
+        onCancel={parentClose.cancel}
+        onConfirm={confirmParentClose}
       />
     </div>
   )

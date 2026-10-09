@@ -21,6 +21,12 @@ import { TicketsQueryService } from './tickets.query.service';
 import { TicketAttachmentsService } from './ticket-attachments.service';
 import { buildTicketDescription } from './ticket-description.builder';
 import {
+  assertParentTicketOwnerCompany,
+  loadParentTicketForCreate,
+  resolveParentCreateLocationId,
+  type ParentTicketForCreate,
+} from './ticket-parent-create';
+import {
   assertActorCanUseLocation,
   assertActorCanUseProblemCategory,
   resolveReadableTicketAccess,
@@ -723,7 +729,7 @@ export class TicketsAssignmentService {
       throw new BadRequestException('categoryId is required');
     }
     const locationId = (dto.locationId ?? '').trim();
-    if (!locationId) {
+    if (!locationId && !(dto.parentId ?? '').trim()) {
       throw new BadRequestException('locationId is required');
     }
 
@@ -915,11 +921,25 @@ export class TicketsAssignmentService {
 
   async create(actorCompanyId: string, creatorUserId: string, creatorRole: UserRole, dto: CreateTicketDto) {
     const input = this.normalizeCreateInput(dto);
+    let parentForCreate: ParentTicketForCreate | null = null;
+    if (input.parentId) {
+      parentForCreate = await loadParentTicketForCreate(this.prisma, input.parentId);
+      input.locationId = resolveParentCreateLocationId({
+        parent: parentForCreate,
+        requestedLocationId: input.locationId,
+      });
+    }
     let targetCompanyId = await this.resolveTicketOwnerCompanyId({
       actorCompanyId,
       locationId: input.locationId,
       requestedClientCompanyId: input.clientCompanyId,
     });
+    if (parentForCreate) {
+      assertParentTicketOwnerCompany({
+        parent: parentForCreate,
+        targetCompanyId,
+      });
+    }
 
     if (creatorRole === UserRole.TECHNICIAN && targetCompanyId !== actorCompanyId) {
       targetCompanyId = (
@@ -1078,7 +1098,10 @@ export class TicketsAssignmentService {
         ticketId: ticket.id,
         actorUserId: creatorUserId,
         payload: {
-          parentId: ticket.parentId,
+          parentId: parentForCreate?.id ?? ticket.parentId,
+          ...(parentForCreate
+            ? { parentTicketNumber: parentForCreate.ticketNumber }
+            : {}),
           locationId: location.id,
           categoryId: input.categoryId,
           equipmentId: equipment?.id ?? null,
@@ -1091,6 +1114,19 @@ export class TicketsAssignmentService {
           createMode: input.createMode,
         },
       });
+
+      if (parentForCreate) {
+        await this.timelineService.recordTx(tx, {
+          event: 'CHILD_TICKET_CREATED',
+          companyId: parentForCreate.companyId,
+          ticketId: parentForCreate.id,
+          actorUserId: creatorUserId,
+          payload: {
+            childTicketId: ticket.id,
+            childTicketNumber: ticket.ticketNumber,
+          },
+        });
+      }
 
       const commentEvent = input.comment
         ? await this.timelineService.recordLegacyTx(tx, {
@@ -1342,187 +1378,32 @@ export class TicketsAssignmentService {
 
   async createChild(
     companyId: string,
-    creatorUserId: string | null,
+    creatorUserId: string,
     creatorRole: UserRole,
     parentId: string,
     dto: CreateChildTicketDto,
   ) {
-    const parent = await this.prisma.ticket.findFirst({
-      where: { id: parentId, companyId },
-      select: {
-        id: true,
-        locationId: true,
-        requesterName: true,
-        requesterPhone: true,
-        address: true,
-        pointName: true,
-      },
-    });
+    const parent = await loadParentTicketForCreate(this.prisma, parentId);
 
-    if (!parent) throw new NotFoundException('Parent ticket not found');
-
-    const company = await this.getCompany(companyId);
-    if (company.type !== CompanyType.CLIENT) {
-      throw new BadRequestException('Ticket owner company must be a CLIENT company');
-    }
-    const category = await this.getCategory(companyId, dto.problemCategoryId);
-
-    const specializationIds = category.specializationLinks.map((x) => x.specializationId);
-    const allCandidates = await this.findCandidateTechnicians(companyId, specializationIds);
-    const candidates = await this.filterTechniciansByLocationBindings(
-      allCandidates,
-      companyId,
-      parent.locationId,
-    );
-
-    const shouldAutoAssign = company.autoAssignEnabled;
-
-    const ticketId = randomUUID();
-
-    const childPriority = dto.priority === TicketPriority.URGENT ? TicketPriority.URGENT : TicketPriority.NORMAL;
-    const { slaMinutes, slaDueAt } = computeSlaFromPriorityOrExplicitMinutes({
-      priority: childPriority,
-      explicitSlaMinutes: dto.slaMinutes ?? null,
-    });
-
-    const created = await this.prisma.$transaction(async (tx) => {
-      const selected = shouldAutoAssign
-        ? await this.assignmentEngine.selectTechnicianForTicket({
-            ticketId,
-            companyId,
-            locationId: parent.locationId,
-            categoryId: dto.problemCategoryId,
-          })
-        : null;
-      const assignedTechnicianId = selected?.technicianId ?? null;
-
-      let ticket = await tx.ticket.create({
-        data: {
-          id: ticketId,
-          companyId: companyId,
-          locationId: parent.locationId,
-          parentId: parent.id,
-
-          requesterName: parent.requesterName,
-          requesterPhone: parent.requesterPhone,
-          address: parent.address,
-          pointName: parent.pointName,
-
-          problemCategoryId: dto.problemCategoryId,
-          problemText: dto.problemText?.trim(),
-
-          urgency: dto.urgency ?? TicketUrgency.NOT_URGENT,
-          priority: childPriority,
-          slaMinutes,
-          slaDueAt,
-
-          status: TicketStatus.NEW,
-          assignedTechnicianId: null,
-          createdByUserId: creatorUserId,
-        },
-      });
-
-      await this.writeStatusHistoryTx(tx, {
-        ticketId: ticket.id,
-        fromStatus: null,
-        toStatus: TicketStatus.NEW,
-        changedByUserId: null,
-        comment: 'Child ticket created',
-      });
-
-      const createdEvent = await this.timelineService.recordTx(tx, {
-        event: 'TICKET_CREATED',
-        companyId: companyId,
-        ticketId: ticket.id,
-        actorUserId: null,
-        payload: {
-          parentId: parent.id,
-          locationId: parent.locationId,
-          status: TicketStatus.NEW,
-          urgency: ticket.urgency,
-          autoAssigned: !!assignedTechnicianId,
-          isChild: true,
-        },
-      });
-
-      let assignedEventId: string | null = null;
-
-      if (assignedTechnicianId) {
-        const wf = decideTicketTransition(TicketStatus.NEW, TicketStatus.ASSIGNED);
-        if (!wf.allowed) throw new BadRequestException(wf.reason);
-
-        const now = new Date();
-
-        ticket = await tx.ticket.update({
-          where: { id: ticket.id },
-          data: {
-            status: TicketStatus.ASSIGNED,
-            statusUpdatedAt: now,
-            assignedTechnicianId,
-          },
-        });
-
-        await this.writeStatusHistoryTx(tx, {
-          ticketId: ticket.id,
-          fromStatus: TicketStatus.NEW,
-          toStatus: TicketStatus.ASSIGNED,
-          changedByUserId: null,
-          comment: 'Auto assigned',
-        });
-
-        await this.recordAssignmentHistoryTx(tx, {
-          companyId,
-          ticketId: ticket.id,
-          actorUserId: null,
-          previousAssignedTechnicianId: null,
-          assignedTechnicianId,
-          operationType: 'auto_assignment',
-          mode: 'auto',
-          reason: 'assignment_engine_v1',
-        });
-
-        const assignedEvent = await this.timelineService.recordTx(tx, {
-          event: 'TICKET_ASSIGNED',
-          companyId: companyId,
-          ticketId: ticket.id,
-          actorUserId: null,
-          payload: {
-            assignedTechnicianId,
-            mode: 'auto',
-            strategy: 'contextual_v1',
-            reason: 'assignment_engine_v1',
-          },
-        });
-
-        return { ticket, assignedTechnicianId, createdEventId: createdEvent.id, assignedEventId: assignedEvent.id };
-      }
-
-      return { ticket, assignedTechnicianId, createdEventId: createdEvent.id, assignedEventId: null };
-    });
-
-    this.notifications.scheduleTicketCreatedChild({
-      companyId,
-      creatorUserId,
+    const created = await this.create(companyId, creatorUserId, creatorRole, {
+      parentId: parent.id,
+      clientCompanyId: parent.companyId,
       locationId: parent.locationId,
-      locationName: parent.pointName || null,
-      locationAddress: parent.address || null,
-      categoryName: category.name,
-      urgency: childPriority,
-      requesterName: parent.requesterName ?? null,
-      requesterPhone: parent.requesterPhone ?? null,
-      description: dto.problemText?.trim() || null,
-      ticketId: created.ticket.id,
-      ticketNumber: created.ticket.ticketNumber,
-      summary: (created.ticket.problemText || '').trim() || 'Дочерняя заявка',
-      assignedTechnicianId: created.assignedTechnicianId,
-      sourceEventId: created.createdEventId,
+      categoryId: dto.problemCategoryId,
+      problemCategoryId: dto.problemCategoryId,
+      description: dto.problemText,
+      problemText: dto.problemText,
+      urgency: dto.urgency,
+      priority: dto.priority,
+      slaMinutes: dto.slaMinutes,
+      requesterName: parent.requesterName ?? undefined,
+      requesterPhone: parent.requesterPhone ?? undefined,
+      address: parent.address ?? undefined,
+      pointName: parent.pointName ?? undefined,
     });
 
     return {
-      ticket: created.ticket,
-      instructions: category.instructions || null,
-      candidates,
-      autoAssigned: !!created.assignedTechnicianId,
+      ...created,
       parentId: parent.id,
     };
   }
