@@ -99,7 +99,7 @@ describe('MaxBotCommandService — ticket photo and complete', () => {
     const { service, workplace, files } = makeTechnicianService();
     const prompt = await service.handleUpdate(callback(`tkf:${TICKET_ID}`));
     expect(prompt?.text).toContain('Отправьте фотографию для заявки #12');
-    expect(buttonsOf(prompt).map((button) => button.text)).toEqual(['Отмена', 'Меню']);
+    expect(buttonsOf(prompt).map((button) => button.text)).toEqual(['Отмена', 'Сообщить об ошибке', 'Меню']);
 
     const text = await service.handleUpdate(textFrom('это не фото'));
     expect(workplace.addMyTicketPhoto).not.toHaveBeenCalled();
@@ -123,7 +123,7 @@ describe('MaxBotCommandService — ticket photo and complete', () => {
 
     const ask = await service.handleUpdate(textFrom('Заменил компрессор'));
     expect(ask?.text).toContain('Добавить фото результата?');
-    expect(buttonsOf(ask).map((button) => button.text)).toEqual(['Добавить фото', 'Пропустить', 'Отмена', 'Меню']);
+    expect(buttonsOf(ask).map((button) => button.text)).toEqual(['Добавить фото', 'Пропустить', 'Отмена', 'Сообщить об ошибке', 'Меню']);
 
     workplace.completeMyTicket.mockResolvedValueOnce({
       ok: false,

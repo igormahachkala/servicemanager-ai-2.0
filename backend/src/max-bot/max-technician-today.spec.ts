@@ -15,7 +15,7 @@ describe('renderTechnicianTodayMessage', () => {
     expect(res.text).toContain('Обходы сегодня: 2');
     expect(res.text).not.toContain('Телефон');
     const labels = res.attachments?.[0]?.payload.buttons.flat().map((button) => button.text);
-    expect(labels).toEqual(['Моя смена', 'Мои заявки', 'Обходы', 'Меню']);
+    expect(labels).toEqual(['Моя смена', 'Мои заявки', 'Обходы', 'Сообщить об ошибке', 'Меню']);
   });
 
   it('says the shift is closed', () => {

@@ -1,0 +1,322 @@
+{
+  "memos": [
+    {
+      "id": "help",
+      "file": "help.png",
+      "title": "Справка",
+      "contour": "common"
+    },
+    {
+      "id": "master-assigned",
+      "file": "master-assigned.png",
+      "title": "Назначено",
+      "contour": "master"
+    },
+    {
+      "id": "master-attachments",
+      "file": "master-attachments.png",
+      "title": "Вложения",
+      "contour": "master"
+    },
+    {
+      "id": "master-candidates",
+      "file": "master-candidates.png",
+      "title": "Кандидаты",
+      "contour": "master"
+    },
+    {
+      "id": "master-comment-prompt",
+      "file": "master-comment-prompt.png",
+      "title": "Ввод комментария",
+      "contour": "master"
+    },
+    {
+      "id": "master-comment-saved",
+      "file": "master-comment-saved.png",
+      "title": "Комментарий сохранён",
+      "contour": "master"
+    },
+    {
+      "id": "master-history",
+      "file": "master-history.png",
+      "title": "История заявки",
+      "contour": "master"
+    },
+    {
+      "id": "master-mention-prompt",
+      "file": "master-mention-prompt.png",
+      "title": "Упоминание",
+      "contour": "master"
+    },
+    {
+      "id": "master-menu",
+      "file": "master-menu.png",
+      "title": "Меню мастера",
+      "contour": "master"
+    },
+    {
+      "id": "master-reassign",
+      "file": "master-reassign.png",
+      "title": "Переназначение",
+      "contour": "master"
+    },
+    {
+      "id": "master-round-not-started",
+      "file": "master-round-not-started.png",
+      "title": "Обход не начат",
+      "contour": "master"
+    },
+    {
+      "id": "master-round-progress-done",
+      "file": "master-round-progress-done.png",
+      "title": "Обход завершён",
+      "contour": "master"
+    },
+    {
+      "id": "master-round-progress",
+      "file": "master-round-progress.png",
+      "title": "Прогресс обхода",
+      "contour": "master"
+    },
+    {
+      "id": "master-round-report",
+      "file": "master-round-report.png",
+      "title": "Отчёт обхода",
+      "contour": "master"
+    },
+    {
+      "id": "master-rounds-list",
+      "file": "master-rounds-list.png",
+      "title": "Обходы мастера",
+      "contour": "master"
+    },
+    {
+      "id": "master-sla-list",
+      "file": "master-sla-list.png",
+      "title": "Просрочено",
+      "contour": "master"
+    },
+    {
+      "id": "master-techs",
+      "file": "master-techs.png",
+      "title": "Техники",
+      "contour": "master"
+    },
+    {
+      "id": "master-ticket-card",
+      "file": "master-ticket-card.png",
+      "title": "Карточка заявки",
+      "contour": "master"
+    },
+    {
+      "id": "master-ticket-filter",
+      "file": "master-ticket-filter.png",
+      "title": "Фильтр заявок",
+      "contour": "master"
+    },
+    {
+      "id": "master-ticket-list",
+      "file": "master-ticket-list.png",
+      "title": "Список заявок",
+      "contour": "master"
+    },
+    {
+      "id": "master-today",
+      "file": "master-today.png",
+      "title": "Сегодня мастера",
+      "contour": "master"
+    },
+    {
+      "id": "master-unassigned-list",
+      "file": "master-unassigned-list.png",
+      "title": "Без исполнителя",
+      "contour": "master"
+    },
+    {
+      "id": "master-unavailable",
+      "file": "master-unavailable.png",
+      "title": "Заявка недоступна",
+      "contour": "master"
+    },
+    {
+      "id": "menu",
+      "file": "menu.png",
+      "title": "Меню",
+      "contour": "common"
+    },
+    {
+      "id": "stub-bound-role",
+      "file": "stub-bound-role.png",
+      "title": "Заглушка роли",
+      "contour": "common"
+    },
+    {
+      "id": "tech-action-stub",
+      "file": "tech-action-stub.png",
+      "title": "Заглушка действия",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-available-list",
+      "file": "tech-available-list.png",
+      "title": "Доступные заявки",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-claimed",
+      "file": "tech-claimed.png",
+      "title": "Заявка взята",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-comment-prompt",
+      "file": "tech-comment-prompt.png",
+      "title": "Ввод комментария",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-comment-saved",
+      "file": "tech-comment-saved.png",
+      "title": "Комментарий сохранён",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-find-prompt",
+      "file": "tech-find-prompt.png",
+      "title": "Поиск заявки",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-find-results",
+      "file": "tech-find-results.png",
+      "title": "Результаты поиска",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-history",
+      "file": "tech-history.png",
+      "title": "История заявки",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-menu",
+      "file": "tech-menu.png",
+      "title": "Меню техника",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-my-list",
+      "file": "tech-my-list.png",
+      "title": "Мои заявки",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-round-brief",
+      "file": "tech-round-brief.png",
+      "title": "Бриф обхода",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-round-item",
+      "file": "tech-round-item.png",
+      "title": "Пункт обхода",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-round-photo",
+      "file": "tech-round-photo.png",
+      "title": "Фото обхода",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-round-problem",
+      "file": "tech-round-problem.png",
+      "title": "Проблема обхода",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-round-report",
+      "file": "tech-round-report.png",
+      "title": "Отчёт обхода",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-round-ticket-created",
+      "file": "tech-round-ticket-created.png",
+      "title": "Заявка из обхода",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-round-ticket-prompt",
+      "file": "tech-round-ticket-prompt.png",
+      "title": "Создать из обхода",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-rounds-list",
+      "file": "tech-rounds-list.png",
+      "title": "Список обходов",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-shift-closed",
+      "file": "tech-shift-closed.png",
+      "title": "Смена закрыта",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-shift-confirm",
+      "file": "tech-shift-confirm.png",
+      "title": "Подтверждение смены",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-shift-open",
+      "file": "tech-shift-open.png",
+      "title": "Открыть смену",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-status-picker",
+      "file": "tech-status-picker.png",
+      "title": "Смена статуса",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-taken",
+      "file": "tech-taken.png",
+      "title": "Уже взята",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-ticket-card",
+      "file": "tech-ticket-card.png",
+      "title": "Карточка заявки",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-today",
+      "file": "tech-today.png",
+      "title": "Сегодня техника",
+      "contour": "technician"
+    },
+    {
+      "id": "tech-unavailable",
+      "file": "tech-unavailable.png",
+      "title": "Заявка недоступна",
+      "contour": "technician"
+    },
+    {
+      "id": "unbound",
+      "file": "unbound.png",
+      "title": "Без привязки",
+      "contour": "common"
+    },
+    {
+      "id": "unknown",
+      "file": "unknown.png",
+      "title": "Неизвестный ввод",
+      "contour": "common"
+    }
+  ]
+}

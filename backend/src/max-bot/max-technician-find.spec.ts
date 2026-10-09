@@ -42,7 +42,7 @@ describe('max-technician-find', () => {
   it('prompts for a query with cancel and menu', () => {
     const res = renderFindPromptMessage();
     expect(res.text).toBe('Напишите номер, описание, имя или адрес заявки');
-    expect(labelsOf(res)).toEqual(['Отмена', 'Меню']);
+    expect(labelsOf(res)).toEqual(['Отмена', 'Сообщить об ошибке', 'Меню']);
   });
 
   it('renders matches as #{id} with paging and menu', () => {
@@ -62,7 +62,7 @@ describe('max-technician-find', () => {
     });
     expect(res.text).toContain('Поиск заявки');
     expect(res.text).not.toContain('Телефон');
-    expect(labelsOf(res)).toEqual(['#12', 'Следующие', 'Меню']);
+    expect(labelsOf(res)).toEqual(['#12', 'Следующие', 'Сообщить об ошибке', 'Меню']);
     expect(renderFindEmptyMessage().text).toContain('Ничего не найдено');
   });
 });

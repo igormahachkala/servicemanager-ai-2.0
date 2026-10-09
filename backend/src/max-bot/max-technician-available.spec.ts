@@ -45,7 +45,7 @@ describe('max-technician-available', () => {
     const res = renderAvailableTicketsMessage(page);
     expect(res.text).toContain('Доступные');
     expect(res.text).not.toContain('7999');
-    expect(labelsOf(res)).toEqual(['Взять #12', 'Подробнее', 'Меню']);
+    expect(labelsOf(res)).toEqual(['Взять #12', 'Подробнее', 'Сообщить об ошибке', 'Меню']);
     expect(res.attachments?.[0]?.payload.buttons[0]).toEqual([
       { type: 'callback', text: 'Взять #12', payload: `avc:${ID}` },
       { type: 'callback', text: 'Подробнее', payload: `tk:${ID}:av:0` },
@@ -69,7 +69,7 @@ describe('max-technician-available', () => {
         0,
       ),
     );
-    expect(labelsOf(res)).toEqual(['Подробнее', 'Меню']);
+    expect(labelsOf(res)).toEqual(['Подробнее', 'Сообщить об ошибке', 'Меню']);
   });
 
   it('prefixes claimed card and taken list', () => {

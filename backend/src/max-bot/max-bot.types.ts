@@ -40,7 +40,12 @@ export type MaxBotMessageBody = {
   format?: 'markdown' | 'html';
 };
 
-export type MaxBotCommandResponse = MaxBotMessageBody;
+export type MaxBotCommandResponse = MaxBotMessageBody & {
+  /** Short screen code for the in-memory journal. Not sent to MAX. */
+  kind?: string;
+  /** When true (or kind starts with `report:`), skip screen journal. Not sent to MAX. */
+  skipJournal?: boolean;
+};
 
 export type MaxBotUpdatesResponse = {
   updates?: MaxBotUpdate[];

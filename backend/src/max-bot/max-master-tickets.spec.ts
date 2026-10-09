@@ -26,6 +26,7 @@ describe('master ticket screens stay within the MAX button cap', () => {
       '#1',
       'Назначить #1',
       'Следующие',
+      'Сообщить об ошибке',
       'Меню',
     ]);
   });
@@ -47,6 +48,7 @@ describe('master ticket screens stay within the MAX button cap', () => {
       '#5',
       '#6',
       'Следующие',
+      'Сообщить об ошибке',
       'Меню',
       'Отмена',
     ]);
@@ -76,7 +78,7 @@ describe('master ticket screens stay within the MAX button cap', () => {
       ['Вложения', 'История'],
       ['Обход'],
       ['Назад'],
-      ['Меню'],
+      ['Сообщить об ошибке', 'Меню'],
     ]);
     expect(res.attachments?.[0]?.payload.buttons[4]).toEqual([
       { type: 'callback', text: 'Назад', payload: 'ml:new:0' },
