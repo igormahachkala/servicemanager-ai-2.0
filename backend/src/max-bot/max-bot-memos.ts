@@ -170,7 +170,8 @@ export function renderMemosListMessage(
 }
 
 export function renderMemosSentMessage(count: number): MaxBotCommandResponse {
-  const keyboard = renderInlineKeyboard(appendBoundServiceFooter([]));
+  const rows = appendBoundServiceFooter([[callbackButton('Назад', MEMOS_MENU_PAYLOAD)]]);
+  const keyboard = renderInlineKeyboard(rows);
   return {
     text: `Отправлено ${count} памяток`,
     kind: 'memos:sent',

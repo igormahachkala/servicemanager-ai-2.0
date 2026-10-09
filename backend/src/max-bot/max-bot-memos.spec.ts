@@ -136,5 +136,8 @@ describe('MaxBotMemosService', () => {
       'technician',
     );
     expect(response.text).toMatch(/^Отправлено \d+ памяток$/);
+    const buttons = JSON.stringify(response.attachments ?? []);
+    expect(buttons).toContain("\"text\":\"Назад\"");
+    expect(buttons).toContain("\"payload\":\"memos\"");
   });
 });
