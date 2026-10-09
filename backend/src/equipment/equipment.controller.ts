@@ -260,6 +260,13 @@ export class EquipmentController {
     UserRole.TECHNICIAN,
     UserRole.CLIENT,
     UserRole.TERRITORIAL_MANAGER,
+    // Наблюдатель платформы читает оборудование так же, как список, историю
+    // и детали (@Get(), :id/history, :id/parts — он там уже есть). Эти две
+    // ручки из набора выпали, и карточка оборудования для него не
+    // открывалась. Область по-прежнему сужает сервис:
+    // resolveReadableCompanyId → resolveObserverScopeCompanyId с проверкой
+    // CompanyType.CLIENT. Права — тот же LOCATIONS_VIEW.
+    UserRole.PLATFORM_ADMIN,
   )
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
   findAllByLocation(
@@ -285,6 +292,13 @@ export class EquipmentController {
     UserRole.TECHNICIAN,
     UserRole.CLIENT,
     UserRole.TERRITORIAL_MANAGER,
+    // Наблюдатель платформы читает оборудование так же, как список, историю
+    // и детали (@Get(), :id/history, :id/parts — он там уже есть). Эти две
+    // ручки из набора выпали, и карточка оборудования для него не
+    // открывалась. Область по-прежнему сужает сервис:
+    // resolveReadableCompanyId → resolveObserverScopeCompanyId с проверкой
+    // CompanyType.CLIENT. Права — тот же LOCATIONS_VIEW.
+    UserRole.PLATFORM_ADMIN,
   )
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
   findOne(

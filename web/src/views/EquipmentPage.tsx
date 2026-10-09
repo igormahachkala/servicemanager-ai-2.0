@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
-import { EQUIPMENT_PARTS_MANAGER_ROLES, equipmentCardPath } from '../lib/equipmentCard'
+import {
+  EQUIPMENT_PARTS_MANAGER_ROLES,
+  equipmentCardPath,
+  resolveEquipmentClientSelection,
+} from '../lib/equipmentCard'
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
 import { EquipmentHistoryTab } from '../components/equipment/EquipmentHistoryTab'
 import { EquipmentPartsTab } from '../components/equipment/EquipmentPartsTab'
@@ -120,6 +124,7 @@ function toSaveInput(value: FormValue, mode: 'create' | 'update'): api.SaveEquip
 
 export function EquipmentPage() {
   const qc = useQueryClient()
+  const [searchParams] = useSearchParams()
 
   const [err, setErr] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -142,22 +147,24 @@ export function EquipmentPage() {
   const linkedClients = linkedClientsQ.data || []
   const isProviderScope = linkedClients.length > 0
   const [selectedClientId, setSelectedClientId] = useState('')
+  const requestedClientId = (searchParams.get('linkedClientCompanyId') || '').trim()
 
-  // Контур клиента выбирается так же, как в «Локациях»: подсказка из профиля,
-  // иначе единственный доступный клиент.
+  // Явный URL-контур главнее profile hint, но всё равно обязан входить в
+  // canonical getLinkedClients(): foreign id не подменяется «удобным» клиентом.
   useEffect(() => {
     if (!isProviderScope) {
       if (selectedClientId) setSelectedClientId('')
       return
     }
-    if (selectedClientId && linkedClients.some((c) => c.clientCompany.id === selectedClientId)) return
-    const hint = api.getLinkedClientCompanyIdFromMe(meQ.data)
-    const fromHint = hint && linkedClients.some((c) => c.clientCompany.id === hint) ? hint : ''
-    const onlyOne = linkedClients.length === 1 ? linkedClients[0].clientCompany.id : ''
-    const next = fromHint || onlyOne || ''
+    const next = resolveEquipmentClientSelection({
+      requestedClientId,
+      selectedClientId,
+      profileClientId: api.getLinkedClientCompanyIdFromMe(meQ.data),
+      allowedClientIds: linkedClients.map((c) => c.clientCompany.id),
+    })
     if (next !== selectedClientId) setSelectedClientId(next)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isProviderScope, linkedClientsQ.dataUpdatedAt, meQ.dataUpdatedAt])
+  }, [isProviderScope, requestedClientId, linkedClientsQ.dataUpdatedAt, meQ.dataUpdatedAt])
 
   const scopeCompanyId = isProviderScope ? selectedClientId : ''
   const scopeReady = !isProviderScope || !!scopeCompanyId
