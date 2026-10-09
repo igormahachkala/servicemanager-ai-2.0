@@ -63,6 +63,7 @@ export class WorkforceController {
   @Roles(
     UserRole.PLATFORM_ADMIN,
     UserRole.ADMIN,
+    UserRole.CLIENT_ADMIN,
     UserRole.MASTER,
     UserRole.DISPATCHER,
     UserRole.NETWORK_DIRECTOR,
@@ -113,6 +114,7 @@ export class WorkforceController {
   @Roles(
     UserRole.PLATFORM_ADMIN,
     UserRole.ADMIN,
+    UserRole.CLIENT_ADMIN,
     UserRole.MASTER,
     UserRole.DISPATCHER,
     UserRole.NETWORK_DIRECTOR,
