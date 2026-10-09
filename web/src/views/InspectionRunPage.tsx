@@ -1,8 +1,10 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { locationCardPath } from '../lib/equipmentCard'
+import { readOutboundScopeFromSearch } from '../lib/locationCardSections'
 import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 import { ProtectedUploadThumbLink } from '../ui/ProtectedUploadMedia'
 
@@ -85,6 +87,9 @@ function buildSummaryFromRun(run: api.InspectionRun): api.InspectionRunSummary {
 
 export function InspectionRunPage() {
   const params = useParams<{ id: string }>()
+  const [searchParams] = useSearchParams()
+  /* Исходящие ссылки возвращают область тем параметром, которым она пришла. */
+  const outboundScope = readOutboundScopeFromSearch(searchParams)
   const runId = params.id || ''
   const queryClient = useQueryClient()
 
@@ -293,7 +298,7 @@ export function InspectionRunPage() {
             </Link>
           ) : null}
           <Link to="/inspection/templates"><button className="ghost">Все шаблоны</button></Link>
-          <Link to="/inspection/runs"><button className="ghost">История</button></Link>
+          <Link to={api.appendScopeToPath('/inspection/runs', outboundScope)}><button className="ghost">История</button></Link>
         </div>
       </div>
 
@@ -307,7 +312,9 @@ export function InspectionRunPage() {
               <div>
                 <h3 style={{ margin: 0 }}>{run.title}</h3>
                 <div className="muted small" style={{ marginTop: 6 }}>
-                  Обход: {run.title} · Локация: {run.location.name}
+                  Обход: {run.title} · Локация:{' '}
+                  {/* Phase 3: из обхода — обратно в карточку точки, область сохраняется. */}
+                  <Link to={locationCardPath(run.location.id, outboundScope)}>{run.location.name}</Link>
                   {run.location.city ? ` · ${run.location.city}` : ''}
                   {run.equipment ? ` · Оборудование: ${run.equipment.name}` : ''}
                 </div>
@@ -320,8 +327,9 @@ export function InspectionRunPage() {
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                 <span className="tag">{run.status}</span>
+                {/* Контур сохраняется и здесь: иначе отчёт потеряет клиента. */}
                 {isCompleted ? (
-                  <Link to={`/inspection/runs/${run.id}/report`}>
+                  <Link to={api.appendScopeToPath(`/inspection/runs/${run.id}/report`, outboundScope)}>
                     <button type="button" className="ghost">Открыть отчёт</button>
                   </Link>
                 ) : null}

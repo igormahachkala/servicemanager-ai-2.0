@@ -319,3 +319,47 @@ export function boardEquipmentOptions(
   }
   return Array.from(map.entries()).map(([id, label]) => ({ id, label }))
 }
+
+/**
+ * Какой клиентский контур показывает список оборудования.
+ *
+ * Вынесено в чистую функцию, потому что это и был дефект: переход
+ * «точка → оборудование» несёт linkedClientCompanyId, а список выбирал
+ * клиента только по подсказке профиля либо по единственному связанному
+ * клиенту. У провайдера с клиентами A и B адрес говорил B, а запрос уходил
+ * за A с точкой клиента B — пустой либо чужой контур.
+ *
+ * Приоритет: явная область из адреса → уже выбранный клиент → подсказка
+ * профиля → единственный связанный клиент.
+ *
+ * Чужой либо недоступный идентификатор игнорируется: он обязан быть среди
+ * связанных клиентов этого провайдера. Прав это не выдаёт и не отнимает —
+ * доступ решает бэкенд (resolveReadableCompanyId), фронтенд границей
+ * безопасности не является.
+ */
+export function resolveEquipmentClientScope(input: {
+  isProviderScope: boolean
+  linkedClientIds: readonly string[]
+  requestedLinkedClientCompanyId?: string | null
+  profileHintClientCompanyId?: string | null
+  currentSelectedClientId?: string | null
+}): string {
+  if (!input.isProviderScope) return ''
+
+  const eligible = (candidate?: string | null) => {
+    const value = (candidate || '').trim()
+    return value && input.linkedClientIds.includes(value) ? value : ''
+  }
+
+  // Явная область из адреса важнее подсказки профиля.
+  const fromUrl = eligible(input.requestedLinkedClientCompanyId)
+  if (fromUrl) return fromUrl
+
+  const current = eligible(input.currentSelectedClientId)
+  if (current) return current
+
+  const fromHint = eligible(input.profileHintClientCompanyId)
+  if (fromHint) return fromHint
+
+  return input.linkedClientIds.length === 1 ? input.linkedClientIds[0] : ''
+}
