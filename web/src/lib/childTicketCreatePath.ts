@@ -15,8 +15,11 @@ export type ChildTicketCreatePathInput = {
 /**
  * Путь полной формы создания подзадачи.
  *
- * Тот же маршрут, что обычное создание заявки. Родитель и точка едут
- * в query, область карточки добавляется тем же `appendScopeToPath`.
+ * Родитель и точка едут в query, область карточки добавляется тем же
+ * `appendScopeToPath`. На кабинете форма живёт на `/tickets/new`.
+ * На /m и /max форма подзадачи живёт на `/tickets/create-subtask`.
+ * Этот путь объявлен в router отдельно и раньше `tickets/:id`.
+ * Обычное создание на /m остаётся `/create`.
  */
 export function childTicketCreatePath(input: ChildTicketCreatePathInput): string {
   const parentId = (input.parentId || '').trim()
@@ -25,7 +28,7 @@ export function childTicketCreatePath(input: ChildTicketCreatePathInput): string
 
   const surface = input.surface === 'mobile' ? 'mobile' : 'desktop'
   const mobileRoot = input.mobileRoot === '/max' ? '/max' : '/m'
-  const base = surface === 'mobile' ? `${mobileRoot}/tickets/new` : '/tickets/new'
+  const base = surface === 'mobile' ? `${mobileRoot}/tickets/create-subtask` : '/tickets/new'
   const query = new URLSearchParams()
   query.set('parentId', parentId)
   query.set('locationId', locationId)
