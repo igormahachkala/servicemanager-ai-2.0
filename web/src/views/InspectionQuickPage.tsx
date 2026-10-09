@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
 import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
+import { readOutboundScopeFromSearch } from '../lib/locationCardSections'
 
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024
 
@@ -24,6 +25,15 @@ function fmtDate(value?: string | null) {
 }
 
 export function InspectionQuickPage() {
+  /*
+   * Контур из адреса для исходящих ссылок. Канонический помощник, второго
+   * механизма области не заводится: переход не должен менять контур
+   * пользователя, иначе провайдер попадает на список другого клиента
+   * (откат на подсказку профиля).
+   */
+  const [searchParams] = useSearchParams()
+  const outboundScope = readOutboundScopeFromSearch(searchParams)
+
   const params = useParams<{ runId: string }>()
   const runId = params.runId || ''
   const queryClient = useQueryClient()
@@ -168,11 +178,11 @@ export function InspectionQuickPage() {
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {runId ? (
-            <Link to={`/inspection/runs/${runId}`}>
+            <Link to={api.appendScopeToPath(`/inspection/runs/${runId}`, outboundScope)}>
               <button className="ghost">Полный режим обхода</button>
             </Link>
           ) : null}
-          <Link to="/inspection/runs">
+          <Link to={api.appendScopeToPath('/inspection/runs', outboundScope)}>
             <button className="ghost">История</button>
           </Link>
         </div>

@@ -104,8 +104,8 @@ export function InspectionRunsPage() {
           <div className="muted small">Завершённые и текущие обходы по вашей компании.</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <Link to="/inspection/schedules"><button className="ghost">Планирование</button></Link>
-          <Link to="/inspection/templates"><button className="ghost">Новый обход</button></Link>
+          <Link to={api.appendScopeToPath('/inspection/schedules', outboundScope)}><button className="ghost">Планирование</button></Link>
+          <Link to={api.appendScopeToPath('/inspection/templates', outboundScope)}><button className="ghost">Новый обход</button></Link>
         </div>
       </div>
 

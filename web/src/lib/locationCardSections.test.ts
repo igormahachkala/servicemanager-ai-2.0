@@ -496,3 +496,81 @@ describe('NAV V2(5) P1: контур живёт по всей цепочке о�
     expect(page).not.toMatch(/403|Нет доступа|Forbidden/)
   })
 })
+
+describe('SCOPE NAVIGATION COMPLETION: обходы не теряют контур нигде', () => {
+  const PAGES = [
+    'views/InspectionRunsPage.tsx',
+    'views/InspectionRunPage.tsx',
+    'views/InspectionQuickPage.tsx',
+    'views/InspectionTemplatesPage.tsx',
+    'views/InspectionRunReportPage.tsx',
+    'views/InspectionSchedulesPage.tsx',
+  ]
+
+  it('39. ни одна страница обходов не содержит scope-losing литералов', () => {
+    /*
+     * Закрывается остаток, найденный аудитом навигации: межсекционные и
+     * обратные переходы шли литералами и роняли контур — провайдер
+     * попадал на список другого клиента через откат на подсказку профиля.
+     */
+    for (const file of PAGES) {
+      const src = codeOf(readSrc(file))
+      for (const literal of [
+        'to="/inspection/runs"',
+        'to="/inspection/schedules"',
+        'to="/inspection/templates"',
+      ]) {
+        expect(src, `${file} :: ${literal}`).not.toContain(literal)
+      }
+      // Шаблонные литералы без области — тоже.
+      expect(src, `${file} :: raw quick`).not.toMatch(/to=\{`\/inspection\/quick\/\$\{[^}]*\}`\}/)
+      expect(src, `${file} :: raw run`).not.toMatch(/to=\{`\/inspection\/runs\/\$\{[^}]*\}`\}/)
+    }
+  })
+
+  it('40. каждая страница обходов читает контур каноническим помощником', () => {
+    for (const file of PAGES) {
+      const src = codeOf(readSrc(file))
+      expect(src, file).toContain('readOutboundScopeFromSearch(searchParams)')
+      // Своего механизма области не заводится.
+      expect(src, file).not.toMatch(/new URLSearchParams\([^)]*\)\.set\('linkedClientCompanyId'/)
+    }
+  })
+
+  it('41. provider A/B: контур B доезжает до каждого межсекционного перехода', () => {
+    const B = { linkedClientCompanyId: 'client-B' }
+    for (const path of ['/inspection/runs', '/inspection/schedules', '/inspection/templates', '/inspection/quick/run-1']) {
+      const href = appendScopeToPath(path, B)
+      expect(href, path).toBe(`${path}?linkedClientCompanyId=client-B`)
+      // Подмены на companyId нет — иначе откат на профиль клиента A.
+      expect(href, path).not.toContain('companyId=client-B')
+    }
+  })
+
+  it('42. observer companyId не превращается в linked-контур', () => {
+    const obs = { companyId: 'observed-1' }
+    for (const path of ['/inspection/runs', '/inspection/templates']) {
+      const href = appendScopeToPath(path, obs)
+      expect(href, path).toBe(`${path}?companyId=observed-1`)
+      expect(href, path).not.toContain('linkedClientCompanyId')
+    }
+  })
+
+  it('43. foreign tenant: контур переносится, доступ закрывает бэкенд', () => {
+    const href = appendScopeToPath('/inspection/runs', { linkedClientCompanyId: 'client-FOREIGN' })
+    expect(href).toBe('/inspection/runs?linkedClientCompanyId=client-FOREIGN')
+    // Страницы не различают «нет доступа» и «не существует».
+    for (const file of ['views/InspectionRunPage.tsx', 'views/InspectionRunsPage.tsx']) {
+      expect(codeOf(readSrc(file)), file).not.toMatch(/403|Нет доступа|Forbidden/)
+    }
+  })
+
+  it('44. обратная навигация сохраняет контур, без отката на профиль', () => {
+    const B = { linkedClientCompanyId: 'client-B' }
+    // Быстрый обход → обход → история: контур жив на каждом шаге.
+    expect(appendScopeToPath('/inspection/runs/run-1', B)).toContain('linkedClientCompanyId=client-B')
+    expect(appendScopeToPath('/inspection/runs', B)).toContain('linkedClientCompanyId=client-B')
+    // Пустой контур даёт чистый путь — существующий fallback не ломается.
+    expect(appendScopeToPath('/inspection/runs', {})).toBe('/inspection/runs')
+  })
+})

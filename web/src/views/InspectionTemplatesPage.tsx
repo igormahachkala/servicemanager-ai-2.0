@@ -1,9 +1,10 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
 import { groupInspectionItemsByZone, numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
+import { readOutboundScopeFromSearch } from '../lib/locationCardSections'
 
 /** Роли, у которых по канонической матрице есть LOCATIONS_MANAGE. Подсказка интерфейса: решение принимает бэкенд. */
 const MANAGER_ROLES = ['ADMIN', 'MASTER', 'DISPATCHER']
@@ -307,6 +308,15 @@ function TemplateItemsEditor({
 }
 
 export function InspectionTemplatesPage() {
+  /*
+   * Контур из адреса для исходящих ссылок. Канонический помощник, второго
+   * механизма области не заводится: переход не должен менять контур
+   * пользователя, иначе провайдер попадает на список другого клиента
+   * (откат на подсказку профиля).
+   */
+  const [searchParams] = useSearchParams()
+  const outboundScope = readOutboundScopeFromSearch(searchParams)
+
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
@@ -558,7 +568,7 @@ export function InspectionTemplatesPage() {
               {createOpen ? 'Скрыть форму' : 'Создать шаблон обхода'}
             </button>
           ) : null}
-          <Link to="/inspection/runs"><button className="ghost">История обходов</button></Link>
+          <Link to={api.appendScopeToPath('/inspection/runs', outboundScope)}><button className="ghost">История обходов</button></Link>
         </div>
       </div>
 
@@ -807,7 +817,7 @@ export function InspectionTemplatesPage() {
       <div className="panel" style={{ marginTop: 12 }}>
         <div className="row" style={{ marginBottom: 10 }}>
           <h3 style={{ margin: 0 }}>Последние обходы</h3>
-          <Link to="/inspection/runs"><button className="ghost">Все обходы</button></Link>
+          <Link to={api.appendScopeToPath('/inspection/runs', outboundScope)}><button className="ghost">Все обходы</button></Link>
         </div>
         {runsQ.isLoading ? <div className="muted">Загружаем обходы…</div> : null}
         <div style={{ display: 'grid', gap: 10 }}>

@@ -293,11 +293,11 @@ export function InspectionRunPage() {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {runId ? (
-            <Link to={`/inspection/quick/${runId}`}>
+            <Link to={api.appendScopeToPath(`/inspection/quick/${runId}`, outboundScope)}>
               <button className="ghost">Быстрый обход</button>
             </Link>
           ) : null}
-          <Link to="/inspection/templates"><button className="ghost">Все шаблоны</button></Link>
+          <Link to={api.appendScopeToPath('/inspection/templates', outboundScope)}><button className="ghost">Все шаблоны</button></Link>
           <Link to={api.appendScopeToPath('/inspection/runs', outboundScope)}><button className="ghost">История</button></Link>
         </div>
       </div>
