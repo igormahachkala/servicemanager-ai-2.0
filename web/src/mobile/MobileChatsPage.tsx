@@ -20,6 +20,7 @@ import { MobileTicketPhotoGallery } from './MobileTicketPhotoGallery'
 import { FullscreenPhotoViewer, type PhotoViewerItem } from '../components/FullscreenPhotoViewer'
 import { useProtectedUploadSrcs } from '../ui/useProtectedUploadSrc'
 import { toChatMessages } from '../lib/ticketChat'
+import { ticketChatParentFromGet } from '../lib/ticketChatLink'
 import { pushToast } from '../lib/appToast'
 import { buildOfflineTicketCommentPayload } from '../lib/ticketReplyUi'
 import { queueOffline, useOfflineStatus } from './offline/useOffline'
@@ -31,7 +32,7 @@ type ChatTab = 'chat' | 'info' | 'files' | 'history'
 
 type UnifiedFeedEntry =
   | { kind: 'comment'; id: string; at: string; text: string; isOwn: boolean }
-  | { kind: 'system'; key: string; at: string; text: string }
+  | { kind: 'system'; key: string; at: string; text: string; href?: string | null }
 
 type ChatsListItem = api.TicketCard & {
   lastActivityAt: string
@@ -68,7 +69,7 @@ type ChatsInternalItem = {
 
 type ChatsSectionId = 'tickets' | 'objects' | 'internal'
 
-const ACTIVE_STATUSES = new Set<api.TicketStatus>(['NEW', 'ASSIGNED', 'IN_PROGRESS', 'AWAITING_ACCEPTANCE'])
+const ACTIVE_STATUSES = new Set<api.TicketStatus>(['NEW', 'ASSIGNED', 'IN_PROGRESS', 'AWAITING_ACCEPTANCE', 'FIELD_COMPLETE'])
 const ARCHIVE_STATUSES = new Set<api.TicketStatus>(['DONE', 'CANCELED'])
 
 const CHAT_FILTERS: Array<{ id: ChatsFilter; label: string }> = [
@@ -501,16 +502,27 @@ export function MobileChatsPage() {
         categoryName: ticketQ.data?.problemCategory?.name ?? null,
         locationName: ticketQ.data?.location?.name || ticketQ.data?.pointName || null,
         description: ticketQ.data?.problemText || ticketQ.data?.description || ticketQ.data?.title || null,
+        parent: ticketChatParentFromGet(ticketQ.data?.parent),
+        ticketHref: (targetTicketId: string) =>
+          api.appendScopeToPath(
+            mobilePath(location.pathname, `/tickets/${targetTicketId}`),
+            compactTicketScope(scopeForMobileTicketLink(me, boardParams, { companyId: (ticketQ.data?.companyId || '').trim() })),
+            me,
+          ),
       }),
     [
+      boardParams,
+      location.pathname,
+      me,
+      ticketQ.data?.companyId,
       ticketQ.data?.description,
       ticketQ.data?.location?.name,
+      ticketQ.data?.parent,
       ticketQ.data?.pointName,
       ticketQ.data?.problemCategory?.name,
       ticketQ.data?.problemText,
       ticketQ.data?.title,
       timelineItems,
-      me?.id,
     ],
   )
   const photoAttachments = useMemo(
@@ -643,7 +655,7 @@ export function MobileChatsPage() {
     // Unified chronological feed built from chatMessages (already in order, deduped)
     const unifiedFeed: UnifiedFeedEntry[] = chatMessages.map((msg) =>
       msg.kind === 'system'
-        ? { kind: 'system' as const, key: msg.id, at: msg.at, text: msg.text }
+        ? { kind: 'system' as const, key: msg.id, at: msg.at, text: msg.text, href: msg.link?.href ?? null }
         : { kind: 'comment' as const, id: msg.id, at: msg.at, text: msg.text, isOwn: msg.isOwn },
     )
 
@@ -754,7 +766,15 @@ export function MobileChatsPage() {
                 return (
                   <div className="mobileChatsSystemRow" key={entry.key}>
                     <div className="mobileChatsSystemPill">
-                      <div className="mobileChatsSystemText">{entry.text}</div>
+                      <div className="mobileChatsSystemText">
+                        {entry.href ? (
+                          <Link to={entry.href} style={{ color: 'inherit', textDecoration: 'none' }}>
+                            {entry.text}
+                          </Link>
+                        ) : (
+                          entry.text
+                        )}
+                      </div>
                       <div className="mobileChatsSystemTime">{formatLastActivity(entry.at)}</div>
                     </div>
                   </div>

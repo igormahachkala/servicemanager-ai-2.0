@@ -46,6 +46,9 @@ import { HomeShiftStatus } from './HomeShiftStatus'
 import { isHomeUrgentTicket, selectHomeUrgentTickets } from './homeUrgent'
 import { HomeOfflineCachePanel } from './HomeOfflineCachePanel'
 import { useTicketOfflineCache } from './useTicketOfflineCache'
+import { MobileParentCloseChildrenSheet } from '../MobileParentCloseChildrenSheet'
+import { useParentCloseDialog } from '../../hooks/useParentCloseDialog'
+import type { ChildCloseDraftItem } from '../../lib/ticketParentClose'
 
 export function MobileHome() {
   const location = useLocation()
@@ -345,6 +348,8 @@ export function MobileHome() {
   const [assignTechId, setAssignTechId] = useState('')
   const [assignErr, setAssignErr] = useState('')
   const [homeActionErr, setHomeActionErr] = useState('')
+  const parentClose = useParentCloseDialog()
+  const acceptCloseTicketRef = useRef<api.TicketCard | null>(null)
 
   useEffect(() => {
     setHomeActionErr('')
@@ -605,10 +610,16 @@ export function MobileHome() {
   // E4: быстрая приёмка на карте (accept одним тапом, POST /tickets/:id/acceptance decision=ACCEPT → DONE).
   // reject НЕ здесь — требует комментарий, ведёт в карточку (как раньше). После accept список инвалидируется.
   const acceptM = useMutation({
-    mutationFn: async (ticket: api.TicketCard) => {
-      await api.decideTicketAcceptance(ticket.id, { decision: 'ACCEPT' }, pageScope)
+    mutationFn: async (input: { ticket: api.TicketCard; childResolutions?: ChildCloseDraftItem[] }) => {
+      await api.decideTicketAcceptance(
+        input.ticket.id,
+        { decision: 'ACCEPT', childResolutions: input.childResolutions },
+        pageScope,
+      )
     },
     onSuccess: async () => {
+      parentClose.cancel()
+      acceptCloseTicketRef.current = null
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-completed-board'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
@@ -616,7 +627,10 @@ export function MobileHome() {
       await queryClient.invalidateQueries({ queryKey: ['board'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-detail'] })
     },
-    onError: (e: unknown) => setHomeActionErr(formatMobileMutationError(e, { operation: 'other' })),
+    onError: (e: unknown) => {
+      if (parentClose.openFromRefuse(e, 'ACCEPT')) return
+      setHomeActionErr(formatMobileMutationError(e, { operation: 'other' }))
+    },
   })
 
   const closeBusy = closeM.isPending
@@ -775,7 +789,8 @@ export function MobileHome() {
                 return
               }
               setHomeActionErr('')
-              acceptM.mutate(ticket)
+              acceptCloseTicketRef.current = ticket
+              acceptM.mutate({ ticket })
             }}
             closeCameraInputRef={closeCameraInputRef}
             closeGalleryInputRef={closeGalleryInputRef}
@@ -798,6 +813,29 @@ export function MobileHome() {
           ) : null}
         </>
       ) : null}
+      <MobileParentCloseChildrenSheet
+        open={!!parentClose.intent}
+        items={parentClose.intent?.items ?? []}
+        ticketHref={(id) => {
+          if (!meQ.data) return mobilePath(location.pathname, `/tickets/${id}`)
+          return api.appendScopeToPath(
+            mobilePath(location.pathname, `/tickets/${id}`),
+            compactTicketScope(pageScope),
+            meQ.data,
+          )
+        }}
+        pending={acceptM.isPending}
+        error={parentClose.error || homeActionErr || null}
+        onCancel={() => {
+          parentClose.cancel()
+          acceptCloseTicketRef.current = null
+        }}
+        onConfirm={(draft: ChildCloseDraftItem[]) => {
+          const ticket = acceptCloseTicketRef.current
+          if (!ticket) return
+          acceptM.mutate({ ticket, childResolutions: draft })
+        }}
+      />
     </div>
   )
 }

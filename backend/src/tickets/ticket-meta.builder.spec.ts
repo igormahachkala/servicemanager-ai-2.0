@@ -278,4 +278,48 @@ describe('TicketMetaBuilder acceptance actions', () => {
       canClose: ACTIVE_SHIFT_REQUIRED_MESSAGE,
     });
   });
+
+  it('hides accept/reject on a child and offers FIELD_COMPLETE instead of DONE', async () => {
+    const actorId = 'provider-tech-1';
+    const prisma = makePrisma({
+      actorId,
+      actorRole: UserRole.TECHNICIAN,
+      actorCompanyId: PROVIDER_ID,
+      actorCompanyType: CompanyType.PROVIDER,
+      assignedTechnicianId: actorId,
+    });
+    mockResolveTicketOperationAccess.mockResolvedValue({
+      ticket: {
+        id: TICKET_ID,
+        companyId: CLIENT_ID,
+        assignedTechnicianId: actorId,
+      },
+      scopeCompanyId: CLIENT_ID,
+      visibilityMode: 'provider_primary',
+      operationCompanyId: PROVIDER_ID,
+    } as any);
+
+    const builder = new TicketMetaBuilder(
+      prisma,
+      makeServiceContracts() as any,
+      { getContractContext: jest.fn().mockResolvedValue(null) } as any,
+    );
+    const meta = await builder.buildForGetOne({
+      ...defaultMetaParams({
+        actorCompanyId: PROVIDER_ID,
+        userId: actorId,
+        role: UserRole.TECHNICIAN,
+        isExecutor: true,
+      }),
+      ticketStatus: TicketStatus.IN_PROGRESS,
+      parentId: 'parent-1',
+    });
+
+    expect(meta.availableActions.canAccept).toBe(false);
+    expect(meta.availableActions.canReject).toBe(false);
+    expect(meta.availableActions.canComplete).toBe(true);
+    expect(meta.availableStatusTransitions).toContain(TicketStatus.FIELD_COMPLETE);
+    expect(meta.availableStatusTransitions).not.toContain(TicketStatus.DONE);
+    expect(meta.availableStatusTransitions).not.toContain(TicketStatus.AWAITING_ACCEPTANCE);
+  });
 });
