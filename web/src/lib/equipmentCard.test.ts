@@ -1019,9 +1019,34 @@ describe('P1: список оборудования потребляет обл�
 
     // Канонический помощник Production, а не второй резолвер.
     expect(page).toContain("searchParams.get('linkedClientCompanyId')")
-    expect(page).toContain('resolveEquipmentClientSelection({')
-    expect(page).toContain('requestedClientId,')
     expect(page).not.toContain('resolveEquipmentClientScope')
+
+    /*
+     * Форма вызова проверяется ЦЕЛИКОМ, а не вхождением имени.
+     *
+     * Прежняя редакция ограничивалась toContain('requestedClientId,') — и
+     * проходила на дефектном коде: то же имя стоит в массиве зависимостей
+     * эффекта, поэтому подстановка «requestedClientId: ''» в сам вызов
+     * оставалась незамеченной, а список переставал читать адрес.
+     */
+    expect(page).toMatch(
+      /const next = resolveEquipmentClientSelection\(\{\s*requestedClientId,\s*selectedClientId,\s*profileClientId: api\.getLinkedClientCompanyIdFromMe\(meQ\.data\),\s*allowedClientIds: linkedClients\.map\(\(c\) => c\.clientCompany\.id\),\s*\}\)/,
+    )
+
+    /*
+     * Пустая либо подменённая константа в этом аргументе запрещена прямо:
+     * контур обязан приходить из адреса, а не из литерала.
+     */
+    expect(page).not.toMatch(/requestedClientId:\s*''/)
+    expect(page).not.toMatch(/requestedClientId:\s*[^,\s][^,\n]*,/)
+
+    // Чтение адреса обязано попасть ИМЕННО в requestedClientId.
+    expect(page).toMatch(
+      /const requestedClientId = \(searchParams\.get\('linkedClientCompanyId'\) \|\| ''\)\.trim\(\)/,
+    )
+
+    // И эффект обязан пересчитываться при смене контура в адресе.
+    expect(page).toMatch(/\}, \[isProviderScope, requestedClientId,/)
 
     // Область уходит в запрос списка.
     expect(page).toContain('companyId: scopeCompanyId || undefined')
