@@ -8,6 +8,7 @@ import { TicketsAssignmentService } from './tickets.assignment.service'
 import { TicketsStatusService } from './tickets.status.service'
 import { TicketAttachmentsService } from './ticket-attachments.service'
 import { TicketsAcceptanceService } from './tickets.acceptance.service'
+import { TicketDetachService } from './ticket-detach.service'
 
 import { AssignmentModule } from '../assignment/assignment.module'
 import { PrismaModule } from '../prisma/prisma.module'
@@ -37,6 +38,7 @@ import { FailureCausesModule } from '../failure-causes/failure-causes.module'
     TicketsStatusService,
     TicketAttachmentsService,
     TicketsAcceptanceService,
+    TicketDetachService,
     PermissionsContextGuard,
   ],
   controllers: [TicketsController],

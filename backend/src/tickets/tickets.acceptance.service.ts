@@ -6,6 +6,13 @@ import { TimelineService } from '../timeline/timeline.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { NotificationsService } from '../notifications/notifications.service'
 import { resolveTicketAcceptanceAccess } from './ticket-acceptance-access'
+import { assertChildTicketCannotBeAccepted } from './ticket-is-child'
+import {
+  applyChildResolutionsInTx,
+  prepareParentClose,
+  stampFieldCompleteDescendantsDoneInTx,
+  type CloseTreeTicketRow,
+} from './ticket-close-tree'
 
 import { AcceptanceDecision, TicketAcceptanceDto } from './dto/ticket-acceptance.dto'
 
@@ -49,6 +56,7 @@ export class TicketsAcceptanceService {
         where: { id: ticketId, companyId: access.ticket.companyId },
       })
       if (!ticket) throw new NotFoundException('Ticket not found')
+      assertChildTicketCannotBeAccepted(ticket)
 
       if (ticket.status !== TicketStatus.AWAITING_ACCEPTANCE) {
         throw new BadRequestException(
@@ -86,6 +94,24 @@ export class TicketsAcceptanceService {
         if (ownedAttachments.length !== attachmentIds.length) {
           throw new BadRequestException('Some attachmentIds are invalid')
         }
+      }
+
+      let closeTreeDescendants: CloseTreeTicketRow[] = []
+      if (dto.decision === AcceptanceDecision.ACCEPT) {
+        const closeTree = await prepareParentClose(tx, {
+          rootTicketId: ticketId,
+          companyId: ticket.companyId,
+          childResolutions: dto.childResolutions,
+        })
+        closeTreeDescendants = closeTree.draft
+          ? await applyChildResolutionsInTx(tx, {
+              timeline: this.timelineService,
+              parentCompanyId: ticket.companyId,
+              actorUserId: actor.id,
+              descendants: closeTree.descendants,
+              draft: closeTree.draft,
+            })
+          : closeTree.descendants
       }
 
       const toStatus =
@@ -160,6 +186,15 @@ export class TicketsAcceptanceService {
           ticketId,
           actorUserId: actor.id,
           payload: { comment, source: 'acceptance' },
+        })
+      }
+
+      if (dto.decision === AcceptanceDecision.ACCEPT) {
+        await stampFieldCompleteDescendantsDoneInTx(tx, {
+          timeline: this.timelineService,
+          parentCompanyId: ticket.companyId,
+          actorUserId: actor.id,
+          descendants: closeTreeDescendants,
         })
       }
 

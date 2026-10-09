@@ -8,6 +8,7 @@ import {
   replyPreviewPresentation,
   selectReplyTarget,
 } from '../../lib/ticketReplyUi'
+import { SystemChatCapsule } from './SystemChatCapsule'
 
 type Props = {
   messages: ChatMessage[]
@@ -85,27 +86,12 @@ export function TicketChatPanel({ messages, loading, canSend, onSend }: Props) {
           messages.map((msg) => {
             if (msg.kind === 'system') {
               return (
-                <div key={msg.id} style={{ display: 'flex', justifyContent: 'center' }}>
-                  <div
-                    style={{
-                      maxWidth: '85%',
-                      background: '#f3f4f6',
-                      color: '#374151',
-                      borderRadius: 999,
-                      padding: '8px 12px',
-                      wordBreak: 'break-word',
-                      whiteSpace: 'pre-wrap',
-                      fontSize: '0.85rem',
-                      textAlign: 'center',
-                      lineHeight: 1.4,
-                    }}
-                  >
-                    <div style={{ fontWeight: 600 }}>{msg.text}</div>
-                    <div className="muted small" style={{ marginTop: 2, fontSize: '0.72rem' }}>
-                      {fmt(msg.at)}
-                    </div>
-                  </div>
-                </div>
+                <SystemChatCapsule
+                  key={msg.id}
+                  text={msg.text}
+                  at={msg.at}
+                  href={msg.link?.href}
+                />
               )
             }
 

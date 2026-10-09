@@ -1,5 +1,7 @@
+import { Link } from 'react-router-dom'
 import { TicketActionBar } from '../ticket-page/TicketActionBar'
 import type * as api from '../../lib/api'
+import { isChildTicket } from '../../lib/ticketIsChild'
 import type { PrimaryTicketAction } from '../../lib/ticketOperationalModel'
 
 export type TicketActionsPanelProps = {
@@ -34,11 +36,19 @@ export type TicketActionsPanelProps = {
   editOpen: boolean
   onToggleEdit: () => void
   canCreateChildTicket: boolean
-  showChildCreateForm: boolean
-  childCreatePending: boolean
-  onToggleChildCreateForm: () => void
+  childCreateHref?: string
   isTechnicianRole: boolean
   onShowSubmitForm: () => void
+}
+
+function ChildCreateAction({ href }: { href: string }) {
+  return (
+    <Link to={href} style={{ textDecoration: 'none' }}>
+      <button type="button" className="ghost">
+        + Подзадача
+      </button>
+    </Link>
+  )
 }
 
 export function TicketActionsPanel(props: TicketActionsPanelProps) {
@@ -73,14 +83,16 @@ export function TicketActionsPanel(props: TicketActionsPanelProps) {
     editOpen,
     onToggleEdit,
     canCreateChildTicket,
-    showChildCreateForm,
-    childCreatePending,
-    onToggleChildCreateForm,
+    childCreateHref,
     isTechnicianRole,
     onShowSubmitForm,
   } = props
 
   if (!ticket) return null
+
+  const child = isChildTicket(ticket)
+  const childCreateAction =
+    canCreateChildTicket && childCreateHref ? <ChildCreateAction href={childCreateHref} /> : null
 
   if (showTechnicianActionBar) {
     return (
@@ -110,7 +122,9 @@ export function TicketActionsPanel(props: TicketActionsPanelProps) {
           claimError={claimError}
           statusError={statusError}
           onOpenSubmitForm={onOpenSubmitForm}
+          isChild={child}
         />
+        {childCreateAction ? <div className="uiActions" style={{ marginTop: 8 }}>{childCreateAction}</div> : null}
       </div>
     )
   }
@@ -131,8 +145,20 @@ export function TicketActionsPanel(props: TicketActionsPanelProps) {
             </button>
           ) : null}
           {primaryAction.kind === 'done' ? (
-            <button onClick={onShowSubmitForm} disabled={!canTransitionTo('AWAITING_ACCEPTANCE')} style={{ width: '100%' }}>
-              {primaryAction.label}
+            <button
+              onClick={
+                child || primaryAction.completeMode === 'field'
+                  ? () => onSetStatus({ status: 'FIELD_COMPLETE' })
+                  : onShowSubmitForm
+              }
+              disabled={
+                child || primaryAction.completeMode === 'field'
+                  ? statusPending || !canTransitionTo('FIELD_COMPLETE')
+                  : !canTransitionTo('AWAITING_ACCEPTANCE')
+              }
+              style={{ width: '100%' }}
+            >
+              {statusPending ? 'Сохраняем…' : primaryAction.label}
             </button>
           ) : null}
         </div>
@@ -164,23 +190,24 @@ export function TicketActionsPanel(props: TicketActionsPanelProps) {
                 {statusPending ? 'Сохраняем…' : 'В работу'}
               </button>
             ) : null}
-            {primaryAction?.kind !== 'done' && canTransitionTo('AWAITING_ACCEPTANCE') ? (
+            {child && primaryAction?.kind !== 'done' && canTransitionTo('FIELD_COMPLETE') ? (
+              <button className="ghost" disabled={statusPending} onClick={() => onSetStatus({ status: 'FIELD_COMPLETE' })}>
+                {statusPending ? 'Сохраняем…' : 'Выполнено'}
+              </button>
+            ) : null}
+            {!child && primaryAction?.kind !== 'done' && canTransitionTo('AWAITING_ACCEPTANCE') ? (
               <button className="ghost" onClick={onShowSubmitForm}>
                 Отправить на приёмку
               </button>
             ) : null}
-            {!isTechnicianRole ? (
+            {!isTechnicianRole || child ? (
               <button className="ghost" disabled={statusPending || !canTransitionTo('CANCELED')} onClick={() => onSetStatus({ status: 'CANCELED' })}>
-                {statusPending ? 'Сохраняем…' : 'Отменить'}
+                {statusPending ? 'Сохраняем…' : child ? 'Отменено' : 'Отменить'}
               </button>
             ) : null}
           </>
         ) : null}
-        {canCreateChildTicket && !isTechnicianRole ? (
-          <button className="ghost" onClick={onToggleChildCreateForm} disabled={childCreatePending}>
-            {showChildCreateForm ? 'Скрыть доп. работу' : '+ Ещё работа по этой точке'}
-          </button>
-        ) : null}
+        {childCreateAction}
       </div>
       {(claimError || statusError) ? <div className="alert" style={{ marginTop: 10 }}>{claimError || statusError}</div> : null}
     </div>

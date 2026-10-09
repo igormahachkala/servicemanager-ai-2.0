@@ -1,6 +1,20 @@
 import type { TimelineItem, TimelineReplyPreview } from './api'
 import { formatPlannedDueAt } from './plannedDueAt'
 import { identityBlockText, presentActorIdentity, presentTimelineCreator } from './ticketActorIdentity'
+import {
+  childCreatedLink,
+  childCreatedSystemText,
+  createdFromParentLink,
+  createdFromParentSystemText,
+  hasParentOrigin,
+  isChildTicketCreatedEvent,
+  isCreatedFromParentText,
+  type ChatTicketLink,
+  type TicketChatParent,
+} from './ticketChatLink'
+
+export type { ChatTicketLink, TicketChatParent }
+export { ticketChatParentFromGet } from './ticketChatLink'
 
 export type ChatMessage = {
   id: string
@@ -22,12 +36,16 @@ export type ChatMessage = {
    */
   commentId: string | null
   replyTo: TimelineReplyPreview | null
+  /** Цель перехода системной капсулы. Без живой заявки поле отсутствует или null. */
+  link?: ChatTicketLink | null
 }
 
 export type TicketChatContext = {
   categoryName?: string | null
   locationName?: string | null
   description?: string | null
+  parent?: TicketChatParent | null
+  ticketHref?: (ticketId: string) => string
 }
 
 const STATUS_RU: Record<string, string> = {
@@ -35,6 +53,7 @@ const STATUS_RU: Record<string, string> = {
   ASSIGNED: 'Назначена',
   IN_PROGRESS: 'В работе',
   AWAITING_ACCEPTANCE: 'Ожидает приёмки',
+  FIELD_COMPLETE: 'Выполнено',
   DONE: 'Завершена',
   CANCELED: 'Отменена',
 }
@@ -50,6 +69,16 @@ function getTimelineEvent(item: TimelineItem): string {
 function isAcceptanceComment(item: TimelineItem): boolean {
   if (getTimelineEvent(item) !== 'COMMENT_ADDED') return false
   return (item.payload?.source || '').toString().toLowerCase() === 'acceptance'
+}
+
+function isDetachedFromParentEvent(ev: string): boolean {
+  return ev === 'TICKET_DETACHED_FROM_PARENT' || ev === 'TICKET.DETACHED_FROM_PARENT'
+}
+
+function detachedFromParentSystemText(payload?: { parentTicketNumber?: unknown } | null): string | null {
+  const raw = payload?.parentTicketNumber
+  if (raw == null || raw === '') return null
+  return `Была подзадачей заявки #${raw}`
 }
 
 const FIELD_LABELS_RU: Record<string, string> = {
@@ -125,6 +154,14 @@ function getSystemText(item: TimelineItem): string | null {
     return identityBlockText('Заявку создал', creator)
   }
 
+  if (isChildTicketCreatedEvent(ev)) {
+    return childCreatedSystemText(item.payload)
+  }
+
+  if (isDetachedFromParentEvent(ev)) {
+    return detachedFromParentSystemText(item.payload)
+  }
+
   // SMA-TICKET-HISTORY-AUDIT-001: правка полей заявки. Бэкенд кладёт в payload карту
   // { поле: { from, to } } — показываем её человекочитаемо, без сырого JSON.
   if (ev === 'TICKET_FIELDS_UPDATED') {
@@ -161,12 +198,57 @@ function getSystemText(item: TimelineItem): string | null {
   return null
 }
 
+function systemMessage(
+  item: TimelineItem,
+  idx: number,
+  text: string,
+  extra?: { idSuffix?: string; link?: ChatTicketLink | null },
+): ChatMessage {
+  const msg: ChatMessage = {
+    id: `${item.at}-${idx}-${extra?.idSuffix ?? 'system'}`,
+    at: item.at,
+    text,
+    authorId: null,
+    authorEmail: null,
+    actor: null,
+    isOwn: false,
+    kind: 'system',
+    commentId: null,
+    replyTo: null,
+  }
+  if (extra && 'link' in extra) msg.link = extra.link ?? null
+  return msg
+}
+
+function appendLiveParentOriginIfMissing(
+  messages: ChatMessage[],
+  context?: TicketChatContext,
+): ChatMessage[] {
+  if (!context?.parent?.id) return messages
+  if (messages.some((m) => m.kind === 'system' && isCreatedFromParentText(m.text))) return messages
+  const text = createdFromParentSystemText(undefined, context.parent)
+  if (!text) return messages
+  const origin: ChatMessage = {
+    id: `created-from-parent-${context.parent.id}`,
+    at: messages[0]?.at ?? '',
+    text,
+    authorId: null,
+    authorEmail: null,
+    actor: null,
+    isOwn: false,
+    kind: 'system',
+    commentId: null,
+    replyTo: null,
+    link: createdFromParentLink(context.parent, context.ticketHref),
+  }
+  return [origin, ...messages]
+}
+
 export function toChatMessages(items: TimelineItem[], meUserId: string, context?: TicketChatContext): ChatMessage[] {
-  void context
   const seenStatusKeys = new Set<string>()
   const seenAttachmentIds = new Set<string>()
 
-  return items.reduce<ChatMessage[]>((acc, item, idx) => {
+  const messages = items.reduce<ChatMessage[]>((acc, item, idx) => {
     // Rejection comment is shown inline in the TICKET_REJECTED system event — skip separate message
     if (isAcceptanceComment(item)) return acc
 
@@ -202,18 +284,20 @@ export function toChatMessages(items: TimelineItem[], meUserId: string, context?
         seenStatusKeys.add(key)
       }
 
-      acc.push({
-        id: `${item.at}-${idx}-system`,
-        at: item.at,
-        text: systemText,
-        authorId: null,
-        authorEmail: null,
-        actor: null,
-        isOwn: false,
-        kind: 'system',
-        commentId: null,
-        replyTo: null,
-      })
+      const childLink = isChildTicketCreatedEvent(ev) ? childCreatedLink(item.payload, context?.ticketHref) : undefined
+      acc.push(systemMessage(item, idx, systemText, childLink !== undefined ? { link: childLink } : undefined))
+
+      if (ev === 'TICKET_CREATED' && hasParentOrigin(item.payload, context?.parent ?? null)) {
+        const fromText = createdFromParentSystemText(item.payload, context?.parent ?? null)
+        if (fromText) {
+          acc.push(
+            systemMessage(item, idx, fromText, {
+              idSuffix: 'from-parent',
+              link: createdFromParentLink(context?.parent ?? null, context?.ticketHref),
+            }),
+          )
+        }
+      }
       return acc
     }
 
@@ -246,4 +330,6 @@ export function toChatMessages(items: TimelineItem[], meUserId: string, context?
 
     return acc
   }, [])
+
+  return appendLiveParentOriginIfMissing(messages, context)
 }

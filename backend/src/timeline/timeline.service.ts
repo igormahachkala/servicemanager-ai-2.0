@@ -100,6 +100,8 @@ function enrichAssignmentPayload(
 export class TimelineService {
   private readonly eventToDomainType: Record<TimelineEvent, DomainEventType> = {
     TICKET_CREATED: 'ticket.created',
+    CHILD_TICKET_CREATED: 'ticket.child_created',
+    TICKET_DETACHED_FROM_PARENT: 'ticket.detached_from_parent',
     TICKET_ASSIGNED: 'ticket.assigned',
     TICKET_CLAIMED: 'ticket.claimed',
     TICKET_ASSIGNMENT_CHANGED: 'ticket.assignment_changed',
@@ -423,6 +425,8 @@ export class TimelineService {
 
   private toTimelineEvent(type: string): TimelineEvent | null {
     if (type === 'ticket.created') return 'TICKET_CREATED'
+    if (type === 'ticket.child_created') return 'CHILD_TICKET_CREATED'
+    if (type === 'ticket.detached_from_parent') return 'TICKET_DETACHED_FROM_PARENT'
     if (type === 'ticket.assigned') return 'TICKET_ASSIGNED'
     if (type === 'ticket.claimed') return 'TICKET_CLAIMED'
     if (type === 'ticket.assignment_changed') return 'TICKET_ASSIGNMENT_CHANGED'
@@ -444,6 +448,8 @@ export class TimelineService {
 
   private eventTitle(type: string) {
     if (type === 'ticket.created') return 'Ticket created'
+    if (type === 'ticket.child_created') return 'Создана подзадача'
+    if (type === 'ticket.detached_from_parent') return 'Отвязана от заявки'
     if (type === 'ticket.assigned') return 'Ticket assigned'
     if (type === 'ticket.claimed') return 'Ticket claimed'
     if (type === 'ticket.assignment_changed') return 'Assignment changed'

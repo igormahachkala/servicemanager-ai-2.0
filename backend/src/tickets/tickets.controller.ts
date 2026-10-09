@@ -28,6 +28,7 @@ import { RequirePermission } from '../common/permissions.decorator'
 import { PERMISSIONS } from '../common/permissions.constants'
 
 import { TicketsService } from './tickets.service'
+import { TicketDetachService } from './ticket-detach.service'
 import { CreateTicketDto } from './dto/create-ticket.dto'
 import { CreateChildTicketDto } from './dto/create-child-ticket.dto'
 import { UpdateTicketDto } from './dto/update-ticket.dto'
@@ -45,6 +46,7 @@ export class TicketsController {
   constructor(
     private readonly svc: TicketsService,
     private readonly failureCauses: FailureCausesService,
+    private readonly detach: TicketDetachService,
   ) {}
 
   @Post()
@@ -70,7 +72,7 @@ export class TicketsController {
   }
 
   @Post(':id/child')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER, UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.TICKETS_CREATE)
   createChild(@Req() req: any, @Param('id') id: string, @Body() dto: CreateChildTicketDto) {
     return this.svc.createChild(req.user.companyId, req.user.id, req.user.role as UserRole, id, dto)
@@ -507,6 +509,23 @@ export class TicketsController {
       { id: req.user.id, role: req.user.role, companyId: req.user.companyId, accessFlags: req.accessFlags },
       id,
       dto,
+      linkedClientCompanyId,
+    )
+  }
+
+  @Post(':id/detach-parent')
+  @Roles(UserRole.ADMIN)
+  @RequirePermission(PERMISSIONS.TICKETS_EDIT)
+  detachParent(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
+  ) {
+    return this.detach.detachFromParent(
+      req.user.companyId,
+      req.user,
+      req.user.role as UserRole,
+      id,
       linkedClientCompanyId,
     )
   }

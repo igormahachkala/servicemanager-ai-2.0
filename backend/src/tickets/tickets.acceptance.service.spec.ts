@@ -4,6 +4,14 @@ import { CompanyType, ServiceContractRole, TicketStatus, UserRole } from '@prism
 import { TicketsAcceptanceService } from './tickets.acceptance.service'
 import * as ticketAccessUtils from './ticket-access.utils'
 import { AcceptanceDecision } from './dto/ticket-acceptance.dto'
+import {
+  CHILD_TICKET_CANNOT_ACCEPT_CODE,
+  CHILD_TICKET_CANNOT_ACCEPT_MESSAGE,
+} from './ticket-is-child'
+import {
+  PARENT_CLOSE_REQUIRES_CHILD_RESOLUTIONS_CODE,
+  PARENT_CLOSE_REQUIRES_CHILD_RESOLUTIONS_MESSAGE,
+} from './ticket-close-tree'
 
 jest.mock('./ticket-access.utils', () => ({
   resolveReadableTicketAccess: jest.fn(),
@@ -51,6 +59,15 @@ function makeSetup(opts: {
   linkedContractRole?: ServiceContractRole | null
   /** 077: хранилище вложений, по которому мок findMany честно фильтрует. */
   attachments?: Array<{ id: string; companyId: string; ticketId: string | null; uploadedByUserId: string | null }>
+  descendants?: Array<{
+    id: string
+    parentId: string
+    companyId?: string
+    status: TicketStatus
+    ticketNumber?: number
+    problemText?: string
+    problemCategory?: { name: string } | null
+  }>
 } = {}) {
   const ticketStatus = opts.ticketStatus ?? TicketStatus.AWAITING_ACCEPTANCE
   const actorRole = opts.actorRole ?? UserRole.ADMIN
@@ -67,14 +84,34 @@ function makeSetup(opts: {
     closedAt: null,
     assignedTechnicianId: accessTicket.assignedTechnicianId,
     ticketNumber: accessTicket.ticketNumber,
+    parentId: accessTicket.parentId ?? null,
   }
 
   const attachmentStore = opts.attachments ?? []
+  const descendantStore = (opts.descendants ?? []).map((row, index) => ({
+    ticketNumber: 200 + index,
+    problemText: 'Child work',
+    problemCategory: { name: 'Электрика' },
+    companyId: CLIENT_ID,
+    ...row,
+  }))
 
   const tx = {
     ticket: {
       findFirst: jest.fn().mockResolvedValue(txTicket),
-      update: jest.fn().mockImplementation(async (_args: any) => ({ ...txTicket, status: _args.data.status })),
+      update: jest.fn().mockImplementation(async (_args: any) => ({
+        ...txTicket,
+        id: _args.where?.id ?? txTicket.id,
+        status: _args.data.status,
+        closedAt: _args.data.closedAt ?? txTicket.closedAt,
+      })),
+      findMany: jest.fn().mockImplementation(async ({ where }: any) => {
+        const parentIds: string[] = where?.parentId?.in ?? []
+        return descendantStore.filter((row) => {
+          if (where?.companyId && row.companyId !== where.companyId) return false
+          return parentIds.includes(row.parentId)
+        })
+      }),
     },
     ticketAttachment: {
       updateMany: jest.fn().mockResolvedValue({ count: 0 }),
@@ -373,5 +410,124 @@ describe('TicketsAcceptanceService.decide', () => {
     await expect(
       svc.decide(clientAdmin, TICKET_ID, { decision: AcceptanceDecision.ACCEPT }),
     ).rejects.toBeInstanceOf(BadRequestException)
+  })
+
+  it('ACCEPT without childResolutions refuses when unresolved descendants exist', async () => {
+    const { svc, tx } = makeSetup({
+      actorRole: UserRole.ADMIN,
+      descendants: [
+        { id: 'child-open', parentId: TICKET_ID, status: TicketStatus.FIELD_COMPLETE, ticketNumber: 201, problemText: 'Pump' },
+      ],
+    })
+    mockResolveReadable.mockResolvedValue(makeAccess())
+
+    await expect(
+      svc.decide(clientAdmin, TICKET_ID, { decision: AcceptanceDecision.ACCEPT }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: PARENT_CLOSE_REQUIRES_CHILD_RESOLUTIONS_CODE,
+        message: PARENT_CLOSE_REQUIRES_CHILD_RESOLUTIONS_MESSAGE,
+        unresolved: [
+          expect.objectContaining({
+            id: 'child-open',
+            ticketNumber: 201,
+            problemText: 'Pump',
+            status: TicketStatus.FIELD_COMPLETE,
+            categoryName: 'Электрика',
+          }),
+        ],
+      }),
+    })
+    expect(tx.ticket.update).not.toHaveBeenCalled()
+  })
+
+  it('ACCEPT with a matching draft stamps FIELD_COMPLETE children DONE and leaves CANCELED children', async () => {
+    const { svc, tx, timeline } = makeSetup({
+      actorRole: UserRole.ADMIN,
+      descendants: [
+        { id: 'child-fc', parentId: TICKET_ID, status: TicketStatus.FIELD_COMPLETE, ticketNumber: 201 },
+        { id: 'child-open', parentId: TICKET_ID, status: TicketStatus.IN_PROGRESS, ticketNumber: 202 },
+        { id: 'child-canceled', parentId: TICKET_ID, status: TicketStatus.CANCELED, ticketNumber: 203 },
+      ],
+    })
+    mockResolveReadable.mockResolvedValue(makeAccess())
+
+    const result = await svc.decide(clientAdmin, TICKET_ID, {
+      decision: AcceptanceDecision.ACCEPT,
+      childResolutions: [
+        { ticketId: 'child-fc', resolution: 'FIELD_COMPLETE' },
+        { ticketId: 'child-open', resolution: 'FIELD_COMPLETE' },
+      ],
+    })
+
+    expect(result.status).toBe(TicketStatus.DONE)
+    const updates = tx.ticket.update.mock.calls.map((call: any[]) => ({
+      id: call[0].where.id,
+      status: call[0].data.status,
+      closedAt: call[0].data.closedAt,
+    }))
+    expect(updates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'child-open', status: TicketStatus.FIELD_COMPLETE }),
+        expect.objectContaining({ id: TICKET_ID, status: TicketStatus.DONE }),
+        expect.objectContaining({ id: 'child-fc', status: TicketStatus.DONE, closedAt: expect.any(Date) }),
+        expect.objectContaining({ id: 'child-open', status: TicketStatus.DONE, closedAt: expect.any(Date) }),
+      ]),
+    )
+    expect(updates.some((row: any) => row.id === 'child-canceled')).toBe(false)
+    expect(tx.ticketStatusHistory.create).toHaveBeenCalled()
+    expect(timeline.recordTx).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        event: 'STATUS_CHANGED',
+        companyId: CLIENT_ID,
+        ticketId: 'child-fc',
+        payload: { fromStatus: TicketStatus.FIELD_COMPLETE, toStatus: TicketStatus.DONE },
+      }),
+    )
+  })
+
+  it('REJECT without childResolutions still proceeds when unresolved descendants exist', async () => {
+    const { svc, tx } = makeSetup({
+      actorRole: UserRole.ADMIN,
+      descendants: [
+        { id: 'child-open', parentId: TICKET_ID, status: TicketStatus.IN_PROGRESS, ticketNumber: 201 },
+      ],
+    })
+    mockResolveReadable.mockResolvedValue(makeAccess())
+
+    const result = await svc.decide(clientAdmin, TICKET_ID, {
+      decision: AcceptanceDecision.REJECT,
+      comment: 'Need a rework',
+    })
+
+    expect(result.status).toBe(TicketStatus.IN_PROGRESS)
+    expect(tx.ticket.findMany).not.toHaveBeenCalled()
+    expect(tx.ticket.update).toHaveBeenCalledTimes(1)
+    expect(tx.ticket.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: TICKET_ID },
+        data: expect.objectContaining({ status: TicketStatus.IN_PROGRESS }),
+      }),
+    )
+  })
+
+  it('rejects child ticket decide with an explicit code, not a bare status conflict', async () => {
+    const { svc, tx } = makeSetup({
+      actorRole: UserRole.ADMIN,
+      ticketStatus: TicketStatus.IN_PROGRESS,
+      ticket: { parentId: 'parent-1' },
+    })
+    mockResolveReadable.mockResolvedValue(makeAccess())
+
+    await expect(
+      svc.decide(clientAdmin, TICKET_ID, { decision: AcceptanceDecision.ACCEPT }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: CHILD_TICKET_CANNOT_ACCEPT_CODE,
+        message: CHILD_TICKET_CANNOT_ACCEPT_MESSAGE,
+      }),
+    })
+    expect(tx.ticket.update).not.toHaveBeenCalled()
   })
 })

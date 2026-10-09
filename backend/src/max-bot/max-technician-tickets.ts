@@ -139,6 +139,7 @@ export function ticketStatusLabel(status: string) {
   if (status === TicketStatus.ASSIGNED) return 'Назначена';
   if (status === TicketStatus.IN_PROGRESS) return 'В работе';
   if (status === TicketStatus.AWAITING_ACCEPTANCE) return 'Ожидает приёмки';
+  if (status === TicketStatus.FIELD_COMPLETE) return 'Выполнено';
   if (status === TicketStatus.DONE) return 'Завершена';
   if (status === TicketStatus.CANCELED) return 'Отменена';
   return status;

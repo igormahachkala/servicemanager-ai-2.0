@@ -51,6 +51,7 @@ enum TicketStatus {
   AWAITING_ACCEPTANCE
   DONE
   CANCELED
+  FIELD_COMPLETE
 }
 
 enum TicketUrgency {
@@ -917,6 +918,7 @@ model Ticket {
   @@index([companyId, slaDueAt])
   @@index([companyId, plannedDueAt])
   @@index([locationId])
+  @@index([parentId])
   @@index([equipmentId])
   /// SMA-EQUIPMENT-PARTS-POLISH-110C: курсорная пагинация истории единицы
   /// идёт по (equipmentId, createdAt desc, id desc). Без составного индекса

@@ -26,4 +26,59 @@ describe('decideTicketTransition', () => {
       ),
     ).toEqual({ allowed: true });
   });
+
+  it('treats omitted opts as the parent table', () => {
+    expect(
+      decideTicketTransition(TicketStatus.IN_PROGRESS, TicketStatus.FIELD_COMPLETE),
+    ).toEqual({
+      allowed: false,
+      reason: 'Invalid status transition: IN_PROGRESS -> FIELD_COMPLETE',
+    });
+    expect(
+      decideTicketTransition(TicketStatus.IN_PROGRESS, TicketStatus.FIELD_COMPLETE, {
+        isChild: false,
+      }),
+    ).toEqual({
+      allowed: false,
+      reason: 'Invalid status transition: IN_PROGRESS -> FIELD_COMPLETE',
+    });
+  });
+
+  it('lets a child complete in the field and reopen, but not enter acceptance or DONE', () => {
+    expect(
+      decideTicketTransition(TicketStatus.NEW, TicketStatus.FIELD_COMPLETE, { isChild: true }),
+    ).toEqual({ allowed: true });
+    expect(
+      decideTicketTransition(TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS, { isChild: true }),
+    ).toEqual({ allowed: true });
+    expect(
+      decideTicketTransition(TicketStatus.IN_PROGRESS, TicketStatus.FIELD_COMPLETE, {
+        isChild: true,
+      }),
+    ).toEqual({ allowed: true });
+    expect(
+      decideTicketTransition(TicketStatus.FIELD_COMPLETE, TicketStatus.IN_PROGRESS, {
+        isChild: true,
+      }),
+    ).toEqual({ allowed: true });
+    expect(
+      decideTicketTransition(TicketStatus.FIELD_COMPLETE, TicketStatus.CANCELED, {
+        isChild: true,
+      }),
+    ).toEqual({ allowed: true });
+    expect(
+      decideTicketTransition(TicketStatus.IN_PROGRESS, TicketStatus.AWAITING_ACCEPTANCE, {
+        isChild: true,
+      }),
+    ).toEqual({
+      allowed: false,
+      reason: 'Invalid status transition: IN_PROGRESS -> AWAITING_ACCEPTANCE',
+    });
+    expect(
+      decideTicketTransition(TicketStatus.IN_PROGRESS, TicketStatus.DONE, { isChild: true }),
+    ).toEqual({
+      allowed: false,
+      reason: 'Invalid status transition: IN_PROGRESS -> DONE',
+    });
+  });
 });

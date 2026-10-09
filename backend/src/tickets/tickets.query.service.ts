@@ -35,6 +35,7 @@ import { TICKET_ASSIGNMENT_REQUESTED_ENTITY, TICKET_ASSIGNMENT_REQUESTED_EVENT }
 import { isExecutorCapableRole } from '../common/executor.utils'
 import { loadBoardImageAttachmentSummaries } from './board-attachment-summary'
 import { ShiftPolicyService } from '../workforce/shift-policy.service'
+import { loadUnresolvedDescendants } from './ticket-close-tree'
 
 const companyIdentitySelect = {
   id: true,
@@ -1199,6 +1200,7 @@ export class TicketsQueryService {
       parent: {
         select: {
           id: true,
+          ticketNumber: true,
           problemText: true,
           status: true,
           createdAt: true,
@@ -1241,6 +1243,11 @@ export class TicketsQueryService {
 
     if (!ticket) throw new NotFoundException('Ticket not found')
 
+    const unresolvedDescendants = await loadUnresolvedDescendants(this.prisma, {
+      rootTicketId: ticket.id,
+      companyId: ticket.companyId,
+    })
+
     const actorUserMeta = await this.prisma.user.findFirst({
       where: { id: userId, companyId },
       select: { isExecutor: true },
@@ -1254,6 +1261,7 @@ export class TicketsQueryService {
       ticketCompanyId: ticket.companyId,
       ticketCreatedByUserId: ticket.createdByUserId,
       ticketStatus: ticket.status,
+      parentId: ticket.parentId,
       assignedTechnicianId: ticket.assignedTechnicianId,
       scopeCompanyId: readable.scopeCompanyId,
       visibilityMode: readable.visibilityMode,
@@ -1266,6 +1274,7 @@ export class TicketsQueryService {
       title: ticket.problemCategory?.name || 'Ticket',
       description: ticket.problemText,
       meta,
+      unresolvedDescendants,
     }
   }
 

@@ -14,6 +14,16 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { ShiftPolicyService } from '../workforce/shift-policy.service';
 import { IdempotencyService } from '../common/idempotency/idempotency.service';
 import { resolveTicketOperationAccess } from './ticket-access.utils';
+import {
+  assertChildTicketCannotSubmitAcceptance,
+  isChildTicket,
+  resolveChildRequestedStatus,
+} from './ticket-is-child';
+import {
+  applyChildResolutionsInTx,
+  prepareParentClose,
+  type ChildResolutionDraftItem,
+} from './ticket-close-tree';
 
 function uniqueNonEmpty(values?: Array<string | null | undefined>) {
   return Array.from(
@@ -185,6 +195,7 @@ export class TicketsStatusService {
         where: { id: ticketId, companyId: access.ticket.companyId },
       });
       if (!ticket) throw new NotFoundException('Ticket not found');
+      assertChildTicketCannotSubmitAcceptance(ticket);
 
       const actorIsExecutor = isExecutorCapableRole(role)
         ? (await this.prisma.user.findFirst({ where: { id: user?.id }, select: { isExecutor: true } }))?.isExecutor ?? false
@@ -215,7 +226,7 @@ export class TicketsStatusService {
 
       const fromStatus = ticket.status;
       const toStatus = TicketStatus.AWAITING_ACCEPTANCE;
-      const wf = decideTicketTransition(fromStatus, toStatus);
+      const wf = decideTicketTransition(fromStatus, toStatus, { isChild: isChildTicket(ticket) });
       if (!wf.allowed) throw new BadRequestException(wf.reason);
 
       const failureCause = await tx.failureCause.findFirst({
@@ -471,7 +482,7 @@ export class TicketsStatusService {
     user: { id?: string } | any,
     role: UserRole,
     ticketId: string,
-    dto: { status: TicketStatus; comment?: string },
+    dto: { status: TicketStatus; comment?: string; childResolutions?: ChildResolutionDraftItem[] },
     linkedClientCompanyId?: string,
   ) {
     await this.assertExecutorOperationsAllowed(companyId);
@@ -494,7 +505,9 @@ export class TicketsStatusService {
       });
       if (!ticket) throw new NotFoundException('Ticket not found');
 
-      if (ticket.status === TicketStatus.AWAITING_ACCEPTANCE && dto.status === TicketStatus.DONE) {
+      const child = isChildTicket(ticket);
+
+      if (!child && ticket.status === TicketStatus.AWAITING_ACCEPTANCE && dto.status === TicketStatus.DONE) {
         throw new ForbiddenException('Only client acceptance can move awaiting work to DONE');
       }
 
@@ -525,18 +538,39 @@ export class TicketsStatusService {
         companyId,
       });
 
-      const toStatus =
-        dto.status === TicketStatus.DONE && ticket.status !== TicketStatus.AWAITING_ACCEPTANCE
-          ? TicketStatus.AWAITING_ACCEPTANCE
-          : dto.status;
       const fromStatus = ticket.status;
-
-      if (toStatus === TicketStatus.AWAITING_ACCEPTANCE) {
-        throw new BadRequestException('Failure cause is required; use submit-acceptance endpoint');
+      let toStatus: TicketStatus;
+      if (child) {
+        toStatus = resolveChildRequestedStatus(dto.status);
+      } else {
+        toStatus =
+          dto.status === TicketStatus.DONE && ticket.status !== TicketStatus.AWAITING_ACCEPTANCE
+            ? TicketStatus.AWAITING_ACCEPTANCE
+            : dto.status;
+        if (toStatus === TicketStatus.AWAITING_ACCEPTANCE) {
+          throw new BadRequestException('Failure cause is required; use submit-acceptance endpoint');
+        }
       }
 
-      const wf = decideTicketTransition(fromStatus, toStatus);
+      const wf = decideTicketTransition(fromStatus, toStatus, { isChild: child });
       if (!wf.allowed) throw new BadRequestException(wf.reason);
+
+      if (toStatus === TicketStatus.CANCELED) {
+        const closeTree = await prepareParentClose(tx, {
+          rootTicketId: ticketId,
+          companyId: ticket.companyId,
+          childResolutions: dto.childResolutions,
+        });
+        if (closeTree.draft) {
+          await applyChildResolutionsInTx(tx, {
+            timeline: this.timelineService,
+            parentCompanyId: ticket.companyId,
+            actorUserId: user?.id ?? null,
+            descendants: closeTree.descendants,
+            draft: closeTree.draft,
+          });
+        }
+      }
 
       const now = new Date();
       const shouldMarkBreached = ticket.slaDueAt && !ticket.slaBreachedAt && now > ticket.slaDueAt;

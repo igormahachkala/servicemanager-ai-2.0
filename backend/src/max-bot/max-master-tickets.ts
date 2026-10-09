@@ -238,6 +238,8 @@ export function ticketStatusLabel(status: string) {
       return 'В работе';
     case TicketStatus.AWAITING_ACCEPTANCE:
       return 'Ожидает приёмки';
+    case TicketStatus.FIELD_COMPLETE:
+      return 'Выполнено';
     case TicketStatus.DONE:
       return 'Завершена';
     case TicketStatus.CANCELED:

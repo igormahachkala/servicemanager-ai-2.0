@@ -65,6 +65,7 @@ export function CreateTicketPage() {
   const [searchParams] = useSearchParams()
   const presetLocationId = (searchParams.get('locationId') || '').trim()
   const presetEquipmentId = (searchParams.get('equipmentId') || '').trim()
+  const presetParentId = (searchParams.get('parentId') || '').trim()
 
   /*
    * Переход с карточки оборудования открывает подробную форму.
@@ -290,6 +291,7 @@ export function CreateTicketPage() {
   }, [activeCategories, categoryId])
 
   useEffect(() => {
+    if (presetParentId) return
     if (!locationId && activeLocations.length > 0) setLocationId(activeLocations[0].id)
     /*
      * SMA-EQUIPMENT-V2-FOUNDATION: сверка идёт только по загруженному списку.
@@ -303,7 +305,7 @@ export function CreateTicketPage() {
     if (activeLocations.length > 0 && locationId && !activeLocations.some((row) => row.id === locationId)) {
       setLocationId(activeLocations[0].id)
     }
-  }, [activeLocations, locationId])
+  }, [activeLocations, locationId, presetParentId])
 
   useEffect(() => {
     if (!draftAttachment) return
@@ -393,7 +395,10 @@ export function CreateTicketPage() {
     onCreateSuccess: handleCreateSuccess,
     clearForNextCreate,
     activeLocations,
-    setLocationId,
+    setLocationId: (nextLocationId: string) => {
+      if (presetParentId) return
+      setLocationId(nextLocationId)
+    },
     setDraftAttachment,
     setDraftAttachmentScopeKey,
     setSelectedFile,
@@ -433,6 +438,7 @@ export function CreateTicketPage() {
         ? assignTechnicianId || undefined
         : undefined,
       locationId,
+      parentId: presetParentId || undefined,
       categoryId,
       /*
        * Привязка к оборудованию уезжает в ОБА режима. Иначе переключение
@@ -607,8 +613,12 @@ export function CreateTicketPage() {
     <div>
       <div className="row">
         <div>
-          <h2 style={{ marginBottom: 4 }}>Создать заявку</h2>
-          <div className="muted small">Quick: 4 шага. Full: расширенная форма с комментарием и всеми полями.</div>
+          <h2 style={{ marginBottom: 4 }}>{presetParentId ? 'Создание подзадачи' : 'Создать заявку'}</h2>
+          <div className="muted small">
+            {presetParentId
+              ? 'Полная форма. Точка взята из родительской заявки и не меняется.'
+              : 'Quick: 4 шага. Full: расширенная форма с комментарием и всеми полями.'}
+          </div>
         </div>
         <div>
           <Link to={buildBoardLink()}>
@@ -723,8 +733,11 @@ export function CreateTicketPage() {
 
           <label>
             {mode === 'quick' ? 'Шаг 1. Локация *' : 'Локация *'}
-            <select value={locationId} onChange={(e) => setLocationId(e.target.value)} disabled={isBootstrapping || noLocations}>
-              {noLocations ? <option value="">Локации недоступны для текущего контекста</option> : null}
+            <select value={locationId} onChange={(e) => setLocationId(e.target.value)} disabled={isBootstrapping || noLocations || !!presetParentId}>
+              {noLocations && !presetParentId ? <option value="">Локации недоступны для текущего контекста</option> : null}
+              {presetParentId && locationId && !activeLocations.some((row) => row.id === locationId) ? (
+                <option value={locationId}>Точка родительской заявки</option>
+              ) : null}
               {activeLocations.map((location) => (
                 <option key={location.id} value={location.id}>{locationLabel(location)}</option>
               ))}

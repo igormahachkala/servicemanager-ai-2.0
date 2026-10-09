@@ -36,6 +36,8 @@ function statusLabel(status: api.TicketStatus) {
   if (status === 'NEW') return 'Новые'
   if (status === 'ASSIGNED') return 'Назначенные'
   if (status === 'IN_PROGRESS') return 'В работе'
+  if (status === 'AWAITING_ACCEPTANCE') return 'Ожидает приёмки'
+  if (status === 'FIELD_COMPLETE') return 'Выполнено'
   if (status === 'DONE') return 'Завершённые'
   if (status === 'CANCELED') return 'Отменённые'
   return status
@@ -1166,7 +1168,7 @@ export function BoardPage() {
 
                       <div className="ticketMeta">
                         <UrgencyTag urgency={ticket.urgency} />
-                        {ticket.isChild ? <span className="tag">Доп. работа</span> : null}
+                        {ticket.isChild ? <span className="tag">Подзадача</span> : null}
                         {ticket.slaBreached ? <span className="tag danger">SLA нарушен</span> : null}
                         {canOfferTicketClaimAction(ticket) ? <span className="tag">Можно взять</span> : null}
                         {isTechnician && ticket.assignedTechnician?.id === meQ.data?.id ? <span className="tag">Моя заявка</span> : null}
@@ -1213,7 +1215,7 @@ export function BoardPage() {
                             {ticket.status === 'IN_PROGRESS' && ticket.assignedTechnician?.id === meQ.data?.id ? (
                               <Link to={buildTicketLink(ticket)} state={buildTicketLinkState()}>
                                 <button type="button" className="ghost">
-                                  Отправить на приёмку
+                                  {ticket.isChild ? 'Выполнено' : 'Отправить на приёмку'}
                                 </button>
                               </Link>
                             ) : null}

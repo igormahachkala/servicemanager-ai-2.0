@@ -20,6 +20,16 @@ type TicketHeaderProps = {
   hintCanClaim: boolean
 }
 
+function parentTicketNumber(parent: NonNullable<api.TicketGetOne['parent']>): number | undefined {
+  const n = (parent as { ticketNumber?: number }).ticketNumber
+  return typeof n === 'number' ? n : undefined
+}
+
+function parentLinkLabel(parent: NonNullable<api.TicketGetOne['parent']>): string {
+  const n = parentTicketNumber(parent)
+  return n != null ? `Подзадача к заявке #${n}` : 'К родительской заявке'
+}
+
 export function TicketHeader(props: TicketHeaderProps) {
   const {
     ticket,
@@ -38,11 +48,25 @@ export function TicketHeader(props: TicketHeaderProps) {
     hintCanClaim,
   } = props
   const title = ticket?.ticketNumber != null ? `Заявка #${ticket.ticketNumber}` : 'Заявка'
+  const parent = ticket?.parent ?? null
+  const parentHref = parent
+    ? api.appendScopeToPath(`/tickets/${parent.id}`, {
+        companyId: observerCompanyId || undefined,
+        linkedClientCompanyId: linkedClientCompanyId || undefined,
+      })
+    : null
 
   return (
     <>
       <div className="row">
-        <h2>{title}</h2>
+        <div>
+          <h2>{title}</h2>
+          {parent && parentHref ? (
+            <div className="muted small" style={{ marginTop: 4 }}>
+              <Link to={parentHref}>{parentLinkLabel(parent)}</Link>
+            </div>
+          ) : null}
+        </div>
         <div className="muted small">{isFetching && !ticket ? 'Загрузка…' : ticketId ? `ID: ${ticketId}` : '—'}</div>
       </div>
 

@@ -31,6 +31,7 @@ export type TicketActionBarProps = {
   claimError?: string | null
   statusError?: string | null
   onOpenSubmitForm?: () => void
+  isChild?: boolean
 }
 
 export function TicketActionBar(props: TicketActionBarProps) {
@@ -59,6 +60,7 @@ export function TicketActionBar(props: TicketActionBarProps) {
     claimError,
     statusError,
     onOpenSubmitForm,
+    isChild,
   } = props
 
   const busy = claimPending || statusPending || addCommentPending || operationalPhotoPending
@@ -88,7 +90,16 @@ export function TicketActionBar(props: TicketActionBarProps) {
                 {statusPending ? 'Сохраняем…' : primaryAction.label}
               </TicketActionButton>
             ) : null}
-            {primaryAction.kind === 'done' ? (
+            {primaryAction.kind === 'done' && primaryAction.completeMode === 'field' ? (
+              <TicketActionButton
+                onClick={() => onSetStatus({ status: 'FIELD_COMPLETE' })}
+                disabled={statusPending || busy || !canTransitionTo('FIELD_COMPLETE')}
+                style={{ width: '100%' }}
+              >
+                {statusPending ? 'Сохраняем…' : primaryAction.label}
+              </TicketActionButton>
+            ) : null}
+            {primaryAction.kind === 'done' && primaryAction.completeMode !== 'field' ? (
               <TicketActionButton
                 onClick={() => onOpenSubmitForm?.()}
                 disabled={statusPending || busy || !canTransitionTo('AWAITING_ACCEPTANCE') || !onOpenSubmitForm}
@@ -128,7 +139,17 @@ export function TicketActionBar(props: TicketActionBarProps) {
             </TicketActionButton>
           ) : null}
 
-          {canChangeStatus && primaryAction?.kind !== 'done' && canTransitionTo('AWAITING_ACCEPTANCE') ? (
+          {canChangeStatus && isChild && primaryAction?.kind !== 'done' ? (
+            <TicketActionButton
+              variant="ghost"
+              disabled={statusPending || busy || !canTransitionTo('FIELD_COMPLETE')}
+              onClick={() => onSetStatus({ status: 'FIELD_COMPLETE' })}
+            >
+              Выполнено
+            </TicketActionButton>
+          ) : null}
+
+          {canChangeStatus && !isChild && primaryAction?.kind !== 'done' && canTransitionTo('AWAITING_ACCEPTANCE') ? (
             <TicketActionButton
               variant="ghost"
               disabled={statusPending || busy || !onOpenSubmitForm}
@@ -145,7 +166,7 @@ export function TicketActionBar(props: TicketActionBarProps) {
               onClick={() => onSetStatus({ status: 'CANCELED' })}
               title={closeHint || undefined}
             >
-              Отменить
+              {isChild ? 'Отменено' : 'Отменить'}
             </TicketActionButton>
           ) : null}
 

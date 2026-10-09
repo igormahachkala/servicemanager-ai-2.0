@@ -12,6 +12,7 @@ import { TicketAttachmentsService } from './ticket-attachments.service'
 import { TicketsAcceptanceService } from './tickets.acceptance.service'
 import { TicketAcceptanceDto } from './dto/ticket-acceptance.dto'
 import { SubmitTicketAcceptanceDto } from './dto/submit-ticket-acceptance.dto'
+import { type ChildResolutionDraftItem } from './ticket-close-tree'
 
 import { type BoardQueryInput } from '../policy/tickets.policy'
 
@@ -300,7 +301,7 @@ export class TicketsService {
     user: { id?: string } | any,
     role: UserRole,
     ticketId: string,
-    dto: { status: TicketStatus; comment?: string },
+    dto: { status: TicketStatus; comment?: string; childResolutions?: ChildResolutionDraftItem[] },
     linkedClientCompanyId?: string,
   ) {
     return this.status.updateStatus(companyId, user, role, ticketId, dto, linkedClientCompanyId)

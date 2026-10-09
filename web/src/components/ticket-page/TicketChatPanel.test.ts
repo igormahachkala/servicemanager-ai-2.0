@@ -1,5 +1,6 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 
 import type { ChatMessage } from '../../lib/ticketChat'
@@ -35,14 +36,34 @@ function comment(overrides: Partial<ChatMessage> = {}): ChatMessage {
   }
 }
 
+function system(overrides: Partial<ChatMessage> = {}): ChatMessage {
+  return {
+    id: 'sys-1',
+    at: '2026-09-17T10:00:00.000Z',
+    text: 'Создана подзадача #12',
+    authorId: null,
+    authorEmail: null,
+    actor: null,
+    isOwn: false,
+    kind: 'system',
+    commentId: null,
+    replyTo: null,
+    ...overrides,
+  }
+}
+
 function render(messages: ChatMessage[], canSend = true): string {
   return renderToStaticMarkup(
-    createElement(TicketChatPanel, {
-      messages,
-      loading: false,
-      canSend,
-      onSend: async () => {},
-    }),
+    createElement(
+      MemoryRouter,
+      null,
+      createElement(TicketChatPanel, {
+        messages,
+        loading: false,
+        canSend,
+        onSend: async () => {},
+      }),
+    ),
   )
 }
 
@@ -113,5 +134,26 @@ describe('TicketChatPanel desktop reply presentation', () => {
 
     expect(html).toContain(UNAVAILABLE_REPLY_PREVIEW_TEXT)
     expect(html).not.toContain('Секретный текст чужой компании')
+  })
+})
+
+describe('TicketChatPanel system capsule link', () => {
+  it('renders react-router Link when system message has href', () => {
+    const html = render([
+      system({
+        link: { ticketId: 'child-1', href: '/tickets/child-1' },
+      }),
+    ])
+
+    expect(html).toContain('Создана подзадача #12')
+    expect(html).toContain('href="/tickets/child-1"')
+    expect(html).not.toContain('<a href="/tickets/child-1" target=')
+  })
+
+  it('renders plain text when system message has no link', () => {
+    const html = render([system({ text: 'Создана из заявки #7', link: null })])
+
+    expect(html).toContain('Создана из заявки #7')
+    expect(html).not.toContain('href=')
   })
 })

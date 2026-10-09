@@ -91,6 +91,7 @@ const STATUS_RU: Record<TicketStatus, string> = {
   AWAITING_ACCEPTANCE: 'На приёмке',
   DONE: 'Выполнена',
   CANCELED: 'Отменена',
+  FIELD_COMPLETE: 'Выполнено',
 };
 
 const NOTIFICATION_ACCESS_CHECK_CONCURRENCY = 8;

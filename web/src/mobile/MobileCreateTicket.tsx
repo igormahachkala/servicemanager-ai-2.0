@@ -100,6 +100,8 @@ export function MobileCreateTicket() {
   const location = useLocation()
   const navigate = useNavigate()
   const search = new URLSearchParams(location.search)
+  const presetLocationId = (search.get('locationId') || '').trim()
+  const presetParentId = (search.get('parentId') || '').trim()
   const qc = useQueryClient()
   const cameraInputRef = useRef<HTMLInputElement | null>(null)
   const galleryInputRef = useRef<HTMLInputElement | null>(null)
@@ -201,7 +203,7 @@ export function MobileCreateTicket() {
     }
   }, [activeLocations])
 
-  const [locationId, setLocationId] = useState('')
+  const [locationId, setLocationId] = useState(presetLocationId)
   const [equipmentId, setEquipmentId] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [postCreateAction, setPostCreateAction] = useState<'leave_unassigned' | 'assign_employee'>('leave_unassigned')
@@ -264,9 +266,10 @@ export function MobileCreateTicket() {
   )
 
   useEffect(() => {
+    if (presetParentId) return
     if (!locationId && activeLocations.length > 0) setLocationId(activeLocations[0].id)
     if (locationId && !activeLocations.some((row) => row.id === locationId)) setLocationId(activeLocations[0]?.id || '')
-  }, [activeLocations, locationId])
+  }, [activeLocations, locationId, presetParentId])
 
   useEffect(() => {
     if (!locationId) {
@@ -339,6 +342,7 @@ export function MobileCreateTicket() {
         postCreateAction: shouldClaim ? 'claim_self' : canAssignOnCreate ? postCreateAction : undefined,
         assignTechnicianId: canAssignOnCreate && postCreateAction === 'assign_employee' ? assignTechnicianId || undefined : undefined,
         locationId,
+        parentId: presetParentId || undefined,
         equipmentId: equipmentId || undefined,
         categoryId,
         description: description.trim() || undefined,
@@ -491,8 +495,12 @@ export function MobileCreateTicket() {
   return (
     <div className="mobileSection">
       <div>
-        <h1 className="mobileTitle">Создать заявку</h1>
-        <div className="mobileSubtitle">Укажите точку, категорию и загрузите фото — без снимков отправка недоступна.</div>
+        <h1 className="mobileTitle">{presetParentId ? 'Создание подзадачи' : 'Создать заявку'}</h1>
+        <div className="mobileSubtitle">
+          {presetParentId
+            ? 'Точка взята из родительской заявки и не меняется. Категория и фото заполняются как в обычной заявке.'
+            : 'Укажите точку, категорию и загрузите фото — без снимков отправка недоступна.'}
+        </div>
       </div>
 
       {(locationsQ.isError || categoriesQ.isError || technicianContextsQ.isError || equipmentQ.isError || createCandidatesQ.isError) ? (
@@ -545,15 +553,20 @@ export function MobileCreateTicket() {
 
           <label>
             Локация *
-            <select value={locationId} onChange={(e) => setLocationId(e.target.value)} disabled={isBootstrapping || !activeLocations.length}>
-              {activeLocations.length === 0 ? <option value="">—</option> : null}
+            <select value={locationId} onChange={(e) => setLocationId(e.target.value)} disabled={isBootstrapping || !activeLocations.length || !!presetParentId}>
+              {activeLocations.length === 0 && !presetParentId ? <option value="">—</option> : null}
+              {presetParentId && locationId && !activeLocations.some((row) => row.id === locationId) ? (
+                <option value={locationId}>Точка родительской заявки</option>
+              ) : null}
               {activeLocations.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
                 </option>
               ))}
             </select>
-            <div className="mobileFieldHint">Точка клиента, к которой относится поломка.</div>
+            <div className="mobileFieldHint">
+              {presetParentId ? 'Точка родительской заявки, сменить нельзя.' : 'Точка клиента, к которой относится поломка.'}
+            </div>
           </label>
 
           <label>
