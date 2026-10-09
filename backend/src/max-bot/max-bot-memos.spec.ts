@@ -62,6 +62,10 @@ describe('max-bot-memos', () => {
     expect(labelsOf(page0)).toContain('Следующие');
     expect(labelsOf(page0)).not.toContain('Предыдущие');
     expect(labelsOf(page1)).toContain('Предыдущие');
+    const page0Labels = labelsOf(page0);
+    expect(page0Labels.indexOf('Следующие')).toBeLessThan(page0Labels.indexOf('Получить все памятки'));
+    const page1Labels = labelsOf(page1);
+    expect(page1Labels.indexOf('Предыдущие')).toBeLessThan(page1Labels.indexOf('Получить все памятки'));
     expect(parseMemosAction('memos:p:1')).toEqual({ kind: 'list', page: 1 });
     expect(parseMemosAction('memo:tech-today')).toEqual({ kind: 'one', id: 'tech-today' });
     expect(parseMemosAction('memos:all:m')).toEqual({ kind: 'all', scope: 'master' });
