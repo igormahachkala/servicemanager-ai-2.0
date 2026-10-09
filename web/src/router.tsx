@@ -326,6 +326,7 @@ export function AppRoutes() {
         <Route path="workforce" element={<LazyRoute component={MobileWorkforcePage} />} />
         <Route path="chats" element={<LazyRoute component={MobileChatsPage} />} />
         <Route path="chats/:ticketId" element={<LazyRoute component={MobileChatsPage} />} />
+        <Route path="tickets/create-subtask" element={<LazyRoute component={MobileCreateTicket} />} />
         <Route path="tickets/:id" element={<LazyRoute component={MobileTicketPage} />} />
         <Route path="offline-queue" element={<LazyRoute component={MobileOfflineQueue} />} />
         <Route path="inspection" element={<LazyRoute component={MobileInspectionList} props={{ standalone: true }} />} />
@@ -407,6 +408,7 @@ export function AppRoutes() {
           <Route path="workforce" element={<LazyRoute component={MobileWorkforcePage} />} />
           <Route path="chats" element={<LazyRoute component={MobileChatsPage} />} />
           <Route path="chats/:ticketId" element={<LazyRoute component={MobileChatsPage} />} />
+          <Route path="tickets/create-subtask" element={<LazyRoute component={MobileCreateTicket} />} />
           <Route path="tickets/:id" element={<LazyRoute component={MobileTicketPage} />} />
           <Route path="offline-queue" element={<LazyRoute component={MobileOfflineQueue} />} />
           <Route path="inspection" element={<LazyRoute component={MobileInspectionList} props={{ standalone: true }} />} />

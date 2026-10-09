@@ -30,7 +30,7 @@ describe('childTicketCreatePath', () => {
     ).toBe('/tickets/new?parentId=parent-1&locationId=loc-1&companyId=obs-1')
   })
 
-  it('собирает mobile-путь с тем же query и scope', () => {
+  it('собирает mobile-путь на /tickets/create-subtask', () => {
     expect(
       childTicketCreatePath({
         parentId: 'parent-1',
@@ -38,7 +38,7 @@ describe('childTicketCreatePath', () => {
         surface: 'mobile',
         scope: { linkedClientCompanyId: 'client-c' },
       }),
-    ).toBe('/m/tickets/new?parentId=parent-1&locationId=loc-1&linkedClientCompanyId=client-c')
+    ).toBe('/m/tickets/create-subtask?parentId=parent-1&locationId=loc-1&linkedClientCompanyId=client-c')
 
     expect(
       childTicketCreatePath({
@@ -48,7 +48,7 @@ describe('childTicketCreatePath', () => {
         mobileRoot: '/max',
         scope: { companyId: 'obs-1' },
       }),
-    ).toBe('/max/tickets/new?parentId=parent-1&locationId=loc-1&companyId=obs-1')
+    ).toBe('/max/tickets/create-subtask?parentId=parent-1&locationId=loc-1&companyId=obs-1')
   })
 
   it('без родителя или точки путь не собирает', () => {
@@ -104,5 +104,22 @@ describe('карточка ведёт на полную форму подзад�
     expect(actionsPanel).not.toContain('Скрыть доп. работу')
     expect(actionsPanel).not.toContain('onToggleChildCreateForm')
     expect(actionsPanel).not.toContain('canCreateChildTicket && !isTechnicianRole')
+  })
+
+  it('на /m и /max форма подзадачи висит на tickets/create-subtask раньше tickets/:id', () => {
+    const router = readSrc('router.tsx')
+    const mobileTicketPage = codeOf(readSrc('mobile/MobileTicketPage.tsx'))
+    expect(router).toContain('path="tickets/create-subtask" element={<LazyRoute component={MobileCreateTicket} />}')
+    expect(router).not.toContain('MobileTicketsNewRedirect')
+    expect((router.match(/path="tickets\/create-subtask"/g) || []).length).toBe(2)
+    expect(mobileTicketPage).toContain("surface: 'mobile'")
+    expect(mobileTicketPage).toContain('childTicketCreatePath')
+    const afterM = router.slice(router.indexOf('path="/m"'))
+    const mBlock = afterM.slice(0, afterM.indexOf('path="/"'))
+    const maxBlock = router.slice(router.indexOf('path="/max"'))
+    expect(mBlock.indexOf('tickets/create-subtask')).toBeGreaterThan(-1)
+    expect(mBlock.indexOf('tickets/create-subtask')).toBeLessThan(mBlock.indexOf('tickets/:id'))
+    expect(maxBlock.indexOf('tickets/create-subtask')).toBeGreaterThan(-1)
+    expect(maxBlock.indexOf('tickets/create-subtask')).toBeLessThan(maxBlock.indexOf('tickets/:id'))
   })
 })
