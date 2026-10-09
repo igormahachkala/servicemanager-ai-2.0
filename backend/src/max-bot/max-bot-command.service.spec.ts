@@ -242,6 +242,8 @@ describe('MaxBotCommandService — unbound identity leaks nothing', () => {
       'Без исполнителя',
       'Техники',
       'Обходы',
+      'Памятки',
+      'Сообщить об ошибке',
     ]);
     expect(res?.text).not.toContain('Мои заявки');
     expect(res?.text).not.toContain('Бот не показывает данные заявок без входа.');
@@ -589,6 +591,8 @@ describe('MaxBotCommandService — technician chat menu', () => {
       'Доступные',
       'Обходы',
       'Поиск заявки',
+      'Памятки',
+      'Сообщить об ошибке',
     ]);
     expect(buttonsOf(start).every((button) => button.type === 'callback')).toBe(true);
   });
@@ -634,6 +638,8 @@ describe('MaxBotCommandService — technician chat menu', () => {
       'Доступные',
       'Обходы',
       'Поиск заявки',
+      'Памятки',
+      'Сообщить об ошибке',
     ]);
   });
 
@@ -664,6 +670,7 @@ describe('MaxBotCommandService — technician chat menu', () => {
       'Комментарий',
       'История',
       'Завершить',
+      'Сообщить об ошибке',
       'Меню',
     ]);
     const history = await service.handleUpdate(callback('tkh:11111111-1111-4111-8111-111111111111'));
@@ -696,7 +703,7 @@ describe('MaxBotCommandService — technician chat menu', () => {
     expect(workplace.availableTickets).toHaveBeenCalled();
     expect(list?.text).toContain('Доступные');
     expect(list?.text).toContain('#12 · Новая · Срочно');
-    expect(buttonsOf(list).map((button) => button.text)).toEqual(['Взять #12', 'Подробнее', 'Меню']);
+    expect(buttonsOf(list).map((button) => button.text)).toEqual(['Взять #12', 'Подробнее', 'Сообщить об ошибке', 'Меню']);
     const claimed = await service.handleUpdate(callback('avc:11111111-1111-4111-8111-111111111111'));
     expect(workplace.claimAvailableTicket).toHaveBeenCalled();
     expect(claimed?.text).toContain('Заявка #12 назначена вам.');
@@ -709,7 +716,7 @@ describe('MaxBotCommandService — technician chat menu', () => {
     expect(rounds.list).toHaveBeenCalled();
     expect(list?.text).toContain('Обходы');
     expect(list?.text).toContain('09:00 · Кафе');
-    expect(buttonsOf(list).map((button) => button.text)).toEqual(['Начать', 'Меню']);
+    expect(buttonsOf(list).map((button) => button.text)).toEqual(['Начать', 'Сообщить об ошибке', 'Меню']);
     const started = await service.handleUpdate(callback('rst:11111111-1111-4111-8111-111111111111'));
     expect(rounds.start).toHaveBeenCalled();
     expect(started?.text).toContain('Пункт 1 из 2');
@@ -938,6 +945,8 @@ describe('MaxBotCommandService — master chat menu', () => {
       'Без исполнителя',
       'Техники',
       'Обходы',
+      'Памятки',
+      'Сообщить об ошибке',
     ]);
   });
 
@@ -970,7 +979,10 @@ describe('MaxBotCommandService — master chat menu', () => {
         { type: 'callback', text: 'Техники', payload: 'techs' },
         { type: 'callback', text: 'Обходы', payload: 'rounds' },
       ],
-      [{ type: 'callback', text: 'Меню', payload: 'menu' }],
+      [
+        { type: 'callback', text: 'Сообщить об ошибке', payload: 'report:error' },
+        { type: 'callback', text: 'Меню', payload: 'menu' },
+      ],
     ]);
   });
 
@@ -978,7 +990,7 @@ describe('MaxBotCommandService — master chat menu', () => {
     const { service } = makeMasterService();
     const res = await service.handleUpdate({ message: { text: '/tickets', sender: { user_id: 4242 } } });
     expect(res?.text).toBe('Какие заявки показать');
-    expect(buttonsOf(res).map((button) => button.text)).toEqual(['Новые', 'В работе', 'Просрочено', 'Меню']);
+    expect(buttonsOf(res).map((button) => button.text)).toEqual(['Новые', 'В работе', 'Просрочено', 'Сообщить об ошибке', 'Меню']);
   });
 
   it('Без исполнителя lists NEW tickets and assign goes through TicketsService', async () => {
@@ -986,7 +998,7 @@ describe('MaxBotCommandService — master chat menu', () => {
     const list = await service.handleUpdate(callback('unassigned'));
     expect(workplace.unassigned).toHaveBeenCalled();
     expect(list?.text).toContain('Без исполнителя');
-    expect(buttonsOf(list).map((button) => button.text)).toEqual(['#12', 'Назначить #12', 'Меню']);
+    expect(buttonsOf(list).map((button) => button.text)).toEqual(['#12', 'Назначить #12', 'Сообщить об ошибке', 'Меню']);
     const candidates = await service.handleUpdate(callback(`ma:${TICKET_ID}:u`));
     expect(workplace.candidates).toHaveBeenCalled();
     expect(candidates?.text).toContain('Кого назначить?');

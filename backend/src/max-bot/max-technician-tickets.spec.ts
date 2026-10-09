@@ -72,9 +72,12 @@ describe('max-technician-tickets', () => {
     expect(res.text).not.toContain('Телефон');
     const rows = res.attachments?.[0]?.payload.buttons || [];
     const labels = buttonsOf(res).map((button) => button.text);
-    expect(labels).toEqual(['#11', '#12', '#13', '#14', '#15', '#16', 'Следующие', 'Меню']);
+    expect(labels).toEqual(['#11', '#12', '#13', '#14', '#15', '#16', 'Следующие', 'Сообщить об ошибке', 'Меню']);
     expect(rows[3]).toEqual([{ type: 'callback', text: 'Следующие', payload: 'my:6' }]);
-    expect(rows[rows.length - 1]).toEqual([{ type: 'callback', text: 'Меню', payload: 'menu' }]);
+    expect(rows[rows.length - 1]).toEqual([
+      { type: 'callback', text: 'Сообщить об ошибке', payload: 'report:error' },
+      { type: 'callback', text: 'Меню', payload: 'menu' },
+    ]);
     expect(buttonsOf(res).every((button) => button.type === 'callback')).toBe(true);
   });
 
@@ -85,14 +88,14 @@ describe('max-technician-tickets', () => {
       nextOffset: null,
     });
     const rows = res.attachments?.[0]?.payload.buttons || [];
-    expect(buttonsOf(res).map((button) => button.text)).toEqual(['#8', 'Предыдущие', 'Меню']);
+    expect(buttonsOf(res).map((button) => button.text)).toEqual(['#8', 'Предыдущие', 'Сообщить об ошибке', 'Меню']);
     expect(rows[1]).toEqual([{ type: 'callback', text: 'Предыдущие', payload: 'my:0' }]);
   });
 
   it('says the list is empty without inventing tickets', () => {
     const res = renderTechnicianTicketsListMessage({ items: [], prevOffset: null, nextOffset: null });
     expect(res.text).toContain('Нет назначенных заявок');
-    expect(buttonsOf(res).map((button) => button.text)).toEqual(['Меню']);
+    expect(buttonsOf(res).map((button) => button.text)).toEqual(['Сообщить об ошибке', 'Меню']);
   });
 
   it('draws card fields and kernel buttons in the first_wave order', () => {
@@ -135,7 +138,7 @@ describe('max-technician-tickets', () => {
       ['Начать работу'],
       ['Фото', 'Комментарий'],
       ['История'],
-      ['Меню'],
+      ['Сообщить об ошибке', 'Меню'],
     ]);
     expect(buttonsOf(res).map((button) => button.text).join()).not.toMatch(/Принять|Отклонить|Взять/);
   });
@@ -199,7 +202,7 @@ describe('max-technician-tickets', () => {
     expect(card?.pickerTransitions).toEqual([TicketStatus.ASSIGNED]);
     const picker = renderTicketStatusPickerMessage(card!);
     expect(picker.text).toContain('Выберите действие');
-    expect(buttonsOf(picker).map((button) => button.text)).toEqual(['Назначена', 'Отмена', 'Меню']);
+    expect(buttonsOf(picker).map((button) => button.text)).toEqual(['Назначена', 'Отмена', 'Сообщить об ошибке', 'Меню']);
 
     const history = renderTicketHistoryMessage(
       toTechnicianTicketHistoryPage(
@@ -228,8 +231,8 @@ describe('max-technician-tickets', () => {
     expect(history.text).toContain('Проверил на месте');
     expect(history.text).not.toContain('a@b.c');
     expect(history.text).not.toContain('7000');
-    expect(buttonsOf(history).map((button) => button.text)).toEqual(['К заявке', 'Меню']);
-    expect(history.attachments?.[0]?.payload.buttons.at(-1)?.map((button) => button.text)).toEqual(['Меню']);
+    expect(buttonsOf(history).map((button) => button.text)).toEqual(['К заявке', 'Сообщить об ошибке', 'Меню']);
+    expect(history.attachments?.[0]?.payload.buttons.at(-1)?.map((button) => button.text)).toEqual(['Сообщить об ошибке', 'Меню']);
 
     const paged = renderTicketHistoryMessage(
       toTechnicianTicketHistoryPage(
@@ -245,19 +248,19 @@ describe('max-technician-tickets', () => {
       ),
     );
     const pagedRows = paged.attachments?.[0]?.payload.buttons || [];
-    expect(buttonsOf(paged).map((button) => button.text)).toEqual(['Предыдущие', 'К заявке', 'Меню']);
+    expect(buttonsOf(paged).map((button) => button.text)).toEqual(['Предыдущие', 'К заявке', 'Сообщить об ошибке', 'Меню']);
     expect(pagedRows[0]).toEqual([{ type: 'callback', text: 'Предыдущие', payload: `tkh:${ID_OLD}:0` }]);
   });
 
   it('comment prompt asks for text with cancel; saved returns to the card', () => {
     const prompt = renderCommentPromptMessage(ID_OLD, 12);
     expect(prompt.text).toBe('Введите комментарий к заявке #12');
-    expect(buttonsOf(prompt).map((button) => button.text)).toEqual(['Отмена', 'Меню']);
+    expect(buttonsOf(prompt).map((button) => button.text)).toEqual(['Отмена', 'Сообщить об ошибке', 'Меню']);
     expect(buttonsOf(prompt)[0].payload).toBe(`tk:${ID_OLD}`);
 
     const saved = renderCommentSavedMessage(ID_OLD, 12);
     expect(saved.text).toBe('Комментарий добавлен к #12');
-    expect(buttonsOf(saved).map((button) => button.text)).toEqual(['К заявке', 'Меню']);
+    expect(buttonsOf(saved).map((button) => button.text)).toEqual(['К заявке', 'Сообщить об ошибке', 'Меню']);
   });
 
   it('puts status change and complete on their own rows with Menu last', () => {
@@ -280,7 +283,7 @@ describe('max-technician-tickets', () => {
       ['История'],
       ['Завершить'],
       ['Назад'],
-      ['Меню'],
+      ['Сообщить об ошибке', 'Меню'],
     ]);
     expect(rows[5]).toEqual([{ type: 'callback', text: 'Назад', payload: 'my:0' }]);
   });

@@ -26,6 +26,10 @@ services:
       - .env
     ports:
       - "3001:3000"
+    volumes:
+      - /opt/maxbot_reports:/opt/maxbot_reports
+    environment:
+      MAX_BOT_REPORTS_DIR: /opt/maxbot_reports
 
   stage_web:
     build:

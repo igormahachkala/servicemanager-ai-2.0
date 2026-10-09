@@ -56,7 +56,7 @@ describe('max-technician-rounds', () => {
     const res = renderRoundListMessage(page);
     expect(res.text).toContain('09:00 · Кафе');
     expect(res.text).toContain('Утро · 12 пунктов');
-    expect(labelsOf(res)).toEqual(['Начать', 'Продолжить', 'Меню']);
+    expect(labelsOf(res)).toEqual(['Начать', 'Продолжить', 'Сообщить об ошибке', 'Меню']);
   });
 
   it('renders the item screen and problem/photo/ticket steps', () => {
@@ -92,7 +92,7 @@ describe('max-technician-rounds', () => {
     });
     expect(brief.text).toContain('Норма: 10');
     expect(brief.text).toContain('Длительность: 42 мин');
-    expect(labelsOf(brief)).toEqual(['Посмотреть итог', 'Меню']);
+    expect(labelsOf(brief)).toEqual(['Посмотреть итог', 'Сообщить об ошибке', 'Меню']);
     const report = renderRoundReportMessage({
       runId: RUN,
       items: [
@@ -102,7 +102,7 @@ describe('max-technician-rounds', () => {
     });
     expect(report.text).toContain('Свет: норма');
     expect(report.text).toContain('Холод: критично · заявка #88');
-    expect(labelsOf(report)).toEqual(['Открыть #88', 'Меню']);
+    expect(labelsOf(report)).toEqual(['Открыть #88', 'Сообщить об ошибке', 'Меню']);
   });
 
   it('maps after-item union onto the matching screen', () => {

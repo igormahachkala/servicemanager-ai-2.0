@@ -29,6 +29,9 @@ services:
       - postgres
     volumes:
       - ./uploads:/app/uploads
+      - /opt/maxbot_reports:/opt/maxbot_reports
+    environment:
+      MAX_BOT_REPORTS_DIR: /opt/maxbot_reports
     command: sh -lc "npx prisma migrate deploy && npm run start:prod"
 
   web:

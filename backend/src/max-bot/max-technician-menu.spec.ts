@@ -16,8 +16,10 @@ describe('max-technician-menu', () => {
     const res = renderTechnicianMenuMessage();
     expect(res.text).toContain('Выберите действие');
     const rows = res.attachments?.[0]?.payload.buttons || [];
-    expect(rows).toHaveLength(3);
-    expect(rows.every((row) => row.length === 2)).toBe(true);
+    expect(rows).toHaveLength(5);
+    expect(rows.slice(0, 3).every((row) => row.length === 2)).toBe(true);
+    expect(rows[3].map((button) => button.text)).toEqual(['Памятки']);
+    expect(rows[4].map((button) => button.text)).toEqual(['Сообщить об ошибке']);
     expect(labelsOf(res)).toEqual([
       'Сегодня',
       'Моя смена',
@@ -25,6 +27,8 @@ describe('max-technician-menu', () => {
       'Доступные',
       'Обходы',
       'Поиск заявки',
+      'Памятки',
+      'Сообщить об ошибке',
     ]);
     expect(rows.flat().every((button) => button.type === 'callback')).toBe(true);
   });
@@ -32,7 +36,7 @@ describe('max-technician-menu', () => {
   it('unfinished section reply is the section name plus the technician footer', () => {
     const res = renderTechnicianSectionMessage('avail');
     expect(res.text).toBe('Доступные');
-    expect(labelsOf(res)).toEqual(['Меню']);
+    expect(labelsOf(res)).toEqual(['Сообщить об ошибке', 'Меню']);
     expect(renderTechnicianSectionMessage('find').text).toBe('Поиск заявки');
     expect(technicianSectionLabel('my')).toBe('Мои заявки');
   });

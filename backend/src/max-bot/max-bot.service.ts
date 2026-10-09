@@ -11,6 +11,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MaxBotCommandService } from './max-bot-command.service';
 import { extractMaxUserId } from './max-identity.service';
 import {
+  MaxBotScreenJournal,
+  screenEntryFromResponse,
+  shouldSkipScreenJournal,
+} from './max-bot-screen-journal';
+import {
   buildMinimalMaxBotCommands,
   normalizeMaxBotUsername,
   MAX_START_AFTER_LOGIN_TEXT,
@@ -135,6 +140,7 @@ export class MaxBotService implements OnModuleInit {
   constructor(
     private readonly prisma?: PrismaService,
     private readonly commandService?: MaxBotCommandService,
+    private readonly screenJournal?: MaxBotScreenJournal,
   ) {}
 
   onModuleInit() {
@@ -423,7 +429,12 @@ export class MaxBotService implements OnModuleInit {
   }
 
   private normalizeMessageBody(message: string | MaxBotMessageBody): MaxBotMessageBody {
-    return typeof message === 'string' ? { text: message } : message;
+    if (typeof message === 'string') return { text: message };
+    const body: MaxBotMessageBody = { text: message.text };
+    if (message.attachments) body.attachments = message.attachments;
+    if (message.notify !== undefined) body.notify = message.notify;
+    if (message.format) body.format = message.format;
+    return body;
   }
 
   private async sendRawMessage(chatId: number, message: string | MaxBotMessageBody, replyToMessageId?: string | null) {
@@ -1040,9 +1051,17 @@ export class MaxBotService implements OnModuleInit {
       `/answers?callback_id=${encodeURIComponent(callbackId)}`,
       {
         method: 'POST',
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ message: this.normalizeMessageBody(message) }),
       },
     );
+  }
+
+  private recordOutboundScreen(update: MaxBotUpdate, response: MaxBotCommandResponse) {
+    if (!this.screenJournal) return;
+    if (shouldSkipScreenJournal(response)) return;
+    const maxUserId = extractMaxUserId(update);
+    if (!maxUserId) return;
+    this.screenJournal.push(maxUserId, screenEntryFromResponse(response));
   }
 
   private async processCommandUpdates(updates: MaxBotUpdate[]) {
@@ -1124,6 +1143,7 @@ export class MaxBotService implements OnModuleInit {
         } else {
           await this.sendRawMessage(chatId, response);
         }
+        this.recordOutboundScreen(update, response);
         this.logger.log(
           {
             chatId,

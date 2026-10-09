@@ -80,7 +80,7 @@ describe('MaxBotCommandService — ticket comment', () => {
     const prompt = await service.handleUpdate(callback(`tkc:${TICKET_ID}`));
     expect(workplace.ticketCard).toHaveBeenCalled();
     expect(prompt?.text).toBe('Введите комментарий к заявке #12');
-    expect(buttonsOf(prompt).map((button) => button.text)).toEqual(['Отмена', 'Меню']);
+    expect(buttonsOf(prompt).map((button) => button.text)).toEqual(['Отмена', 'Сообщить об ошибке', 'Меню']);
 
     const blank = await service.handleUpdate(textFrom('   '));
     expect(workplace.addMyTicketComment).not.toHaveBeenCalled();

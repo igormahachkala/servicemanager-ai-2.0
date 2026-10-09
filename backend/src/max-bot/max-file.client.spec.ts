@@ -78,4 +78,42 @@ describe('MaxFileClient', () => {
       }),
     ).rejects.toThrow('Файл больше 10 МБ');
   });
+
+  it('uploads an image via /uploads then posts token to /messages', async () => {
+    const fetchImpl = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ url: 'https://upload.example/put' }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ photos: { abc: { token: 'img-token-1' } } }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+
+    const client = new MaxFileClient('https://platform-api2.max.ru', 'bot-token', fetchImpl as any);
+    await expect(client.uploadImage(Buffer.from([1, 2, 3]), 'memo.png')).resolves.toBe('img-token-1');
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      1,
+      'https://platform-api2.max.ru/uploads?type=image',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(fetchImpl.mock.calls[1][0]).toBe('https://upload.example/put');
+    expect(fetchImpl.mock.calls[1][1].body).toBeInstanceOf(FormData);
+
+    await client.sendImageMessage(99, 'Сегодня техника', 'img-token-1');
+    expect(fetchImpl).toHaveBeenNthCalledWith(
+      3,
+      'https://platform-api2.max.ru/messages?chat_id=99',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          text: 'Сегодня техника',
+          attachments: [{ type: 'image', payload: { token: 'img-token-1' } }],
+        }),
+      }),
+    );
+    expect(String(fetchImpl.mock.calls[2][1].body)).not.toContain('file://');
+  });
 });
