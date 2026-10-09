@@ -146,6 +146,27 @@ export type ScopeParams = {
   linkedClientCompanyId?: string | null
 }
 
+export function resolveEquipmentClientSelection(input: {
+  requestedClientId?: string | null
+  selectedClientId?: string | null
+  profileClientId?: string | null
+  allowedClientIds: readonly string[]
+}): string {
+  const allowed = new Set(input.allowedClientIds.map((id) => id.trim()).filter(Boolean))
+  if (allowed.size === 0) return ''
+
+  const requested = (input.requestedClientId || '').trim()
+  if (requested) return allowed.has(requested) ? requested : ''
+
+  const selected = (input.selectedClientId || '').trim()
+  if (selected && allowed.has(selected)) return selected
+
+  const profile = (input.profileClientId || '').trim()
+  if (profile && allowed.has(profile)) return profile
+
+  return allowed.size === 1 ? [...allowed][0] : ''
+}
+
 /**
  * Параметры области для адреса.
  *
@@ -170,6 +191,10 @@ function scopeSearchParams(scope?: ScopeParams | string | null): URLSearchParams
 function withScope(path: string, scope?: ScopeParams | string | null): string {
   const query = scopeSearchParams(scope).toString()
   return query ? `${path}?${query}` : path
+}
+
+export function equipmentListPath(scope?: ScopeParams | string | null): string {
+  return withScope('/equipment', scope)
 }
 
 export function equipmentCardPath(equipmentId: string, scope?: ScopeParams | string | null): string {
