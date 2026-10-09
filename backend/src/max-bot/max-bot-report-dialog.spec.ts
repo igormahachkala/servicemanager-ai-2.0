@@ -79,6 +79,7 @@ describe('MaxBotReportDialog', () => {
     expect(sent.text).toBe('Отправлено. Спасибо.');
     expect(sent.skipJournal).toBe(true);
     expect(sent.kind).toBe('report:sent');
+    expect(payloadsOf(sent)).toContain('menu');
 
     const saved = await readLatestReport();
     expect(saved.text).toBe('кнопка зависла');
@@ -168,6 +169,7 @@ describe('MaxBotReportDialog', () => {
     const cancelled = await dialog.handleCallback(identity, 'report:cancel');
     expect(cancelled.text).toBe('Отменено.');
     expect(cancelled.kind).toBe('report:cancelled');
+    expect(payloadsOf(cancelled)).toContain('menu');
     expect(cancelled.skipJournal).toBe(true);
 
     const entries = await listReportDirs();

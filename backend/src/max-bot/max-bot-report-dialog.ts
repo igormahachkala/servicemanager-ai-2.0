@@ -5,6 +5,7 @@ import {
   type MaxBotReportPhotoInput,
 } from './max-bot-report.store';
 import { MaxBotScreenJournal, type ScreenEntry } from './max-bot-screen-journal';
+import { menuButton } from './max-bot-report-footer';
 import { renderInlineKeyboard } from './max-menu.builder';
 import {
   MaxBotCommandResponse,
@@ -153,7 +154,7 @@ export class MaxBotReportDialog {
     if (payload === 'report:error') return this.begin(identity);
     if (payload === 'report:cancel') {
       this.wait.delete(identity.maxUserId);
-      return reportMessage(PROMPT_CANCELLED, [], 'report:cancelled');
+      return reportMessage(PROMPT_CANCELLED, [[menuButton()]], 'report:cancelled');
     }
 
     const state = this.wait.get(identity.maxUserId);
@@ -259,7 +260,7 @@ export class MaxBotReportDialog {
   ): Promise<MaxBotCommandResponse> {
     if (!this.store) {
       this.wait.delete(identity.maxUserId);
-      return reportMessage(PROMPT_FAILED, [], 'report:failed');
+      return reportMessage(PROMPT_FAILED, [[menuButton()]], 'report:failed');
     }
 
     try {
@@ -284,10 +285,10 @@ export class MaxBotReportDialog {
       });
     } catch {
       this.wait.delete(identity.maxUserId);
-      return reportMessage(PROMPT_FAILED, [], 'report:failed');
+      return reportMessage(PROMPT_FAILED, [[menuButton()]], 'report:failed');
     }
 
     this.wait.delete(identity.maxUserId);
-    return reportMessage(PROMPT_SENT, [], 'report:sent');
+    return reportMessage(PROMPT_SENT, [[menuButton()]], 'report:sent');
   }
 }
