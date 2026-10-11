@@ -128,7 +128,7 @@ describe('MaxBotCommandService — ticket photo and complete', () => {
 
     const causes = await service.handleUpdate(textFrom('Заменил компрессор'));
     expect(causes?.text).toContain('Выберите причину неисправности');
-    expect(buttonsOf(causes).map((button) => button.text)).toEqual(['Естественный износ', 'Отмена', 'Меню']);
+    expect(buttonsOf(causes).map((button) => button.text)).toEqual(['Естественный износ', 'Отмена', 'Сообщить об ошибке', 'Меню']);
     expect(workplace.completeMyTicket).not.toHaveBeenCalled();
 
     const ask = await service.handleUpdate(callback(`tkfc:${TICKET_ID}:${CAUSE_ID}`));
