@@ -57,7 +57,7 @@ export function AIEmployeeDetailsPage() {
     return (
       <div className="panel" style={{ padding: 16 }}>
         <div style={{ fontWeight: 700, marginBottom: 6 }}>Раздел недоступен</div>
-        <div className="muted small">Раздел IT Company доступен только администратору платформы.</div>
+        <div className="muted small">Раздел «ИТ-компания» доступен только администратору платформы.</div>
       </div>
     )
   }
@@ -84,7 +84,7 @@ export function AIEmployeeDetailsPage() {
             {profile.name}
             {profile.codename ? <span className="muted" style={{ fontWeight: 400 }}> · {profile.codename}</span> : null}
           </h2>
-          <div className="muted small">Цифровой сотрудник IT Company</div>
+          <div className="muted small">Цифровой сотрудник ИТ-компании</div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span className="tag" style={statusStyle(profile.status)}>{AI_EMPLOYEE_STATUS_LABELS_RU[profile.status]}</span>

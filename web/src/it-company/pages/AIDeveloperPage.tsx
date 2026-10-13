@@ -212,7 +212,7 @@ export function AIDeveloperPage() {
     return (
       <div className="panel" style={{ padding: 16 }}>
         <div style={{ fontWeight: 700, marginBottom: 6 }}>Раздел недоступен</div>
-        <div className="muted small">Рабочее место AI Developer доступно только администратору платформы.</div>
+        <div className="muted small">Рабочее место ИИ-разработчика доступно только администратору платформы.</div>
       </div>
     )
   }
@@ -234,7 +234,7 @@ export function AIDeveloperPage() {
       >
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Link to="/it" style={{ color: '#9ca3af', fontSize: 13, textDecoration: 'none' }}>← IT Company</Link>
+            <Link to="/it" style={{ color: '#9ca3af', fontSize: 13, textDecoration: 'none' }}>← ИТ-компания</Link>
           </div>
           <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>
             ИИ-разработчик

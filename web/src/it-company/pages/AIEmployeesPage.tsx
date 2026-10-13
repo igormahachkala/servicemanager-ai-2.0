@@ -23,7 +23,7 @@ export function AIEmployeesPage() {
     return (
       <div className="panel" style={{ padding: 16 }}>
         <div style={{ fontWeight: 700, marginBottom: 6 }}>Раздел недоступен</div>
-        <div className="muted small">Раздел IT Company доступен только администратору платформы.</div>
+        <div className="muted small">Раздел «ИТ-компания» доступен только администратору платформы.</div>
       </div>
     )
   }
@@ -41,7 +41,7 @@ export function AIEmployeesPage() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span className="tag">демо-данные</span>
           <Link to="/it" style={{ textDecoration: 'none' }}>
-            <button type="button" className="ghost">← IT Company</button>
+            <button type="button" className="ghost">← ИТ-компания</button>
           </Link>
         </div>
       </div>

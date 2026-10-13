@@ -38,7 +38,7 @@ export function MissionControlPage() {
     return (
       <div className="panel" style={{ padding: 16 }}>
         <div style={{ fontWeight: 700, marginBottom: 6 }}>Раздел недоступен</div>
-        <div className="muted small">Раздел IT Company доступен только администратору платформы.</div>
+        <div className="muted small">Раздел «ИТ-компания» доступен только администратору платформы.</div>
       </div>
     )
   }
@@ -140,7 +140,7 @@ export function MissionControlPage() {
         </main>
 
         <aside className="panel" style={{ padding: 16, display: 'grid', gap: 14, minHeight: 620 }}>
-          <SectionLabel title="Панель свойств" subtitle="Сводка по состоянию Mission Control" />
+          <SectionLabel title="Панель свойств" subtitle="Сводка по состоянию центра управления" />
           <div style={{ display: 'grid', gap: 8 }}>
             {MISSION_CONTROL_INSPECTOR.map((item) => (
               <div

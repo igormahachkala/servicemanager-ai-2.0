@@ -58,7 +58,7 @@ export const DASHBOARD_KPIS: DashboardKpiItem[] = [
     id: 'acceptance-queue',
     label: 'Очередь приёмки',
     value: '3',
-    hint: '2 waiting client review',
+    hint: '2 ждут решения клиента',
     tone: 'amber',
   },
   {

@@ -17,7 +17,7 @@ export function ITCompanyPage() {
     return (
       <div className="panel" style={{ padding: 16 }}>
         <div style={{ fontWeight: 700, marginBottom: 6 }}>Раздел недоступен</div>
-        <div className="muted small">Раздел IT Company доступен только администратору платформы.</div>
+        <div className="muted small">Раздел «ИТ-компания» доступен только администратору платформы.</div>
       </div>
     )
   }
