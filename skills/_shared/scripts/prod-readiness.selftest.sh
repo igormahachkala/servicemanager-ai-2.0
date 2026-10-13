@@ -80,6 +80,31 @@ git clone -q --bare "$SRC2" "$BARE2"
 OUT=$(bash "$SCRIPT" feat/cand --remote "$BARE2" 2>&1); rc_is "beta ⊉ prod" 1 $?
 has "$OUT" "beta ⊇ prod           : VIOLATED" "beta⊉prod noted"
 
+# CANDIDATE NOT IN BETA (the critical fix): beta ⊇ prod OK, stage-ok matches tip,
+# stage-busy held by candidate, but beta does NOT contain the candidate → INCOMPLETE.
+SRC3="$TMP/src3"; BARE3="$TMP/remote3.git"
+git init -q "$SRC3"; ( cd "$SRC3"; git config user.email a@b.c; git config user.name t
+  echo base > f; git add f; git commit -qm c0
+  git branch -M prod
+  git branch beta                     # beta = prod (c0) → beta ⊇ prod OK, but will NOT contain c1
+  git checkout -qb feat/cand
+  echo more >> f; git add -A; git commit -qm c1   # candidate tip c1, NOT in beta
+  git checkout -q prod )
+git clone -q --bare "$SRC3" "$BARE3"
+C1b=$(git ls-remote "$BARE3" refs/heads/feat/cand | awk '{print $1}')
+BODY3=$(printf 'Stage acceptance passed\nbranch: feat/cand\nbranch_sha: %s\nstage_sha: %s' "$C1b" "$C1b")
+mk3(){ local wt; wt=$(mktemp -d "$TMP/wt.XXXXXX"); git clone -q "$BARE3" "$wt" >/dev/null 2>&1
+  ( cd "$wt" && git tag -f -a "$1" "$2" -m "$3" >/dev/null 2>&1 && git push -q -f origin "refs/tags/$1" >/dev/null 2>&1 ); rm -rf "$wt"; }
+mk3 stage-ok/feat/cand "$C1b" "$BODY3"
+mk3 stage-busy "$C1b" "$(printf 'branch: feat/cand\ndate: 2026-10-13T00:00:00Z')"
+OUT=$(bash "$SCRIPT" feat/cand --remote "$BARE3" 2>&1); RC=$?
+rc_is "candidate NOT in beta → INCOMPLETE" 1 $RC
+has "$OUT" "beta ⊇ prod           : OK" "  (beta ⊇ prod still OK)"
+has "$OUT" "stage-ok (exact)      : PRESENT and matches" "  (stage-ok still matches tip)"
+has "$OUT" "Candidate ∈ beta      : NO" "candidate-not-in-beta gate fires"
+has "$OUT" "READINESS              : INCOMPLETE" "INCOMPLETE despite stage-ok+stage-busy"
+has "$OUT" "OWNER GO               : REQUIRED" "OWNER-GO warning preserved"
+
 # GIT/NETWORK error
 bash "$SCRIPT" feat/cand --remote "$TMP/nope.git" >/dev/null 2>&1; rc_is "remote unreadable" 3 $?
 

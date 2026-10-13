@@ -94,6 +94,23 @@ else
   echo "  Candidate vs prod     : not yet in prod"
 fi
 
+# MANDATORY gate: the candidate must be contained in the CURRENT beta, i.e. the
+# accepted code is actually present on the Stage contour. Checked INDEPENDENTLY of
+# stage-ok — a stale/reset beta can drop a candidate even while its stage-ok tag
+# still exists. Without this, READINESS could read COMPLETE for code not on Stage.
+echo -n "  Candidate ∈ beta      : "
+if [ -z "$BETA_SHA" ] || ! git cat-file -e "$BETA_SHA" 2>/dev/null || ! git cat-file -e "$CAND_SHA" 2>/dev/null; then
+  echo "UNKNOWN (beta/candidate objects unavailable)"; note_missing
+elif git merge-base --is-ancestor "$CAND_SHA" "$BETA_SHA" 2>/dev/null; then
+  echo "YES (candidate is contained in current beta)"
+else
+  echo "NO — candidate is NOT contained in current beta"
+  echo "        The accepted code is not present on the Stage contour (beta may have been"
+  echo "        reset or moved). Re-land the candidate on beta and re-accept before Production,"
+  echo "        regardless of any existing stage-ok tag."
+  note_missing
+fi
+
 # stage-ok for the EXACT candidate
 echo -n "  stage-ok (exact)      : "
 if [ -z "$CAND_BRANCH" ]; then
