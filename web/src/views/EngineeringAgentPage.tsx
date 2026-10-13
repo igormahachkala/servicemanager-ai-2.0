@@ -78,7 +78,7 @@ export function EngineeringAgentPage() {
     <div>
       <div className="row">
         <div>
-          <h2 style={{ marginBottom: 4 }}>Engineering Agent</h2>
+          <h2 style={{ marginBottom: 4 }}>Инженерный агент</h2>
           <div className="muted small">
             Постановка задач цифровому разработчику. MVP: задачи только сохраняются — код не выполняется.
           </div>
@@ -111,7 +111,7 @@ export function EngineeringAgentPage() {
           </label>
           <div>
             <button type="button" onClick={() => createM.mutate()} disabled={createM.isPending}>
-              {createM.isPending ? 'Создаём…' : 'Create Task'}
+              {createM.isPending ? 'Создаём…' : 'Создать задачу'}
             </button>
           </div>
         </div>

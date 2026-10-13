@@ -6,18 +6,18 @@ export function TeamLoadCard() {
   const averageLoad = Math.round(totalLoad / DASHBOARD_TEAM_LOAD.length)
 
   const summaryItems = [
-    { label: 'Active team', value: String(DASHBOARD_TEAM_LOAD.length), tone: '#2563eb' },
-    { label: 'Average load', value: `${averageLoad}%`, tone: '#0f766e' },
-    { label: 'Top load', value: `${Math.max(...DASHBOARD_TEAM_LOAD.map((item) => item.load))}%`, tone: '#d97706' },
+    { label: 'В команде', value: String(DASHBOARD_TEAM_LOAD.length), tone: '#2563eb' },
+    { label: 'Средняя загрузка', value: `${averageLoad}%`, tone: '#0f766e' },
+    { label: 'Максимальная загрузка', value: `${Math.max(...DASHBOARD_TEAM_LOAD.map((item) => item.load))}%`, tone: '#d97706' },
   ]
 
   return (
     <DashboardSection
-      title="Team Load"
-      eyebrow="Capacity board"
+      title="Загрузка команды"
+      eyebrow="Доступные силы"
       action={
         <span className="tag" style={{ background: '#ecfeff', borderColor: '#a5f3fc', color: '#155e75' }}>
-          Staffing snapshot
+          Срез по людям
         </span>
       }
     >
@@ -32,10 +32,10 @@ export function TeamLoadCard() {
         >
           <div style={{ display: 'grid', gap: 4 }}>
             <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#64748b' }}>
-              Team summary
+              Сводка по команде
             </div>
             <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
-              Текущая загрузка команды стабильна, но основной фокус остаётся на runtime и delivery follow-up.
+              Текущая загрузка команды стабильна, основной фокус — на среде выполнения и доработках после сдачи.
             </div>
           </div>
 
@@ -68,7 +68,7 @@ export function TeamLoadCard() {
 
         <div style={{ display: 'grid', gap: 10 }}>
           <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#64748b' }}>
-            Team members
+            Состав команды
           </div>
         {DASHBOARD_TEAM_LOAD.map((item) => (
           <div

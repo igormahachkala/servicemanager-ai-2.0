@@ -57,7 +57,7 @@ export function PatchPreviewPanel({ patches, collapsed, onToggle }: Props) {
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: '#6b7280', fontFamily: 'monospace' }}>③</span>
-          <span>Patch Preview</span>
+          <span>Предпросмотр изменений</span>
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 12, color: '#16a34a', fontWeight: 600 }}>+{totalAdd}</span>

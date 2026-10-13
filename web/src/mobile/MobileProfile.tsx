@@ -139,7 +139,7 @@ export function MobileProfile() {
         <div className="mobileCard">
           <div className="mobileProfileSectionLabel">Личные данные</div>
           <div className="mobileProfileInfoRow">
-            <span className="mobileMeta">Email</span>
+            <span className="mobileMeta">Эл. почта</span>
             <span>{meQ.data?.email || '—'}</span>
           </div>
           <div className="mobileProfileInfoRow">

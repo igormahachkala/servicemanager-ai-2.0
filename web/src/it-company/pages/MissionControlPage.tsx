@@ -47,13 +47,13 @@ export function MissionControlPage() {
     <div style={{ display: 'grid', gap: 16 }}>
       <div className="row" style={{ alignItems: 'flex-start' }}>
         <div>
-          <h2 style={{ marginBottom: 4 }}>Mission Control</h2>
+          <h2 style={{ marginBottom: 4 }}>Центр управления</h2>
           <div className="muted small">Каркас будущего рабочего центра цифровой команды.</div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          <span className="tag">layout only</span>
+          <span className="tag">только каркас</span>
           <Link to="/it" style={{ textDecoration: 'none' }}>
-            <button type="button" className="ghost">← IT Company</button>
+            <button type="button" className="ghost">← ИТ-компания</button>
           </Link>
         </div>
       </div>
@@ -67,7 +67,7 @@ export function MissionControlPage() {
         }}
       >
         <aside className="panel" style={{ padding: 16, display: 'grid', gap: 14, minHeight: 620 }}>
-          <SectionLabel title="Sidebar" subtitle="Навигация Mission Control" />
+          <SectionLabel title="Боковая панель" subtitle="Навигация центра управления" />
           <div style={{ display: 'grid', gap: 8 }}>
             {MISSION_CONTROL_NAV.map((item) => (
               <div
@@ -90,16 +90,16 @@ export function MissionControlPage() {
 
         <main className="panel" style={{ padding: 16, display: 'grid', gap: 16, minHeight: 620 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-            <SectionLabel title="Topbar" subtitle="Зона контекста и быстрых действий" />
+            <SectionLabel title="Верхняя панель" subtitle="Зона контекста и быстрых действий" />
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <span className="tag">Workspace: Mission Control</span>
-              <span className="tag">Mode: Foundation</span>
-              <span className="tag">Status: Mock</span>
+              <span className="tag">Рабочее место: центр управления</span>
+              <span className="tag">Режим: основа</span>
+              <span className="tag">Статус: демо-данные</span>
             </div>
           </div>
 
           <div style={{ display: 'grid', gap: 12 }}>
-            <SectionLabel title="Main Workspace" subtitle="Центральная рабочая область" />
+            <SectionLabel title="Основная область" subtitle="Центральная рабочая область" />
             <div
               style={{
                 display: 'grid',
@@ -131,7 +131,7 @@ export function MissionControlPage() {
           </div>
 
           <div style={{ display: 'grid', gap: 12 }}>
-            <SectionLabel title="Main Workspace" subtitle="Рабочие зоны без финального дизайна" />
+            <SectionLabel title="Основная область" subtitle="Рабочие зоны без финального дизайна" />
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 12, minHeight: 280 }}>
               <div style={{ border: '1px dashed #cbd5e1', borderRadius: 16, background: 'linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)' }} />
               <div style={{ border: '1px dashed #cbd5e1', borderRadius: 16, background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)' }} />
@@ -140,7 +140,7 @@ export function MissionControlPage() {
         </main>
 
         <aside className="panel" style={{ padding: 16, display: 'grid', gap: 14, minHeight: 620 }}>
-          <SectionLabel title="Right Inspector Panel" subtitle="Сводка по состоянию Mission Control" />
+          <SectionLabel title="Панель свойств" subtitle="Сводка по состоянию Mission Control" />
           <div style={{ display: 'grid', gap: 8 }}>
             {MISSION_CONTROL_INSPECTOR.map((item) => (
               <div
@@ -176,7 +176,7 @@ export function MissionControlPage() {
       </div>
 
       <div className="panel" style={{ padding: 16, display: 'grid', gap: 14 }}>
-        <SectionLabel title="Bottom Activity Panel" subtitle="Живая лента активности сотрудников" />
+        <SectionLabel title="Панель активности" subtitle="Живая лента активности сотрудников" />
         <div style={{ display: 'grid', gap: 10 }}>
           {MISSION_CONTROL_ACTIVITY.map((item) => (
             <div

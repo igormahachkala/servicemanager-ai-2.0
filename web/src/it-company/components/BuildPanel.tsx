@@ -63,7 +63,7 @@ export function BuildPanel({ build, collapsed, onToggle }: Props) {
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: '#6b7280', fontFamily: 'monospace' }}>④</span>
-          <span>Build Status</span>
+          <span>Состояние сборки</span>
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: STATUS_COLOR[build.status], fontSize: 14 }}>{STATUS_ICON[build.status]}</span>

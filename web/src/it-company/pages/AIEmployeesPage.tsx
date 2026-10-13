@@ -32,9 +32,9 @@ export function AIEmployeesPage() {
     <div>
       <div className="row">
         <div>
-          <h2 style={{ marginBottom: 4 }}>AI Employees</h2>
+          <h2 style={{ marginBottom: 4 }}>Цифровые сотрудники</h2>
           <div className="muted small">
-            Реестр цифровых сотрудников IT Company: {countByStatus('Active')} активны,{' '}
+            Реестр цифровых сотрудников ИТ-компании: {countByStatus('Active')} активны,{' '}
             {countByStatus('Planned')} запланированы.
           </div>
         </div>

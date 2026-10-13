@@ -1983,10 +1983,10 @@ export function getCompanyLabel(me?: Partial<Me> | null): string {
     if (saved && saved.trim()) return saved.trim()
   }
 
-  if (!me) return 'Company'
+  if (!me) return 'Компания'
   if (me.companyName) return me.companyName
   if (me.email) return me.email
-  return 'Company'
+  return 'Компания'
 }
 
 export function setCompanyLabel(label: string) {

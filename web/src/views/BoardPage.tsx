@@ -59,8 +59,8 @@ function compactServiceContext(ticket: api.TicketCard) {
 }
 
 function providerScopeLabel(role?: api.ServiceContractRole) {
-  if (role === 'PRIMARY') return 'PRIMARY provider'
-  if (role === 'SECONDARY') return 'SECONDARY provider'
+  if (role === 'PRIMARY') return 'Основной подрядчик'
+  if (role === 'SECONDARY') return 'Субподрядчик'
   return ''
 }
 
@@ -707,7 +707,7 @@ export function BoardPage() {
             </div>
           ) : canShowLinkedClients ? (
             <div>
-              <div style={{ fontWeight: 700 }}>Provider mode</div>
+              <div style={{ fontWeight: 700 }}>Режим обслуживающей компании</div>
               <div className="muted small">
                 {providerHeaderLabel
                   ? `Сейчас открыт клиент: ${providerHeaderLabel}`
@@ -716,7 +716,7 @@ export function BoardPage() {
             </div>
           ) : isProviderTechnician ? (
             <div>
-              <div style={{ fontWeight: 700 }}>Provider operational mode</div>
+              <div style={{ fontWeight: 700 }}>Рабочий контур обслуживающей компании</div>
               <div className="muted small">Техник видит назначенные ему заявки и, если это разрешено настройками компании, доступные заявки для claim.</div>
             </div>
           ) : isTechnician ? (
@@ -1024,7 +1024,7 @@ export function BoardPage() {
       {canBulkOperate ? (
         <div className="panel uiCard" style={{ marginBottom: 12 }}>
         <div className="row" style={{ marginBottom: 0, alignItems: 'center' }}>
-          <div className="muted small">Bulk actions</div>
+          <div className="muted small">Массовые действия</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <label className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input

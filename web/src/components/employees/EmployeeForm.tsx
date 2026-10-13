@@ -91,7 +91,7 @@ export function EmployeeForm({
       </label>
 
       <label>
-        Email
+        Эл. почта
         <input
           value={value.email}
           onChange={(e) => onChange({ email: e.target.value })}

@@ -137,9 +137,9 @@ export const managementRailSections: RailSection[] = [
     items: [
       { id: 'companies', label: 'Компании', to: '/companies' },
       { id: 'permissions', label: 'Роли и права', to: '/platform/permissions' },
-      { id: 'itCompany', label: 'IT Company', to: '/it' },
+      { id: 'itCompany', label: 'ИТ-компания', to: '/it' },
       // Скрытый owner-only модуль — показывается только при canAccessEngineeringAgent.
-      { id: 'engineeringAgent', label: 'Engineering Agent', to: '/agents/engineering' },
+      { id: 'engineeringAgent', label: 'Инженерный агент', to: '/agents/engineering' },
     ],
   },
 ]
@@ -408,8 +408,8 @@ export function getAvailableWorkspaces(
     cards.push({
       id: 'it',
       to: '/it',
-      title: 'IT Company',
-      description: 'AI-сотрудники и разработка продуктов',
+      title: 'ИТ-компания',
+      description: 'Цифровые сотрудники и разработка продуктов',
     })
   }
 

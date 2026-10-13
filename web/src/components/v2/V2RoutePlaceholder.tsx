@@ -21,7 +21,7 @@ export function V2RoutePlaceholder(props: Props) {
   return (
     <div className="v2Placeholder">
       <div className="v2PlaceholderHero panel">
-        <div className="v2PlaceholderEyebrow">Management Console V2</div>
+        <div className="v2PlaceholderEyebrow">Консоль управления V2</div>
         <h1 className="v2PlaceholderTitle">{props.title}</h1>
         <p className="v2PlaceholderDescription">{props.description}</p>
 

@@ -27,7 +27,7 @@ export const EMPLOYEE_ACTIVITY: EmployeeActivityItem[] = [
     employeeId: 'devops',
     type: 'MCP_CONNECTED',
     timestamp: '2026-06-19T10:05:00+05:00',
-    title: 'MCP connected',
+    title: 'MCP подключён',
     description: 'Docker MCP подключён для проверки stage-контейнеров и логов.',
   },
   {
@@ -35,7 +35,7 @@ export const EMPLOYEE_ACTIVITY: EmployeeActivityItem[] = [
     employeeId: 'developer',
     type: 'PR_MERGED',
     timestamp: '2026-06-19T09:42:00+05:00',
-    title: 'PR merged',
+    title: 'PR влит',
     description: 'Слит hotfix для мобильного чата и acceptance flow в основную ветку.',
   },
   {
@@ -43,7 +43,7 @@ export const EMPLOYEE_ACTIVITY: EmployeeActivityItem[] = [
     employeeId: 'qa',
     type: 'BUILD_SUCCESS',
     timestamp: '2026-06-19T09:18:00+05:00',
-    title: 'Build passed',
+    title: 'Сборка прошла',
     description: 'Smoke-прогон мобильного сценария завершён без регрессий.',
   },
   {
@@ -51,7 +51,7 @@ export const EMPLOYEE_ACTIVITY: EmployeeActivityItem[] = [
     employeeId: 'architect',
     type: 'TASK_COMPLETED',
     timestamp: '2026-06-19T08:54:00+05:00',
-    title: 'Design review completed',
+    title: 'Ревью дизайна завершено',
     description: 'Подготовлен план расширения Mission Control под activity timeline.',
   },
   {
@@ -59,7 +59,7 @@ export const EMPLOYEE_ACTIVITY: EmployeeActivityItem[] = [
     employeeId: 'pm',
     type: 'TASK_CREATED',
     timestamp: '2026-06-19T08:31:00+05:00',
-    title: 'New task created',
+    title: 'Создана новая задача',
     description: 'Сформирована задача на аудит provider visibility для stage.',
   },
   {
@@ -67,7 +67,7 @@ export const EMPLOYEE_ACTIVITY: EmployeeActivityItem[] = [
     employeeId: 'support',
     type: 'TASK_STARTED',
     timestamp: '2026-06-19T08:12:00+05:00',
-    title: 'Investigation started',
+    title: 'Начато разбирательство',
     description: 'Собран контекст по инциденту с login_failed в stage-воркфлоу.',
   },
   {
@@ -75,7 +75,7 @@ export const EMPLOYEE_ACTIVITY: EmployeeActivityItem[] = [
     employeeId: 'devops',
     type: 'BUILD_FAILED',
     timestamp: '2026-06-18T18:24:00+05:00',
-    title: 'Build failed',
+    title: 'Сборка не удалась',
     description: 'Проверка Docker deploy упала на несогласованной конфигурации env.',
   },
   {
@@ -83,7 +83,7 @@ export const EMPLOYEE_ACTIVITY: EmployeeActivityItem[] = [
     employeeId: 'designer',
     type: 'PR_OPENED',
     timestamp: '2026-06-18T17:58:00+05:00',
-    title: 'Draft PR opened',
+    title: 'Открыт черновик PR',
     description: 'Открыт draft PR с обновлённым mobile top bar для review.',
   },
   {
@@ -91,7 +91,7 @@ export const EMPLOYEE_ACTIVITY: EmployeeActivityItem[] = [
     employeeId: 'developer',
     type: 'TASK_FAILED',
     timestamp: '2026-06-18T17:26:00+05:00',
-    title: 'Task failed',
+    title: 'Задача не выполнена',
     description: 'Проверка ownership flow выявила конфликт между provider и client scope.',
   },
   {
@@ -99,7 +99,7 @@ export const EMPLOYEE_ACTIVITY: EmployeeActivityItem[] = [
     employeeId: 'qa',
     type: 'TASK_STARTED',
     timestamp: '2026-06-18T16:47:00+05:00',
-    title: 'QA smoke started',
+    title: 'Запущены дымовые проверки',
     description: 'Начат smoke-check ticket lifecycle после acceptance fix.',
   },
 ]

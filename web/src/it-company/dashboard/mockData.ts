@@ -40,9 +40,9 @@ export interface EmployeeRow {
 
 /** Top metric cards: Employees / Active Tasks / Waiting Review / Failed Tasks / Open PRs. */
 export const DASHBOARD_STATS: DashboardStat[] = [
-  { id: 'employees', label: 'Сотрудники', value: 1, tone: 'violet', hint: 'AI Developer' },
+  { id: 'employees', label: 'Сотрудники', value: 1, tone: 'violet', hint: 'ИИ-разработчик' },
   { id: 'activeTasks', label: 'Активные задачи', value: 3, tone: 'amber' },
-  { id: 'waitingReview', label: 'Ждут ревью', value: 2, tone: 'blue', hint: 'Draft PR' },
+  { id: 'waitingReview', label: 'Ждут ревью', value: 2, tone: 'blue', hint: 'Черновик PR' },
   { id: 'failedTasks', label: 'Ошибки', value: 1, tone: 'red' },
   { id: 'openPrs', label: 'Открытые PR', value: 2, tone: 'green' },
 ]
@@ -66,7 +66,7 @@ export const RECENT_ACTIVITY: ActivityItem[] = [
 
 /** Top employees (digital workers). Future agents shown as "coming soon". */
 export const TOP_EMPLOYEES: EmployeeRow[] = [
-  { id: 'ai-developer', name: 'AI Developer', role: 'Цифровой разработчик', done: 12, active: 3 },
-  { id: 'qa-agent', name: 'QA Agent', role: 'Скоро', done: 0, active: 0, comingSoon: true },
-  { id: 'devops-agent', name: 'DevOps Agent', role: 'Скоро', done: 0, active: 0, comingSoon: true },
+  { id: 'ai-developer', name: 'ИИ-разработчик', role: 'Цифровой разработчик', done: 12, active: 3 },
+  { id: 'qa-agent', name: 'Агент контроля качества', role: 'Скоро', done: 0, active: 0, comingSoon: true },
+  { id: 'devops-agent', name: 'Агент DevOps', role: 'Скоро', done: 0, active: 0, comingSoon: true },
 ]

@@ -69,7 +69,7 @@ export function AIEmployeeDetailsPage() {
         <div style={{ fontWeight: 700, marginBottom: 6 }}>Сотрудник не найден</div>
         <div className="muted small" style={{ marginBottom: 10 }}>Профиль «{slug}» не существует.</div>
         <Link to="/it/employees" style={{ textDecoration: 'none' }}>
-          <button type="button" className="ghost">← AI Employees</button>
+          <button type="button" className="ghost">← Цифровые сотрудники</button>
         </Link>
       </div>
     )
@@ -89,28 +89,28 @@ export function AIEmployeeDetailsPage() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span className="tag" style={statusStyle(profile.status)}>{profile.status}</span>
           <Link to="/it/employees" style={{ textDecoration: 'none' }}>
-            <button type="button" className="ghost">← AI Employees</button>
+            <button type="button" className="ghost">← Цифровые сотрудники</button>
           </Link>
         </div>
       </div>
 
-      <Section title="Mission">
+      <Section title="Задача роли">
         <div className="small">{profile.mission}</div>
       </Section>
 
-      <Section title="Workspace">
+      <Section title="Рабочее место">
         <div className="small">{profile.workspace} · модель: {profile.model}</div>
       </Section>
 
-      <Section title="MCP Access">
+      <Section title="Доступы MCP">
         <Chips items={profile.mcpAccess} empty="Доступ не назначен." />
       </Section>
 
-      <Section title="Capabilities">
+      <Section title="Возможности">
         <Bullets items={profile.capabilities} empty="Пока нет — роль запланирована." />
       </Section>
 
-      <Section title="Planned Features">
+      <Section title="Запланированные возможности">
         <Bullets items={profile.plannedFeatures} empty="—" />
       </Section>
     </div>

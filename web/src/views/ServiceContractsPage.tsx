@@ -57,12 +57,12 @@ function serviceLocationSummary(contract: api.ServiceContractItem) {
 
 function providerUserRoleLabel(role: string) {
   const labels: Record<string, string> = {
-    OWNER: 'Provider Owner',
-    ADMIN: 'Provider Admin',
-    DISPATCHER: 'Dispatcher',
-    MASTER: 'Master',
-    TECHNICIAN: 'Technician',
-    VIEWER: 'Viewer',
+    OWNER: 'Владелец (обслуживающая компания)',
+    ADMIN: 'Администратор (обслуживающая компания)',
+    DISPATCHER: 'Диспетчер',
+    MASTER: 'Мастер',
+    TECHNICIAN: 'Техник',
+    VIEWER: 'Наблюдатель',
   }
   return labels[role] ?? role
 }

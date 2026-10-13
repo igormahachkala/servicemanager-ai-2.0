@@ -91,7 +91,7 @@ export function SettingsPage() {
 
           {meQ.data ? (
             <div className="kv">
-              <div className="k">Email</div>
+              <div className="k">Эл. почта</div>
               <div className="v">{meQ.data.email}</div>
 
               <div className="k">Роль</div>
@@ -99,10 +99,10 @@ export function SettingsPage() {
                 {getRoleDisplayLabel({ role: meQ.data.role, companyType: tenantCompanyQ.data?.type })}
               </div>
 
-              <div className="k">Company ID</div>
+              <div className="k">Идентификатор компании</div>
               <div className="v">{meQ.data.companyId}</div>
 
-              <div className="k">Backend</div>
+              <div className="k">Сервер</div>
               <div className="v">{api.getBaseUrl()}</div>
 
               <div className="k">Название компании</div>
