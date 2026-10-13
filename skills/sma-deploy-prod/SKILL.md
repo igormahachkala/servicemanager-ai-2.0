@@ -439,7 +439,7 @@ skills/_shared/scripts/lock-acquire.sh --owned production &lt;ветка&gt; \
 
 Два исхода, решает пользователь:
   повторить с шага 3, замки prod-busy и stage-busy остаются;
-  ревёрт из beta, skills/sma-deploy-stage/references/rollback.md,
+  откат указателя beta, skills/sma-deploy-stage/references/rollback.md,
   затем снять оба замка.
 
 Снимать prod-busy и оставлять код в beta нельзя.
@@ -755,7 +755,7 @@ skills/_shared/references/contour-lock-cases.md:
 пока fix/&lt;тема&gt; не развёрнута в Production. Снимает этот шаг 12,
 когда fix уже в origin/prod и развёрнута. stage-busy снимается своим
 путём, если пользователь велел убрать фичу из beta. prod-busy от
-ревёрта из beta не снимается. Порядок в rollback.md.
+отката указателя beta не снимается. Порядок в rollback.md.
 </lock_on_rollback>
 <tag_release>
 Тег stage-ok снимается: своё дело он сделал, задача прошла ворота допуска
@@ -869,8 +869,8 @@ keep/docs/skills-flow-002, введён 1 сентября 2026.
 <f>Снимать prod-busy, пока фича осталась в beta, а в prod её нет.</f>
 <f>Откатывать prod и оставлять то же содержимое в beta.</f>
 <f>Ревёрт слияния в prod не начинать без явной команды пользователя на
-реверт в Production. То, что откат Stage делается ревёртом, эту команду
-не заменяет.</f>
+реверт в Production. То, что откат Stage делается сдвигом указателя
+beta, эту команду не заменяет.</f>
 </forbidden>
 
 <warn_prod_revert when="зашла речь о реверте в prod">
@@ -883,7 +883,7 @@ keep/docs/skills-flow-002, введён 1 сентября 2026.
 <ask_user>
 <a>Развёртывание в Production — всегда.</a>
 <a>Слияние PR в prod — всегда, отдельным вопросом до слияния, шаг 7.</a>
-<a>Слияние в prod не состоялось, фича в beta: повторить слияние либо ревёрт из beta.</a>
+<a>Слияние в prod не состоялось, фича в beta: повторить слияние либо откат указателя beta.</a>
 <a>Начало работы по этому скилу без явной команды пользователя выкатить в Production. Тег stage-ok — допуск, а не разрешение катить.</a>
 <a>Миграция с DELETE, DROP или ALTER.</a>
 <a>Удаление ветки задачи.</a>
@@ -900,6 +900,6 @@ keep/docs/skills-flow-002, введён 1 сентября 2026.
 <r file="skills/_shared/secrets.md">переменные окружения и секреты, обязательно</r>
 <r skill="sma-code-delivery" file="skills/sma-code-delivery/SKILL.md">ветвление и работа над задачей</r>
 <r skill="sma-deploy-stage" file="skills/sma-deploy-stage/SKILL.md">проверки, PR в beta, приёмка на Stage</r>
-<r file="skills/sma-deploy-stage/references/rollback.md">ревёрт слияния из beta</r>
+<r file="skills/sma-deploy-stage/references/rollback.md">откат указателя beta</r>
 <r file="docs/DATABASE_MIGRATION_POLICY.md">правила изменения схемы</r>
 </related>
