@@ -10,6 +10,9 @@ import {
   resolveActorLocationScope,
   type LocationScope,
 } from '../tickets/ticket-access.utils'
+import { TwogisGeocoderService } from '../twogis/twogis-geocoder.service'
+import { TwogisSuggestService } from '../twogis/twogis-suggest.service'
+import { coordsFromGeocodeHit, decideGeocodeIntent } from './location-geocode'
 
 type ListInput = {
   q?: string
@@ -22,6 +25,8 @@ export class LocationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly serviceContractsService: ServiceContractsService,
+    private readonly twogisGeocoder?: TwogisGeocoderService,
+    private readonly twogisSuggest?: TwogisSuggestService,
   ) {}
 
   async list(actorCompanyId: string, actorRole: UserRole, actorUserId: string, input: ListInput & { includeDeleted?: boolean }, requestedCompanyId?: string) {
@@ -157,6 +162,14 @@ export class LocationsService {
       throw new BadRequestException('Location with this platformCode already exists')
     }
 
+    const coords = await this.resolveCoords({
+      mode: 'create',
+      city,
+      address,
+      latitude: dto.latitude,
+      longitude: dto.longitude,
+    })
+
     return this.prisma.location.create({
       data: {
         clientCompanyId: companyId,
@@ -166,8 +179,8 @@ export class LocationsService {
         city,
         region,
         address,
-        latitude: dto.latitude ?? null,
-        longitude: dto.longitude ?? null,
+        latitude: coords.latitude ?? null,
+        longitude: coords.longitude ?? null,
         isActive: dto.isActive ?? true,
       },
       select: this.locationSelect(),
@@ -197,6 +210,8 @@ export class LocationsService {
       select: {
         id: true,
         platformCode: true,
+        city: true,
+        address: true,
       },
     })
 
@@ -230,17 +245,29 @@ export class LocationsService {
       throw new BadRequestException('name cannot be empty')
     }
 
+    const nextCity = dto.city !== undefined ? dto.city?.trim() || null : current.city
+    const nextAddress = dto.address !== undefined ? dto.address?.trim() || null : current.address
+    const coords = await this.resolveCoords({
+      mode: 'update',
+      city: nextCity,
+      address: nextAddress,
+      latitude: dto.latitude,
+      longitude: dto.longitude,
+      currentCity: current.city,
+      currentAddress: current.address,
+    })
+
     return this.prisma.location.update({
       where: { id },
       data: {
         ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
         ...(nextPlatformCode !== undefined ? { platformCode: nextPlatformCode } : {}),
         ...(dto.externalCode !== undefined ? { externalCode: dto.externalCode?.trim() || null } : {}),
-        ...(dto.city !== undefined ? { city: dto.city?.trim() || null } : {}),
+        ...(dto.city !== undefined ? { city: nextCity } : {}),
         ...(dto.region !== undefined ? { region: dto.region?.trim() || null } : {}),
-        ...(dto.address !== undefined ? { address: dto.address?.trim() || null } : {}),
-        ...(dto.latitude !== undefined ? { latitude: dto.latitude } : {}),
-        ...(dto.longitude !== undefined ? { longitude: dto.longitude } : {}),
+        ...(dto.address !== undefined ? { address: nextAddress } : {}),
+        ...(coords.latitude !== undefined ? { latitude: coords.latitude } : {}),
+        ...(coords.longitude !== undefined ? { longitude: coords.longitude } : {}),
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
       },
       select: this.locationSelect(),
@@ -279,6 +306,61 @@ export class LocationsService {
       data: { isActive: true, deletedAt: null },
       select: this.locationSelect(),
     })
+  }
+
+  async suggestAddress(q: string, city?: string) {
+    const query = (q || '').trim()
+    if (query.length < 2) return { items: [] as Array<{ text: string; fullName: string }> }
+    try {
+      const items =
+        (await this.twogisSuggest?.suggestAddress({
+          q: query,
+          city: (city || '').trim() || undefined,
+        })) ?? []
+      return { items }
+    } catch {
+      return { items: [] as Array<{ text: string; fullName: string }> }
+    }
+  }
+
+  private async resolveCoords(input: {
+    mode: 'create' | 'update'
+    city: string | null
+    address: string | null
+    latitude?: number | null
+    longitude?: number | null
+    currentCity?: string | null
+    currentAddress?: string | null
+  }): Promise<{ latitude?: number | null; longitude?: number | null }> {
+    const intent = decideGeocodeIntent(input)
+    if (intent.kind === 'skip') {
+      if (input.mode === 'create') {
+        return {
+          latitude: input.latitude ?? null,
+          longitude: input.longitude ?? null,
+        }
+      }
+      return {
+        ...(input.latitude !== undefined ? { latitude: input.latitude } : {}),
+        ...(input.longitude !== undefined ? { longitude: input.longitude } : {}),
+      }
+    }
+
+    try {
+      const hit = await this.twogisGeocoder?.geocodeAddress({
+        city: intent.city,
+        address: intent.address,
+      })
+      const accepted = coordsFromGeocodeHit(hit ?? null)
+      if (accepted) return accepted
+    } catch {
+      // Save must succeed if 2GIS fails or returns a weak precision.
+    }
+
+    if (input.mode === 'create') {
+      return { latitude: null, longitude: null }
+    }
+    return {}
   }
 
   private locationSelect() {
