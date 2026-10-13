@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
 import { PublicQrModalLazy, downloadQrPosterPng } from '../components/public/PublicQrLazy'
+import { COMPANY_TYPE_LABELS_RU } from '../lib/enumLabelsRu'
 
 type CompanyFormValue = {
   name: string
@@ -238,7 +239,7 @@ export function CompaniesPage() {
 
     if (!adminForm.firstName.trim()) return setErr('Имя обязательно')
     if (!adminForm.lastName.trim()) return setErr('Фамилия обязательна')
-    if (!adminForm.email.trim()) return setErr('Email обязателен')
+    if (!adminForm.email.trim()) return setErr('Эл. почта обязательна')
     if (adminForm.password.trim().length < 8) return setErr('Пароль должен содержать минимум 8 символов')
 
     createAdminM.mutate()
@@ -322,8 +323,8 @@ export function CompaniesPage() {
                 value={companyForm.type}
                 onChange={(e) => setCompanyForm((current) => ({ ...current, type: e.target.value as api.CompanyType }))}
               >
-                <option value="CLIENT">CLIENT</option>
-                <option value="PROVIDER">PROVIDER</option>
+                <option value="CLIENT">{COMPANY_TYPE_LABELS_RU.CLIENT}</option>
+                <option value="PROVIDER">{COMPANY_TYPE_LABELS_RU.PROVIDER}</option>
               </select>
             </label>
 

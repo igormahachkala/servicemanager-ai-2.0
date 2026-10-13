@@ -28,6 +28,7 @@ import {
   checkpointStatusOptions,
   type CheckpointEditorDraft,
 } from './mobileInspectionRunEditing'
+import { INSPECTION_ITEM_COUNTER_LABELS_RU } from '../lib/enumLabelsRu'
 
 function fmtDateTime(value?: string | null): string {
   if (!value) return '—'
@@ -646,19 +647,19 @@ export function MobileInspectionRunPage() {
             <div className="mobilePatrolSummary">
               <div className="mobilePatrolSummaryCell mobilePatrolSummaryCell--ok">
                 <div className="mobilePatrolSummaryValue">{summary.ok}</div>
-                <div className="mobilePatrolSummaryLabel">OK</div>
+                <div className="mobilePatrolSummaryLabel">{INSPECTION_ITEM_COUNTER_LABELS_RU.OK}</div>
               </div>
               <div className="mobilePatrolSummaryCell mobilePatrolSummaryCell--issue">
                 <div className="mobilePatrolSummaryValue">{summary.issue}</div>
-                <div className="mobilePatrolSummaryLabel">Нарушений</div>
+                <div className="mobilePatrolSummaryLabel">{INSPECTION_ITEM_COUNTER_LABELS_RU.ISSUE}</div>
               </div>
               <div className="mobilePatrolSummaryCell mobilePatrolSummaryCell--critical">
                 <div className="mobilePatrolSummaryValue">{summary.critical}</div>
-                <div className="mobilePatrolSummaryLabel">Критично</div>
+                <div className="mobilePatrolSummaryLabel">{INSPECTION_ITEM_COUNTER_LABELS_RU.CRITICAL}</div>
               </div>
               <div className="mobilePatrolSummaryCell mobilePatrolSummaryCell--pending">
                 <div className="mobilePatrolSummaryValue">{summary.pending}</div>
-                <div className="mobilePatrolSummaryLabel">Ожидает</div>
+                <div className="mobilePatrolSummaryLabel">{INSPECTION_ITEM_COUNTER_LABELS_RU.PENDING}</div>
               </div>
             </div>
 

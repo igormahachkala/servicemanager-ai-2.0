@@ -353,7 +353,7 @@ function MaterialForm(props: {
       {error ? <div className="mobileNotice mobileNoticeError">{error}</div> : null}
       <label className="mobileFormField">Название<input value={draft.name} onChange={(e) => setDraft((v) => ({ ...v, name: e.target.value }))} /></label>
       <label className="mobileFormField">Единица измерения<input value={draft.unit} onChange={(e) => setDraft((v) => ({ ...v, unit: e.target.value }))} /></label>
-      <label className="mobileFormField">SKU<input value={draft.sku} onChange={(e) => setDraft((v) => ({ ...v, sku: e.target.value }))} /></label>
+      <label className="mobileFormField">Артикул (SKU)<input value={draft.sku} onChange={(e) => setDraft((v) => ({ ...v, sku: e.target.value }))} /></label>
       <label className="mobileFormField">Категория<input value={draft.category} onChange={(e) => setDraft((v) => ({ ...v, category: e.target.value }))} /></label>
       <div style={{ display: 'flex', gap: 8 }}>
         <button type="submit" className="mobileBtn" disabled={props.pending}>{props.pending ? 'Сохраняем…' : props.submitLabel || 'Создать материал'}</button>

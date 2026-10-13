@@ -670,7 +670,7 @@ export function MobileHome() {
       <div className="mobileSection">
         <div>
           <h1 className="mobileTitle">Главная</h1>
-          <div className="mobileSubtitle">Операционный экран без desktop-шумов</div>
+          <div className="mobileSubtitle">Операционный экран без лишнего из версии для компьютера</div>
         </div>
         <HomeShiftStatus role={meQ.data?.role} />
         <div className="mobileNotice" role="status">

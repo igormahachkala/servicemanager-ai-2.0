@@ -124,7 +124,7 @@ export function SettingsPage() {
         </div>
 
         <Link to="/company">
-          <button>Открыть Company Settings</button>
+          <button>Открыть настройки компании</button>
         </Link>
       </div>
 

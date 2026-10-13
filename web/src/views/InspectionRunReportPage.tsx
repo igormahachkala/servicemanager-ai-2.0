@@ -143,7 +143,7 @@ export function InspectionRunReportPage() {
       <div className="row no-print">
         <div>
           <h2 style={{ marginBottom: 4 }}>Акт выполненных работ</h2>
-          <div className="muted small">Печатная версия клиентского документа по completed inspection run.</div>
+          <div className="muted small">Печатная версия клиентского документа по завершённому обходу.</div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Link to={`/inspection/runs/${id}`}><button className="ghost">Назад к обходу</button></Link>

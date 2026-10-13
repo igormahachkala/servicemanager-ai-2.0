@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 
 import * as api from '../../lib/api'
+import { COMPANY_TYPE_LABELS_RU } from '../../lib/enumLabelsRu'
 
 type WizardStep = 1 | 2 | 3 | 4
 
@@ -272,8 +273,9 @@ function statusLabel(user: api.AccessConstructorUser): string {
 }
 
 function companyTypeLabel(type?: string | null): string {
-  if (type === 'CLIENT') return 'Клиентская компания'
-  if (type === 'PROVIDER') return 'Сервисная компания'
+  /* Подписи берутся из общей карты: двух названий у одного типа не бывает. */
+  if (type === 'CLIENT') return COMPANY_TYPE_LABELS_RU.CLIENT
+  if (type === 'PROVIDER') return COMPANY_TYPE_LABELS_RU.PROVIDER
   return 'Компания'
 }
 
@@ -726,7 +728,7 @@ export function AccessConstructorPage() {
       <div className="panel uiCard managementContextPanel">
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) repeat(3, minmax(150px, 190px))', gap: 10 }}>
           <input
-            placeholder="Поиск по имени, email, телефону или роли"
+            placeholder="Поиск по имени, эл. почте, телефону или роли"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />

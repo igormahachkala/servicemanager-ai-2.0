@@ -50,7 +50,7 @@ export const DASHBOARD_STATS: DashboardStat[] = [
 /** "Today" snapshot. */
 export const TODAY_ITEMS: TodayItem[] = [
   { id: 'created', label: 'Создано задач', value: '4' },
-  { id: 'prOpened', label: 'Открыто draft PR', value: '1' },
+  { id: 'prOpened', label: 'Открыто черновиков PR', value: '1' },
   { id: 'checks', label: 'Проверок пройдено', value: '6' },
   { id: 'done', label: 'Завершено', value: '2' },
 ]

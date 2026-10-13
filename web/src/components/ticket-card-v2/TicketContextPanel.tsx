@@ -63,7 +63,7 @@ export function TicketContextPanel({ ticket }: TicketContextPanelProps) {
                 : '—'}
             </div>
             <div>
-              <b>Оборудование / Asset:</b>{' '}
+              <b>Оборудование:</b>{' '}
               {ticket.equipment
                 ? [ticket.equipment.name, ticket.equipment.type, ticket.equipment.status].filter(Boolean).join(' · ')
                 : '—'}

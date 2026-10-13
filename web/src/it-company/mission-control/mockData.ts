@@ -56,7 +56,7 @@ export const MISSION_CONTROL_ACTIVITY: MissionControlActivityItem[] = [
     time: '10:42',
     employee: 'developer',
     title: 'TASK_COMPLETED',
-    description: 'Завершил связку жизненного цикла заявки в сервисном слое и подготовил следующий diff.',
+    description: 'Завершил связку жизненного цикла заявки в сервисном слое и подготовил следующий набор правок.',
   },
   {
     id: 'mc-a2',

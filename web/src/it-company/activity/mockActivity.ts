@@ -36,7 +36,7 @@ export const EMPLOYEE_ACTIVITY: EmployeeActivityItem[] = [
     type: 'PR_MERGED',
     timestamp: '2026-06-19T09:42:00+05:00',
     title: 'PR влит',
-    description: 'Слит hotfix для мобильного чата и acceptance flow в основную ветку.',
+    description: 'Срочное исправление мобильного чата и процесса приёмки влито в основную ветку.',
   },
   {
     id: 'act-008',
@@ -44,7 +44,7 @@ export const EMPLOYEE_ACTIVITY: EmployeeActivityItem[] = [
     type: 'BUILD_SUCCESS',
     timestamp: '2026-06-19T09:18:00+05:00',
     title: 'Сборка прошла',
-    description: 'Smoke-прогон мобильного сценария завершён без регрессий.',
+    description: 'Дымовой прогон мобильного сценария завершён без регрессий.',
   },
   {
     id: 'act-007',
@@ -52,7 +52,7 @@ export const EMPLOYEE_ACTIVITY: EmployeeActivityItem[] = [
     type: 'TASK_COMPLETED',
     timestamp: '2026-06-19T08:54:00+05:00',
     title: 'Ревью дизайна завершено',
-    description: 'Подготовлен план расширения Mission Control под activity timeline.',
+    description: 'Подготовлен план расширения центра управления под хронику активности.',
   },
   {
     id: 'act-006',
@@ -60,7 +60,7 @@ export const EMPLOYEE_ACTIVITY: EmployeeActivityItem[] = [
     type: 'TASK_CREATED',
     timestamp: '2026-06-19T08:31:00+05:00',
     title: 'Создана новая задача',
-    description: 'Сформирована задача на аудит provider visibility для stage.',
+    description: 'Сформирована задача на аудит доступности данных сервисной компании для Stage.',
   },
   {
     id: 'act-005',
@@ -76,7 +76,7 @@ export const EMPLOYEE_ACTIVITY: EmployeeActivityItem[] = [
     type: 'BUILD_FAILED',
     timestamp: '2026-06-18T18:24:00+05:00',
     title: 'Сборка не удалась',
-    description: 'Проверка Docker deploy упала на несогласованной конфигурации env.',
+    description: 'Проверка развёртывания Docker упала на несогласованной конфигурации окружения.',
   },
   {
     id: 'act-003',
@@ -84,7 +84,7 @@ export const EMPLOYEE_ACTIVITY: EmployeeActivityItem[] = [
     type: 'PR_OPENED',
     timestamp: '2026-06-18T17:58:00+05:00',
     title: 'Открыт черновик PR',
-    description: 'Открыт draft PR с обновлённым mobile top bar для review.',
+    description: 'Открыт черновик PR с обновлённой верхней панелью мобильной версии на ревью.',
   },
   {
     id: 'act-002',
@@ -92,7 +92,7 @@ export const EMPLOYEE_ACTIVITY: EmployeeActivityItem[] = [
     type: 'TASK_FAILED',
     timestamp: '2026-06-18T17:26:00+05:00',
     title: 'Задача не выполнена',
-    description: 'Проверка ownership flow выявила конфликт между provider и client scope.',
+    description: 'Проверка передачи ответственности выявила конфликт между областями доступа сервисной компании и клиента.',
   },
   {
     id: 'act-001',
@@ -100,7 +100,7 @@ export const EMPLOYEE_ACTIVITY: EmployeeActivityItem[] = [
     type: 'TASK_STARTED',
     timestamp: '2026-06-18T16:47:00+05:00',
     title: 'Запущены дымовые проверки',
-    description: 'Начат smoke-check ticket lifecycle после acceptance fix.',
+    description: 'Начата дымовая проверка жизненного цикла заявки после исправления приёмки.',
   },
 ]
 

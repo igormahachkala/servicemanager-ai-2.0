@@ -262,7 +262,7 @@ export function MobileProfile() {
         <div className="mobileCard" style={{ marginTop: 8 }}>
           <BrowserNotificationsCard
             title="Push-уведомления браузера"
-            description="Системные уведомления для realtime-событий, пока приложение открыто."
+            description="Системные уведомления о событиях в реальном времени, пока приложение открыто."
           />
         </div>
 
@@ -275,7 +275,7 @@ export function MobileProfile() {
           </div>
           <div className="mobileProfileInfoRow">
             <span className="mobileMeta">Версия</span>
-            <span>Mobile Workspace V1</span>
+            <span>Мобильная версия</span>
           </div>
         </div>
       </div>

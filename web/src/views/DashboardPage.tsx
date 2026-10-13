@@ -51,7 +51,7 @@ export function DashboardPage() {
                 textTransform: 'uppercase',
               }}
             >
-              Консоль управления V2
+              Консоль управления
             </div>
             <h1 style={{ margin: '12px 0 0', fontSize: 'clamp(2rem, 3.5vw, 3rem)', lineHeight: 1.02, letterSpacing: '-0.04em' }}>
               Операционный центр

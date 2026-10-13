@@ -83,7 +83,7 @@ export function EngineeringAgentPage() {
             Постановка задач цифровому разработчику. MVP: задачи только сохраняются — код не выполняется.
           </div>
         </div>
-        <span className="tag">v0.1 · owner-only</span>
+        <span className="tag">только для владельца</span>
       </div>
 
       {error ? <div className="alert">{error}</div> : null}
