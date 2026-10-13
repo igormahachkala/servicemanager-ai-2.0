@@ -79,7 +79,26 @@ ctype_of() { curl -s -o /dev/null -w '%{content_type}' --max-time "$TIMEOUT" "$1
 # /version body is small, non-secret metadata; fetch just the two fields.
 version_body() { curl -s --max-time "$TIMEOUT" "$1" 2>/dev/null; }
 
-redact() { sed -E 's/((token|password|secret|cookie|authorization|bearer)["'"'"':= ]+)[A-Za-z0-9._\/+-]+/\1***/gI'; }
+# Redact secret material from any text echoed into the report. Critically, the token
+# AFTER `Bearer` must be masked (not just the word `Bearer`), case-insensitively, and
+# the whole value after authorization:/cookie: is dropped. perl (present on macOS and
+# the contour hosts) does the case-insensitive work; a sed fallback covers perl-less
+# environments with explicit case classes for the critical Bearer/Authorization forms.
+redact() {
+  if command -v perl >/dev/null 2>&1; then
+    perl -pe '
+      s/(bearer\s+)\S+/${1}***/gi;
+      s/((?:proxy-)?authorization\s*[:=]\s*).*$/${1}***/gi;
+      s/((?:set-)?cookie\s*[:=]\s*).*$/${1}***/gi;
+      s/((?:token|secret|password|passwd|pwd|api[-_]?key|access[-_]?token|refresh[-_]?token|x-api-key)\s*[:=]\s*)[^\s,;"'"'"']+/${1}***/gi;
+    '
+  else
+    sed -E 's/([Bb][Ee][Aa][Rr][Ee][Rr][[:space:]]+)[^[:space:]]+/\1***/g
+            s/([Aa][Uu][Tt][Hh][Oo][Rr][Ii][Zz][Aa][Tt][Ii][Oo][Nn][[:space:]]*[:=][[:space:]]*).*$/\1***/g
+            s/([Cc][Oo][Oo][Kk][Ii][Ee][[:space:]]*[:=][[:space:]]*).*$/\1***/g
+            s/((token|password|secret|api[-_]?key)[[:space:]]*[:=][[:space:]]*)[^[:space:],;]+/\1***/g'
+  fi
+}
 
 FAILS=0
 mark() { # name code expected-note

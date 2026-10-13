@@ -52,7 +52,7 @@ echo "== A6 stage-smoke self-test =="
 printf 'LOG line ok\nNest application successfully started\nmore ok\n' > "$TMP/clean.log"
 printf 'INFO boot\nERROR something broke\nUnhandledPromiseRejection: x\n' > "$TMP/errors.log"
 printf 'Starting Nest\nNest application successfully started\nSIGTERM received\nStarting Nest\nNest application successfully started\n' > "$TMP/restart.log"
-printf 'INFO login\nauthorization: Bearer SUPERSECRETTOKEN\nERROR password=SUPERSECRETPW failed\n' > "$TMP/secret.log"
+printf 'ERROR authorization: Bearer TOKENAAA\nException: Unhandled token=TOKENBBB\nFatal password=PWCCC and Bearer TOKENDDD\n' > "$TMP/secret.log"
 
 # T1 all healthy
 start_mock SM_SHA=goodsha SM_ENV=beta
@@ -97,10 +97,13 @@ printf '%s' "$OUT" | grep -q "Restart indicators    : [1-9]" && ok "T11 restarts
 # T12 live Stage guard (default Stage hosts, no flag)
 ( unset SMA_STAGE_SMOKE_LIVE; bash "$SCRIPT" --expect-env beta >/dev/null 2>&1 ); rc_is "T12 live guard refuses Stage" 4 $?
 
-# T13 secret redaction
+# T13 secret redaction — secrets on ERROR/Exception/Fatal/Unhandled lines must be fully masked
 start_mock SM_SHA=goodsha SM_ENV=beta
-OUT=$(run --expect-env beta --backend-log "$TMP/secret.log")
-if printf '%s' "$OUT" | grep -qE "SUPERSECRETTOKEN|SUPERSECRETPW"; then no "T13 secret redaction (leaked)"; else ok "T13 secret redaction (token/password masked)"; fi
+OUT=$(run --expect-env beta --backend-log "$TMP/secret.log" 2>&1)   # capture BOTH stdout and stderr
+LEAK=$(printf '%s' "$OUT" | grep -oE "TOKENAAA|TOKENBBB|PWCCC|TOKENDDD" | sort -u | tr '\n' ' ')
+if [ -n "$LEAK" ]; then no "T13 secret redaction (LEAKED: $LEAK)"; else ok "T13 secret redaction (all token/password values masked on error lines)"; fi
+# the masked lines must still be shown (redacted), proving the lines were processed
+printf '%s' "$OUT" | grep -q "Bearer \*\*\*" && ok "T13b Bearer value masked to ***" || no "T13b Bearer masked"
 
 # T14 no git/db/lock mutations (repo refs+tags unchanged across a run)
 start_mock SM_SHA=goodsha SM_ENV=beta
