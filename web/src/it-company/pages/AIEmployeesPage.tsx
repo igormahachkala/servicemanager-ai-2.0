@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../../lib/api'
 import { canViewITCompany } from '../access'
-import { AI_EMPLOYEES, countByStatus, type AIEmployeeStatus } from '../employees'
+import { AI_EMPLOYEES, AI_EMPLOYEE_STATUS_LABELS_RU, countByStatus, type AIEmployeeStatus } from '../employees'
 
 function statusStyle(status: AIEmployeeStatus): React.CSSProperties {
   return status === 'Active'
@@ -62,7 +62,7 @@ export function AIEmployeesPage() {
                   {e.role}
                   {e.codename ? <span className="muted" style={{ fontWeight: 400 }}> · {e.codename}</span> : null}
                 </div>
-                <span className="tag" style={statusStyle(e.status)}>{e.status}</span>
+                <span className="tag" style={statusStyle(e.status)}>{AI_EMPLOYEE_STATUS_LABELS_RU[e.status]}</span>
               </div>
               <div className="muted small">{e.mission}</div>
             </div>

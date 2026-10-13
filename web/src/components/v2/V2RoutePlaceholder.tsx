@@ -47,7 +47,7 @@ export function V2RoutePlaceholder(props: Props) {
           ) : null}
           {showDashboardLink ? (
             <Link to="/dashboard" className="v2PlaceholderLink">
-              Вернуться на Dashboard
+              Вернуться в операционный центр
             </Link>
           ) : null}
         </div>
@@ -57,7 +57,7 @@ export function V2RoutePlaceholder(props: Props) {
         <div className="v2PlaceholderNoteTitle">Navigation V2</div>
         <div className="muted small">
           Маршрут зарегистрирован — 404 не возникнет. Полная реализация экрана будет добавлена в рамках
-          Operations Center без изменения backend-контрактов на этом этапе.
+          операционный центр без изменения серверных контрактов на этом этапе.
         </div>
       </div>
     </div>

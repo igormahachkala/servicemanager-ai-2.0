@@ -8,6 +8,19 @@
 
 export type AIEmployeeStatus = 'Active' | 'Planned'
 
+/**
+ * Подписи статуса для интерфейса.
+ *
+ * Сами значения статуса — идентификаторы: по ним считает countByStatus и
+ * выбирает цвет statusStyle, поэтому переводить их нельзя. Прежде страницы
+ * печатали идентификатор прямо на экран, из-за чего в русском интерфейсе
+ * висели «Active» и «Planned».
+ */
+export const AI_EMPLOYEE_STATUS_LABELS_RU: Record<AIEmployeeStatus, string> = {
+  Active: 'Активен',
+  Planned: 'Запланирован',
+}
+
 export interface AIEmployeeProfile {
   id: string
   slug: string
@@ -28,7 +41,7 @@ export const AI_EMPLOYEE_PROFILES: AIEmployeeProfile[] = [
     slug: 'developer',
     name: 'ИИ-разработчик',
     codename: 'MAX',
-    status: 'Активен',
+    status: 'Active',
     mission: 'Берёт задачи AgentTask и делает code-aware аудит/план изменений по реальному коду.',
     model: 'Qwen 27B (local Ollama)',
     workspace: 'ИИ-разработчик',
@@ -48,7 +61,7 @@ export const AI_EMPLOYEE_PROFILES: AIEmployeeProfile[] = [
     id: 'ai-qa',
     slug: 'qa',
     name: 'ИИ-тестировщик',
-    status: 'Запланирован',
+    status: 'Planned',
     mission: 'Проверяет изменения до ревью человеком: тесты и smoke, предотвращает регрессии.',
     model: 'TBD',
     workspace: 'ИИ-тестировщик',
@@ -60,7 +73,7 @@ export const AI_EMPLOYEE_PROFILES: AIEmployeeProfile[] = [
     id: 'ai-architect',
     slug: 'architect',
     name: 'ИИ-архитектор',
-    status: 'Запланирован',
+    status: 'Planned',
     mission: 'Декомпозирует задачи и готовит безопасные планы изменений, следит за архитектурной согласованностью.',
     model: 'TBD',
     workspace: 'ИИ-архитектор',
@@ -72,7 +85,7 @@ export const AI_EMPLOYEE_PROFILES: AIEmployeeProfile[] = [
     id: 'ai-devops',
     slug: 'devops',
     name: 'ИИ-DevOps',
-    status: 'Запланирован',
+    status: 'Planned',
     mission: 'Готовит и документирует деплои; безопасно оперирует Stage.',
     model: 'TBD',
     workspace: 'ИИ-DevOps',
@@ -84,7 +97,7 @@ export const AI_EMPLOYEE_PROFILES: AIEmployeeProfile[] = [
     id: 'ai-pm',
     slug: 'pm',
     name: 'ИИ-продакт-менеджер',
-    status: 'Запланирован',
+    status: 'Planned',
     mission: 'Превращает запросы в задачи AgentTask, отслеживает статусы и готовит отчёты.',
     model: 'TBD',
     workspace: 'ИИ-продакт-менеджер',
@@ -96,7 +109,7 @@ export const AI_EMPLOYEE_PROFILES: AIEmployeeProfile[] = [
     id: 'ai-designer',
     slug: 'designer',
     name: 'ИИ-дизайнер',
-    status: 'Запланирован',
+    status: 'Planned',
     mission: 'Синхронизирует дизайн и код, поддерживает дизайн-систему.',
     model: 'TBD',
     workspace: 'ИИ-дизайнер',
@@ -108,7 +121,7 @@ export const AI_EMPLOYEE_PROFILES: AIEmployeeProfile[] = [
     id: 'ai-support',
     slug: 'support',
     name: 'ИИ-инженер поддержки',
-    status: 'Запланирован',
+    status: 'Planned',
     mission: 'Отвечает на операционные/runbook вопросы из документации и read-only данных.',
     model: 'TBD',
     workspace: 'ИИ-поддержка',

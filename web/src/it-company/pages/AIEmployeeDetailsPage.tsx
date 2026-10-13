@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../../lib/api'
 import { canViewITCompany } from '../access'
-import { getProfileBySlug, type AIEmployeeStatus } from '../employees'
+import { AI_EMPLOYEE_STATUS_LABELS_RU, getProfileBySlug, type AIEmployeeStatus } from '../employees'
 
 function statusStyle(status: AIEmployeeStatus): React.CSSProperties {
   return status === 'Active'
@@ -87,7 +87,7 @@ export function AIEmployeeDetailsPage() {
           <div className="muted small">Цифровой сотрудник IT Company</div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span className="tag" style={statusStyle(profile.status)}>{profile.status}</span>
+          <span className="tag" style={statusStyle(profile.status)}>{AI_EMPLOYEE_STATUS_LABELS_RU[profile.status]}</span>
           <Link to="/it/employees" style={{ textDecoration: 'none' }}>
             <button type="button" className="ghost">← Цифровые сотрудники</button>
           </Link>

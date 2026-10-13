@@ -22,7 +22,7 @@ function permissionText(permission: NotificationPermission, enabled: boolean): s
 
 export function BrowserNotificationsCard({
   title = 'Браузерные уведомления',
-  description = 'Показывать системные уведомления для realtime-событий, когда приложение открыто в браузере.',
+  description = 'Показывать системные уведомления о событиях в реальном времени, когда приложение открыто в браузере.',
   className,
 }: BrowserNotificationsCardProps) {
   const supported = canUseBrowserNotifications()

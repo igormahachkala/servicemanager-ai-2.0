@@ -269,7 +269,7 @@ export function AIDeveloperPage() {
               letterSpacing: '0.02em',
             }}
           >
-            MOCK
+            ДЕМО
           </span>
         </div>
       </div>

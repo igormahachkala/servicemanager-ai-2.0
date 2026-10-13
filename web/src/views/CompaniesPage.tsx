@@ -275,7 +275,7 @@ export function CompaniesPage() {
         <div>
           <h2 style={{ marginBottom: 4 }}>Компании</h2>
           <div className="muted small">
-            Platform control center: создание компаний, observer mode, impersonation и управление public intake.
+            Центр управления платформой: создание компаний, режим наблюдателя, вход под администратором и управление публичным приёмом заявок.
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -294,7 +294,7 @@ export function CompaniesPage() {
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {modeBadge('Observer mode', 'observer')}
-            {modeBadge('Public intake', 'public')}
+            {modeBadge('Публичный приём заявок', 'public')}
           </div>
         </div>
       </div>
@@ -547,13 +547,13 @@ export function CompaniesPage() {
                     </div>
 
                     <div className="panel" style={{ padding: 12, display: 'grid', gap: 8 }}>
-                      <div style={{ fontWeight: 700 }}>Public intake</div>
+                      <div style={{ fontWeight: 700 }}>Публичный приём заявок</div>
                       <code style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                         {baseLink || 'Публичный токен ещё не создан'}
                       </code>
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         <button type="button" className="ghost" onClick={() => void copyText(baseLink)} disabled={!baseLink}>
-                          Скопировать public link
+                          Скопировать публичную ссылку
                         </button>
                         <button
                           type="button"
@@ -561,7 +561,7 @@ export function CompaniesPage() {
                           onClick={() => baseLink && window.open(baseLink, '_blank', 'noopener,noreferrer')}
                           disabled={!baseLink}
                         >
-                          Открыть public link
+                          Открыть публичную ссылку
                         </button>
                         <button
                           type="button"
@@ -593,7 +593,7 @@ export function CompaniesPage() {
                           Скачать PNG
                         </button>
                         <button type="button" className="ghost" onClick={() => regenerateTokenM.mutate(company.id)} disabled={regenerateTokenM.isPending}>
-                          {regenerateTokenM.isPending ? 'Обновляем...' : 'Обновить public token'}
+                          {regenerateTokenM.isPending ? 'Обновляем…' : 'Обновить публичный токен'}
                         </button>
                       </div>
                     </div>
