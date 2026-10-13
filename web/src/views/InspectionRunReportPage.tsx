@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { locationCardPath } from '../lib/equipmentCard'
+import { readOutboundScopeFromSearch } from '../lib/locationCardSections'
 import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 import { ProtectedUploadThumbLink } from '../ui/ProtectedUploadMedia'
 
@@ -62,6 +64,8 @@ function reportStatusLabel(status: api.InspectionReportStatus) {
 
 export function InspectionRunReportPage() {
   const { id = '' } = useParams<{ id: string }>()
+  const [searchParams] = useSearchParams()
+  const outboundScope = readOutboundScopeFromSearch(searchParams)
   const queryClient = useQueryClient()
   const [reviewComment, setReviewComment] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
@@ -146,8 +150,9 @@ export function InspectionRunReportPage() {
           <div className="muted small">Печатная версия клиентского документа по completed inspection run.</div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Link to={`/inspection/runs/${id}`}><button className="ghost">Назад к обходу</button></Link>
-          <Link to="/inspection/runs"><button className="ghost">История обходов</button></Link>
+          {/* Возврат тоже несёт контур — цепочка не теряет клиента ни в одну сторону. */}
+          <Link to={api.appendScopeToPath(`/inspection/runs/${id}`, outboundScope)}><button className="ghost">Назад к обходу</button></Link>
+          <Link to={api.appendScopeToPath('/inspection/runs', outboundScope)}><button className="ghost">История обходов</button></Link>
           <button type="button" onClick={() => window.print()}>Печать / PDF</button>
         </div>
       </div>
@@ -207,7 +212,12 @@ export function InspectionRunReportPage() {
           <section className="workActMetaGrid">
             <div className="workActMetaCard">
               <div className="muted small">Локация</div>
-              <div className="workActStrong">{report.run.location.name}</div>
+              <div className="workActStrong">
+                {/* Phase 3: из отчёта — обратно в карточку точки. */}
+                <Link to={locationCardPath(report.run.location.id, outboundScope)}>
+                  {report.run.location.name}
+                </Link>
+              </div>
               <div className="muted small">{report.run.location.platformCode || '—'}{report.run.location.city ? ` · ${report.run.location.city}` : ''}</div>
               <div className="muted small">{report.run.location.address || '—'}</div>
             </div>

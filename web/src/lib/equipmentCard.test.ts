@@ -23,6 +23,7 @@ import {
   boardFilterReconciliation,
   equipmentTicketsLink,
   locationCardPath,
+  resolveEquipmentClientSelection,
   locationsListPath,
   isEquipmentRetired,
   isWarrantyExpired,
@@ -878,5 +879,187 @@ describe('V2 объём фундамента', () => {
   it('схема и миграции не затронуты этим фундаментом', () => {
     // Решение владельца: lifecycle enum и FailureCause — отдельной задачей.
     expect(cardCode).not.toContain('lifecycleStatus')
+  })
+})
+
+describe('P1: список оборудования потребляет область из адреса', () => {
+  const AB = ['client-A', 'client-B']
+
+  /*
+   * Решение принимает КАНОНИЧЕСКИЙ resolveEquipmentClientSelection из
+   * CURRENT Production. Второго резолвера области не существует: прежний
+   * resolveEquipmentClientScope этой ветки снят, а не оставлен рядом.
+   *
+   * Семантика Production: чужой либо неразрешённый идентификатор из адреса
+   * НЕ подменяется ни подсказкой профиля, ни единственным клиентом —
+   * возвращается пустая область (fail-closed), и выбор остаётся за
+   * пользователем. Прав это не выдаёт: доступ решает бэкенд.
+   */
+
+  it('МНОГО КЛИЕНТОВ: URL говорит B — выбирается B, а не A', () => {
+    /*
+     * Ровно тот дефект: провайдер связан с A и B, подсказка профиля — A,
+     * переход с карточки точки несёт linkedClientCompanyId=B. Прежняя
+     * логика брала подсказку и запрашивала A с точкой клиента B: пустой
+     * либо чужой контур.
+     */
+    expect(
+      resolveEquipmentClientSelection({
+        requestedClientId: 'client-B',
+        selectedClientId: '',
+        profileClientId: 'client-A',
+        allowedClientIds: AB,
+      }),
+    ).toBe('client-B')
+  })
+
+  it('URL важнее уже выбранного клиента', () => {
+    expect(
+      resolveEquipmentClientSelection({
+        requestedClientId: 'client-B',
+        selectedClientId: 'client-A',
+        profileClientId: 'client-A',
+        allowedClientIds: AB,
+      }),
+    ).toBe('client-B')
+  })
+
+  it('без области в адресе работает прежний fallback', () => {
+    // Подсказка профиля.
+    expect(
+      resolveEquipmentClientSelection({
+        requestedClientId: '',
+        selectedClientId: '',
+        profileClientId: 'client-A',
+        allowedClientIds: AB,
+      }),
+    ).toBe('client-A')
+
+    // Единственный клиент.
+    expect(
+      resolveEquipmentClientSelection({
+        requestedClientId: '',
+        selectedClientId: '',
+        profileClientId: '',
+        allowedClientIds: ['client-A'],
+      }),
+    ).toBe('client-A')
+
+    // Уже выбранный клиент не сбрасывается.
+    expect(
+      resolveEquipmentClientSelection({
+        requestedClientId: '',
+        selectedClientId: 'client-B',
+        profileClientId: '',
+        allowedClientIds: AB,
+      }),
+    ).toBe('client-B')
+
+    // Несколько клиентов и ничего не выбрано — выбор за пользователем.
+    expect(
+      resolveEquipmentClientSelection({
+        requestedClientId: '',
+        selectedClientId: '',
+        profileClientId: '',
+        allowedClientIds: AB,
+      }),
+    ).toBe('')
+  })
+
+  it('ЧУЖАЯ область из адреса доступа не даёт и FALLBACK НЕ ВКЛЮЧАЕТ', () => {
+    /*
+     * Каноническая семантика Production: явный, но неразрешённый контур —
+     * это пустая область, а НЕ «удобный» клиент. Подмена чужого
+     * идентификатора подсказкой профиля открывала бы пользователю не тот
+     * контур, который он запросил, молча.
+     */
+    expect(
+      resolveEquipmentClientSelection({
+        requestedClientId: 'client-FOREIGN',
+        selectedClientId: '',
+        profileClientId: 'client-A',
+        allowedClientIds: AB,
+      }),
+    ).toBe('')
+
+    // Ни уже выбранный клиент, ни единственный связанный не спасают.
+    expect(
+      resolveEquipmentClientSelection({
+        requestedClientId: 'client-FOREIGN',
+        selectedClientId: 'client-A',
+        profileClientId: 'client-A',
+        allowedClientIds: ['client-A'],
+      }),
+    ).toBe('')
+
+    expect(
+      resolveEquipmentClientSelection({
+        requestedClientId: 'client-FOREIGN',
+        selectedClientId: '',
+        profileClientId: '',
+        allowedClientIds: AB,
+      }),
+    ).toBe('')
+  })
+
+  it('не провайдер — клиентского контура нет', () => {
+    // Пустой canonical getLinkedClients() = контура нет ни при каком адресе.
+    expect(
+      resolveEquipmentClientSelection({
+        requestedClientId: 'client-B',
+        selectedClientId: '',
+        profileClientId: 'client-B',
+        allowedClientIds: [],
+      }),
+    ).toBe('')
+  })
+
+  it('страница ДЕЙСТВИТЕЛЬНО потребляет область из адреса', () => {
+    const page = codeOf(readSrc('views/EquipmentPage.tsx'))
+
+    // Канонический помощник Production, а не второй резолвер.
+    expect(page).toContain("searchParams.get('linkedClientCompanyId')")
+    expect(page).not.toContain('resolveEquipmentClientScope')
+
+    /*
+     * Форма вызова проверяется ЦЕЛИКОМ, а не вхождением имени.
+     *
+     * Прежняя редакция ограничивалась toContain('requestedClientId,') — и
+     * проходила на дефектном коде: то же имя стоит в массиве зависимостей
+     * эффекта, поэтому подстановка «requestedClientId: ''» в сам вызов
+     * оставалась незамеченной, а список переставал читать адрес.
+     */
+    expect(page).toMatch(
+      /const next = resolveEquipmentClientSelection\(\{\s*requestedClientId,\s*selectedClientId,\s*profileClientId: api\.getLinkedClientCompanyIdFromMe\(meQ\.data\),\s*allowedClientIds: linkedClients\.map\(\(c\) => c\.clientCompany\.id\),\s*\}\)/,
+    )
+
+    /*
+     * Пустая либо подменённая константа в этом аргументе запрещена прямо:
+     * контур обязан приходить из адреса, а не из литерала.
+     */
+    expect(page).not.toMatch(/requestedClientId:\s*''/)
+    expect(page).not.toMatch(/requestedClientId:\s*[^,\s][^,\n]*,/)
+
+    // Чтение адреса обязано попасть ИМЕННО в requestedClientId.
+    expect(page).toMatch(
+      /const requestedClientId = \(searchParams\.get\('linkedClientCompanyId'\) \|\| ''\)\.trim\(\)/,
+    )
+
+    // И эффект обязан пересчитываться при смене контура в адресе.
+    expect(page).toMatch(/\}, \[isProviderScope, requestedClientId,/)
+
+    // Область уходит в запрос списка.
+    expect(page).toContain('companyId: scopeCompanyId || undefined')
+    // Наблюдательский контур тоже учитывается.
+    expect(page).toContain('const scopeCompanyId = isProviderScope ? selectedClientId : requestedObserverCompanyId')
+
+    // linkedClientCompanyId не превращается в companyId при чтении.
+    expect(page).not.toMatch(/companyId:\s*requestedClientId/)
+  })
+
+  it('locationId из адреса по-прежнему сужает список', () => {
+    const page = codeOf(readSrc('views/EquipmentPage.tsx'))
+    expect(page).toContain('readLocationFilterFromSearch(')
+    expect(page).toContain('locationId: locationFilter || undefined')
   })
 })
