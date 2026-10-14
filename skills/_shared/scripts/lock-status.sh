@@ -17,8 +17,9 @@
 # object-only fetch (`--no-write-fetch-head`, writes loose objects for cat-file /
 # ancestry, creates no ref/tag). Nothing is written to any ref or tag.
 #
-# Usage:   lock-status.sh [--remote REMOTE] [--stale-hours N]
-# Default: --remote origin  --stale-hours 4
+# Usage:   lock-status.sh [--remote REMOTE]
+#                         [--stage-stale-hours N] [--prod-stale-hours N]
+# Default: --remote origin  --stage-stale-hours 4  --prod-stale-hours 2
 #
 # Exit codes:
 #   0  report produced
@@ -28,17 +29,22 @@
 set -u
 
 REMOTE="origin"
-STALE_HOURS="${SMA_LOCK_STALE_HOURS:-4}"
+STAGE_STALE_HOURS="${SMA_STAGE_LOCK_STALE_HOURS:-4}"
+PROD_STALE_HOURS="${SMA_PROD_LOCK_STALE_HOURS:-2}"
 
 die() { echo "lock-status: $1" >&2; exit "${2:-2}"; }
+is_uint() { case "$1" in ''|*[!0-9]*) return 1;; *) return 0;; esac; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --remote)      REMOTE="${2:-}"; shift 2 || die "--remote needs a value" ;;
-    --stale-hours) STALE_HOURS="${2:-}"; shift 2 || die "--stale-hours needs a value" ;;
+    --remote)             REMOTE="${2:-}"; shift 2 || die "--remote needs a value" ;;
+    --stage-stale-hours)  STAGE_STALE_HOURS="${2:-}"; shift 2 || die "--stage-stale-hours needs a value" ;;
+    --prod-stale-hours)   PROD_STALE_HOURS="${2:-}"; shift 2 || die "--prod-stale-hours needs a value" ;;
     *) die "unknown argument: $1" ;;
   esac
 done
+is_uint "$STAGE_STALE_HOURS" || die "--stage-stale-hours must be a non-negative integer" 2
+is_uint "$PROD_STALE_HOURS" || die "--prod-stale-hours must be a non-negative integer" 2
 command -v git >/dev/null 2>&1 || die "git not found" 3
 
 # 1. One pure read of the remote (no local ref mutation).
@@ -92,11 +98,11 @@ tag_date() { # prefer the body `date:` field, else the annotated tagger timestam
 }
 tag_branch() { tag_body "$1" | sed -n 's/^branch:[[:space:]]*//p' | head -1; }
 
-STALE_SECS=$(( STALE_HOURS * 3600 ))
 STALE_SUSPECTS=""
 
-report_lock() { # $1 = tag name (stage-busy|prod-busy)
-  local name="$1" commit obj age_epoch age br
+report_lock() { # $1 = tag name (stage-busy|prod-busy), $2 = stale threshold hours
+  local name="$1" stale_hours="$2" stale_secs commit obj age_epoch age br
+  stale_secs=$(( stale_hours * 3600 ))
   if [ -z "$(tag_obj "$name")" ] && [ -z "$(tag_commit "$name")" ]; then
     echo "    EXISTS            : NO"
     return 1
@@ -106,22 +112,24 @@ report_lock() { # $1 = tag name (stage-busy|prod-busy)
   echo "    Commit SHA        : ${commit:-unknown}"
   echo "    Related release   : ${br:-<not recorded in tag body>}"
   echo "    Age               : ${age}"
+  echo "    Stale threshold   : ${stale_hours}h"
   local b; b=$(tag_body "$name")
   if [ -n "$b" ]; then echo "    Tag metadata      :"; printf '%s\n' "$b" | sed 's|^|        | '; else echo "    Tag metadata      : <lightweight tag / body unavailable>"; fi
-  if [ -n "$age_epoch" ] && [ "$(( NOW - age_epoch ))" -ge "$STALE_SECS" ]; then
+  if [ -n "$age_epoch" ] && [ "$(( NOW - age_epoch ))" -ge "$stale_secs" ]; then
     STALE_SUSPECTS="$STALE_SUSPECTS $name(${age})"
-    echo "    Stale suspect     : YES (age ≥ ${STALE_HOURS}h — FLAG ONLY, no cleanup)"
+    echo "    Stale suspect     : YES (age ≥ ${stale_hours}h — FLAG ONLY, no cleanup)"
   fi
   return 0
 }
 
 echo "RELEASE LOCK STATUS   (remote: $REMOTE)"
+echo "  Stale thresholds     : stage=${STAGE_STALE_HOURS}h, production=${PROD_STALE_HOURS}h"
 echo
 echo "  Stage lock (stage-busy):"
-report_lock stage-busy; STAGE_BUSY=$?
+report_lock stage-busy "$STAGE_STALE_HOURS"; STAGE_BUSY=$?
 echo
 echo "  Production lock (prod-busy):"
-report_lock prod-busy; PROD_BUSY=$?
+report_lock prod-busy "$PROD_STALE_HOURS"; PROD_BUSY=$?
 echo
 echo "  Stage acceptance (stage-ok/*):"
 if [ -n "$STAGE_OK_REFS" ]; then

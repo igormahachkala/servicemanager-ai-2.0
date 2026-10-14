@@ -17,6 +17,7 @@ has(){ printf '%s' "$1" | grep -q "$2" && ok "$3" || no "$3"; }
 
 iso_now(){ date -u +%Y-%m-%dT%H:%M:%SZ; }
 iso_old(){ date -u -d '10 hours ago' +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-10H +%Y-%m-%dT%H:%M:%SZ 2>/dev/null; }
+iso_hours_ago(){ date -u -d "$1 hours ago" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v-"$1"H +%Y-%m-%dT%H:%M:%SZ 2>/dev/null; }
 
 # --- build fixture: src repo + bare remote; prod ⊆ beta -----------------------
 SRC="$TMP/src"; BARE="$TMP/remote.git"
@@ -47,6 +48,7 @@ has "$OUT" "Stage       : FREE" "S1 Stage FREE"
 has "$OUT" "Production  : FREE" "S1 Production FREE"
 has "$OUT" "FREE.*means only that no lock" "S1 FREE≠authorization caveat present"
 has "$OUT" "OK (prod" "S1 beta ⊇ prod OK"
+has "$OUT" "Stale thresholds     : stage=4h, production=2h" "S1 protocol stale thresholds"
 
 # S2 stage lock present
 mktag stage-busy origin/beta "$(printf 'Контур занят\nbranch: feat/x\npr: 7\ndate: %s' "$(iso_now)")"
@@ -73,12 +75,27 @@ OUT=$(bash "$SCRIPT" --remote "$REMOTE" 2>&1)
 has "$OUT" "Stage acceptance tag: present" "S5 acceptance present"
 has "$OUT" "stage-ok/feat/x" "S5 stage-ok listed"
 
-# S6 stale lock candidate (old date)
+# S6 stage stale threshold: 10h old stage lock is stale under 4h protocol threshold.
 deltag stage-busy
 mktag stage-busy origin/beta "$(printf 'branch: feat/stale\ndate: %s' "$(iso_old)")"
-OUT=$(bash "$SCRIPT" --remote "$REMOTE" --stale-hours 4 2>&1)
-has "$OUT" "Stale suspect     : YES" "S6 stale suspect flagged"
+OUT=$(bash "$SCRIPT" --remote "$REMOTE" 2>&1)
+has "$OUT" "Stage lock (stage-busy):" "S6 stage section present"
+has "$OUT" "Stale threshold   : 4h" "S6 stage threshold 4h"
+has "$OUT" "Stale suspect     : YES (age ≥ 4h" "S6 stage stale suspect flagged"
 has "$OUT" "FLAG ONLY, no cleanup" "S6 flag-only (no cleanup)"
+
+# S6b production stale threshold: 3h old prod lock is stale under 2h protocol
+# threshold, while a 3h stage lock is NOT stale under the 4h stage threshold.
+mktag stage-busy origin/beta "$(printf 'branch: feat/not-stale-stage\ndate: %s' "$(iso_hours_ago 3)")"
+mktag prod-busy origin/prod "$(printf 'branch: feat/stale-prod\ndate: %s' "$(iso_hours_ago 3)")"
+OUT=$(bash "$SCRIPT" --remote "$REMOTE" 2>&1)
+has "$OUT" "Stale threshold   : 2h" "S6b production threshold 2h"
+printf '%s' "$OUT" | grep -q "Stale lock suspects.*prod-busy" && ok "S6b production stale suspect flagged at 3h" || no "S6b production stale suspect flagged at 3h"
+printf '%s' "$OUT" | grep -q "stage-busy(3h)" && no "S6b stage incorrectly stale at 3h" || ok "S6b stage not stale at 3h"
+
+# S6c custom thresholds remain per-lane, not a single shared threshold.
+OUT=$(bash "$SCRIPT" --remote "$REMOTE" --stage-stale-hours 3 --prod-stale-hours 1 2>&1)
+has "$OUT" "Stale thresholds     : stage=3h, production=1h" "S6c custom per-lane thresholds"
 
 # S7 beta NOT containing prod (fresh fixture where prod has a commit beta lacks)
 SRC2="$TMP/src2"; BARE2="$TMP/remote2.git"
@@ -107,6 +124,8 @@ REPO_REFS_AFTER=$(git show-ref | sort)
 
 # bad args
 bash "$SCRIPT" --bogus >/dev/null 2>&1; rc_is "bad args" 2 $?
+bash "$SCRIPT" --stage-stale-hours nope >/dev/null 2>&1; rc_is "bad stage threshold" 2 $?
+bash "$SCRIPT" --prod-stale-hours nope >/dev/null 2>&1; rc_is "bad prod threshold" 2 $?
 
 echo
 echo "== results: $PASS passed, $FAIL failed =="
