@@ -77,16 +77,16 @@ check_codeowners_coverage() {
     fail "CODEOWNERS coverage: file is missing"
     return
   fi
-  for name in reconcile-preflight worktree-prep qa-preflight merge-check-env lock-status stage-smoke prod-readiness; do
+  for name in area-map reconcile-preflight worktree-prep qa-preflight merge-check-env lock-status stage-smoke prod-readiness; do
     for suffix in .sh .selftest.sh; do
       path="/skills/_shared/scripts/${name}${suffix}"
       grep -Fqx "$path @igormahachkala" "$codeowners" || missing=$((missing + 1))
     done
   done
   if ((missing == 0)); then
-    pass "CODEOWNERS coverage: A1-A7 implementations and self-tests protected"
+    pass "CODEOWNERS coverage: admission gate and A1-A7 paths protected"
   else
-    fail "CODEOWNERS coverage: $missing A1-A7 path(s) unprotected"
+    fail "CODEOWNERS coverage: $missing release automation path(s) unprotected"
   fi
 }
 

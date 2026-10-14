@@ -4,6 +4,8 @@
 /skills/_shared/scripts/run-release-automation-selftests.sh @igormahachkala
 /skills/_shared/scripts/run-release-automation-selftests.selftest.sh @igormahachkala
 /skills/_shared/scripts/release-automation-protocol.selftest.sh @igormahachkala
+/skills/_shared/scripts/area-map.sh @igormahachkala
+/skills/_shared/scripts/area-map.selftest.sh @igormahachkala
 /skills/_shared/scripts/reconcile-preflight.sh @igormahachkala
 /skills/_shared/scripts/reconcile-preflight.selftest.sh @igormahachkala
 /skills/_shared/scripts/worktree-prep.sh @igormahachkala

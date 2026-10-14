@@ -67,6 +67,8 @@ area_of() {
     scripts/*)                     echo scripts ;;
     skills/*/scripts/*)            echo scripts ;;
     skills/*)                      echo skills ;;
+    .github/CODEOWNERS)            echo skills ;;
+    .github/workflows/release-automation-ci.yml) echo skills ;;
     .claude/skills/*)              echo skills ;;
     .claude/*)                     echo none ;;
     docs_pdf/*)                    echo none ;;

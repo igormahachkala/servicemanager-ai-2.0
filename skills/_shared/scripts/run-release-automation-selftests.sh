@@ -9,6 +9,7 @@ HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # label|implementation|self-test|required-now
 CASES=(
   "CI runner|run-release-automation-selftests.sh|run-release-automation-selftests.selftest.sh|required"
+  "Area map|area-map.sh|area-map.selftest.sh|required"
   "A1|reconcile-preflight.sh|reconcile-preflight.selftest.sh|incremental"
   "A2|worktree-prep.sh|worktree-prep.selftest.sh|incremental"
   "A3|qa-preflight.sh|qa-preflight.selftest.sh|incremental"
