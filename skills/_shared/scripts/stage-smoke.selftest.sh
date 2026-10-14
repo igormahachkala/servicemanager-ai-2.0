@@ -18,6 +18,7 @@ cat > "$TMP/mock.py" <<'PY'
 import os, sys, time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 HEALTH=int(os.environ.get('SM_HEALTH','200'))
+VERSION_STATUS=int(os.environ.get('SM_VERSION_STATUS','200'))
 SHA=os.environ.get('SM_SHA','goodsha'); ENV=os.environ.get('SM_ENV','beta')
 FAIL=set(p for p in os.environ.get('SM_FAIL','').split(',') if p)
 SLOW=os.environ.get('SM_SLOW','')
@@ -29,7 +30,7 @@ class H(BaseHTTPRequestHandler):
         if p in FAIL: self.send_response(404); self.end_headers(); return
         if p=='/health': self.send_response(HEALTH); self.end_headers(); self.wfile.write(b'{"status":"ok"}'); return
         if p=='/version':
-            self.send_response(200); self.send_header('Content-Type','application/json'); self.end_headers()
+            self.send_response(VERSION_STATUS); self.send_header('Content-Type','application/json'); self.end_headers()
             self.wfile.write(('{"service":"ServiceManager.AI","commitSha":"%s","environment":"%s"}'%(SHA,ENV)).encode()); return
         if p=='/sw.js':
             self.send_response(200); self.send_header('Content-Type','application/javascript'); self.end_headers(); self.wfile.write(b'// sw'); return
@@ -47,12 +48,17 @@ start_mock(){ # env assignments... ; sets MOCK_PID, BASE
 run(){ bash "$SCRIPT" --web-url "$BASE" --api-url "$BASE" "$@" 2>&1; }
 run_required(){
   run --expect-sha goodsha --expect-env beta \
+      --deploy-mark "$DEPLOY_MARK" \
       --backend-log "$TMP/clean.log" --frontend-log "$TMP/frontend-clean.log" \
+      --backend-log-since "$DEPLOY_MARK" --frontend-log-since "$DEPLOY_MARK" \
       --backend-restart-count 0 --frontend-restart-count 0 \
-      --postgres-status running --postgres-restart-count 0 "$@"
+      --postgres-status running --postgres-restart-count 0 \
+      --postgres-started-at-before "$PG_STARTED_AT" --postgres-started-at-after "$PG_STARTED_AT" "$@"
 }
 
 echo "== A6 stage-smoke self-test =="
+DEPLOY_MARK="2026-10-14T10:00:00Z"
+PG_STARTED_AT="2026-10-14T09:59:00.000000000Z"
 
 # fixture logs
 printf 'LOG line ok\nNest application successfully started\nmore ok\n' > "$TMP/clean.log"
@@ -68,14 +74,23 @@ rc_is "T1 all endpoints healthy" 0 $RC
 printf '%s' "$OUT" | grep -q "RESULT                : PASS" && ok "T1 PASS result" || no "T1 PASS result"
 printf '%s' "$OUT" | grep -q "PostgreSQL RestartCount: OK (0)" && ok "T1 PostgreSQL restart evidence required" || no "T1 PostgreSQL restart evidence"
 printf '%s' "$OUT" | grep -q "Status                : OK (running)" && ok "T1 PostgreSQL status required" || no "T1 PostgreSQL status"
+printf '%s' "$OUT" | grep -q "PostgreSQL StartedAt.*OK (unchanged)" && ok "T1 PostgreSQL StartedAt evidence required" || no "T1 PostgreSQL StartedAt evidence"
+printf '%s' "$OUT" | grep -q "backend log window.*OK (since $DEPLOY_MARK)" && ok "T1 backend log window tied to deploy MARK" || no "T1 backend log window"
 
 # T2 health failure
 start_mock SM_HEALTH=500 SM_SHA=goodsha SM_ENV=beta
 run_required >/dev/null 2>&1; rc_is "T2 health failure" 1 $?
 
-# T3 version SHA mismatch
+# T3 /version HTTP 500 with valid JSON must not pass
+start_mock SM_VERSION_STATUS=500 SM_SHA=goodsha SM_ENV=beta
+OUT=$(run_required); rc_is "T3 /version HTTP 500 with valid JSON fails" 1 $?
+printf '%s' "$OUT" | grep -q "Version /version      : FAIL (500)" && ok "T3 version status checked" || no "T3 version status checked"
+printf '%s' "$OUT" | grep -q "SHA match             : NOT TRUSTED" && ok "T3 SHA not trusted after version failure" || no "T3 SHA trust blocked"
+if printf '%s' "$OUT" | grep -q "RESULT                : PASS"; then no "T3 no false PASS"; else ok "T3 no false PASS"; fi
+
+# T4 version SHA mismatch
 start_mock SM_SHA=goodsha SM_ENV=beta
-run_required --expect-sha WRONGSHA >/dev/null 2>&1; rc_is "T3 SHA mismatch" 1 $?
+run_required --expect-sha WRONGSHA >/dev/null 2>&1; rc_is "T4 SHA mismatch" 1 $?
 
 # T4 wrong environment
 start_mock SM_SHA=goodsha SM_ENV=prod
@@ -124,25 +139,34 @@ A=$(cd "$HERE" && git show-ref 2>/dev/null | sort)
 # T15 no expected SHA cannot PASS
 start_mock SM_SHA=goodsha SM_ENV=beta
 OUT=$(run --expect-env beta \
+  --deploy-mark "$DEPLOY_MARK" \
   --backend-log "$TMP/clean.log" --frontend-log "$TMP/frontend-clean.log" \
+  --backend-log-since "$DEPLOY_MARK" --frontend-log-since "$DEPLOY_MARK" \
   --backend-restart-count 0 --frontend-restart-count 0 \
-  --postgres-status running --postgres-restart-count 0); rc_is "T15 missing expected SHA blocked" 1 $?
+  --postgres-status running --postgres-restart-count 0 \
+  --postgres-started-at-before "$PG_STARTED_AT" --postgres-started-at-after "$PG_STARTED_AT"); rc_is "T15 missing expected SHA blocked" 1 $?
 printf '%s' "$OUT" | grep -q "RESULT                : INCOMPLETE/BLOCKED" && ok "T15 incomplete result" || no "T15 incomplete result"
 
 # T16 missing mandatory evidence blocks readiness instead of PASS
 start_mock SM_SHA=goodsha SM_ENV=beta
 OUT=$(run --expect-sha goodsha --expect-env beta \
+  --deploy-mark "$DEPLOY_MARK" \
   --backend-log "$TMP/clean.log" --frontend-log "$TMP/frontend-clean.log" \
+  --backend-log-since "$DEPLOY_MARK" --frontend-log-since "$DEPLOY_MARK" \
   --backend-restart-count 0 --frontend-restart-count 0 \
-  --postgres-status running); rc_is "T16 missing PostgreSQL restart count blocked" 1 $?
+  --postgres-status running \
+  --postgres-started-at-before "$PG_STARTED_AT" --postgres-started-at-after "$PG_STARTED_AT"); rc_is "T16 missing PostgreSQL restart count blocked" 1 $?
 printf '%s' "$OUT" | grep -q "PostgreSQL RestartCount: BLOCKED" && ok "T16 missing restart count labelled" || no "T16 missing restart count labelled"
 
 # T17 missing log evidence blocks readiness
 start_mock SM_SHA=goodsha SM_ENV=beta
 OUT=$(run --expect-sha goodsha --expect-env beta \
+  --deploy-mark "$DEPLOY_MARK" \
   --backend-log "$TMP/clean.log" \
+  --backend-log-since "$DEPLOY_MARK" --frontend-log-since "$DEPLOY_MARK" \
   --backend-restart-count 0 --frontend-restart-count 0 \
-  --postgres-status running --postgres-restart-count 0); rc_is "T17 missing frontend log blocked" 1 $?
+  --postgres-status running --postgres-restart-count 0 \
+  --postgres-started-at-before "$PG_STARTED_AT" --postgres-started-at-after "$PG_STARTED_AT"); rc_is "T17 missing frontend log blocked" 1 $?
 printf '%s' "$OUT" | grep -q "frontend log.*BLOCKED" && ok "T17 missing frontend log labelled" || no "T17 missing frontend log labelled"
 
 # T18 nonzero RestartCount fails
@@ -154,6 +178,37 @@ printf '%s' "$OUT" | grep -q "backend RestartCount.*FAIL (1)" && ok "T18 restart
 start_mock SM_SHA=goodsha SM_ENV=beta
 OUT=$(run_required --postgres-status exited); rc_is "T19 PostgreSQL status failure" 1 $?
 printf '%s' "$OUT" | grep -q "Status                : FAIL (exited)" && ok "T19 PostgreSQL status labelled" || no "T19 PostgreSQL status labelled"
+
+# T20 PostgreSQL StartedAt changed fails
+start_mock SM_SHA=goodsha SM_ENV=beta
+OUT=$(run_required --postgres-started-at-after "2026-10-14T10:01:00.000000000Z"); rc_is "T20 PostgreSQL StartedAt changed" 1 $?
+printf '%s' "$OUT" | grep -q "PostgreSQL StartedAt.*FAIL" && ok "T20 StartedAt change labelled" || no "T20 StartedAt change labelled"
+
+# T21 PostgreSQL StartedAt missing blocks readiness
+start_mock SM_SHA=goodsha SM_ENV=beta
+OUT=$(run --expect-sha goodsha --expect-env beta \
+  --deploy-mark "$DEPLOY_MARK" \
+  --backend-log "$TMP/clean.log" --frontend-log "$TMP/frontend-clean.log" \
+  --backend-log-since "$DEPLOY_MARK" --frontend-log-since "$DEPLOY_MARK" \
+  --backend-restart-count 0 --frontend-restart-count 0 \
+  --postgres-status running --postgres-restart-count 0 \
+  --postgres-started-at-before "$PG_STARTED_AT"); rc_is "T21 PostgreSQL StartedAt after missing blocked" 1 $?
+printf '%s' "$OUT" | grep -q "PostgreSQL StartedAt.*BLOCKED" && ok "T21 StartedAt missing labelled" || no "T21 StartedAt missing labelled"
+
+# T22 missing deploy MARK blocks log-window evidence instead of PASS
+start_mock SM_SHA=goodsha SM_ENV=beta
+OUT=$(run --expect-sha goodsha --expect-env beta \
+  --backend-log "$TMP/clean.log" --frontend-log "$TMP/frontend-clean.log" \
+  --backend-log-since "$DEPLOY_MARK" --frontend-log-since "$DEPLOY_MARK" \
+  --backend-restart-count 0 --frontend-restart-count 0 \
+  --postgres-status running --postgres-restart-count 0 \
+  --postgres-started-at-before "$PG_STARTED_AT" --postgres-started-at-after "$PG_STARTED_AT"); rc_is "T22 missing deploy MARK blocked" 1 $?
+printf '%s' "$OUT" | grep -q "backend log window.*BLOCKED (deploy MARK is required)" && ok "T22 missing deploy MARK labelled" || no "T22 missing deploy MARK labelled"
+
+# T23 log --since evidence must match deploy MARK exactly
+start_mock SM_SHA=goodsha SM_ENV=beta
+OUT=$(run_required --backend-log-since "2026-10-14T09:55:00Z"); rc_is "T23 backend log since mismatch" 1 $?
+printf '%s' "$OUT" | grep -q "backend log window.*FAIL" && ok "T23 log window mismatch labelled" || no "T23 log window mismatch labelled"
 
 # bad args
 bash "$SCRIPT" --bogus >/dev/null 2>&1; rc_is "bad args" 2 $?
