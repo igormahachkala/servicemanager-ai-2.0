@@ -15,6 +15,7 @@ PASS=0; FAIL=0
 trap 'rm -rf "$TMP"' EXIT
 ok(){ PASS=$((PASS+1)); echo "  PASS $1"; }
 no(){ FAIL=$((FAIL+1)); echo "  FAIL $1"; }
+fixture_die(){ echo "  ERROR fixture setup: $1" >&2; exit 1; }
 rc_is(){ [ "$2" = "$3" ] && ok "$1 (exit $3)" || no "$1 (expected $2 got $3)"; }
 has(){ printf '%s' "$1" | grep -q "$2" && ok "$3" || no "$3 [missing: $2]"; }
 hasnt(){ printf '%s' "$1" | grep -q "$2" && no "$3 [present: $2]" || ok "$3"; }
@@ -60,10 +61,23 @@ READY_ARGS=(--remote "$R" --stage-runtime-sha "$C1" \
             --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" \
             --deployed-workdir-tree "$C1_TREE")
 
-mktag(){ local wt; wt=$(mktemp -d "$TMP/wt.XXXXXX"); git clone -q "$BARE" "$wt" >/dev/null 2>&1
-  ( cd "$wt" && git tag -f -a "$1" "$2" -m "$3" >/dev/null 2>&1 && git push -q -f origin "refs/tags/$1" >/dev/null 2>&1 ); rm -rf "$wt"; }
-deltag(){ local wt; wt=$(mktemp -d "$TMP/wt.XXXXXX"); git clone -q "$BARE" "$wt" >/dev/null 2>&1
-  ( cd "$wt" && git push -q origin ":refs/tags/$1" >/dev/null 2>&1 ); rm -rf "$wt"; }
+mktag(){
+  local wt
+  wt=$(mktemp -d "$TMP/wt.XXXXXX") || fixture_die "cannot create tag worktree"
+  git clone -q "$BARE" "$wt" || fixture_die "cannot clone tag fixture"
+  git -C "$wt" config user.email "prod-readiness-selftest@example.invalid" || fixture_die "cannot configure fixture user.email"
+  git -C "$wt" config user.name "prod-readiness self-test" || fixture_die "cannot configure fixture user.name"
+  git -C "$wt" tag -f -a "$1" "$2" -m "$3" || fixture_die "cannot create fixture tag $1"
+  git -C "$wt" push -q -f origin "refs/tags/$1" || fixture_die "cannot push fixture tag $1"
+  rm -rf "$wt"
+}
+deltag(){
+  local wt
+  wt=$(mktemp -d "$TMP/wt.XXXXXX") || fixture_die "cannot create delete-tag worktree"
+  git clone -q "$BARE" "$wt" || fixture_die "cannot clone delete-tag fixture"
+  git -C "$wt" push -q origin ":refs/tags/$1" || fixture_die "cannot delete fixture tag $1"
+  rm -rf "$wt"
+}
 
 OKBODY=$(printf 'Stage acceptance passed\nbranch: feat/cand\nbranch_sha: %s\nstage_sha: %s\ncriterion: smoke green' "$C1" "$C1")
 BUSYBODY=$(printf 'Контур занят\nbranch: feat/cand\npr: 9\ndate: 2026-10-13T00:00:00Z')
@@ -291,8 +305,16 @@ git clone -q --bare "$SRC3" "$BARE3"
 C1b=$(git ls-remote "$BARE3" refs/heads/feat/cand | awk '{print $1}')
 C1b_TREE=$(git --git-dir="$BARE3" rev-parse "$C1b^{tree}")
 printf 'sha: %s\nresult: PASS\n' "$C1b" > "$TMP/ev_c1b"; EV_C1b="$TMP/ev_c1b"
-mk3(){ local wt; wt=$(mktemp -d "$TMP/wt.XXXXXX"); git clone -q "$BARE3" "$wt" >/dev/null 2>&1
-  ( cd "$wt" && git tag -f -a "$1" "$2" -m "$3" >/dev/null 2>&1 && git push -q -f origin "refs/tags/$1" >/dev/null 2>&1 ); rm -rf "$wt"; }
+mk3(){
+  local wt
+  wt=$(mktemp -d "$TMP/wt.XXXXXX") || fixture_die "cannot create candidate-gap tag worktree"
+  git clone -q "$BARE3" "$wt" || fixture_die "cannot clone candidate-gap tag fixture"
+  git -C "$wt" config user.email "prod-readiness-selftest@example.invalid" || fixture_die "cannot configure candidate-gap user.email"
+  git -C "$wt" config user.name "prod-readiness self-test" || fixture_die "cannot configure candidate-gap user.name"
+  git -C "$wt" tag -f -a "$1" "$2" -m "$3" || fixture_die "cannot create candidate-gap tag $1"
+  git -C "$wt" push -q -f origin "refs/tags/$1" || fixture_die "cannot push candidate-gap tag $1"
+  rm -rf "$wt"
+}
 mk3 stage-ok/feat/cand "$C1b" "$(printf 'branch: feat/cand\nstage_sha: %s' "$C1b")"
 mk3 stage-busy "$C1b" "$(printf 'branch: feat/cand')"
 OUT=$(bash "$SCRIPT" feat/cand --remote "$BARE3" --stage-runtime-sha "$C1b" --merge-check-evidence "$EV_C1b" --ci-evidence "$EV_C1b" --deployed-workdir-tree "$C1b_TREE" 2>&1); rc_is "candidate NOT in beta → INCOMPLETE" 1 $?
