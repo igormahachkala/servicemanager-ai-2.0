@@ -957,6 +957,7 @@ export function MobileTicketPage() {
     await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
     await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
     await queryClient.invalidateQueries({ queryKey: ['board'] })
+    await queryClient.invalidateQueries({ queryKey: ['planner-me-next'] })
   }
 
   // SMA-MOBILE-TICKET-EDIT-V1: справочники для формы редактирования — те же api-эндпоинты и scope,
