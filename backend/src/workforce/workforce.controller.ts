@@ -11,19 +11,31 @@ import { RolesGuard } from '../common/roles.guard'
 import { ManagementSurface } from '../common/management-surface-access'
 import { CloseWorkShiftDto } from './dto/close-work-shift.dto'
 import { CreateShiftCorrectionDto } from './dto/create-shift-correction.dto'
+import { UpdateShiftGeoDto } from './dto/update-shift-geo.dto'
 import { UpdateWorkforceSettingsDto } from './dto/update-workforce-settings.dto'
+import { WorkforceGeoService } from './workforce-geo.service'
 import { WorkforceService } from './workforce.service'
 
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsContextGuard, PermissionsGuard)
 @Controller('workforce')
 export class WorkforceController {
-  constructor(private readonly workforce: WorkforceService) {}
+  constructor(
+    private readonly workforce: WorkforceService,
+    private readonly workforceGeo: WorkforceGeoService,
+  ) {}
 
   @Get('me')
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.WORKFORCE_SHIFT_USE)
   getMyState(@Req() req: any) {
     return this.workforce.getMyState(this.actor(req))
+  }
+
+  @Post('me/geo')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.TECHNICIAN)
+  @RequirePermission(PERMISSIONS.WORKFORCE_SHIFT_USE)
+  updateMyGeo(@Req() req: any, @Body() dto: UpdateShiftGeoDto) {
+    return this.workforceGeo.updateMyPoint(this.actor(req), dto)
   }
 
   @Post('shifts/open')

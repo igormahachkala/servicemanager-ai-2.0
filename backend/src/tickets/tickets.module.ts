@@ -19,6 +19,9 @@ import { TechniciansModule } from '../technicians/technicians.module'
 import { NotificationsModule } from '../notifications/notifications.module'
 import { WorkforceModule } from '../workforce/workforce.module'
 import { FailureCausesModule } from '../failure-causes/failure-causes.module'
+import { TwogisModule } from '../twogis/twogis.module'
+import { TicketRouteService } from './ticket-route.service'
+import { TicketRoutesController } from './ticket-routes.controller'
 
 @Module({
   imports: [
@@ -30,6 +33,7 @@ import { FailureCausesModule } from '../failure-causes/failure-causes.module'
     NotificationsModule,
     WorkforceModule,
     FailureCausesModule,
+    TwogisModule,
   ],
   providers: [
     TicketsService,
@@ -39,9 +43,10 @@ import { FailureCausesModule } from '../failure-causes/failure-causes.module'
     TicketAttachmentsService,
     TicketsAcceptanceService,
     TicketDetachService,
+    TicketRouteService,
     PermissionsContextGuard,
   ],
-  controllers: [TicketsController],
+  controllers: [TicketRoutesController, TicketsController],
   exports: [TicketsService, TicketAttachmentsService],
 })
 export class TicketsModule {}
