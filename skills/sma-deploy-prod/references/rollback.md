@@ -7,8 +7,8 @@
   phase 1              откатить контейнеры на точку; ветку prod не реверит
   after_phase1         дальше fix/&lt;тема&gt;; prod-busy держится до её
                        развёртывания
-  beta_after_rollback  ревёрт из beta — по решению пользователя, не
-                       следствие фазы 1
+  beta_after_rollback  откат указателя beta — по решению пользователя,
+                       не следствие фазы 1
   decision             что дальше с задачей
   fix                  ветка fix/&lt;тема&gt; и возврат в Production
   rework               переделка с опорой на код задачи
@@ -67,9 +67,9 @@ sma-deploy-prod, когда fix уже в origin/prod и развёрнута. �
 следующему агенту, что контур занят.
 </lock>
 <beta>
-Если пользователь отдельно велел убрать фичу из beta — ревёрт из beta
-по sma-deploy-stage, skills/sma-deploy-stage/references/rollback.md.
-stage-busy снимается своим путём. prod-busy от ревёрта из beta
+Если пользователь отдельно велел убрать фичу из beta — откат указателя
+beta по sma-deploy-stage, skills/sma-deploy-stage/references/rollback.md.
+stage-busy снимается своим путём. prod-busy от отката указателя beta
 не снимается.
 </beta>
 </after_phase1>
@@ -82,7 +82,7 @@ stage-busy снимается своим путём. prod-busy от ревёрт
 (ревёрта в обычном пути нет).
 </fact>
 <rule>
-Пользователь велел убрать фичу из beta — ревёрт слияния по
+Пользователь велел убрать фичу из beta — откат указателя beta по
 skills/sma-deploy-stage/references/rollback.md. stage-ok переносится
 в reverted блоком tag_void там же. stage-busy снимается путём 2
 блока release_paths в skills/_shared/contour-lock.md. prod-busy
@@ -90,8 +90,8 @@ skills/sma-deploy-stage/references/rollback.md. stage-ok переносится
 </rule>
 <why_not_reset>
 Сброс beta = prod здесь не применяется: стоит stage-busy либо
-prod-busy, предусловие beta_reset их запрещает. Ревёрт убирает одно
-слияние и не требует снимать замок заранее.
+prod-busy, предусловие beta_reset их запрещает. Откат указателя убирает
+одно слияние и не требует снимать замок заранее.
 </why_not_reset>
 </beta_after_rollback>
 
@@ -169,8 +169,8 @@ prod-busy не снимать, пока в origin/prod остаётся слия
 <explicit_prod_revert>
 <when>
 Только после явной команды пользователя на реверт в Production.
-Обычный откат сюда не заходит. То, что откат Stage делается ревёртом,
-эту команду не заменяет.
+Обычный откат сюда не заходит. То, что откат Stage делается сдвигом
+указателя beta, эту команду не заменяет.
 </when>
 <warn>
 Ошибка, уже попавшая в Production, обычно чинится fix/&lt;тема&gt;.
@@ -218,7 +218,7 @@ gh pr create --base prod --head unrevert/&lt;тема&gt; --title "unrevert: &lt
 </explicit_prod_revert>
 
 <tag_void>
-<when>После ревёрта из beta, всегда. Делает блок tag_void файла
+<when>После отката указателя beta, всегда. Делает блок tag_void файла
 skills/sma-deploy-stage/references/rollback.md. Здесь не дублировать.
 </when>
 <why>
@@ -246,7 +246,8 @@ skills/sma-deploy-stage/references/rollback.md. Здесь не дублиров
 как head фичи.</f>
 <f>Удалять ветку задачи, пока ошибка в Production не закрыта fix-веткой
 либо пользователь не отказался от задачи окончательно.</f>
-<f>Оставлять тег stage-ok после ревёрта из beta. Он сохранит действующий
-допуск для кода, которого в prod нет, и заблокирует сброс beta навсегда.</f>
+<f>Оставлять тег stage-ok после отката указателя beta. Он сохранит
+действующий допуск для кода, которого в prod нет, и заблокирует сброс
+beta навсегда.</f>
 </forbidden>
 </rollback>

@@ -254,6 +254,7 @@ export function MobileInspectionRunPage() {
     await queryClient.invalidateQueries({ queryKey: ['inspection-runs'] })
     await queryClient.invalidateQueries({ queryKey: ['board'] })
     await queryClient.invalidateQueries({ queryKey: ['tickets'] })
+    await queryClient.invalidateQueries({ queryKey: ['planner-me-next'] })
   }
 
   function flash(type: 'ok' | 'err', text: string) {

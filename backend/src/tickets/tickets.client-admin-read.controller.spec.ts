@@ -11,6 +11,7 @@ describe('TicketsController CLIENT_ADMIN read admission', () => {
   it.each([
     'board',
     'getOne',
+    'getRoute',
     'listFailureCausesForTicket',
     'listAttachments',
   ] as const)('admits CLIENT_ADMIN to read-only route %s', (method) => {

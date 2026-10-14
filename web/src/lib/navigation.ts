@@ -200,9 +200,19 @@ const R = {
   analytics: new Set<Role>(['PLATFORM_ADMIN', 'ADMIN', 'ADMIN_PROVIDER', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR']),
   // Планирование/шаблоны обходов (inspection.controller @Roles, десктоп-управление).
   roundsManage: new Set<Role>(['PLATFORM_ADMIN', 'ADMIN', 'ADMIN_PROVIDER', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR']),
-  // Смены и трудозатраты (текущий прод-гейт /workforce). CLIENT_ADMIN НЕ входит:
-  // у `me` нет подтверждения WORKFORCE_VIEW (решение владельца — без подтверждения не показывать).
-  workforce: new Set<Role>(['PLATFORM_ADMIN', 'ADMIN', 'ADMIN_PROVIDER', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TERRITORIAL_MANAGER']),
+  /*
+   * Смены и трудозатраты (/workforce).
+   *
+   * CLIENT_ADMIN входит: владелец утвердил для него WORKFORCE_VIEW —
+   * read-only. Прежнее примечание («без подтверждения WORKFORCE_VIEW в `me`
+   * не показывать») этим решением снято.
+   *
+   * Это ТОЛЬКО affordance. Источник истины — бэкенд: WORKFORCE_VIEW в
+   * матрице прав и PermissionsGuard на ручках. Видимость пункта никаких
+   * прав не выдаёт, и права на запись сюда не входят — создание, правка,
+   * закрытие смены и корректировки остаются недоступными.
+   */
+  workforce: new Set<Role>(['PLATFORM_ADMIN', 'ADMIN', 'ADMIN_PROVIDER', 'CLIENT_ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TERRITORIAL_MANAGER']),
 }
 
 /** Маршруты, видимые роли CLIENT (узкий allow-list, как в текущем проде). */

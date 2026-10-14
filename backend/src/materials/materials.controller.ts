@@ -12,7 +12,6 @@ import {
 import { UserRole } from '@prisma/client';
 
 import { JwtAuthGuard } from '../auth/jwt.guard';
-import { ManagementSurface } from '../common/management-surface-access';
 import { PermissionsContextGuard } from '../common/permissions-context.guard';
 import { PERMISSIONS } from '../common/permissions.constants';
 import { RequirePermission } from '../common/permissions.decorator';
@@ -27,11 +26,18 @@ import {
   PurchaseMaterialDto,
   UpdateMaterialDto,
 } from './dto/materials.dto';
+import { MaterialsProviderAccess } from './materials-provider-access';
 import { MaterialsService } from './materials.service';
 
+/*
+ * Управленческие материалы.
+ *
+ * Backend role ADMIN существует и в CLIENT, и в PROVIDER компаниях, поэтому
+ * одного role/permission gate недостаточно. MaterialsProviderAccessGuard
+ * фиксирует provider contour до чтения справочника или любой мутации.
+ */
 const MANAGEMENT_ROLES = [
   UserRole.ADMIN,
-  UserRole.CLIENT_ADMIN,
   UserRole.MASTER,
   UserRole.DISPATCHER,
 ] as const;
@@ -52,6 +58,7 @@ export class MaterialsController {
   constructor(private readonly materials: MaterialsService) {}
 
   @Get()
+  @MaterialsProviderAccess()
   @Roles(...MANAGEMENT_ROLES, UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
   list(@Req() req: any) {
@@ -59,7 +66,7 @@ export class MaterialsController {
   }
 
   @Post()
-  @ManagementSurface()
+  @MaterialsProviderAccess()
   @Roles(...MANAGEMENT_ROLES)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   create(@Req() req: any, @Body() dto: CreateMaterialDto) {
@@ -67,7 +74,7 @@ export class MaterialsController {
   }
 
   @Patch(':materialId')
-  @ManagementSurface()
+  @MaterialsProviderAccess()
   @Roles(...MANAGEMENT_ROLES)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   update(
@@ -79,6 +86,7 @@ export class MaterialsController {
   }
 
   @Get('me/balances')
+  @MaterialsProviderAccess()
   @Roles(UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
   getMyBalances(@Req() req: any) {
@@ -86,6 +94,7 @@ export class MaterialsController {
   }
 
   @Get('me/movements')
+  @MaterialsProviderAccess()
   @Roles(UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
   getMyMovements(@Req() req: any) {
@@ -93,6 +102,7 @@ export class MaterialsController {
   }
 
   @Post('me/purchases')
+  @MaterialsProviderAccess()
   @Roles(UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
   purchase(@Req() req: any, @Body() dto: PurchaseMaterialDto) {
@@ -100,6 +110,7 @@ export class MaterialsController {
   }
 
   @Post('me/consumptions')
+  @MaterialsProviderAccess()
   @Roles(UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
   consume(@Req() req: any, @Body() dto: ConsumeMaterialDto) {
@@ -107,7 +118,7 @@ export class MaterialsController {
   }
 
   @Get('technicians/:technicianId/balances')
-  @ManagementSurface()
+  @MaterialsProviderAccess()
   @Roles(...MANAGEMENT_ROLES)
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
   getTechnicianBalances(
@@ -121,7 +132,7 @@ export class MaterialsController {
   }
 
   @Get('technicians/:technicianId/movements')
-  @ManagementSurface()
+  @MaterialsProviderAccess()
   @Roles(...MANAGEMENT_ROLES)
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
   getTechnicianMovements(
@@ -135,7 +146,7 @@ export class MaterialsController {
   }
 
   @Post('issues')
-  @ManagementSurface()
+  @MaterialsProviderAccess()
   @Roles(...MANAGEMENT_ROLES)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   issue(@Req() req: any, @Body() dto: IssueMaterialDto) {
@@ -143,7 +154,7 @@ export class MaterialsController {
   }
 
   @Post('stock/receipts')
-  @ManagementSurface()
+  @MaterialsProviderAccess()
   @Roles(...MANAGEMENT_ROLES)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   receiptToCompanyStock(@Req() req: any, @Body() dto: MaterialQuantityDto) {
