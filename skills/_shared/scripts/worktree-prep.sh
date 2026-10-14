@@ -17,7 +17,8 @@
 #   - Each worktree gets its OWN node_modules (a real copy or a fresh install),
 #     never a symlink into a shared tree. A symlinked node_modules is treated as
 #     unsafe shared state and replaced with an owned copy.
-#   - The cache is immutable per (area, package-lock hash): we copy FROM it and
+#   - The cache is immutable per (area, package-lock hash, Node, npm, platform,
+#     architecture): we copy FROM it and
 #     only ever ADD a new key, atomically (build in a temp dir, then mv if absent).
 #   - The Prisma client is (re)generated into the worktree's own node_modules
 #     whenever the worktree's schema hash differs from the client's stamped hash,
@@ -51,6 +52,7 @@ sha16() { { sha256sum "$1" 2>/dev/null || shasum -a 256 "$1" 2>/dev/null; } | cu
 WT=$1
 command -v git >/dev/null 2>&1 || die "git not found" 3
 command -v npm >/dev/null 2>&1 || die "npm not found" 3
+command -v node >/dev/null 2>&1 || die "node not found" 3
 [ -d "$WT" ] || die "path does not exist: $WT" 2
 
 # 2a. Registered git worktree?
@@ -60,6 +62,14 @@ if ! git -C "$WT_ABS" worktree list --porcelain 2>/dev/null | grep -qx "worktree
   die "path is not a registered git worktree: $WT_ABS" 2
 fi
 TOP=$(git -C "$WT_ABS" rev-parse --show-toplevel)
+
+NODE_VERSION=$(node -p 'process.versions.node' 2>/dev/null) || die "cannot determine Node version" 3
+NPM_VERSION=$(npm --version 2>/dev/null) || die "cannot determine npm version" 3
+NODE_PLATFORM=$(node -p 'process.platform' 2>/dev/null) || die "cannot determine Node platform" 3
+NODE_ARCH=$(node -p 'process.arch' 2>/dev/null) || die "cannot determine Node architecture" 3
+RUNTIME_ID="node=$NODE_VERSION;npm=$NPM_VERSION;platform=$NODE_PLATFORM;arch=$NODE_ARCH"
+RUNTIME16=$(printf '%s' "$RUNTIME_ID" | { sha256sum 2>/dev/null || shasum -a 256; } | cut -c1-16)
+[ -n "$RUNTIME16" ] || die "cannot hash runtime identity" 3
 
 # 2b. Belongs to ServiceManager.AI? (origin URL or the repo signature)
 ORIGIN=$(git -C "$TOP" config --get remote.origin.url 2>/dev/null || true)
@@ -81,6 +91,7 @@ prepare_area() {
   adir="$TOP/$area"
   [ -f "$adir/package-lock.json" ] || { echo "n/a"; return 0; }
   lock16=$(sha16 "$adir/package-lock.json")
+  cache_key="${lock16}-${RUNTIME16}"
   nm="$adir/node_modules"
   marker="$nm/.sma-lockhash"
 
@@ -88,7 +99,7 @@ prepare_area() {
   if [ -L "$nm" ]; then
     log "$area: replaced symlinked (shared) node_modules with an owned copy"
     rm -f "$nm"
-  elif [ -d "$nm" ] && [ -f "$marker" ] && [ "$(cat "$marker" 2>/dev/null)" = "$lock16" ]; then
+  elif [ -d "$nm" ] && [ -f "$marker" ] && [ "$(cat "$marker" 2>/dev/null)" = "$cache_key" ]; then
     echo "reused"; return 0          # own, compatible deps already present
   elif [ -d "$nm" ]; then
     # present but incompatible or unstamped — never silently reuse.
@@ -96,26 +107,27 @@ prepare_area() {
     rm -rf "$nm"
   fi
 
-  cache="$CACHE_ROOT/${area}-${lock16}"
-  if [ -d "$cache/node_modules" ] && [ -f "$cache/node_modules/.sma-lockhash" ]; then
+  cache="$CACHE_ROOT/${area}-${cache_key}"
+  if [ -d "$cache/node_modules" ] && [ -f "$cache/node_modules/.sma-lockhash" ] \
+      && [ "$(cat "$cache/node_modules/.sma-lockhash" 2>/dev/null)" = "$cache_key" ]; then
     cp -R "$cache/node_modules" "$nm" || { echo "failed"; return 1; }
-    echo "$lock16" > "$marker"
-    log "$area: dependencies copied from cache ($lock16)"
+    echo "$cache_key" > "$marker"
+    log "$area: dependencies copied from cache ($cache_key)"
     echo "cache-hit"; return 0
   fi
 
   # No compatible cache → clean install in the worktree, then populate the cache atomically.
   ( cd "$adir" && npm ci --no-audit --no-fund >/dev/null 2>&1 ) || { echo "failed"; return 1; }
-  echo "$lock16" > "$marker"
-  log "$area: npm ci (no compatible cache for $lock16)"
+  echo "$cache_key" > "$marker"
+  log "$area: npm ci (no compatible cache for $cache_key)"
   if [ ! -d "$cache/node_modules" ]; then
-    tmp="$CACHE_ROOT/.tmp-${area}-${lock16}-$$"
+    tmp="$CACHE_ROOT/.tmp-${area}-${cache_key}-$$"
     rm -rf "$tmp"; mkdir -p "$tmp"
     if cp -R "$nm" "$tmp/node_modules" 2>/dev/null; then
       [ -d "$cache" ] || mv "$tmp" "$cache" 2>/dev/null || true   # first writer wins; others discard
     fi
     rm -rf "$tmp" 2>/dev/null || true
-    log "$area: populated dependency cache ($lock16)"
+    log "$area: populated dependency cache ($cache_key)"
   fi
   echo "installed"
 }
@@ -161,6 +173,8 @@ echo
 echo "  Worktree path         : $TOP"
 echo "  Branch                : $BRANCH"
 echo "  HEAD SHA              : $HEAD_SHA"
+echo "  Runtime identity      : $RUNTIME_ID"
+echo "  Runtime cache key     : $RUNTIME16"
 echo "  Backend dependencies  : $BE_STATUS"
 echo "  Frontend dependencies : $FE_STATUS"
 echo "  Lockfile compatibility: backend=$(compat "$BE_STATUS"), web=$(compat "$FE_STATUS")"
