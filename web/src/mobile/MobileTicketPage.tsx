@@ -59,7 +59,7 @@ import {
 } from '../lib/ticketClientGuidance'
 import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { MobileBoardClaimFallbackHint, MobileClaimReasonHintBox } from './MobileUxHints'
-import { TicketCloseModal, type TicketCloseModalState } from './home/HomeList'
+import { TicketCloseModal, type TicketCloseModalState } from './home/MobileHomeTicketCloseModal'
 import { MobileAttachmentThumb, mobileAttachmentLabel } from './MobileAttachmentThumb'
 import { toChatMessages, ticketChatParentFromGet, type ChatMessage } from '../lib/ticketChat'
 import {
@@ -957,6 +957,7 @@ export function MobileTicketPage() {
     await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
     await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
     await queryClient.invalidateQueries({ queryKey: ['board'] })
+    await queryClient.invalidateQueries({ queryKey: ['planner-me-next'] })
   }
 
   // SMA-MOBILE-TICKET-EDIT-V1: справочники для формы редактирования — те же api-эндпоинты и scope,
