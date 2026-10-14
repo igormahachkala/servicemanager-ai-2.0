@@ -27,9 +27,9 @@ export class TwogisSuggestService {
     const key = readTwogisApiKey();
     if (!key) return [];
 
-    // `city` cannot be applied as a location filter without lon,lat. Do not invent coordinates.
+    // 2GIS filters by location only with lon,lat, so the city goes into the query text.
     const url = new URL(TWOGIS_SUGGEST_URL);
-    url.searchParams.set('q', q);
+    url.searchParams.set('q', buildSuggestQuery(q, input.city));
     url.searchParams.set('suggest_type', 'address');
     url.searchParams.set('locale', 'ru_RU');
     url.searchParams.set('key', key);
@@ -37,6 +37,13 @@ export class TwogisSuggestService {
     const body = await twogisFetchJson(this.fetchImpl, url.toString(), { method: 'GET' });
     return parseSuggestHits(body);
   }
+}
+
+export function buildSuggestQuery(q: string, city?: string | null): string {
+  const cityTrim = trimToNull(city);
+  if (!cityTrim) return q;
+  if (q.toLocaleLowerCase('ru-RU').includes(cityTrim.toLocaleLowerCase('ru-RU'))) return q;
+  return `${cityTrim}, ${q}`;
 }
 
 function parseSuggestHits(body: unknown): TwogisSuggestHit[] {
