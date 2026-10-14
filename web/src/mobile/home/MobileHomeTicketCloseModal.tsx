@@ -257,6 +257,7 @@ export function useMobileHomeTicketCloseModal(args: UseMobileHomeTicketCloseModa
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
       await queryClient.invalidateQueries({ queryKey: ['board'] })
+      await queryClient.invalidateQueries({ queryKey: ['planner-me-next'] })
     },
     onError: (e: unknown, ticket) => {
       const op =
@@ -307,6 +308,7 @@ export function useMobileHomeTicketCloseModal(args: UseMobileHomeTicketCloseModa
       }
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
+      await queryClient.invalidateQueries({ queryKey: ['planner-me-next'] })
       return
     }
     actionM.mutate(ticket)
@@ -345,6 +347,7 @@ export function useMobileHomeTicketCloseModal(args: UseMobileHomeTicketCloseModa
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
       await queryClient.invalidateQueries({ queryKey: ['board'] })
+      await queryClient.invalidateQueries({ queryKey: ['planner-me-next'] })
     },
     onError: (e: unknown) => {
       const raw = e instanceof Error ? e.message : ''

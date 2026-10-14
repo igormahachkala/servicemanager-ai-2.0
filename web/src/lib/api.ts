@@ -2073,7 +2073,7 @@ function isAbortError(err: unknown): boolean {
   return (err as { name?: unknown })?.name === 'AbortError'
 }
 
-async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = options.method || 'GET'
   const headers: Record<string, string> = {
     ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),

@@ -39,6 +39,7 @@ import { HomeChips } from './HomeChips'
 import { HomeList } from './HomeList'
 import { HomeQuickCards, type MobileHomeQuickFilter } from './HomeQuickCards'
 import { HomeUrgentCard } from './HomeUrgentCard'
+import { HomeNextObjectCard } from './HomeNextObjectCard'
 import { HomeShiftStatus } from './HomeShiftStatus'
 import { isHomeUrgentTicket, selectHomeUrgentTickets } from './homeUrgent'
 import { HomeOfflineCachePanel } from './HomeOfflineCachePanel'
@@ -468,6 +469,7 @@ export function MobileHome() {
       await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
       await queryClient.invalidateQueries({ queryKey: ['board'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-detail'] })
+      await queryClient.invalidateQueries({ queryKey: ['planner-me-next'] })
     },
     onError: (e: unknown) => setAssignErr(formatMobileMutationError(e, { operation: 'assign' })),
   })
@@ -491,6 +493,7 @@ export function MobileHome() {
       await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
       await queryClient.invalidateQueries({ queryKey: ['board'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-detail'] })
+      await queryClient.invalidateQueries({ queryKey: ['planner-me-next'] })
     },
     onError: (e: unknown) => {
       if (parentClose.openFromRefuse(e, 'ACCEPT')) return
@@ -550,6 +553,7 @@ export function MobileHome() {
       />
       <HomeShiftStatus role={meQ.data?.role} />
       <HomeUrgentCard tickets={urgentTickets} ticketHref={ticketHref} ticketLinkState={ticketLinkState} onViewAll={() => activateQuickFilter('urgent')} />
+      <HomeNextObjectCard role={meQ.data?.role} isOnline={isOnline} me={meQ.data} pageScope={pageScope} />
       {materialsHomeCard}
       {showMobileHomeTicketBoard ? (
         <>
