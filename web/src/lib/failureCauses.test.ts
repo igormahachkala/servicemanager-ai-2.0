@@ -91,17 +91,19 @@ describe('Failure Causes V1 frontend contract', () => {
 
   it('mobile and desktop submit surfaces require the submit-acceptance path instead of status bypass', () => {
     const mobile = src('mobile/MobileTicketPage.tsx')
+    // Close/submit on /m home lives in the extracted modal (MobileHome.tsx no longer holds it).
+    const mobileHomeClose = src('mobile/home/MobileHomeTicketCloseModal.tsx')
     const mobileHome = src('mobile/home/MobileHome.tsx')
     const desktop = src('views/TicketPage.tsx')
     const actionBar = src('components/ticket-page/TicketActionBar.tsx')
 
-    for (const source of [mobile, mobileHome, desktop]) {
+    for (const source of [mobile, mobileHomeClose, desktop]) {
       expect(source).toContain('api.submitTicketAcceptance')
       expect(source).toContain('ticketFailureCauses')
       expect(source).toContain('failureCauseId')
     }
 
-    for (const source of [mobile, mobileHome, desktop, actionBar]) {
+    for (const source of [mobile, mobileHomeClose, mobileHome, desktop, actionBar]) {
       expect(source).not.toMatch(/updateTicketStatus\([^)]*AWAITING_ACCEPTANCE/)
       expect(source).not.toMatch(/onSetStatus\(\{\s*status:\s*'AWAITING_ACCEPTANCE'/)
     }
