@@ -18,6 +18,7 @@ type Props = {
   submitLabel: string
   value: LocationFormValue
   submitting?: boolean
+  error?: string | null
   onChange: (patch: Partial<LocationFormValue>) => void
   onSubmit: (event: React.FormEvent) => void
   onCancel?: () => void
@@ -56,6 +57,7 @@ export function LocationForm({
   submitLabel,
   value,
   submitting,
+  error,
   onChange,
   onSubmit,
   onCancel,
@@ -219,6 +221,12 @@ export function LocationForm({
         />
         <span>Локация активна</span>
       </label>
+
+      {error ? (
+        <div className="alert" role="alert" style={{ marginTop: 0 }}>
+          {error}
+        </div>
+      ) : null}
 
       <div style={{ display: 'flex', gap: 8 }}>
         <button disabled={submitting}>{submitting ? 'Сохраняем...' : submitLabel}</button>
