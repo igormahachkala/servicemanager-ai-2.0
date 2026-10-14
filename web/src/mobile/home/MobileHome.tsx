@@ -765,6 +765,7 @@ export function MobileHome() {
             tabOnlyTickets={tabOnlyTickets}
             boardTab={boardTab}
             role={meQ.data?.role}
+            scope={pageScope}
             meId={meQ.data?.id}
             boardTotal={tabCounts.all}
             hasHomeListFilters={quickFilter ? true : hasHomeListFilters}

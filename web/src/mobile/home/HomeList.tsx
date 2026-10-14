@@ -4,6 +4,7 @@ import * as api from '../../lib/api'
 import { mobileTicketCategoryLocationFromCard, mobileTicketNumberTitle, type MobileTicketNavState } from '../mobileTicketDisplay'
 import { mobileHomeTabEmptyCopy, type MobileHomeBoardFilterTab } from '../mobileHomeBoardFilters'
 import { TicketCard } from './TicketCard'
+import { useLocationRouteLabels } from '../useLocationRouteLabels'
 import { getPrimaryActionLabel, homeTicketActionProgressLabel } from './utils'
 import { formatMobileMutationError } from '../mobileActionErrors'
 import { defaultExpandedLocationIds, groupTicketsByLocation, type MobileHomeLocationGroup } from '../mobileHomeListUtils'
@@ -31,6 +32,7 @@ type Props = {
   tabOnlyTickets: api.TicketCard[]
   boardTab: MobileHomeBoardFilterTab
   role: api.Role | undefined
+  scope: api.TicketScopeParams
   meId: string | undefined
   boardTotal: number
   hasHomeListFilters: boolean
@@ -81,6 +83,7 @@ export function HomeList(props: Props) {
     tabOnlyTickets,
     boardTab,
     role,
+    scope,
     meId,
     boardTotal,
     hasHomeListFilters,
@@ -129,6 +132,7 @@ export function HomeList(props: Props) {
     [visibleTickets, groupRenderMode],
   )
 
+  const routeLabels = useLocationRouteLabels(visibleTickets, role, scope)
   const [expandedLocations, setExpandedLocations] = useState<Set<string>>(() => defaultExpandedLocationIds(groups))
 
   const prevGroupKeyRef = useRef('')
@@ -211,6 +215,7 @@ export function HomeList(props: Props) {
             <LocationGroupCard
               key={group.locationId}
               group={group}
+              routeLabel={routeLabels.get(group.locationId) ?? null}
               boardTab={boardTab}
               expanded={expandedLocations.has(group.locationId)}
               onToggle={() => toggleLocation(group.locationId)}
@@ -256,12 +261,14 @@ export function HomeList(props: Props) {
 
 function LocationGroupCard({
   group,
+  routeLabel,
   boardTab,
   expanded,
   onToggle,
   renderTicket,
 }: {
   group: MobileHomeLocationGroup
+  routeLabel: string | null
   boardTab: MobileHomeBoardFilterTab
   expanded: boolean
   onToggle: () => void
@@ -325,6 +332,7 @@ function LocationGroupCard({
               {[group.city, group.address].filter(Boolean).join(', ')}
             </div>
           ) : null}
+          {routeLabel ? <div className="mobileLocationGroupMeta">{routeLabel}</div> : null}
           <div className={`mobileLocationGroupStatGrid${isDoneTab ? ' mobileLocationGroupStatGrid--done' : ''}`}>
             {statCells.map((cell) => (
               <div

@@ -156,3 +156,75 @@ describe('TicketRouteService.getForTicket', () => {
     expect(routing.routeSummary).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('TicketRouteService.getForTickets', () => {
+  const UNAVAILABLE = { available: false, distanceMeters: null, durationSeconds: null }
+  const AVAILABLE = { available: true, ...ROUTE_SUMMARY }
+  const OTHER_POINT = { latitude: 55.7, longitude: 37.5 }
+
+  function makeBatchSetup(rows: Array<{ id: string; location: { latitude: number | null; longitude: number | null } | null }>) {
+    const setup = makeSetup()
+    const prisma = setup.prisma as typeof setup.prisma & { ticket: { findMany: jest.Mock } }
+    prisma.ticket.findMany = jest.fn().mockResolvedValue(rows)
+    return { ...setup, prisma }
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    mockResolveReadable.mockResolvedValue(makeAccess() as any)
+  })
+
+  it('calls routing once per destination and fans the result out to its tickets', async () => {
+    const { svc, routing } = makeBatchSetup([
+      { id: 't-1', location: LOCATION_POINT },
+      { id: 't-2', location: LOCATION_POINT },
+      { id: 't-3', location: OTHER_POINT },
+    ])
+
+    const result = await svc.getForTickets(ACTOR, ['t-1', 't-2', 't-3'], 'client-1')
+
+    expect(result).toEqual({ 't-1': AVAILABLE, 't-2': AVAILABLE, 't-3': AVAILABLE })
+    expect(routing.routeSummary).toHaveBeenCalledTimes(2)
+    expect(mockResolveReadable).toHaveBeenCalledWith(
+      expect.objectContaining({ ticketId: 't-1', linkedClientCompanyId: 'client-1' }),
+    )
+  })
+
+  it('marks unreadable tickets unavailable and does not load them', async () => {
+    const { svc, prisma } = makeBatchSetup([{ id: 't-1', location: LOCATION_POINT }])
+    mockResolveReadable.mockImplementation(async ({ ticketId }: any) => {
+      if (ticketId === 't-foreign') throw new NotFoundException('Ticket not found')
+      return makeAccess() as any
+    })
+
+    const result = await svc.getForTickets(ACTOR, ['t-1', 't-foreign'])
+
+    expect(result).toEqual({ 't-1': AVAILABLE, 't-foreign': UNAVAILABLE })
+    expect(prisma.ticket.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ['t-1'] } } }),
+    )
+  })
+
+  it('returns all unavailable without access checks or routing when the shift has no point', async () => {
+    const { svc, prisma, routing } = makeBatchSetup([])
+    prisma.workShift.findFirst.mockResolvedValue(null)
+
+    const result = await svc.getForTickets(ACTOR, ['t-1', 't-2'])
+
+    expect(result).toEqual({ 't-1': UNAVAILABLE, 't-2': UNAVAILABLE })
+    expect(mockResolveReadable).not.toHaveBeenCalled()
+    expect(routing.routeSummary).not.toHaveBeenCalled()
+  })
+
+  it('leaves tickets without location coords unavailable', async () => {
+    const { svc, routing } = makeBatchSetup([
+      { id: 't-1', location: { latitude: null, longitude: null } },
+      { id: 't-2', location: null },
+    ])
+
+    const result = await svc.getForTickets(ACTOR, ['t-1', 't-2'])
+
+    expect(result).toEqual({ 't-1': UNAVAILABLE, 't-2': UNAVAILABLE })
+    expect(routing.routeSummary).not.toHaveBeenCalled()
+  })
+})
