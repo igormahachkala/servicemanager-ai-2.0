@@ -43,6 +43,7 @@ IDENTITY = {
   'crosscontour@stage.local':  dict(role='MASTER',       companyId='company-client-1',   isActive=True,  surface=True),
   # disabled account that still authenticates
   'inactive@stage.local':      dict(role='DISPATCHER',   companyId='company-provider-1', isActive=False, surface=True),
+  'slowme@stage.local':        dict(role='MASTER',       companyId='company-provider-1', isActive=True,  surface=True),
 }
 
 class H(BaseHTTPRequestHandler):
@@ -64,6 +65,13 @@ class H(BaseHTTPRequestHandler):
             email = auth.split('.', 1)[1]
             if 'badtoken@' in email:          # token minted but rejected on use
                 self._json(401, {'message': 'Unauthorized'}); return
+            if 'slowme@' in email:
+                # Hold the response so the argv sampler (N13) gets a real window.
+                # Against a local mock curl otherwise lives a few milliseconds and
+                # the sampler can never observe it — which made N13 vacuous: it
+                # passed even with the token moved into argv on purpose.
+                time.sleep(0.6)
+                email = 'master@stage.local'
             ident = IDENTITY.get(email)
             if ident is None:
                 self._json(401, {'message': 'User not found'}); return
@@ -260,6 +268,33 @@ if printf '%s' "$OUTN1$OUTN2$OUTN3$OUTN4$OUTN5$OUTN6$OUTN10" \
    | grep -qiE "$SENTINEL_PW|SECRETTOKENVALUE|SECRETCOOKIEVALUE|Bearer"; then
   FAIL=$((FAIL+1)); echo "  FAIL N11 secret redaction on failure paths"
 else PASS=$((PASS+1)); echo "  PASS N11 secret redaction on failure paths"; fi
+
+# N13 the token must never reach a command line: argv is world-readable via ps,
+# so a leak there is a disclosure even when the report itself stays clean.
+#
+# The sampler lives in a file and assembles the needle at runtime. Both matter:
+# a pattern typed inline puts the sentinel into the sampler's OWN argv, and then
+# ps finds it every time — the first version of this test "failed" for exactly
+# that reason, catching itself rather than the script. Processes named grep are
+# excluded for the same reason.
+cat > "$TMP/argvprobe.sh" <<'PROBE'
+#!/usr/bin/env bash
+PAT="$(printf 'SECRETTOKEN'; printf 'VALUE')"
+: > "$2"
+for _ in $(seq 1 600); do
+  if ps -eo args= 2>/dev/null | grep -F "$PAT" | grep -vF 'grep' | grep -q .; then
+    echo LEAK >> "$2"; break
+  fi
+  sleep 0.01
+done
+PROBE
+SLOWME=$(variant slowme MASTER slowme@stage.local PROVIDER)
+bash "$TMP/argvprobe.sh" sample "$TMP/argv.leak" & SAMPLER=$!
+bash "$SCRIPT" --base-url "$BASE" --inventory "$SLOWME" --timeout 5 >/dev/null 2>&1
+kill "$SAMPLER" 2>/dev/null; wait "$SAMPLER" 2>/dev/null
+if [ -s "$TMP/argv.leak" ]; then
+  FAIL=$((FAIL+1)); echo "  FAIL N13 token absent from argv (found in the process table)"
+else PASS=$((PASS+1)); echo "  PASS N13 token absent from argv (ps sampled while /auth/me was held open)"; fi
 
 # N12 e-mails are masked, never printed whole
 if printf '%s' "$OUT" | grep -q "client.admin@stage.local"; then
