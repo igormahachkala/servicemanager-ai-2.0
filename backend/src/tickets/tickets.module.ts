@@ -47,6 +47,6 @@ import { TicketRoutesController } from './ticket-routes.controller'
     PermissionsContextGuard,
   ],
   controllers: [TicketRoutesController, TicketsController],
-  exports: [TicketsService, TicketAttachmentsService],
+  exports: [TicketsService, TicketsQueryService, TicketAttachmentsService],
 })
 export class TicketsModule {}
