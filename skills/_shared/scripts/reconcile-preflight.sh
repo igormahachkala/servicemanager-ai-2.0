@@ -21,8 +21,8 @@
 #     beta-ref       beta branch for the invariant     (default: origin/beta)
 #
 # Exit codes:
-#   0  ready for release preparation (merge simulation is conflict-free)
-#   1  merge conflicts — reconciliation needs manual resolution
+#   0  ready for release preparation
+#   1  blocked: invariant, conflicts, or reconciled content mismatch
 #   2  bad arguments / unknown ref
 #   3  git or fetch failure
 #   4  git too old (needs merge-tree --write-tree, git >= 2.38)
@@ -58,9 +58,16 @@ BASE=$(git merge-base "$CAND" "$PROD" 2>/dev/null) || die "no merge-base between
 
 # 3. beta ⊇ prod invariant (advisory; prod must be an ancestor of beta).
 if [ -n "$BETA" ]; then
-  if git merge-base --is-ancestor "$PROD" "$BETA" 2>/dev/null; then BETA_INV="OK (prod ⊆ beta)"; else BETA_INV="VIOLATED (beta behind prod — restore before release)"; fi
+  if git merge-base --is-ancestor "$PROD" "$BETA" 2>/dev/null; then
+    BETA_INV="OK (prod ⊆ beta)"
+    BETA_OK=1
+  else
+    BETA_INV="VIOLATED (beta behind prod — restore before release)"
+    BETA_OK=0
+  fi
 else
   BETA_INV="unknown (beta ref '$BETA_REF' not found)"
+  BETA_OK=0
 fi
 
 # Already in target?
@@ -87,17 +94,36 @@ else
   CONFLICTS_N=$(printf '%s' "$CONFLICTS" | grep -c . || true)
 fi
 
-# 6. Candidate-delta preservation: reconciled delta (prod..merged) file set == candidate delta.
-TREE_EQUIV="n/a (merge had conflicts)"
+# 6. Candidate-delta preservation. Independently apply the complete binary
+# candidate patch to current Production in a temporary index, write the expected
+# tree, and compare its OID with merge-tree's actual result. This compares every
+# blob/mode/path in the real Git trees and still accepts non-overlapping Production
+# edits in a file also touched by the candidate.
+CONTENT_EQUIV="n/a (merge had conflicts)"
+EXPECTED_TREE=""
 if [ "$MT_RC" -eq 0 ] && [ -n "$MERGED_TREE" ]; then
   RECON_FILES=$(git diff --name-only "$PROD" "$MERGED_TREE" | sort)
-  if [ "$RECON_FILES" = "$CAND_FILES" ]; then
-    TREE_EQUIV="EQUAL (reconciled delta == candidate delta; nothing added/lost)"
+  EXPECTED_INDEX=$(mktemp "${TMPDIR:-/tmp}/reconcile-preflight-index.XXXXXX") || die "cannot create temporary index" 3
+  rm -f "$EXPECTED_INDEX"
+  if git diff --quiet "$BASE" "$CAND"; then
+    EXPECTED_TREE=$(git rev-parse "${PROD}^{tree}" 2>/dev/null || true)
+  elif GIT_INDEX_FILE="$EXPECTED_INDEX" git read-tree "$PROD" 2>/dev/null \
+      && git diff --binary --full-index "$BASE" "$CAND" \
+        | GIT_INDEX_FILE="$EXPECTED_INDEX" git apply --cached --3way --binary - >/dev/null 2>&1; then
+    EXPECTED_TREE=$(GIT_INDEX_FILE="$EXPECTED_INDEX" git write-tree 2>/dev/null || true)
+  fi
+  rm -f "$EXPECTED_INDEX"
+  if [ -n "$EXPECTED_TREE" ] && [ "$MERGED_TREE" = "$EXPECTED_TREE" ]; then
+    CONTENT_EQUIV="EQUAL (actual merged tree matches independently reconstructed tree)"
+    CONTENT_OK=1
   else
-    TREE_EQUIV="DIFFERS (reconciled file set != candidate file set — inspect)"
+    CONTENT_EQUIV="DIFFERS (actual merged tree != independently reconstructed tree — inspect)"
+    CONTENT_OK=0
     EXTRA=$(comm -13 <(printf '%s\n' "$CAND_FILES") <(printf '%s\n' "$RECON_FILES"))
     MISSING=$(comm -23 <(printf '%s\n' "$CAND_FILES") <(printf '%s\n' "$RECON_FILES"))
   fi
+else
+  CONTENT_OK=0
 fi
 
 # 7. Schema / migration changes in the candidate delta.
@@ -124,7 +150,9 @@ else
   printf '%s\n' "$CONFLICTS" | sed 's|^|      - |'
 fi
 echo
-echo "  Tree equivalence      : $TREE_EQUIV"
+echo "  Merged tree           : ${MERGED_TREE:-<none>}"
+echo "  Expected tree         : ${EXPECTED_TREE:-<none>}"
+echo "  Content equivalence   : $CONTENT_EQUIV"
 if [ -n "${EXTRA:-}" ]; then printf '%s\n' "$EXTRA" | sed 's|^|      + extra: |'; fi
 if [ -n "${MISSING:-}" ]; then printf '%s\n' "$MISSING" | sed 's|^|      - missing: |'; fi
 echo
@@ -135,14 +163,17 @@ else
   printf '%s\n' "$MIG" | sed 's|^|      - |'
 fi
 echo
-if [ "$CONFLICTS_N" -eq 0 ]; then
+if [ "$CONFLICTS_N" -eq 0 ] && [ "$BETA_OK" -eq 1 ] && [ "$CONTENT_OK" -eq 1 ]; then
   echo "  READY FOR RELEASE PREPARATION : YES"
   [ "$MIG_N" -gt 0 ] && echo "    note: candidate carries migration(s) — route through the has_migration path."
   echo
   echo "  (Preflight only — the sma-deploy-stage / sma-deploy-prod gates are unchanged.)"
   exit 0
 else
-  echo "  READY FOR RELEASE PREPARATION : NO (resolve the conflicts above in the task branch)"
+  echo "  READY FOR RELEASE PREPARATION : NO"
+  [ "$BETA_OK" -eq 0 ] && echo "    blocker: beta must contain current Production before release preparation."
+  [ "$CONFLICTS_N" -gt 0 ] && echo "    blocker: resolve the merge conflicts above in the task branch."
+  [ "$CONFLICTS_N" -eq 0 ] && [ "$CONTENT_OK" -eq 0 ] && echo "    blocker: reconciled content differs from the candidate delta."
   echo
   echo "  (Preflight only — the sma-deploy-stage / sma-deploy-prod gates are unchanged.)"
   exit 1
