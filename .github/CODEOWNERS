@@ -4,3 +4,17 @@
 /skills/_shared/scripts/run-release-automation-selftests.sh @igormahachkala
 /skills/_shared/scripts/run-release-automation-selftests.selftest.sh @igormahachkala
 /skills/_shared/scripts/release-automation-protocol.selftest.sh @igormahachkala
+/skills/_shared/scripts/reconcile-preflight.sh @igormahachkala
+/skills/_shared/scripts/reconcile-preflight.selftest.sh @igormahachkala
+/skills/_shared/scripts/worktree-prep.sh @igormahachkala
+/skills/_shared/scripts/worktree-prep.selftest.sh @igormahachkala
+/skills/_shared/scripts/qa-preflight.sh @igormahachkala
+/skills/_shared/scripts/qa-preflight.selftest.sh @igormahachkala
+/skills/_shared/scripts/merge-check-env.sh @igormahachkala
+/skills/_shared/scripts/merge-check-env.selftest.sh @igormahachkala
+/skills/_shared/scripts/lock-status.sh @igormahachkala
+/skills/_shared/scripts/lock-status.selftest.sh @igormahachkala
+/skills/_shared/scripts/stage-smoke.sh @igormahachkala
+/skills/_shared/scripts/stage-smoke.selftest.sh @igormahachkala
+/skills/_shared/scripts/prod-readiness.sh @igormahachkala
+/skills/_shared/scripts/prod-readiness.selftest.sh @igormahachkala

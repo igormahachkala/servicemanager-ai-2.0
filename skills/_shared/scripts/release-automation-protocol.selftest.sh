@@ -70,6 +70,26 @@ check_workflow_safety() {
   fi
 }
 
+check_codeowners_coverage() {
+  local codeowners="$HERE/../../../.github/CODEOWNERS"
+  local name suffix path missing=0
+  if [[ ! -f "$codeowners" ]]; then
+    fail "CODEOWNERS coverage: file is missing"
+    return
+  fi
+  for name in reconcile-preflight worktree-prep qa-preflight merge-check-env lock-status stage-smoke prod-readiness; do
+    for suffix in .sh .selftest.sh; do
+      path="/skills/_shared/scripts/${name}${suffix}"
+      grep -Fqx "$path @igormahachkala" "$codeowners" || missing=$((missing + 1))
+    done
+  done
+  if ((missing == 0)); then
+    pass "CODEOWNERS coverage: A1-A7 implementations and self-tests protected"
+  else
+    fail "CODEOWNERS coverage: $missing A1-A7 path(s) unprotected"
+  fi
+}
+
 run_a6_regressions() {
   local script="$HERE/stage-smoke.sh"
   if [[ ! -f "$script" ]]; then
@@ -236,8 +256,8 @@ run_a7_regressions() {
     --stage-runtime-sha "$prod_sha" \
     --merge-check-evidence "$merge_evidence" \
     --ci-evidence "$ci_evidence" \
-    --expected-production-tree "$candidate_tree" \
-    --actual-production-tree "$candidate_tree"
+    --expected-candidate-tree "$candidate_tree" \
+    --deployed-workdir-tree "$candidate_tree"
 
   replace_a7_stage_ok "$remote" "$candidate_sha"
 
@@ -248,18 +268,18 @@ run_a7_regressions() {
     --stage-runtime-sha "$candidate_sha" \
     --merge-check-evidence "$merge_evidence" \
     --ci-evidence "$ci_evidence" \
-    --expected-production-tree "$candidate_tree" \
-    --actual-production-tree "$candidate_tree"
+    --expected-candidate-tree "$candidate_tree" \
+    --deployed-workdir-tree "$candidate_tree"
 
   expect_failure_reason "A7 invalid Git tree evidence" 1 \
-    'Deployed tree identity[[:space:]]*: BLOCKED \(not a real tree object' \
+    'Deployed (tree identity|workdir tree)[[:space:]]*: BLOCKED \(not a real tree object' \
     'READINESS[[:space:]]*: COMPLETE' \
     bash "$script" feat/candidate \
     --remote "$remote" \
     --stage-runtime-sha "$candidate_sha" \
     --merge-check-evidence "$merge_evidence" \
     --ci-evidence "$ci_evidence" \
-    --actual-production-tree NOT_A_GIT_TREE
+    --deployed-workdir-tree NOT_A_GIT_TREE
 
   expect_failure_reason "A7 unverified CI string" 2 \
     'no longer accepted' \
@@ -269,11 +289,12 @@ run_a7_regressions() {
     --stage-runtime-sha "$candidate_sha" \
     --merge-check PASS \
     --ci PASS \
-    --expected-production-tree "$candidate_tree" \
-    --actual-production-tree "$candidate_tree"
+    --expected-candidate-tree "$candidate_tree" \
+    --deployed-workdir-tree "$candidate_tree"
 }
 
 check_workflow_safety
+check_codeowners_coverage
 run_a6_regressions
 run_a7_regressions
 
