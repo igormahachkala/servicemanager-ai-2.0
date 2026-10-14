@@ -2,12 +2,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../../lib/api'
-import { canOfferTicketClaimAction } from '../../lib/ticketActionCapabilities'
 import {
   compactTicketScope,
-  mobileTicketCategoryLocationFromCard,
   mobileTicketNavState,
-  mobileTicketNumberTitle,
   stripMobileHomeRestoreFromNavState,
   type MobileTicketNavState,
   scopeForMobileTicketLink,
@@ -32,21 +29,22 @@ import {
 } from '../mobileHomeListUtils'
 import { formatMobileMutationError } from '../mobileActionErrors'
 import { readCachedBoard, saveBoardCache } from '../offline/boardCache'
-import { queueOffline, useOfflineStatus } from '../offline/useOffline'
-import { deliverTicketStatus } from '../offline/statusDelivery'
+import { useOfflineStatus } from '../offline/useOffline'
 import { ONLINE_ONLY_ACTION_MESSAGE } from '../offline/onlineOnlyMessage'
 import { getMobileMaterialsEntry } from '../mobileMaterialsEntry'
 import { canAccessMobileInspection, inspectionNavSuffix, mobilePath } from '../mobileRoute'
 import { HomeHeader } from './HomeHeader'
 import { HomeTabs } from './HomeTabs'
 import { HomeChips } from './HomeChips'
-import { HomeList, type TicketCloseModalState } from './HomeList'
+import { HomeList } from './HomeList'
 import { HomeQuickCards, type MobileHomeQuickFilter } from './HomeQuickCards'
 import { HomeUrgentCard } from './HomeUrgentCard'
+import { HomeNextObjectCard } from './HomeNextObjectCard'
 import { HomeShiftStatus } from './HomeShiftStatus'
 import { isHomeUrgentTicket, selectHomeUrgentTickets } from './homeUrgent'
 import { HomeOfflineCachePanel } from './HomeOfflineCachePanel'
 import { useTicketOfflineCache } from './useTicketOfflineCache'
+import { useMobileHomeTicketCloseModal } from './MobileHomeTicketCloseModal'
 import { MobileParentCloseChildrenSheet } from '../MobileParentCloseChildrenSheet'
 import { useParentCloseDialog } from '../../hooks/useParentCloseDialog'
 import type { ChildCloseDraftItem } from '../../lib/ticketParentClose'
@@ -65,7 +63,6 @@ export function MobileHome() {
   const isOnline = offline.online
   const liveApiAllowed = offline.liveApiAllowed
   const cacheUiOpen = offline.connectivity !== 'offline'
-  const [startQueuedIds, setStartQueuedIds] = useState<Set<string>>(() => new Set())
   const linkedClientCompanyId = (search.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
   const companyId = (search.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
   const pageScope = useMemo(
@@ -76,7 +73,6 @@ export function MobileHome() {
     [companyId, linkedClientCompanyId],
   )
   const queryClient = useQueryClient()
-  const [mobileActionToast, setMobileActionToast] = useState('')
   const persistedBoardUi = useMemo(() => readPersistedMobileHomeBoardUi(), [])
   const [boardTab, setBoardTab] = useState<MobileHomeBoardFilterTab>(persistedBoardUi.tab)
   const [activeChips, setActiveChips] = useState<Set<MobileHomeBoardChipId>>(() => new Set(persistedBoardUi.chips))
@@ -88,12 +84,6 @@ export function MobileHome() {
   const providerContextKnown =
     !meQ.data || meQ.data.role === 'CLIENT' || meQ.data.role === 'TECHNICIAN' || companyQ.isSuccess || companyQ.isError
   const providerNeedsLinkedClient = !!meQ.data && companyQ.data?.type === 'PROVIDER' && meQ.data.role !== 'TECHNICIAN' && !linkedClientCompanyId
-
-  useEffect(() => {
-    if (!mobileActionToast) return
-    const tid = window.setTimeout(() => setMobileActionToast(''), 2800)
-    return () => window.clearTimeout(tid)
-  }, [mobileActionToast])
 
   const techNoLinked = meQ.data?.role === 'TECHNICIAN' && !linkedClientCompanyId
   const techBoundDefaultsQ = useQuery({
@@ -445,158 +435,26 @@ export function MobileHome() {
     return (row?.clientCompany?.name || '').trim()
   }, [linkedClientCompanyId, linkedClientsQ.data, meQ.data?.role, techBoundLabelQ.data])
 
-  const closeCameraInputRef = useRef<HTMLInputElement | null>(null)
-  const closeGalleryInputRef = useRef<HTMLInputElement | null>(null)
-  const [closeModal, setCloseModal] = useState<TicketCloseModalState>(null)
-
-  useEffect(() => {
-    return () => {
-      if (closeModal?.previewUrl) URL.revokeObjectURL(closeModal.previewUrl)
-    }
-  }, [closeModal?.previewUrl])
-
-  const actionM = useMutation({
-    mutationFn: async (ticket: api.TicketCard) => {
-      const role = meQ.data?.role
-      if (ticket.status === 'NEW') {
-        if (role === 'TECHNICIAN' && ticket.canRequestAssignment === true) {
-          if (ticket.assignmentRequestedByCurrentUser) return
-          await api.requestTicketAssignment(ticket.id, pageScope)
-          return
-        }
-        if (!canOfferTicketClaimAction(ticket)) {
-          throw new Error('Действие недоступно для этой заявки')
-        }
-        await api.claim(ticket.id, pageScope)
-        return
-      }
-      if (ticket.status === 'ASSIGNED') {
-        if (role !== 'TECHNICIAN' || ticket.assignedTechnician?.id !== meQ.data?.id) {
-          throw new Error('Начать работу может только назначенный техник')
-        }
-        await api.updateTicketStatus(ticket.id, { status: 'IN_PROGRESS' }, pageScope)
-        return
-      }
-      if (ticket.status === 'IN_PROGRESS') {
-        if (role !== 'TECHNICIAN' || ticket.assignedTechnician?.id !== meQ.data?.id) {
-          throw new Error('Закрытие недоступно для этой заявки')
-        }
-        setCloseModal({
-          ticketId: ticket.id,
-          title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromCard(ticket)}`,
-          file: null,
-          previewUrl: '',
-          comment: '',
-          failureCauseId: '',
-          err: '',
-        })
-      }
-    },
-    onMutate: () => setHomeActionErr(''),
-    onSuccess: async (_data, ticket) => {
-      if (ticket.status === 'IN_PROGRESS') return
-      if (ticket.status === 'NEW' && meQ.data?.role === 'TECHNICIAN' && ticket.canRequestAssignment === true) {
-        setMobileActionToast('Запрос отправлен')
-      }
-      await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
-      await queryClient.invalidateQueries({ queryKey: ['mobile-home-completed-board'] })
-      await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
-      await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
-      await queryClient.invalidateQueries({ queryKey: ['board'] })
-    },
-    onError: (e: unknown, ticket) => {
-      const op =
-        ticket.status === 'NEW' &&
-        meQ.data?.role === 'TECHNICIAN' &&
-        ticket.canRequestAssignment === true
-          ? 'request_assignment'
-          : ticket.status === 'NEW'
-            ? 'claim'
-            : ticket.status === 'ASSIGNED'
-              ? 'start'
-              : 'other'
-      setHomeActionErr(formatMobileMutationError(e, { operation: op }))
-    },
-  })
-
-  async function handlePrimaryAction(ticket: api.TicketCard) {
-    // Claim и request assignment — только при liveApiAllowed.
-    if (!liveApiAllowed && ticket.status === 'NEW') {
-      setHomeActionErr(ONLINE_ONLY_ACTION_MESSAGE)
-      return
-    }
-    if (ticket.status === 'ASSIGNED') {
-      const role = meQ.data?.role
-      if (role !== 'TECHNICIAN' || ticket.assignedTechnician?.id !== meQ.data?.id) {
-        setHomeActionErr('Начать работу может только назначенный техник')
-        return
-      }
-      const delivery = await deliverTicketStatus({
-        reportedOnline: liveApiAllowed,
-        queueInput: {
-          kind: 'ticket.status',
-          target: { ticketId: ticket.id },
-          payload: { status: 'IN_PROGRESS', scope: pageScope },
-        },
-        send: async () => api.updateTicketStatus(ticket.id, { status: 'IN_PROGRESS' }, pageScope),
-        enqueue: queueOffline,
-      })
-      if (delivery.kind === 'queue-failed') {
-        setHomeActionErr(delivery.message)
-        return
-      }
-      if (delivery.kind === 'queued') {
-        setHomeActionErr('')
-        setStartQueuedIds((prev) => new Set(prev).add(ticket.id))
-        setMobileActionToast('Сохранено на устройстве. Будет отправлено после восстановления сети.')
-        return
-      }
-      await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
-      await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
-      return
-    }
-    actionM.mutate(ticket)
-  }
-
-  const closeM = useMutation({
-    mutationFn: async () => {
-      if (!liveApiAllowed) {
-        setCloseModal((prev) => (prev ? { ...prev, err: ONLINE_ONLY_ACTION_MESSAGE } : prev))
-        throw new Error(ONLINE_ONLY_ACTION_MESSAGE)
-      }
-      if (!closeModal) throw new Error('Нет данных для закрытия')
-      if (!closeModal.file) throw new Error('Нужно фото или видео отчёта')
-      const comment = closeModal.comment.trim()
-      if (comment.length < 3) throw new Error('Нужен короткий комментарий (backend требует комментарий для DONE)')
-      const failureCauseId = closeModal.failureCauseId.trim()
-      if (!failureCauseId) throw new Error('Выберите причину неисправности')
-      const uploaded = await api.uploadTicketAttachment(closeModal.ticketId, closeModal.file, pageScope)
-      await api.submitTicketAcceptance(
-        closeModal.ticketId,
-        {
-          failureCauseId,
-          comment,
-          attachmentIds: uploaded?.id ? [uploaded.id] : undefined,
-        },
-        pageScope,
-      )
-    },
-    onSuccess: async () => {
-      if (closeModal?.previewUrl) URL.revokeObjectURL(closeModal.previewUrl)
-      setCloseModal(null)
-      if (closeCameraInputRef.current) closeCameraInputRef.current.value = ''
-      if (closeGalleryInputRef.current) closeGalleryInputRef.current.value = ''
-      await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
-      await queryClient.invalidateQueries({ queryKey: ['mobile-home-completed-board'] })
-      await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
-      await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
-      await queryClient.invalidateQueries({ queryKey: ['board'] })
-    },
-    onError: (e: unknown) => {
-      const raw = e instanceof Error ? e.message : ''
-      if (raw === ONLINE_ONLY_ACTION_MESSAGE) return
-      setCloseModal((prev) => (prev ? { ...prev, err: formatMobileMutationError(e, { operation: 'close' }) } : prev))
-    },
+  const {
+    startQueuedIds,
+    mobileActionToast,
+    actionM,
+    handlePrimaryAction,
+    closeBusy,
+    closeModal,
+    setCloseModal,
+    closeCameraInputRef,
+    closeGalleryInputRef,
+    closeCanSubmit,
+    closeM,
+    closeFailureCauses,
+    closeFailureCausesLoading,
+    closeFailureCausesError,
+  } = useMobileHomeTicketCloseModal({
+    pageScope,
+    liveApiAllowed,
+    me: meQ.data,
+    setHomeActionErr,
   })
 
   const assignM = useMutation({
@@ -611,6 +469,7 @@ export function MobileHome() {
       await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
       await queryClient.invalidateQueries({ queryKey: ['board'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-detail'] })
+      await queryClient.invalidateQueries({ queryKey: ['planner-me-next'] })
     },
     onError: (e: unknown) => setAssignErr(formatMobileMutationError(e, { operation: 'assign' })),
   })
@@ -634,6 +493,7 @@ export function MobileHome() {
       await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
       await queryClient.invalidateQueries({ queryKey: ['board'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-detail'] })
+      await queryClient.invalidateQueries({ queryKey: ['planner-me-next'] })
     },
     onError: (e: unknown) => {
       if (parentClose.openFromRefuse(e, 'ACCEPT')) return
@@ -641,7 +501,6 @@ export function MobileHome() {
     },
   })
 
-  const closeBusy = closeM.isPending
   const assignBusy = assignM.isPending
   const ticketHref = (ticket: api.TicketCard) => {
     if (!meQ.data) return mobilePath(location.pathname, `/tickets/${ticket.id}`)
@@ -649,17 +508,6 @@ export function MobileHome() {
     return api.appendScopeToPath(mobilePath(location.pathname, `/tickets/${ticket.id}`), compactTicketScope(linkScope), meQ.data)
   }
   const ticketLinkState = (ticket: api.TicketCard) => mobileTicketNavState('home', ticket.companyId, { tab: boardTab, chips: [...activeChips], search: searchQuery.trim() || undefined })
-  const closeCanSubmit =
-    !!closeModal?.file &&
-    closeModal.comment.trim().length >= 3 &&
-    !!closeModal.failureCauseId.trim() &&
-    !closeBusy
-
-  const closeFailureCausesQ = useQuery({
-    queryKey: ['ticket-failure-causes', closeModal?.ticketId, pageScope],
-    queryFn: () => api.ticketFailureCauses(closeModal!.ticketId, pageScope),
-    enabled: !!closeModal?.ticketId && liveApiAllowed,
-  })
 
   const techWillRedirectForScope = techNoLinked && techBoundDefaultsQ.isSuccess && (techBoundDefaultsQ.data?.length ?? 0) > 0
   const technicianScopeGateReady = !techNoLinked || techBoundDefaultsQ.isFetched || techBoundDefaultsQ.isError
@@ -705,6 +553,7 @@ export function MobileHome() {
       />
       <HomeShiftStatus role={meQ.data?.role} />
       <HomeUrgentCard tickets={urgentTickets} ticketHref={ticketHref} ticketLinkState={ticketLinkState} onViewAll={() => activateQuickFilter('urgent')} />
+      <HomeNextObjectCard role={meQ.data?.role} isOnline={isOnline} me={meQ.data} pageScope={pageScope} />
       {materialsHomeCard}
       {showMobileHomeTicketBoard ? (
         <>
@@ -765,6 +614,7 @@ export function MobileHome() {
             tabOnlyTickets={tabOnlyTickets}
             boardTab={boardTab}
             role={meQ.data?.role}
+            scope={pageScope}
             meId={meQ.data?.id}
             boardTotal={tabCounts.all}
             hasHomeListFilters={quickFilter ? true : hasHomeListFilters}
@@ -805,9 +655,9 @@ export function MobileHome() {
             setCloseModal={setCloseModal}
             closeCanSubmit={closeCanSubmit}
             closeM={closeM}
-            closeFailureCauses={closeFailureCausesQ.data || []}
-            closeFailureCausesLoading={closeFailureCausesQ.isFetching}
-            closeFailureCausesError={closeFailureCausesQ.isError ? formatMobileMutationError(closeFailureCausesQ.error, { operation: 'other' }) : ''}
+            closeFailureCauses={closeFailureCauses}
+            closeFailureCausesLoading={closeFailureCausesLoading}
+            closeFailureCausesError={closeFailureCausesError}
             mobileActionToast={mobileActionToast}
             cacheStates={ticketOfflineCache.states}
             cacheSelectedIds={ticketOfflineCache.selectedIds}

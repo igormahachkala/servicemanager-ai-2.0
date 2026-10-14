@@ -3,12 +3,14 @@
      от Production, и из rollback Production, когда откатывают и prod. -->
 
 <purpose>
-Убрать из beta код задачи ревёртом слияния. После этого в beta нет кода,
-которого нет в prod, и агент может снять stage-busy.
-Чинить отказ приёмки вторым слиянием той же ветки нельзя.
+Убрать из beta код задачи сдвигом указателя refs/heads/beta на предка.
+После этого коммиты ветки задачи больше не предки beta, и агент может
+снять stage-busy. Откат нужен, когда исправление в рамках текущих работ
+не делается. Исправление под тем же замком идёт новым PR той же ветки
+поверх живого слияния, без отката.
 </purpose>
 
-<beta_revert>
+<beta_pointer_rollback>
 
 <when>
 Пользователь выбрал откат после отказа приёмки на Stage.
@@ -19,65 +21,107 @@
 </when>
 
 <lock>
-Замок stage-busy на время ревёрта остаётся. Снимать его до того, как
-каталог /opt/sma-beta стоит на откаченном beta, нельзя.
+Замок stage-busy на время сдвига остаётся. Снимать его до того, как
+каталог /opt/sma-beta стоит на цели сдвига, нельзя.
 </lock>
 
 <record>
-SHA коммита слияния в beta записывается сразу после успешного
-gh pr merge шага 7 sma-deploy-stage:
+После успешного gh pr merge шага 7 sma-deploy-stage записываются оба SHA:
 
 git fetch origin beta
 git rev-parse origin/beta
+git rev-parse origin/beta^1
+git rev-parse -q --verify origin/beta^2
 
-Это M. Без него revert -m 1 не к чему применить.
+Первая команда даёт M, коммит слияния. Вторая даёт P, первого родителя.
+По умолчанию цель сдвига — P. Последняя команда обязана что-то напечатать:
+слияние в beta идёт с --merge, у M есть второй родитель. Нет второго
+родителя — остановиться и показать SHA. Сдвигать указатель по нему нельзя,
+пока не ясно, что это за коммит.
 </record>
+
+<target>
+Цель сдвига — коммит-предок текущей origin/beta.
+По умолчанию цель — P из записи шага 7.
+Пользователь может назвать другого предка. Тогда цель — названный SHA,
+и он обязан быть предком текущего origin/beta.
+</target>
+
+<before_push>
+Перед push заново сделать git fetch origin. NOW — свежий
+git rev-parse origin/beta. Показать пользователю оба вывода:
+
+git log --oneline &lt;цель&gt;..origin/beta
+git diff --stat &lt;цель&gt; origin/beta
+
+Диапазон состоит из одного слияния этой ветки задачи. Второго вопроса нет.
+Согласие уже дано выбором отката.
+
+В диапазоне есть что-то ещё. Остановиться и показать оба вывода. Push
+выполняется только после того, как пользователь в ответе назвал этот SHA
+цели и этот SHA NOW. Молчаливое согласие не считается.
+
+Чужое слияние в диапазоне само по себе push не разрешает. Признак чужого
+слияния — merge-коммит, чей второй родитель не является вершиной ветки
+задачи и не является её предком.
+
+beta между показом лога и push ушла вперёд. --force-with-lease отказывает.
+Повторять ту же команду нельзя. Снова fetch, снова оба вывода, снова ждать
+названный NOW.
+</before_push>
 
 <command>
 git fetch origin
-git switch -c revert/beta-&lt;тема&gt; origin/beta
-git revert -m 1 &lt;M&gt; --no-edit
-git push -u origin revert/beta-&lt;тема&gt;
-gh pr create --base beta --head revert/beta-&lt;тема&gt; \
-  --title "revert: &lt;тема&gt; from beta" \
-  --body "Ревёрт слияния в beta. &lt;почему: отказ приёмки | отказ от Production | откат Production | слияние в prod не повторяем&gt;"
-skills/_shared/scripts/lock-acquire.sh --owned stage &lt;ветка задачи&gt; \
-  &amp;&amp; gh pr merge &lt;номер revert-PR&gt; --merge --delete-branch=false
+NOW=$(git rev-parse origin/beta)
+git merge-base --is-ancestor &lt;цель&gt; "$NOW"
+git push --force-with-lease=refs/heads/beta:"$NOW" origin &lt;цель&gt;:refs/heads/beta
+git fetch origin beta
+git rev-parse origin/beta
 </command>
 
-<why_pr>
-Код задачи в beta только через PR. Прямой push и сброс beta здесь
-не применяются: замок stage-busy запрещает сброс, а ревёрт точечно
-убирает одно слияние.
-</why_pr>
+Критерий последней команды — SHA равен цели.
+Ожидаемое значение lease — тот NOW, который только что показали.
+Записанный на шаге 7 M годится как lease только если свежий origin/beta
+всё ещё равен M. Флаг --force без lease не использовать.
 
-<explain flag="-m 1">
-Отменяется коммит слияния, у него два родителя. -m 1 оставляет первого —
-состояние beta до слияния задачи.
-</explain>
+Локальную ветку beta переставлять не нужно. Обновляется ref на origin.
+Так не упираемся в cannot force update the branch used by worktree.
+
+Это третья прямая запись в beta, см. branch_status в sma-code-delivery.
+PR и ветки revert/beta-…, unrevert/beta-… для отката beta не создаются.
+Код задачи в beta по-прежнему только через PR. Сдвиг указателя назад —
+служебная запись, как сброс, и через PR force-with-lease не делается.
 
 <after>
 ssh sma-spare 'cd /opt/sma-beta &amp;&amp; test -z "$(git status --porcelain)"'
-ssh sma-spare 'cd /opt/sma-beta &amp;&amp; git fetch --prune --prune-tags origin'
-ssh sma-spare 'cd /opt/sma-beta &amp;&amp; git checkout beta'
-ssh sma-spare 'cd /opt/sma-beta &amp;&amp; git pull --ff-only'
+ssh sma-spare 'cd /opt/sma-beta &amp;&amp; git fetch --prune origin &amp;&amp; git rev-parse origin/beta'
+ssh sma-spare 'cd /opt/sma-beta &amp;&amp; git checkout beta &amp;&amp; git reset --hard origin/beta'
 </after>
+
+Критерий rev-parse на сервере — SHA равен цели. Грязный git status
+останавливает шаг. reset --hard по грязному каталогу не запускать.
+git pull --ff-only после сдвига не выполняется: движение не является
+fast-forward.
+
 <redeploy if="область требовала подъёма контейнеров">
 Повторить пересборку и up -d шага 8 sma-deploy-stage, с --no-deps,
 stage_postgres не трогать. Для none, scripts, skills, nginx контейнеры
-не поднимать, git pull обязателен.
+не поднимать. Fetch и reset в каталоге обязательны.
 </redeploy>
 
 <check>
 git fetch origin
+git rev-parse origin/beta
 git merge-base --is-ancestor origin/&lt;ветка задачи&gt; origin/beta
-Код возврата 0 сам по себе не доказывает, что содержимое на месте:
-коммиты ветки остаются предками после ревёрта. Проверка дерева:
+git diff --quiet &lt;цель&gt; origin/beta
 
-git diff --quiet origin/prod origin/beta
+rev-parse равен цели. merge-base --is-ancestor возвращает не ноль:
+ветка задачи больше не предок beta. Это признак, что повторный PR её
+привезёт. Пустой git diff против цели подтверждает, что уехало ровно
+показанное дерево.
 
-Пустой diff — в beta сверх prod ничего нет, либо показать пользователю
-git diff --name-only origin/prod origin/beta и разобрать, что осталось.
+Пустой git diff origin/prod origin/beta после этой операции не обязателен.
+Цель может не совпадать с origin/prod.
 </check>
 
 <then>
@@ -93,7 +137,8 @@ skills/_shared/contour-lock.md, путь 2. Если стоял prod-busy это
 
 git tag -a reverted/&lt;ветка&gt; &lt;коммит исходного тега&gt; -m "Слияние откачено из beta
 branch: &lt;ветка задачи&gt;
-revert: &lt;SHA revert-коммита&gt;
+beta_was: &lt;NOW&gt;
+beta_now: &lt;цель&gt;
 причина: &lt;отказ приёмки | отказ от Production | откат Production&gt;
 дата: &lt;дата&gt;"
 git push origin reverted/&lt;ветка&gt;
@@ -101,41 +146,30 @@ git push origin reverted/&lt;ветка&gt;
 git tag -d stage-ok/&lt;ветка&gt;
 git push origin :refs/tags/stage-ok/&lt;ветка&gt;
 
-Сначала новый тег, потом снять прежний.
+Сначала новый тег, потом снять прежний. В теле нет строки revert:.
+Старые теги reverted/… со строкой revert: не переписывать.
 </tag_void>
 
 <return>
-Содержимое в beta возвращает unrevert, то есть revert коммита ревёрта.
-Повторное слияние той же feat-ветки без unrevert содержимое не возвращает.
+Содержимое в beta возвращает обычный круг sma-deploy-stage с PR исходной
+ветки задачи в beta. Замок занимает шаг 7 этого круга. Отдельной постановки
+замка под служебный PR нет.
 
-<command>
-git fetch origin
-git switch -c unrevert/beta-&lt;тема&gt; origin/beta
-git revert &lt;SHA коммита ревёрта в beta&gt; --no-edit
-git push -u origin unrevert/beta-&lt;тема&gt;
-gh pr create --base beta --head unrevert/beta-&lt;тема&gt; \
-  --title "unrevert: &lt;тема&gt; on beta" \
-  --body "Возврат содержимого в beta после ревёрта. Исходная ветка: &lt;ветка задачи&gt;."
-</command>
-
-После этого PR, если на исходной feat-ветке есть новые коммиты, их PR
-в beta готовится следом. Оба PR сливаются подряд.
-
-<lock>
-Замок stage-busy ставится заново до gh pr merge unrevert-PR.
-В теле поле branch равно исходной feat-ветке, не unrevert/….
-После stage-ok замок не снимается, шаг 12 sma-deploy-stage.
-
-skills/_shared/scripts/lock-acquire.sh --owned stage &lt;ветка задачи&gt; \
-  &amp;&amp; gh pr merge &lt;номер unrevert-PR&gt; --merge --delete-branch=false
-</lock>
+Повторное слияние без новых коммитов тоже возвращает содержимое.
+stage-ok по-прежнему ставится на вершину исходной feat-ветки.
+Теги stage-ok/revert/… и stage-ok/unrevert/… не создавать.
 </return>
 
 <forbidden>
-<f>Снимать stage-busy до pull в /opt/sma-beta и проверки, что ревёрт на контуре.</f>
-<f>Сливать ветку задачи в beta повторно без unrevert.</f>
-<f>Сбрасывать beta = prod, пока стоит stage-busy.</f>
-<f>Оставлять stage-ok после ревёрта из beta.</f>
+<f>git revert -m 1 по ветке beta.</f>
+<f>Создавать ветки revert/beta-… или unrevert/beta-….</f>
+<f>Снимать stage-busy до reset --hard в /opt/sma-beta и проверки SHA.</f>
+<f>Откатывать указатель beta ради исправления, которое идёт под тем же
+stage-busy.</f>
+<f>Подтягивать каталог после сдвига через git pull --ff-only.</f>
+<f>Сбрасывать beta = prod вместо отката указателя, пока стоит stage-busy.</f>
+<f>Оставлять stage-ok после отката указателя beta.</f>
+<f>Применять тот же сдвиг указателя к ветке prod.</f>
 </forbidden>
 
-</beta_revert>
+</beta_pointer_rollback>
