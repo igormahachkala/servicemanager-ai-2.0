@@ -24,7 +24,7 @@ hasnt(){ printf '%s' "$1" | grep -q "$2" && no "$3 [present: $2]" || ok "$3"; }
 # other/old is a Stage build branched from prod that does NOT contain the
 # candidate — the exact shape the audit used to obtain a false READY.
 SRC="$TMP/src"; BARE="$TMP/remote.git"
-git init -q "$SRC"; ( cd "$SRC"
+git init -q "$SRC"; ( cd "$SRC" || exit 1
   git config user.email a@b.c; git config user.name t
   mkdir -p backend/prisma/migrations backend/scripts
   echo base > f; git add f; git commit -qm c0
@@ -276,7 +276,7 @@ mktag stage-busy "$C1" "$BUSYBODY"
 
 # beta ⊉ prod (fresh fixture)
 SRC2="$TMP/src2"; BARE2="$TMP/remote2.git"
-git init -q "$SRC2"; ( cd "$SRC2"; git config user.email a@b.c; git config user.name t
+git init -q "$SRC2"; ( cd "$SRC2" || exit 1; git config user.email a@b.c; git config user.name t
   echo x>f; git add f; git commit -qm base; git branch beta; echo y>>f; git commit -qam prodonly; git branch -M prod; git checkout -qb feat/cand )
 git clone -q --bare "$SRC2" "$BARE2"
 OUT=$(bash "$SCRIPT" feat/cand --remote "$BARE2" --stage-runtime-sha "$C1" --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" --deployed-workdir-tree "$C1_TREE" 2>&1); rc_is "beta ⊉ prod" 1 $?
@@ -284,7 +284,7 @@ has "$OUT" "beta ⊇ prod           : VIOLATED" "beta⊉prod noted"
 
 # candidate not contained in beta
 SRC3="$TMP/src3"; BARE3="$TMP/remote3.git"
-git init -q "$SRC3"; ( cd "$SRC3"; git config user.email a@b.c; git config user.name t
+git init -q "$SRC3"; ( cd "$SRC3" || exit 1; git config user.email a@b.c; git config user.name t
   echo base > f; git add f; git commit -qm c0; git branch -M prod; git branch beta
   git checkout -qb feat/cand; echo more >> f; git add -A; git commit -qm c1; git checkout -q prod )
 git clone -q --bare "$SRC3" "$BARE3"
