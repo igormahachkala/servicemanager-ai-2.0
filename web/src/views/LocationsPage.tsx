@@ -71,7 +71,9 @@ function locationSaveMessage(
 export function LocationsPage() {
   const qc = useQueryClient()
 
-  const [err, setErr] = useState<string | null>(null)
+  const [createErr, setCreateErr] = useState<string | null>(null)
+  const [editErr, setEditErr] = useState<string | null>(null)
+  const [listErr, setListErr] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [createValue, setCreateValue] = useState<LocationFormValue>(emptyForm)
   const [editingLocationId, setEditingLocationId] = useState<string | null>(null)
@@ -104,6 +106,13 @@ export function LocationsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isProviderScope, linkedClientsQ.dataUpdatedAt, meQ.dataUpdatedAt])
 
+  function clearMessages() {
+    setCreateErr(null)
+    setEditErr(null)
+    setListErr(null)
+    setSuccess(null)
+  }
+
   const scopeCompanyId = isProviderScope ? selectedClientId : ''
   const canCreate = !isProviderScope || !!scopeCompanyId
 
@@ -129,14 +138,14 @@ export function LocationsPage() {
   const createM = useMutation({
     mutationFn: (value: LocationFormValue) => api.createLocation(toCreateInput(value), scopeCompanyId || undefined),
     onSuccess: async (created) => {
-      setErr(null)
+      setCreateErr(null)
       setSuccess(locationSaveMessage(created, 'создана'))
       setCreateValue(emptyForm)
       await invalidateLocationQueries()
     },
     onError: (error: any) => {
       setSuccess(null)
-      setErr(error?.message || String(error))
+      setCreateErr(error?.message || String(error))
     },
   })
 
@@ -149,7 +158,7 @@ export function LocationsPage() {
       return updated
     },
     onSuccess: async (updated) => {
-      setErr(null)
+      setEditErr(null)
       setSuccess(locationSaveMessage(updated, 'обновлена'))
       setEditingLocationId(null)
       setEditingLocationActive(true)
@@ -158,7 +167,7 @@ export function LocationsPage() {
     },
     onError: (error: any) => {
       setSuccess(null)
-      setErr(error?.message || String(error))
+      setEditErr(error?.message || String(error))
     },
   })
 
@@ -171,14 +180,14 @@ export function LocationsPage() {
   }
 
   function beginEdit(location: api.LocationListItem) {
-    setErr(null)
-    setSuccess(null)
+    clearMessages()
     setEditingLocationId(location.id)
     setEditingLocationActive(location.isActive !== false)
     setEditValue(toFormValue(location))
   }
 
   function cancelEdit() {
+    setEditErr(null)
     setEditingLocationId(null)
     setEditingLocationActive(true)
     setEditValue(emptyForm)
@@ -186,15 +195,14 @@ export function LocationsPage() {
 
   function submitCreate(event: React.FormEvent) {
     event.preventDefault()
-    setErr(null)
-    setSuccess(null)
+    clearMessages()
     if (isProviderScope && !scopeCompanyId) {
-      setErr('Выберите клиента, для которого создаётся локация.')
+      setCreateErr('Выберите клиента, для которого создаётся локация.')
       return
     }
     const validationError = validate(createValue)
     if (validationError) {
-      setErr(validationError)
+      setCreateErr(validationError)
       return
     }
     createM.mutate(createValue)
@@ -203,11 +211,10 @@ export function LocationsPage() {
   function submitEdit(event: React.FormEvent) {
     event.preventDefault()
     if (!editingLocationId) return
-    setErr(null)
-    setSuccess(null)
+    clearMessages()
     const validationError = validate(editValue)
     if (validationError) {
-      setErr(validationError)
+      setEditErr(validationError)
       return
     }
     updateM.mutate({ id: editingLocationId, value: editValue, initialIsActive: editingLocationActive })
@@ -216,9 +223,10 @@ export function LocationsPage() {
   const deleteLocationM = useMutation({
     mutationFn: (id: string) => api.deleteLocation(id, scopeCompanyId || undefined),
     onSuccess: async (deleted) => {
-      setErr(null)
+      setListErr(null)
       setSuccess(`Точка «${deleted.name}» удалена`)
       if (editingLocationId === deleted.id) {
+        setEditErr(null)
         setEditingLocationId(null)
         setEditValue(emptyForm)
       }
@@ -226,29 +234,31 @@ export function LocationsPage() {
     },
     onError: (error: any) => {
       setSuccess(null)
-      setErr(error?.message || String(error))
+      setListErr(error?.message || String(error))
     },
   })
 
   const restoreLocationM = useMutation({
     mutationFn: (id: string) => api.restoreLocation(id, scopeCompanyId || undefined),
     onSuccess: async (restored) => {
-      setErr(null)
+      setListErr(null)
       setSuccess(`Точка «${restored.name}» восстановлена`)
       await invalidateLocationQueries()
     },
     onError: (error: any) => {
       setSuccess(null)
-      setErr(error?.message || String(error))
+      setListErr(error?.message || String(error))
     },
   })
 
   function deleteLocation(location: api.LocationListItem) {
     if (!window.confirm(`Удалить точку «${location.name}»? Можно восстановить через переключатель «Показать удалённые».`)) return
+    clearMessages()
     deleteLocationM.mutate(location.id)
   }
 
   function restoreLocation(location: api.LocationListItem) {
+    clearMessages()
     restoreLocationM.mutate(location.id)
   }
 
@@ -297,7 +307,6 @@ export function LocationsPage() {
 
       <div className="pageHint">Точки — это реальные объекты клиента, к которым привязываются заявки.</div>
 
-      {err ? <div className="alert">{err}</div> : null}
       {success ? <div className="panel" style={{ marginBottom: 12 }}>{success}</div> : null}
       {locationsQ.isError ? <div className="alert">{(locationsQ.error as any)?.message || String(locationsQ.error)}</div> : null}
 
@@ -315,6 +324,7 @@ export function LocationsPage() {
               submitLabel="Создать локацию"
               value={createValue}
               submitting={createM.isPending}
+              error={createErr}
               onChange={patchCreate}
               onSubmit={submitCreate}
             />
@@ -329,6 +339,11 @@ export function LocationsPage() {
           <div className="row" style={{ marginBottom: 10, gap: 8 }}>
             <h3 style={{ margin: 0 }}>Список локаций</h3>
           </div>
+          {listErr ? (
+            <div className="alert" role="alert" style={{ marginTop: 0, marginBottom: 10 }}>
+              {listErr}
+            </div>
+          ) : null}
           {isProviderScope && !scopeCompanyId ? (
             <div className="muted">Выберите клиента, чтобы увидеть его локации.</div>
           ) : locationsQ.isLoading ? (
@@ -340,6 +355,7 @@ export function LocationsPage() {
               isProviderScope={isProviderScope}
               editingLocationId={editingLocationId}
               editingValue={editValue}
+              editError={editErr}
               busy={busy}
               onBeginEdit={beginEdit}
               onCancelEdit={cancelEdit}
