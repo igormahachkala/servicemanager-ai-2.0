@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
 import { hasOpenWorkShift, shouldFetchShiftGateState } from './mobileShiftGate'
@@ -10,6 +10,7 @@ type Props = {
 }
 
 export function MobileShiftGeolocation({ user }: Props) {
+  const queryClient = useQueryClient()
   const enabled = shouldFetchShiftGateState(user)
   const stateQ = useQuery({
     queryKey: ['workforce-me'],
@@ -23,8 +24,10 @@ export function MobileShiftGeolocation({ user }: Props) {
 
   useEffect(() => {
     if (!openShiftId) return
-    return startOpenShiftGeolocation()
-  }, [openShiftId])
+    return startOpenShiftGeolocation(() => {
+      void queryClient.invalidateQueries({ queryKey: ['ticket-routes'] })
+    })
+  }, [openShiftId, queryClient])
 
   return null
 }

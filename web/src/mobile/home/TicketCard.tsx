@@ -30,6 +30,7 @@ type Props = {
   cacheSelected?: boolean
   onToggleCache?: (ticketId: string) => void
   onRefreshCache?: (ticketId: string) => void
+  routeLabel?: string | null
 }
 
 function fmtCardTime(dt: string): string {
@@ -73,6 +74,7 @@ export function TicketCard({
   cacheSelected = false,
   onToggleCache,
   onRefreshCache,
+  routeLabel = null,
 }: Props) {
   const claimReason = (ticket.claimAvailabilityReason || '').trim()
   const actionBusy = !!actionProgressLabel
@@ -146,6 +148,7 @@ export function TicketCard({
 
             {/* Row 2: location */}
             {locationText ? <div className="mobileTicketCardV2Location">{locationText}</div> : null}
+            {routeLabel ? <div className="mobileTicketCardV2Location">{routeLabel}</div> : null}
 
             {/* Row 3: description snippet */}
             {descText ? <div className="mobileTicketCardV2Desc">{descText}</div> : null}

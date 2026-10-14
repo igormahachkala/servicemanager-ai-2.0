@@ -21,6 +21,7 @@ import { WorkforceModule } from '../workforce/workforce.module'
 import { FailureCausesModule } from '../failure-causes/failure-causes.module'
 import { TwogisModule } from '../twogis/twogis.module'
 import { TicketRouteService } from './ticket-route.service'
+import { TicketRoutesController } from './ticket-routes.controller'
 
 @Module({
   imports: [
@@ -45,7 +46,7 @@ import { TicketRouteService } from './ticket-route.service'
     TicketRouteService,
     PermissionsContextGuard,
   ],
-  controllers: [TicketsController],
+  controllers: [TicketRoutesController, TicketsController],
   exports: [TicketsService, TicketAttachmentsService],
 })
 export class TicketsModule {}
