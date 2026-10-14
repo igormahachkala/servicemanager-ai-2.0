@@ -79,6 +79,7 @@ import { MobileModalBackdrop } from './MobileModalBackdrop'
 import { TicketMaterialsPanel } from '../components/tickets/TicketMaterialsPanel'
 import { compactIdentityLabel, identityLines, presentActorIdentity, presentTicketAssignee, presentTicketCreator } from '../lib/ticketActorIdentity'
 import { MobileTicketWorkTimer } from './MobileTicketWorkTimer'
+import { MobileTicketRouteDuration } from './MobileTicketRouteDuration'
 import { canOfferTicketClaimAction, readBackendCanClaim } from '../lib/ticketActionCapabilities'
 import { dateTimeLocalToIso, formatPlannedDueAt, isoToDateTimeLocalValue } from '../lib/plannedDueAt'
 import { orderProblemCategories } from '../lib/problemCategoryOrdering'
@@ -1854,6 +1855,7 @@ export function MobileTicketPage() {
                 </>
               )
             })()}
+            <MobileTicketRouteDuration ticketId={ticket.id} scope={ticketResourceScope} />
           </div>
         ) : null}
         {ticket ? (

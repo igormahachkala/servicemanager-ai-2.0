@@ -15,6 +15,7 @@ import { LocationsService } from './locations.service'
 import { CreateLocationDto } from './dto/create-location.dto'
 import { UpdateLocationDto } from './dto/update-location.dto'
 import { SetLocationStatusDto } from './dto/set-location-status.dto'
+import { SuggestLocationQueryDto } from './dto/suggest-location-query.dto'
 
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsContextGuard, PermissionsGuard)
 @Controller('locations')
@@ -47,6 +48,14 @@ export class LocationsController {
       isActive,
       includeDeleted: includeDeleted === 'true',
     }, companyId)
+  }
+
+  @Get('address-suggest')
+  @ManagementSurface()
+  @Roles(UserRole.ADMIN, UserRole.MASTER)
+  @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
+  suggest(@Query() query: SuggestLocationQueryDto) {
+    return this.svc.suggestAddress(query.q, query.city)
   }
 
   @Get(':id')

@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { mobilePath } from './mobileRoute'
 import { MobileSectionBackLink } from './MobileSectionBackLink'
+import { startOpenShiftGeolocation } from './shiftGeolocation'
 
 function durationLabel(start: string, end?: string | null, now = Date.now()) {
   const startMs = new Date(start).getTime()
@@ -63,6 +64,12 @@ export function MobileShiftPage() {
   const data = stateQ.data
   const shift = data?.shift
   const running = data?.runningWorkLog
+
+  useEffect(() => {
+    if (!shift?.id || shift.closedAt) return
+    return startOpenShiftGeolocation()
+  }, [shift?.id, shift?.closedAt])
+
   const busy = openM.isPending || closeM.isPending
   const totalWorkMinutes = useMemo(
     () =>

@@ -53,6 +53,21 @@ function toFormValue(location: api.LocationListItem): LocationFormValue {
   }
 }
 
+function locationSaveMessage(
+  location: Pick<api.LocationListItem, 'name' | 'address' | 'latitude' | 'longitude'>,
+  verb: 'создана' | 'обновлена',
+) {
+  const hasCoords =
+    typeof location.latitude === 'number' && typeof location.longitude === 'number'
+  if (hasCoords) {
+    return `Локация «${location.name}» ${verb}. Координаты: ${location.latitude}, ${location.longitude}`
+  }
+  if (location.address) {
+    return `Локация «${location.name}» ${verb}. Координаты не определены`
+  }
+  return `Локация «${location.name}» ${verb}`
+}
+
 export function LocationsPage() {
   const qc = useQueryClient()
 
@@ -115,7 +130,7 @@ export function LocationsPage() {
     mutationFn: (value: LocationFormValue) => api.createLocation(toCreateInput(value), scopeCompanyId || undefined),
     onSuccess: async (created) => {
       setErr(null)
-      setSuccess(`Локация «${created.name}» создана`)
+      setSuccess(locationSaveMessage(created, 'создана'))
       setCreateValue(emptyForm)
       await invalidateLocationQueries()
     },
@@ -135,7 +150,7 @@ export function LocationsPage() {
     },
     onSuccess: async (updated) => {
       setErr(null)
-      setSuccess(`Локация «${updated.name}» обновлена`)
+      setSuccess(locationSaveMessage(updated, 'обновлена'))
       setEditingLocationId(null)
       setEditingLocationActive(true)
       setEditValue(emptyForm)
