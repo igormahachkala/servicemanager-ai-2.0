@@ -59,8 +59,9 @@ function parseRouteSummary(body: unknown): TwogisRouteSummary | null {
   const first = Array.isArray(result) ? asRecord(result[0]) : asRecord(result);
   if (!first) return null;
 
-  const distanceMeters = readFiniteNumber(first.total_distance);
-  const durationSeconds = readFiniteNumber(first.total_duration);
+  // output=summary returns length/duration; output=detailed returns total_distance/total_duration.
+  const distanceMeters = readFiniteNumber(first.length) ?? readFiniteNumber(first.total_distance);
+  const durationSeconds = readFiniteNumber(first.duration) ?? readFiniteNumber(first.total_duration);
   if (distanceMeters === null || durationSeconds === null) return null;
 
   return { distanceMeters, durationSeconds };

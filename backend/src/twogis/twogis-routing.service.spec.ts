@@ -12,11 +12,13 @@ describe('TwogisRoutingService', () => {
     delete process.env.TWOGIS_API_KEY;
   });
 
-  it('parses distance and duration from a routing summary', async () => {
+  it('parses length and duration from a routing summary', async () => {
     const fetchImpl = jest.fn().mockResolvedValue({
       ok: true,
       json: async () => ({
-        result: [{ total_distance: 5570, total_duration: 1073 }],
+        status: 'OK',
+        type: 'result',
+        result: [{ length: 5570, duration: 1073 }],
       }),
     });
     const service = new TwogisRoutingService(fetchImpl as unknown as typeof fetch);
@@ -66,10 +68,23 @@ describe('TwogisRoutingService', () => {
     await expect(service.routeSummary(FROM, TO)).resolves.toBeNull();
   });
 
-  it('returns null when total_distance or total_duration is missing', async () => {
+  it('parses total_distance and total_duration from a detailed route', async () => {
     const fetchImpl = jest.fn().mockResolvedValue({
       ok: true,
-      json: async () => ({ result: [{ total_distance: 100 }] }),
+      json: async () => ({ result: [{ total_distance: 5570, total_duration: 1073 }] }),
+    });
+    const service = new TwogisRoutingService(fetchImpl as unknown as typeof fetch);
+
+    await expect(service.routeSummary(FROM, TO)).resolves.toEqual({
+      distanceMeters: 5570,
+      durationSeconds: 1073,
+    });
+  });
+
+  it('returns null when distance or duration is missing', async () => {
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ result: [{ length: 100 }] }),
     });
     const service = new TwogisRoutingService(fetchImpl as unknown as typeof fetch);
 

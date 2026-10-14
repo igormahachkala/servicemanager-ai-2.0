@@ -59,8 +59,8 @@ function parseSuggestHits(body: unknown): TwogisSuggestHit[] {
       readNonEmptyString(record.address_name) ||
       readNonEmptyString(record.name);
     const text =
-      readNonEmptyString(record.name) ||
       readNonEmptyString(record.address_name) ||
+      readNonEmptyString(record.name) ||
       readNonEmptyString(asRecord(record.search_attributes)?.suggested_text) ||
       fullName;
     if (!text || !fullName) continue;
