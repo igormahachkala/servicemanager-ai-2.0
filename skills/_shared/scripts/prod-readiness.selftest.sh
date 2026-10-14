@@ -34,6 +34,8 @@ git clone -q --bare "$SRC" "$BARE"
 R="$BARE"
 C1=$(git ls-remote "$BARE" refs/heads/feat/cand | awk '{print $1}')
 C0=$(git ls-remote "$BARE" refs/heads/prod | awk '{print $1}')
+C1_TREE=$(git --git-dir="$BARE" rev-parse "$C1^{tree}")
+READY_ARGS=(--remote "$R" --stage-runtime-sha "$C1" --merge-check PASS --ci PASS --expected-production-tree "$C1_TREE" --actual-production-tree "$C1_TREE")
 
 mktag(){ local wt; wt=$(mktemp -d "$TMP/wt.XXXXXX"); git clone -q "$BARE" "$wt" >/dev/null 2>&1
   ( cd "$wt" && git tag -f -a "$1" "$2" -m "$3" >/dev/null 2>&1 && git push -q -f origin "refs/tags/$1" >/dev/null 2>&1 ); rm -rf "$wt"; }
@@ -47,9 +49,13 @@ echo "== A7 prod-readiness self-test =="
 # POSITIVE: stage-ok@tip + stage-busy(feat/cand), no prod-busy
 mktag stage-ok/feat/cand "$C1" "$OKBODY"
 mktag stage-busy "$C1" "$(printf 'Контур занят\nbranch: feat/cand\npr: 9\ndate: 2026-10-13T00:00:00Z')"
-OUT=$(bash "$SCRIPT" feat/cand --remote "$R" 2>&1); rc_is "POS all signals present" 0 $?
+OUT=$(bash "$SCRIPT" feat/cand "${READY_ARGS[@]}" 2>&1); rc_is "POS all signals present" 0 $?
 has "$OUT" "READINESS              : COMPLETE" "POS COMPLETE"
 has "$OUT" "stage-ok (exact)      : PRESENT and matches" "POS stage-ok matches"
+has "$OUT" "Stage runtime SHA     : OK" "POS Stage runtime SHA checked"
+has "$OUT" "Canonical merge-check : OK" "POS merge-check evidence checked"
+has "$OUT" "CI status             : OK" "POS CI evidence checked"
+has "$OUT" "Production tree      : OK" "POS Production tree identity checked"
 has "$OUT" "Migrations in candidate: YES" "POS migration detected"
 has "$OUT" "DB / runtime actions   : YES" "POS DB action (runbook) detected"
 has "$OUT" "OWNER GO               : REQUIRED" "POS OWNER-GO caveat present"
@@ -57,27 +63,55 @@ has "$OUT" "stage-busy            : HELD by this candidate" "POS stage-busy held
 
 # MISSING stage-ok
 deltag stage-ok/feat/cand
-OUT=$(bash "$SCRIPT" feat/cand --remote "$R" 2>&1); rc_is "missing stage-ok" 1 $?
+OUT=$(bash "$SCRIPT" feat/cand "${READY_ARGS[@]}" 2>&1); rc_is "missing stage-ok" 1 $?
 has "$OUT" "stage-ok (exact)      : ABSENT" "missing stage-ok noted"
 
 # SHA MISMATCH: stage-ok points at c0, candidate tip is c1
 mktag stage-ok/feat/cand "$C0" "$OKBODY"
-OUT=$(bash "$SCRIPT" feat/cand --remote "$R" 2>&1); rc_is "stage-ok SHA mismatch" 1 $?
+OUT=$(bash "$SCRIPT" feat/cand "${READY_ARGS[@]}" 2>&1); rc_is "stage-ok SHA mismatch" 1 $?
 has "$OUT" "stage-ok (exact)      : MISMATCH" "mismatch noted"
 mktag stage-ok/feat/cand "$C1" "$OKBODY"   # restore good
 
 # BUSY LOCK: prod-busy held by another branch
 mktag prod-busy "$C0" "$(printf 'Контур занят\nbranch: other/x\ndate: 2026-10-13T00:00:00Z')"
-OUT=$(bash "$SCRIPT" feat/cand --remote "$R" 2>&1); rc_is "prod-busy held" 1 $?
+OUT=$(bash "$SCRIPT" feat/cand "${READY_ARGS[@]}" 2>&1); rc_is "prod-busy held" 1 $?
 has "$OUT" "prod-busy             : HELD by 'other/x'" "prod-busy blocker noted"
 deltag prod-busy
+
+# Missing stage-busy is also incomplete; Stage ownership should remain held until
+# Production closes.
+deltag stage-busy
+OUT=$(bash "$SCRIPT" feat/cand "${READY_ARGS[@]}" 2>&1); rc_is "stage-busy absent" 1 $?
+has "$OUT" "stage-busy            : absent" "stage-busy absence noted"
+has "$OUT" "READINESS              : INCOMPLETE" "stage-busy absence blocks readiness"
+mktag stage-busy "$C1" "$(printf 'Контур занят\nbranch: feat/cand\npr: 9\ndate: 2026-10-13T00:00:00Z')"
+
+# Required evidence gaps.
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --merge-check PASS --ci PASS --expected-production-tree "$C1_TREE" --actual-production-tree "$C1_TREE" 2>&1); rc_is "missing Stage runtime SHA" 1 $?
+has "$OUT" "Stage runtime SHA     : BLOCKED" "missing Stage runtime SHA blocks"
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --ci PASS --expected-production-tree "$C1_TREE" --actual-production-tree "$C1_TREE" 2>&1); rc_is "missing merge-check" 1 $?
+has "$OUT" "Canonical merge-check : BLOCKED" "missing merge-check blocks"
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --merge-check PASS --expected-production-tree "$C1_TREE" --actual-production-tree "$C1_TREE" 2>&1); rc_is "missing CI" 1 $?
+has "$OUT" "CI status             : BLOCKED" "missing CI blocks"
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --merge-check PASS --ci PASS --expected-production-tree "$C1_TREE" 2>&1); rc_is "missing actual production tree" 1 $?
+has "$OUT" "Production tree      : BLOCKED" "missing actual tree blocks"
+
+# Negative signals.
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha WRONG --merge-check PASS --ci PASS --expected-production-tree "$C1_TREE" --actual-production-tree "$C1_TREE" 2>&1); rc_is "Stage runtime SHA mismatch" 1 $?
+has "$OUT" "Stage runtime SHA     : MISMATCH" "Stage runtime mismatch blocks"
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --merge-check FAIL --ci PASS --expected-production-tree "$C1_TREE" --actual-production-tree "$C1_TREE" 2>&1); rc_is "merge-check failure" 1 $?
+has "$OUT" "Canonical merge-check : FAIL" "merge-check failure blocks"
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --merge-check PASS --ci FAIL --expected-production-tree "$C1_TREE" --actual-production-tree "$C1_TREE" 2>&1); rc_is "CI failure" 1 $?
+has "$OUT" "CI status             : FAIL" "CI failure blocks"
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --merge-check PASS --ci PASS --expected-production-tree "$C1_TREE" --actual-production-tree WRONGTREE 2>&1); rc_is "production tree mismatch" 1 $?
+has "$OUT" "Production tree      : MISMATCH" "production tree mismatch blocks"
 
 # beta ⊉ prod violation (fresh fixture)
 SRC2="$TMP/src2"; BARE2="$TMP/remote2.git"
 git init -q "$SRC2"; ( cd "$SRC2"; git config user.email a@b.c; git config user.name t
   echo x>f; git add f; git commit -qm base; git branch beta; echo y>>f; git commit -qam prodonly; git branch -M prod; git checkout -qb feat/cand )
 git clone -q --bare "$SRC2" "$BARE2"
-OUT=$(bash "$SCRIPT" feat/cand --remote "$BARE2" 2>&1); rc_is "beta ⊉ prod" 1 $?
+OUT=$(bash "$SCRIPT" feat/cand --remote "$BARE2" --stage-runtime-sha "$C1" --merge-check PASS --ci PASS --expected-production-tree "$C1_TREE" --actual-production-tree "$C1_TREE" 2>&1); rc_is "beta ⊉ prod" 1 $?
 has "$OUT" "beta ⊇ prod           : VIOLATED" "beta⊉prod noted"
 
 # CANDIDATE NOT IN BETA (the critical fix): beta ⊇ prod OK, stage-ok matches tip,
@@ -92,12 +126,13 @@ git init -q "$SRC3"; ( cd "$SRC3"; git config user.email a@b.c; git config user.
   git checkout -q prod )
 git clone -q --bare "$SRC3" "$BARE3"
 C1b=$(git ls-remote "$BARE3" refs/heads/feat/cand | awk '{print $1}')
+C1b_TREE=$(git --git-dir="$BARE3" rev-parse "$C1b^{tree}")
 BODY3=$(printf 'Stage acceptance passed\nbranch: feat/cand\nbranch_sha: %s\nstage_sha: %s' "$C1b" "$C1b")
 mk3(){ local wt; wt=$(mktemp -d "$TMP/wt.XXXXXX"); git clone -q "$BARE3" "$wt" >/dev/null 2>&1
   ( cd "$wt" && git tag -f -a "$1" "$2" -m "$3" >/dev/null 2>&1 && git push -q -f origin "refs/tags/$1" >/dev/null 2>&1 ); rm -rf "$wt"; }
 mk3 stage-ok/feat/cand "$C1b" "$BODY3"
 mk3 stage-busy "$C1b" "$(printf 'branch: feat/cand\ndate: 2026-10-13T00:00:00Z')"
-OUT=$(bash "$SCRIPT" feat/cand --remote "$BARE3" 2>&1); RC=$?
+OUT=$(bash "$SCRIPT" feat/cand --remote "$BARE3" --stage-runtime-sha "$C1b" --merge-check PASS --ci PASS --expected-production-tree "$C1b_TREE" --actual-production-tree "$C1b_TREE" 2>&1); RC=$?
 rc_is "candidate NOT in beta → INCOMPLETE" 1 $RC
 has "$OUT" "beta ⊇ prod           : OK" "  (beta ⊇ prod still OK)"
 has "$OUT" "stage-ok (exact)      : PRESENT and matches" "  (stage-ok still matches tip)"
@@ -113,7 +148,7 @@ bash "$SCRIPT" >/dev/null 2>&1; rc_is "no candidate arg" 2 $?
 
 # NO MUTATION of refs/tags (fixture + running repo)
 FB=$(git ls-remote "$R" | sort); RB=$(git show-ref | sort)
-bash "$SCRIPT" feat/cand --remote "$R" >/dev/null 2>&1
+bash "$SCRIPT" feat/cand "${READY_ARGS[@]}" >/dev/null 2>&1
 FA=$(git ls-remote "$R" | sort); RA=$(git show-ref | sort)
 [ "$FB" = "$FA" ] && ok "no fixture tag mutation" || no "fixture tags changed"
 [ "$RB" = "$RA" ] && ok "no running-repo ref mutation" || no "running-repo refs changed"

@@ -3,8 +3,10 @@
 # prod-readiness.sh — A7 of SMA_DEVELOPMENT_ACCELERATION_PROTOCOL (DRAFT).
 #
 # READ-ONLY aggregator of the Production-readiness signals for one candidate:
-# current prod/beta SHAs, the beta ⊇ prod invariant, a stage-ok tag that matches
-# the exact candidate, the stage-busy / prod-busy lock state, migrations and DB
+# current prod/beta SHAs, the beta ⊇ prod invariant, candidate containment in
+# current beta, a stage-ok tag that matches the exact candidate, actual Stage
+# runtime SHA evidence, canonical merge-check / CI evidence, Production tree
+# identity evidence, the stage-busy / prod-busy lock state, migrations and DB
 # actions carried by the candidate, and whether anything looks unfinished.
 #
 # HARD RULE: this tool DIAGNOSES ONLY. A complete set of green signals (and the
@@ -18,6 +20,8 @@
 # FETCH_HEAD, no ref, no tag).
 #
 # Usage:   prod-readiness.sh <candidate-branch-or-sha> [--remote REMOTE]
+#          --stage-runtime-sha SHA --merge-check PASS --ci PASS
+#          --expected-production-tree TREE --actual-production-tree TREE
 # Default: --remote origin
 #
 # Exit codes:
@@ -30,6 +34,11 @@ set -u
 
 REMOTE="origin"
 CAND_REF=""
+STAGE_RUNTIME_SHA=""
+MERGE_CHECK=""
+CI_STATUS=""
+EXPECTED_PROD_TREE=""
+ACTUAL_PROD_TREE=""
 die() { echo "prod-readiness: $1" >&2; exit "${2:-2}"; }
 
 [ $# -ge 1 ] || die "usage: prod-readiness.sh <candidate-branch-or-sha> [--remote REMOTE]" 2
@@ -37,6 +46,11 @@ CAND_REF="$1"; shift || true
 while [ $# -gt 0 ]; do
   case "$1" in
     --remote) REMOTE="${2:-}"; shift 2 || die "--remote needs a value" ;;
+    --stage-runtime-sha) STAGE_RUNTIME_SHA="${2:-}"; shift 2 || die "--stage-runtime-sha needs a value" ;;
+    --merge-check) MERGE_CHECK="${2:-}"; shift 2 || die "--merge-check needs a value" ;;
+    --ci) CI_STATUS="${2:-}"; shift 2 || die "--ci needs a value" ;;
+    --expected-production-tree) EXPECTED_PROD_TREE="${2:-}"; shift 2 || die "--expected-production-tree needs a value" ;;
+    --actual-production-tree) ACTUAL_PROD_TREE="${2:-}"; shift 2 || die "--actual-production-tree needs a value" ;;
     *) die "unknown argument: $1" ;;
   esac
 done
@@ -73,6 +87,20 @@ tag_field(){ tag_body "$1" | sed -n "s/^$2:[[:space:]]*//p" | head -1; }
 
 INCOMPLETE=0
 note_missing(){ INCOMPLETE=1; }
+ok_value() {
+  case "$1" in PASS|pass|OK|ok|SUCCESS|success|passed|Passed) return 0;; *) return 1;; esac
+}
+check_required_pass() { # label value
+  local label="$1" value="$2"
+  echo -n "  $label"
+  if [ -z "$value" ]; then
+    echo "BLOCKED (required evidence missing)"; note_missing
+  elif ok_value "$value"; then
+    echo "OK ($value)"
+  else
+    echo "FAIL ($value)"; note_missing
+  fi
+}
 
 echo "PRODUCTION READINESS   (remote: $REMOTE)"
 echo
@@ -138,9 +166,36 @@ if [ "$SB_EXISTS" = yes ]; then
   if [ -n "$CAND_BRANCH" ] && [ "$SB_BRANCH" = "$CAND_BRANCH" ]; then echo "HELD by this candidate ($SB_BRANCH) — expected until prod"; else echo "HELD by '${SB_BRANCH:-?}' (another candidate holds the Stage lane)"; note_missing; fi
 else
   echo "absent (per protocol it is held until the code reaches prod — verify the candidate is still in flight)"
+  note_missing
 fi
 echo -n "  prod-busy             : "
 if [ "$PB_EXISTS" = yes ]; then echo "HELD by '${PB_BRANCH:-?}' (Production lane busy)"; note_missing; else echo "absent (Production lane technically free — NOT authorization)"; fi
+
+echo
+echo -n "  Stage runtime SHA     : "
+if [ -z "$STAGE_RUNTIME_SHA" ]; then
+  echo "BLOCKED (required evidence missing)"; note_missing
+elif [ -z "${acc_stage:-}" ]; then
+  echo "BLOCKED (stage-ok has no stage_sha to compare)"; note_missing
+elif [ "$STAGE_RUNTIME_SHA" = "$acc_stage" ]; then
+  echo "OK ($STAGE_RUNTIME_SHA)"
+else
+  echo "MISMATCH (runtime $STAGE_RUNTIME_SHA, stage-ok stage_sha $acc_stage)"; note_missing
+fi
+
+check_required_pass "Canonical merge-check : " "$MERGE_CHECK"
+check_required_pass "CI status             : " "$CI_STATUS"
+
+echo -n "  Production tree      : "
+if [ -z "$EXPECTED_PROD_TREE" ] || [ -z "$ACTUAL_PROD_TREE" ]; then
+  echo "BLOCKED (expected and actual tree evidence required)"
+  note_missing
+elif [ "$EXPECTED_PROD_TREE" = "$ACTUAL_PROD_TREE" ]; then
+  echo "OK ($ACTUAL_PROD_TREE)"
+else
+  echo "MISMATCH (expected $EXPECTED_PROD_TREE, actual $ACTUAL_PROD_TREE)"
+  note_missing
+fi
 
 # migrations + DB actions carried by the candidate (delta vs merge-base with prod)
 echo
