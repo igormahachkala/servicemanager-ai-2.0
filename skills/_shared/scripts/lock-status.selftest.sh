@@ -12,6 +12,7 @@ PASS=0; FAIL=0
 trap 'rm -rf "$TMP"' EXIT
 ok(){ PASS=$((PASS+1)); echo "  PASS $1"; }
 no(){ FAIL=$((FAIL+1)); echo "  FAIL $1"; }
+fixture_die(){ echo "  ERROR fixture setup: $1" >&2; exit 1; }
 rc_is(){ [ "$2" = "$3" ] && ok "$1 (exit $3)" || no "$1 (expected $2 got $3)"; }
 has(){ printf '%s' "$1" | grep -q "$2" && ok "$3" || no "$3"; }
 
@@ -33,12 +34,23 @@ git clone -q --bare "$SRC" "$BARE"
 REMOTE="$BARE"
 # helper to (re)create an annotated tag in the fixture bare repo
 mktag(){ # name target-ref body
-  local wt; wt=$(mktemp -d "$TMP/wt.XXXXXX")
-  git clone -q "$BARE" "$wt" >/dev/null 2>&1
-  ( cd "$wt" && git tag -f -a "$1" "$(git rev-parse "$2")" -m "$3" >/dev/null 2>&1 && git push -q -f origin "refs/tags/$1" >/dev/null 2>&1 )
+  local wt target
+  wt=$(mktemp -d "$TMP/wt.XXXXXX") || fixture_die "cannot create tag worktree"
+  git clone -q "$BARE" "$wt" || fixture_die "cannot clone tag fixture"
+  git -C "$wt" config user.email "lock-status-selftest@example.invalid" || fixture_die "cannot configure fixture user.email"
+  git -C "$wt" config user.name "lock-status self-test" || fixture_die "cannot configure fixture user.name"
+  target=$(git -C "$wt" rev-parse "$2") || fixture_die "cannot resolve tag target $2"
+  git -C "$wt" tag -f -a "$1" "$target" -m "$3" || fixture_die "cannot create fixture tag $1"
+  git -C "$wt" push -q -f origin "refs/tags/$1" || fixture_die "cannot push fixture tag $1"
   rm -rf "$wt"
 }
-deltag(){ local wt; wt=$(mktemp -d "$TMP/wt.XXXXXX"); git clone -q "$BARE" "$wt" >/dev/null 2>&1; ( cd "$wt" && git push -q origin ":refs/tags/$1" >/dev/null 2>&1 ); rm -rf "$wt"; }
+deltag(){
+  local wt
+  wt=$(mktemp -d "$TMP/wt.XXXXXX") || fixture_die "cannot create delete-tag worktree"
+  git clone -q "$BARE" "$wt" || fixture_die "cannot clone delete-tag fixture"
+  git -C "$wt" push -q origin ":refs/tags/$1" || fixture_die "cannot delete fixture tag $1"
+  rm -rf "$wt"
+}
 
 echo "== A5 lock-status self-test =="
 
