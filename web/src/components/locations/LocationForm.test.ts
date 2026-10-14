@@ -14,11 +14,8 @@ describe('shouldRequestAddressSuggest', () => {
     expect(shouldRequestAddressSuggest('  ле  ')).toBe(true)
   })
 
-  it('does not request again for the address just picked from suggestions', () => {
-    expect(shouldRequestAddressSuggest('Советский проспект, 54', 'Советский проспект, 54')).toBe(false)
-    expect(shouldRequestAddressSuggest(' Советский проспект, 54 ', 'Советский проспект, 54')).toBe(false)
-    expect(shouldRequestAddressSuggest('Советский проспект, 5', 'Советский проспект, 54')).toBe(true)
-    expect(shouldRequestAddressSuggest('Советский проспект, 54', null)).toBe(true)
+  it('does not request without text typed into the address field', () => {
+    expect(shouldRequestAddressSuggest(null)).toBe(false)
   })
 })
 

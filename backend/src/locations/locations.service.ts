@@ -20,6 +20,12 @@ type ListInput = {
   isActive?: string
 }
 
+export type LocationActor = {
+  companyId: string
+  role: UserRole
+  userId: string
+}
+
 @Injectable()
 export class LocationsService {
   constructor(
@@ -188,7 +194,7 @@ export class LocationsService {
   }
 
   async update(
-    companyId: string,
+    actor: LocationActor,
     id: string,
     dto: {
       name?: string
@@ -201,7 +207,9 @@ export class LocationsService {
       longitude?: number | null
       isActive?: boolean
     },
+    requestedCompanyId?: string,
   ) {
+    const companyId = await this.resolveWritableCompanyId(actor, id, requestedCompanyId)
     const current = await this.prisma.location.findFirst({
       where: {
         id,
@@ -274,7 +282,8 @@ export class LocationsService {
     })
   }
 
-  async setStatus(companyId: string, id: string, isActive: boolean) {
+  async setStatus(actor: LocationActor, id: string, isActive: boolean, requestedCompanyId?: string) {
+    const companyId = await this.resolveWritableCompanyId(actor, id, requestedCompanyId)
     await this.ensureExists(companyId, id)
 
     return this.prisma.location.update({
@@ -284,7 +293,8 @@ export class LocationsService {
     })
   }
 
-  async softDelete(companyId: string, id: string) {
+  async softDelete(actor: LocationActor, id: string, requestedCompanyId?: string) {
+    const companyId = await this.resolveWritableCompanyId(actor, id, requestedCompanyId)
     await this.ensureExists(companyId, id)
 
     return this.prisma.location.update({
@@ -294,7 +304,8 @@ export class LocationsService {
     })
   }
 
-  async restore(companyId: string, id: string) {
+  async restore(actor: LocationActor, id: string, requestedCompanyId?: string) {
+    const companyId = await this.resolveWritableCompanyId(actor, id, requestedCompanyId)
     const existing = await this.prisma.location.findFirst({
       where: { id, clientCompanyId: companyId },
       select: { id: true },
@@ -421,6 +432,16 @@ export class LocationsService {
       throw new BadRequestException('Linked client scope must be a CLIENT company')
     }
     return requested
+  }
+
+  private async resolveWritableCompanyId(actor: LocationActor, id: string, requestedCompanyId?: string) {
+    const companyId = await this.resolveReadableCompanyId(actor.companyId, actor.role, requestedCompanyId)
+    if (companyId === actor.companyId) return companyId
+    const locationScope = await this.resolveLocationScope(actor.companyId, actor.role, actor.userId, companyId)
+    if (!isLocationAllowedByLocationScope(locationScope, id)) {
+      throw new NotFoundException('Location not found')
+    }
+    return companyId
   }
 
   private async resolveLocationScope(

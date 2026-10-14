@@ -142,9 +142,9 @@ export function LocationsPage() {
 
   const updateM = useMutation({
     mutationFn: async (params: { id: string; value: LocationFormValue; initialIsActive: boolean }) => {
-      const updated = await api.updateLocation(params.id, toUpdateInput(params.value))
+      const updated = await api.updateLocation(params.id, toUpdateInput(params.value), scopeCompanyId || undefined)
       if (params.initialIsActive !== params.value.isActive) {
-        return api.setLocationStatus(params.id, params.value.isActive)
+        return api.setLocationStatus(params.id, params.value.isActive, scopeCompanyId || undefined)
       }
       return updated
     },
@@ -214,7 +214,7 @@ export function LocationsPage() {
   }
 
   const deleteLocationM = useMutation({
-    mutationFn: (id: string) => api.deleteLocation(id),
+    mutationFn: (id: string) => api.deleteLocation(id, scopeCompanyId || undefined),
     onSuccess: async (deleted) => {
       setErr(null)
       setSuccess(`Точка «${deleted.name}» удалена`)
@@ -231,7 +231,7 @@ export function LocationsPage() {
   })
 
   const restoreLocationM = useMutation({
-    mutationFn: (id: string) => api.restoreLocation(id),
+    mutationFn: (id: string) => api.restoreLocation(id, scopeCompanyId || undefined),
     onSuccess: async (restored) => {
       setErr(null)
       setSuccess(`Точка «${restored.name}» восстановлена`)
