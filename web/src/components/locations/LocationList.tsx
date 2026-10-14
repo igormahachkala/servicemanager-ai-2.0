@@ -8,6 +8,7 @@ type Props = {
   locations: api.LocationListItem[]
   editingLocationId: string | null
   editingValue: LocationFormValue
+  editError?: string | null
   busy?: boolean
   onBeginEdit: (location: api.LocationListItem) => void
   onCancelEdit: () => void
@@ -36,6 +37,7 @@ export function LocationList({
   locations,
   editingLocationId,
   editingValue,
+  editError,
   busy,
   onBeginEdit,
   onCancelEdit,
@@ -116,6 +118,7 @@ export function LocationList({
                   submitLabel="Сохранить"
                   value={editingValue}
                   submitting={busy}
+                  error={editError}
                   onChange={onEditChange}
                   onSubmit={onSubmitEdit}
                   onCancel={onCancelEdit}
