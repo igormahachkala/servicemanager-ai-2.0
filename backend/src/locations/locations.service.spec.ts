@@ -295,4 +295,86 @@ describe('LocationsService location scope', () => {
       expect.objectContaining({ data: expect.objectContaining({ clientCompanyId: 'client-company' }) }),
     )
   })
+
+  const providerAdmin = { companyId: 'provider-company', role: UserRole.ADMIN, userId: 'admin-1' }
+
+  function mockLinkedClientCompanies(prisma: ReturnType<typeof makePrismaMock>) {
+    prisma.company.findUnique.mockImplementation(({ where }: any) =>
+      Promise.resolve({ type: where.id === 'client-company' ? CompanyType.CLIENT : CompanyType.PROVIDER }),
+    )
+    prisma.userLocationBinding.findMany.mockResolvedValue([])
+  }
+
+  it('update: provider edits a linked-client location in the client scope', async () => {
+    const prisma = makePrismaMock()
+    mockLinkedClientCompanies(prisma)
+    prisma.location.findFirst.mockResolvedValue({ id: 'linked-loc', platformCode: 'P1', city: null, address: null })
+    prisma.location.update.mockResolvedValue({ id: 'linked-loc' })
+    const contracts = makeServiceContractsMock()
+    const svc = new LocationsService(prisma as any, contracts as any)
+
+    await svc.update(providerAdmin, 'linked-loc', { name: 'Объект' }, 'client-company')
+
+    expect(contracts.assertPrimaryLinkedClientAccess).toHaveBeenCalledWith('provider-company', 'client-company')
+    expect(prisma.location.findFirst.mock.calls[0][0].where).toEqual({ id: 'linked-loc', clientCompanyId: 'client-company' })
+    expect(prisma.location.update).toHaveBeenCalled()
+  })
+
+  it('update: provider with SELECTED_LOCATIONS cannot edit an unselected linked-client location', async () => {
+    const prisma = makePrismaMock()
+    mockLinkedClientCompanies(prisma)
+    prisma.userAccessScope.findUnique.mockResolvedValue({
+      locationMode: UserAccessLocationMode.SELECTED_LOCATIONS,
+    })
+    prisma.userLocationBinding.findMany.mockResolvedValue([{ locationId: 'loc-selected' }])
+    const svc = new LocationsService(prisma as any, makeServiceContractsMock() as any)
+
+    await expect(
+      svc.update(providerAdmin, 'loc-forbidden', { name: 'Объект' }, 'client-company'),
+    ).rejects.toThrow('Location not found')
+    expect(prisma.location.findFirst).not.toHaveBeenCalled()
+    expect(prisma.location.update).not.toHaveBeenCalled()
+  })
+
+  it('update: provider without a linked contract is rejected', async () => {
+    const prisma = makePrismaMock()
+    mockLinkedClientCompanies(prisma)
+    const contracts = {
+      assertPrimaryLinkedClientAccess: jest.fn().mockRejectedValue(new Error('Linked client not found')),
+    }
+    const svc = new LocationsService(prisma as any, contracts as any)
+
+    await expect(
+      svc.update(providerAdmin, 'linked-loc', { name: 'Объект' }, 'client-company'),
+    ).rejects.toThrow('Linked client not found')
+    expect(prisma.location.update).not.toHaveBeenCalled()
+  })
+
+  it('update: without companyId the location is looked up in the actor company', async () => {
+    const prisma = makePrismaMock()
+    prisma.location.findFirst.mockResolvedValue(null)
+    const contracts = makeServiceContractsMock()
+    const svc = new LocationsService(prisma as any, contracts as any)
+
+    await expect(svc.update(providerAdmin, 'linked-loc', { name: 'Объект' })).rejects.toThrow('Location not found')
+    expect(contracts.assertPrimaryLinkedClientAccess).not.toHaveBeenCalled()
+    expect(prisma.location.findFirst.mock.calls[0][0].where).toEqual({ id: 'linked-loc', clientCompanyId: 'provider-company' })
+  })
+
+  it('setStatus, softDelete and restore resolve the linked-client scope', async () => {
+    const prisma = makePrismaMock()
+    mockLinkedClientCompanies(prisma)
+    prisma.location.findFirst.mockResolvedValue({ id: 'linked-loc' })
+    prisma.location.update.mockResolvedValue({ id: 'linked-loc' })
+    const svc = new LocationsService(prisma as any, makeServiceContractsMock() as any)
+
+    await svc.setStatus(providerAdmin, 'linked-loc', false, 'client-company')
+    await svc.softDelete(providerAdmin, 'linked-loc', 'client-company')
+    await svc.restore(providerAdmin, 'linked-loc', 'client-company')
+
+    for (const call of prisma.location.findFirst.mock.calls) {
+      expect(call[0].where).toEqual({ id: 'linked-loc', clientCompanyId: 'client-company' })
+    }
+    expect(prisma.location.update).toHaveBeenCalledTimes(3)
+  })
 })

@@ -11,7 +11,7 @@ import { RequirePermission } from '../common/permissions.decorator'
 import { PERMISSIONS } from '../common/permissions.constants'
 import { ManagementSurface } from '../common/management-surface-access'
 
-import { LocationsService } from './locations.service'
+import { LocationsService, type LocationActor } from './locations.service'
 import { CreateLocationDto } from './dto/create-location.dto'
 import { UpdateLocationDto } from './dto/update-location.dto'
 import { SetLocationStatusDto } from './dto/set-location-status.dto'
@@ -86,31 +86,49 @@ export class LocationsController {
   @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
-  update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateLocationDto) {
-    return this.svc.update(req.user.companyId, id, dto)
+  update(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: UpdateLocationDto,
+    @Query('companyId') companyId?: string,
+  ) {
+    return this.svc.update(actorOf(req), id, dto, companyId)
   }
 
   @Patch(':id/status')
   @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
-  setStatus(@Req() req: any, @Param('id') id: string, @Body() dto: SetLocationStatusDto) {
-    return this.svc.setStatus(req.user.companyId, id, dto.isActive)
+  setStatus(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: SetLocationStatusDto,
+    @Query('companyId') companyId?: string,
+  ) {
+    return this.svc.setStatus(actorOf(req), id, dto.isActive, companyId)
   }
 
   @Delete(':id')
   @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
-  softDelete(@Req() req: any, @Param('id') id: string) {
-    return this.svc.softDelete(req.user.companyId, id)
+  softDelete(@Req() req: any, @Param('id') id: string, @Query('companyId') companyId?: string) {
+    return this.svc.softDelete(actorOf(req), id, companyId)
   }
 
   @Patch(':id/restore')
   @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
-  restore(@Req() req: any, @Param('id') id: string) {
-    return this.svc.restore(req.user.companyId, id)
+  restore(@Req() req: any, @Param('id') id: string, @Query('companyId') companyId?: string) {
+    return this.svc.restore(actorOf(req), id, companyId)
+  }
+}
+
+function actorOf(req: any): LocationActor {
+  return {
+    companyId: req.user.companyId,
+    role: req.user.role as UserRole,
+    userId: req.user.id,
   }
 }

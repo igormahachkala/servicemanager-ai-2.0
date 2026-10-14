@@ -31,10 +31,8 @@ const REGION_HINT = /(область|край|республика|округ|р
 const COUNTRY_HINT = /^(россия|российская федерация)$/i
 const HOUSE_HINT = /^\d+[а-яa-z]?(\/\d+)?$/i
 
-export function shouldRequestAddressSuggest(query: string, pickedAddress?: string | null) {
-  const trimmed = query.trim()
-  if (trimmed.length < 2) return false
-  return !pickedAddress || trimmed !== pickedAddress.trim()
+export function shouldRequestAddressSuggest(typedQuery: string | null) {
+  return typedQuery !== null && typedQuery.trim().length >= 2
 }
 
 export function parseCityFromSuggestFullName(fullName: string): string | null {
@@ -65,10 +63,12 @@ export function LocationForm({
   const [suggestions, setSuggestions] = useState<LocationAddressSuggestItem[]>([])
   const [suggestOpen, setSuggestOpen] = useState(false)
   const requestSeq = useRef(0)
-  const pickedAddress = useRef<string | null>(null)
+  // Only text typed into the address field triggers suggestions; values loaded into the form do not.
+  const [typedAddress, setTypedAddress] = useState<string | null>(null)
+  const addressQuery = typedAddress !== null && typedAddress === value.address ? typedAddress : null
 
   useEffect(() => {
-    if (submitting || !shouldRequestAddressSuggest(value.address, pickedAddress.current)) {
+    if (submitting || !shouldRequestAddressSuggest(addressQuery)) {
       requestSeq.current += 1
       setSuggestions([])
       setSuggestOpen(false)
@@ -77,7 +77,7 @@ export function LocationForm({
 
     const seq = ++requestSeq.current
     const timer = window.setTimeout(() => {
-      void suggestLocationAddress(value.address, value.city)
+      void suggestLocationAddress(addressQuery!, value.city)
         .then((items) => {
           if (seq !== requestSeq.current) return
           setSuggestions(items)
@@ -93,11 +93,11 @@ export function LocationForm({
     return () => {
       window.clearTimeout(timer)
     }
-  }, [value.address, value.city, submitting])
+  }, [addressQuery, value.city, submitting])
 
   function pickSuggestion(item: LocationAddressSuggestItem) {
     const city = parseCityFromSuggestFullName(item.fullName)
-    pickedAddress.current = item.text
+    setTypedAddress(null)
     requestSeq.current += 1
     onChange({
       address: item.text,
@@ -146,7 +146,10 @@ export function LocationForm({
         <div style={{ position: 'relative' }}>
           <input
             value={value.address}
-            onChange={(e) => onChange({ address: e.target.value })}
+            onChange={(e) => {
+              setTypedAddress(e.target.value)
+              onChange({ address: e.target.value })
+            }}
             placeholder="ул. Ленина, 1"
             disabled={submitting}
             autoComplete="off"
