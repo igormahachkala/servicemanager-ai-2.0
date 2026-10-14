@@ -16,23 +16,33 @@ pass() { echo "PASS $1"; passed=$((passed + 1)); }
 skip() { echo "SKIP $1"; skipped=$((skipped + 1)); }
 fail() { echo "FAIL $1" >&2; failed=$((failed + 1)); }
 
-expect_failure() {
-  local label="$1"
-  shift
-  if "$@" >"$TMP/command.out" 2>&1; then
-    fail "$label accepted unsafe evidence"
+expect_failure_reason() {
+  local label="$1" expected_rc="$2" reason="$3" forbidden="$4" rc
+  shift 4
+  set +e
+  "$@" >"$TMP/command.out" 2>&1
+  rc=$?
+  set -e
+  if ((rc != expected_rc)); then
+    fail "$label returned $rc instead of $expected_rc"
+  elif ! grep -Eq "$reason" "$TMP/command.out"; then
+    fail "$label did not report the expected failure reason"
+  elif [[ -n "$forbidden" ]] && grep -Eq "$forbidden" "$TMP/command.out"; then
+    fail "$label printed a success marker while rejecting evidence"
   else
-    pass "$label rejected unsafe evidence"
+    pass "$label rejected unsafe evidence for the expected reason"
+    return
   fi
+  sed 's/^/    /' "$TMP/command.out" >&2
 }
 
-expect_success() {
-  local label="$1"
-  shift
-  if "$@" >"$TMP/command.out" 2>&1; then
-    pass "$label accepted valid evidence"
+expect_success_reason() {
+  local label="$1" reason="$2"
+  shift 2
+  if "$@" >"$TMP/command.out" 2>&1 && grep -Eq "$reason" "$TMP/command.out"; then
+    pass "$label accepted valid evidence and reached the final gate"
   else
-    fail "$label rejected valid evidence"
+    fail "$label rejected valid evidence or missed the final success marker"
     sed 's/^/    /' "$TMP/command.out" >&2
   fi
 }
@@ -102,21 +112,30 @@ PY
   done
   : >"$TMP/backend.log"
   : >"$TMP/frontend.log"
+  local mark="2026-10-14T01:00:00Z"
 
   local common=(
     --web-url "$base"
     --api-url "$base"
     --expect-sha expected-sha
     --expect-env beta
+    --deploy-mark "$mark"
     --backend-log "$TMP/backend.log"
     --frontend-log "$TMP/frontend.log"
+    --backend-log-since "$mark"
+    --frontend-log-since "$mark"
     --backend-restart-count 0
     --frontend-restart-count 0
     --postgres-status running
     --postgres-restart-count 0
+    --postgres-started-at-before 2026-10-14T01:00:00Z
+    --postgres-started-at-after 2026-10-14T01:00:00Z
   )
 
-  expect_failure "A6 /version HTTP 500" bash "$script" "${common[@]}"
+  expect_failure_reason "A6 /version HTTP 500" 1 \
+    'Version /version[[:space:]]*: FAIL \(500\)' \
+    'READY FOR MANUAL ACCEPTANCE[[:space:]]*: YES' \
+    bash "$script" "${common[@]}"
 
   kill "$MOCK_PID" 2>/dev/null || true
   wait "$MOCK_PID" 2>/dev/null || true
@@ -128,13 +147,16 @@ PY
     sleep 0.1
   done
 
-  expect_failure "A6 PostgreSQL StartedAt change" bash "$script" "${common[@]}" \
+  expect_failure_reason "A6 PostgreSQL StartedAt change" 1 \
+    'PostgreSQL StartedAt[[:space:]]*: FAIL \(changed:' \
+    'READY FOR MANUAL ACCEPTANCE[[:space:]]*: YES' \
+    bash "$script" "${common[@]}" \
     --postgres-started-at-before 2026-10-14T01:00:00Z \
     --postgres-started-at-after 2026-10-14T01:01:00Z
 
-  expect_success "A6 unchanged PostgreSQL StartedAt" bash "$script" "${common[@]}" \
-    --postgres-started-at-before 2026-10-14T01:00:00Z \
-    --postgres-started-at-after 2026-10-14T01:00:00Z
+  expect_success_reason "A6 unchanged PostgreSQL StartedAt" \
+    'READY FOR MANUAL ACCEPTANCE[[:space:]]*: YES' \
+    bash "$script" "${common[@]}"
 }
 
 make_a7_fixture() {
@@ -196,31 +218,53 @@ run_a7_regressions() {
     return
   fi
 
-  local remote prod_sha candidate_sha candidate_tree
+  local remote prod_sha candidate_sha candidate_tree merge_evidence ci_evidence
   remote=$(make_a7_fixture)
   prod_sha=$(git --git-dir="$remote" rev-parse refs/heads/prod)
   candidate_sha=$(git --git-dir="$remote" rev-parse refs/heads/feat/candidate)
   candidate_tree=$(git --git-dir="$remote" rev-parse "$candidate_sha^{tree}")
+  merge_evidence="$TMP/a7-merge.evidence"
+  ci_evidence="$TMP/a7-ci.evidence"
+  printf 'sha: %s\nresult: PASS\nsource: independent-regression\n' "$candidate_sha" >"$merge_evidence"
+  printf 'sha: %s\nresult: PASS\nsource: independent-regression\n' "$candidate_sha" >"$ci_evidence"
 
-  expect_failure "A7 candidate absent from Stage runtime" bash "$script" feat/candidate \
+  expect_failure_reason "A7 candidate absent from Stage runtime" 1 \
+    'Candidate.*Stage run[[:space:]]*: NO' \
+    'READINESS[[:space:]]*: COMPLETE' \
+    bash "$script" feat/candidate \
     --remote "$remote" \
     --stage-runtime-sha "$prod_sha" \
-    --merge-check PASS \
-    --ci PASS \
+    --merge-check-evidence "$merge_evidence" \
+    --ci-evidence "$ci_evidence" \
     --expected-production-tree "$candidate_tree" \
     --actual-production-tree "$candidate_tree"
 
   replace_a7_stage_ok "$remote" "$candidate_sha"
 
-  expect_failure "A7 invalid Git tree evidence" bash "$script" feat/candidate \
+  expect_success_reason "A7 valid SHA-bound evidence" \
+    'READINESS[[:space:]]*: COMPLETE' \
+    bash "$script" feat/candidate \
     --remote "$remote" \
     --stage-runtime-sha "$candidate_sha" \
-    --merge-check PASS \
-    --ci PASS \
-    --expected-production-tree NOT_A_GIT_TREE \
+    --merge-check-evidence "$merge_evidence" \
+    --ci-evidence "$ci_evidence" \
+    --expected-production-tree "$candidate_tree" \
+    --actual-production-tree "$candidate_tree"
+
+  expect_failure_reason "A7 invalid Git tree evidence" 1 \
+    'Deployed tree identity[[:space:]]*: BLOCKED \(not a real tree object' \
+    'READINESS[[:space:]]*: COMPLETE' \
+    bash "$script" feat/candidate \
+    --remote "$remote" \
+    --stage-runtime-sha "$candidate_sha" \
+    --merge-check-evidence "$merge_evidence" \
+    --ci-evidence "$ci_evidence" \
     --actual-production-tree NOT_A_GIT_TREE
 
-  expect_failure "A7 unverified CI string" bash "$script" feat/candidate \
+  expect_failure_reason "A7 unverified CI string" 2 \
+    'no longer accepted' \
+    'READINESS[[:space:]]*: COMPLETE' \
+    bash "$script" feat/candidate \
     --remote "$remote" \
     --stage-runtime-sha "$candidate_sha" \
     --merge-check PASS \
