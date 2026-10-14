@@ -2,11 +2,13 @@
 #
 # stage-smoke.sh — A6 of SMA_DEVELOPMENT_ACCELERATION_PROTOCOL (DRAFT).
 #
-# Technical post-deploy smoke of a contour: endpoint reachability, expected
-# environment + commit SHA (from /version), and analysis of OPERATOR-PROVIDED
-# backend/frontend logs for runtime errors / exceptions / restart indicators.
-# It produces a PASS/FAIL report and a READY FOR MANUAL ACCEPTANCE line — it does
-# NOT create stage-ok and does NOT replace manual acceptance; it is a precondition.
+# Technical post-deploy smoke of a contour: endpoint reachability, exact expected
+# commit SHA + environment (from /version), operator-provided backend/frontend logs
+# for runtime errors, backend/frontend/PostgreSQL RestartCount, and PostgreSQL
+# running status. Missing required evidence reports INCOMPLETE/BLOCKED, never PASS.
+# It produces a PASS/FAIL/INCOMPLETE report and a READY FOR MANUAL ACCEPTANCE line
+# — it does NOT create stage-ok and does NOT replace manual acceptance; it is a
+# precondition.
 #
 # It makes read-only HTTP GETs only. No deploy, no DB, no migration, no lock/tag
 # mutation, no Stage change, no secrets access. Response bodies are not dumped;
@@ -19,15 +21,17 @@
 # against a local mock. Without the flag a non-loopback target is refused (exit 4).
 #
 # Usage:
-#   stage-smoke.sh [--web-url URL] [--api-url URL] [--expect-sha SHA]
+#   stage-smoke.sh [--web-url URL] [--api-url URL] --expect-sha SHA
 #                  [--expect-env ENV] [--timeout S]
-#                  [--backend-log FILE] [--frontend-log FILE]
+#                  --backend-log FILE --frontend-log FILE
+#                  --backend-restart-count N --frontend-restart-count N
+#                  --postgres-status STATUS --postgres-restart-count N
 # Defaults: web https://stage.sma-assistants.ru, api https://stage-api.sma-assistants.ru,
 #           env beta, timeout 10.
 #
 # Exit codes:
 #   0  PASS (ready for manual acceptance)
-#   1  FAIL (a check failed)
+#   1  FAIL or INCOMPLETE/BLOCKED (a check failed or evidence is missing)
 #   2  bad arguments
 #   4  live request to a non-loopback host refused (no SMA_STAGE_SMOKE_LIVE=1)
 #
@@ -40,8 +44,13 @@ EXPECT_ENV="beta"
 TIMEOUT=10
 BACKEND_LOG=""
 FRONTEND_LOG=""
+BACKEND_RESTART_COUNT=""
+FRONTEND_RESTART_COUNT=""
+POSTGRES_STATUS=""
+POSTGRES_RESTART_COUNT=""
 
 die() { echo "stage-smoke: $1" >&2; exit "${2:-2}"; }
+is_uint() { case "$1" in ''|*[!0-9]*) return 1;; *) return 0;; esac; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -52,6 +61,10 @@ while [ $# -gt 0 ]; do
     --timeout)      TIMEOUT="${2:-}"; shift 2 || die "--timeout needs a value" ;;
     --backend-log)  BACKEND_LOG="${2:-}"; shift 2 || die "--backend-log needs a value" ;;
     --frontend-log) FRONTEND_LOG="${2:-}"; shift 2 || die "--frontend-log needs a value" ;;
+    --backend-restart-count)  BACKEND_RESTART_COUNT="${2:-}"; shift 2 || die "--backend-restart-count needs a value" ;;
+    --frontend-restart-count) FRONTEND_RESTART_COUNT="${2:-}"; shift 2 || die "--frontend-restart-count needs a value" ;;
+    --postgres-status)        POSTGRES_STATUS="${2:-}"; shift 2 || die "--postgres-status needs a value" ;;
+    --postgres-restart-count) POSTGRES_RESTART_COUNT="${2:-}"; shift 2 || die "--postgres-restart-count needs a value" ;;
     *) die "unknown argument: $1" ;;
   esac
 done
@@ -101,10 +114,26 @@ redact() {
 }
 
 FAILS=0
+INCOMPLETE=0
+block() { printf "    %-16s: BLOCKED (%s)\n" "$1" "$2"; INCOMPLETE=$((INCOMPLETE+1)); }
 mark() { # name code expected-note
   if [ "$2" = "200" ]; then printf "    %-16s: OK (200)\n" "$1";
   elif [ "$2" = "000" ] || [ -z "$2" ]; then printf "    %-16s: NO RESPONSE/TIMEOUT\n" "$1"; FAILS=$((FAILS+1));
   else printf "    %-16s: FAIL (%s)\n" "$1" "$2"; FAILS=$((FAILS+1)); fi
+}
+check_restart_count() { # label value
+  local label="$1" value="$2"
+  if [ -z "$value" ]; then
+    printf "  %-22s: BLOCKED (required evidence missing)\n" "$label"; INCOMPLETE=$((INCOMPLETE+1)); return
+  fi
+  if ! is_uint "$value"; then
+    printf "  %-22s: BLOCKED (not an integer: %s)\n" "$label" "$value"; INCOMPLETE=$((INCOMPLETE+1)); return
+  fi
+  if [ "$value" -eq 0 ]; then
+    printf "  %-22s: OK (0)\n" "$label"
+  else
+    printf "  %-22s: FAIL (%s)\n" "$label" "$value"; FAILS=$((FAILS+1))
+  fi
 }
 
 echo "STAGE SMOKE REPORT"
@@ -124,7 +153,10 @@ ACTUAL_ENV=$(printf '%s' "$VER" | sed -n 's/.*"environment":"\([^"]*\)".*/\1/p' 
 
 echo "  Expected SHA          : ${EXPECT_SHA:-<not provided>}"
 echo "  Actual SHA            : ${ACTUAL_SHA:-<none>}"
-if [ -n "$EXPECT_SHA" ]; then
+if [ -z "$EXPECT_SHA" ]; then
+  echo "  SHA match             : BLOCKED (expected SHA is required)"
+  INCOMPLETE=$((INCOMPLETE+1))
+else
   if [ "$EXPECT_SHA" = "$ACTUAL_SHA" ]; then echo "  SHA match             : OK";
   else echo "  SHA match             : MISMATCH"; FAILS=$((FAILS+1)); fi
 fi
@@ -150,8 +182,8 @@ echo "  Log analysis:"
 RUNTIME_ERRORS=0; RESTARTS=0
 analyze_log() { # label file
   local label="$1" f="$2"
-  [ -z "$f" ] && { printf "    %-16s: (no log provided)\n" "$label"; return; }
-  [ -f "$f" ] || { printf "    %-16s: (file not found: %s)\n" "$label" "$f"; return; }
+  [ -z "$f" ] && { block "$label" "required log not provided"; return; }
+  [ -f "$f" ] || { block "$label" "required log file not found: $f"; return; }
   local errs restarts
   # grep -c already prints a single integer (0 on no match); no `|| echo 0` — that
   # would emit a SECOND 0 and corrupt the arithmetic/formatting.
@@ -174,7 +206,30 @@ echo
 echo "  Runtime errors        : $RUNTIME_ERRORS"
 echo "  Restart indicators    : $RESTARTS (informational)"
 echo
-if [ "$FAILS" -eq 0 ]; then
+echo "  RestartCount evidence:"
+check_restart_count "backend RestartCount" "$BACKEND_RESTART_COUNT"
+check_restart_count "frontend RestartCount" "$FRONTEND_RESTART_COUNT"
+check_restart_count "PostgreSQL RestartCount" "$POSTGRES_RESTART_COUNT"
+echo
+echo "  PostgreSQL:"
+if [ -z "$POSTGRES_STATUS" ]; then
+  echo "  Status                : BLOCKED (required evidence missing)"
+  INCOMPLETE=$((INCOMPLETE+1))
+else
+  case "$POSTGRES_STATUS" in
+    running|Running|healthy|Healthy|up|UP)
+      echo "  Status                : OK ($POSTGRES_STATUS)" ;;
+    *)
+      echo "  Status                : FAIL ($POSTGRES_STATUS)"
+      FAILS=$((FAILS+1)) ;;
+  esac
+fi
+echo
+if [ "$INCOMPLETE" -gt 0 ]; then
+  echo "  RESULT                : INCOMPLETE/BLOCKED ($INCOMPLETE required evidence item(s) missing)"
+  echo "  READY FOR MANUAL ACCEPTANCE : NO"
+  RC=1
+elif [ "$FAILS" -eq 0 ]; then
   echo "  RESULT                : PASS"
   echo "  READY FOR MANUAL ACCEPTANCE : YES"
   RC=0
