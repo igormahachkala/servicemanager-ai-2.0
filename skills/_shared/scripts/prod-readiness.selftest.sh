@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 #
-# prod-readiness.selftest.sh — offline tests for prod-readiness.sh against a throwaway
-# local fixture remote (never the real origin). Verifies diagnosis AND no ref/tag
-# mutation. Run: bash prod-readiness.selftest.sh
+# prod-readiness.selftest.sh — offline tests for prod-readiness.sh against throwaway
+# local fixture remotes (never the real origin). Verifies diagnosis, verifies that
+# no ref/tag is mutated, and — since an independent audit obtained READINESS:
+# COMPLETE for a candidate that was not running on Stage — carries an adversarial
+# section that reproduces each of those attacks and requires it to be refused.
+# Run: bash prod-readiness.selftest.sh
 #
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -13,9 +16,13 @@ trap 'rm -rf "$TMP"' EXIT
 ok(){ PASS=$((PASS+1)); echo "  PASS $1"; }
 no(){ FAIL=$((FAIL+1)); echo "  FAIL $1"; }
 rc_is(){ [ "$2" = "$3" ] && ok "$1 (exit $3)" || no "$1 (expected $2 got $3)"; }
-has(){ printf '%s' "$1" | grep -q "$2" && ok "$3" || no "$3"; }
+has(){ printf '%s' "$1" | grep -q "$2" && ok "$3" || no "$3 [missing: $2]"; }
+hasnt(){ printf '%s' "$1" | grep -q "$2" && no "$3 [present: $2]" || ok "$3"; }
 
-# --- fixture: prod=c0; feat/cand adds a migration + runbook (c1); beta=c1 (⊇ prod) ---
+# --- fixture ------------------------------------------------------------------
+# prod=c0; feat/cand adds a migration + runbook (c1); beta=c1 (⊇ prod).
+# other/old is a Stage build branched from prod that does NOT contain the
+# candidate — the exact shape the audit used to obtain a false READY.
 SRC="$TMP/src"; BARE="$TMP/remote.git"
 git init -q "$SRC"; ( cd "$SRC"
   git config user.email a@b.c; git config user.name t
@@ -27,15 +34,31 @@ git init -q "$SRC"; ( cd "$SRC"
   echo "-- sql" > backend/prisma/migrations/20260101_x/migration.sql
   echo "# runbook" > backend/scripts/thing.runbook.md
   echo more >> f; git add -A; git commit -qm c1
-  git branch beta        # beta = feat/cand tip (c1) → prod c0 ⊆ beta, candidate in beta
+  git branch beta
+  git checkout -q prod
+  git checkout -qb other/old
+  echo unrelated >> f; git add -A; git commit -qm "old stage build"
   git checkout -q prod
 )
 git clone -q --bare "$SRC" "$BARE"
 R="$BARE"
 C1=$(git ls-remote "$BARE" refs/heads/feat/cand | awk '{print $1}')
 C0=$(git ls-remote "$BARE" refs/heads/prod | awk '{print $1}')
+OLD=$(git ls-remote "$BARE" refs/heads/other/old | awk '{print $1}')
 C1_TREE=$(git --git-dir="$BARE" rev-parse "$C1^{tree}")
-READY_ARGS=(--remote "$R" --stage-runtime-sha "$C1" --merge-check PASS --ci PASS --expected-production-tree "$C1_TREE" --actual-production-tree "$C1_TREE")
+OLD_TREE=$(git --git-dir="$BARE" rev-parse "$OLD^{tree}")
+[ -n "$C1" ] && [ -n "$OLD" ] && [ -n "$C1_TREE" ] && [ -n "$OLD_TREE" ] || { echo "fixture broken"; exit 9; }
+
+# Evidence is a file bound to the sha it attests to.
+evfile(){ printf 'sha: %s\nresult: %s\nsource: https://ci.example/run/%s\n' "$2" "$3" "$1" > "$TMP/$1"; echo "$TMP/$1"; }
+EV_C1=$(evfile ev_c1 "$C1" PASS)
+EV_C1_FAIL=$(evfile ev_c1_fail "$C1" FAIL)
+EV_OLD=$(evfile ev_old "$OLD" PASS)
+printf 'result: PASS\n' > "$TMP/ev_nosha"; EV_NOSHA="$TMP/ev_nosha"
+
+READY_ARGS=(--remote "$R" --stage-runtime-sha "$C1" \
+            --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" \
+            --actual-production-tree "$C1_TREE")
 
 mktag(){ local wt; wt=$(mktemp -d "$TMP/wt.XXXXXX"); git clone -q "$BARE" "$wt" >/dev/null 2>&1
   ( cd "$wt" && git tag -f -a "$1" "$2" -m "$3" >/dev/null 2>&1 && git push -q -f origin "refs/tags/$1" >/dev/null 2>&1 ); rm -rf "$wt"; }
@@ -43,110 +66,197 @@ deltag(){ local wt; wt=$(mktemp -d "$TMP/wt.XXXXXX"); git clone -q "$BARE" "$wt"
   ( cd "$wt" && git push -q origin ":refs/tags/$1" >/dev/null 2>&1 ); rm -rf "$wt"; }
 
 OKBODY=$(printf 'Stage acceptance passed\nbranch: feat/cand\nbranch_sha: %s\nstage_sha: %s\ncriterion: smoke green' "$C1" "$C1")
+BUSYBODY=$(printf 'Контур занят\nbranch: feat/cand\npr: 9\ndate: 2026-10-13T00:00:00Z')
 
 echo "== A7 prod-readiness self-test =="
-
-# POSITIVE: stage-ok@tip + stage-busy(feat/cand), no prod-busy
+echo
+echo "-- positive: every signal genuinely verifiable --"
 mktag stage-ok/feat/cand "$C1" "$OKBODY"
-mktag stage-busy "$C1" "$(printf 'Контур занят\nbranch: feat/cand\npr: 9\ndate: 2026-10-13T00:00:00Z')"
+mktag stage-busy "$C1" "$BUSYBODY"
 OUT=$(bash "$SCRIPT" feat/cand "${READY_ARGS[@]}" 2>&1); rc_is "POS all signals present" 0 $?
 has "$OUT" "READINESS              : COMPLETE" "POS COMPLETE"
-has "$OUT" "stage-ok (exact)      : PRESENT and matches" "POS stage-ok matches"
-has "$OUT" "Stage runtime SHA     : OK" "POS Stage runtime SHA checked"
-has "$OUT" "Canonical merge-check : OK" "POS merge-check evidence checked"
-has "$OUT" "CI status             : OK" "POS CI evidence checked"
-has "$OUT" "Production tree      : OK" "POS Production tree identity checked"
+has "$OUT" "stage-ok (exact)      : PRESENT and matches" "POS stage-ok matches tip"
+has "$OUT" "Candidate ∈ beta      : YES" "POS candidate in beta"
+has "$OUT" "Stage runtime commit  : OK" "POS runtime resolves to a real commit"
+has "$OUT" "Candidate ∈ Stage run : YES" "POS candidate inside the running build"
+has "$OUT" "Runtime vs stage-ok   : OK" "POS runtime equals accepted stage_sha"
+has "$OUT" "Canonical merge-check : OK" "POS merge-check evidence bound to sha"
+has "$OUT" "CI status             : OK" "POS CI evidence bound to sha"
+has "$OUT" "Candidate tree (derived): $C1_TREE" "POS candidate tree derived by git"
+has "$OUT" "Deployed tree identity : OK" "POS deployed tree equals candidate tree"
 has "$OUT" "Migrations in candidate: YES" "POS migration detected"
 has "$OUT" "DB / runtime actions   : YES" "POS DB action (runbook) detected"
 has "$OUT" "OWNER GO               : REQUIRED" "POS OWNER-GO caveat present"
 has "$OUT" "stage-busy            : HELD by this candidate" "POS stage-busy held by candidate"
 
-# MISSING stage-ok
+echo
+echo "-- adversarial: each attack the audit used must be refused --"
+
+# X1 THE AUDIT'S ATTACK: candidate absent from the running Stage build, while
+# every other signal is genuinely valid. Must never read COMPLETE.
+mktag stage-ok/feat/cand "$C1" "$(printf 'branch: feat/cand\nstage_sha: %s' "$OLD")"
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$OLD" \
+      --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" \
+      --actual-production-tree "$C1_TREE" 2>&1); rc_is "X1 candidate NOT in Stage runtime" 1 $?
+has   "$OUT" "Candidate ∈ Stage run : NO" "X1 ancestry gate fires"
+hasnt "$OUT" "READINESS              : COMPLETE" "X1 no false READY"
+mktag stage-ok/feat/cand "$C1" "$OKBODY"
+
+# X2 free-text verdicts are refused outright (they were the unverified strings)
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
+      --merge-check PASS --ci PASS --actual-production-tree "$C1_TREE" 2>&1); rc_is "X2 free-text --merge-check refused" 2 $?
+has "$OUT" "no longer accepted" "X2 refusal explains why"
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
+      --merge-check-evidence "$EV_C1" --ci PASS --actual-production-tree "$C1_TREE" 2>&1); rc_is "X2b free-text --ci refused" 2 $?
+
+# X3 a string that is not a git tree must not satisfy tree identity
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
+      --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" \
+      --actual-production-tree TOTALLY_FAKE_TREE 2>&1); rc_is "X3 invented tree string" 1 $?
+has   "$OUT" "Deployed tree identity : BLOCKED (not a real tree object" "X3 tree object validated"
+hasnt "$OUT" "READINESS              : COMPLETE" "X3 no false READY"
+
+# X3b equal-but-fake pair: the original defect was a bare string comparison
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
+      --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" \
+      --expected-production-tree FAKE --actual-production-tree FAKE 2>&1); rc_is "X3b equal fake tree pair" 1 $?
+hasnt "$OUT" "READINESS              : COMPLETE" "X3b equal fakes do not pass"
+
+# X4 a real tree, but belonging to another commit
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
+      --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" \
+      --actual-production-tree "$OLD_TREE" 2>&1); rc_is "X4 real tree of the wrong commit" 1 $?
+has "$OUT" "Deployed tree identity : MISMATCH" "X4 wrong-commit tree blocks"
+
+# X5 genuine PASS evidence that attests to a DIFFERENT commit
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
+      --merge-check-evidence "$EV_OLD" --ci-evidence "$EV_C1" \
+      --actual-production-tree "$C1_TREE" 2>&1); rc_is "X5 evidence for another commit" 1 $?
+has   "$OUT" "Canonical merge-check : REJECTED (evidence attests to" "X5 sha binding enforced"
+hasnt "$OUT" "READINESS              : COMPLETE" "X5 no false READY"
+
+# X6 evidence file without a sha binding
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
+      --merge-check-evidence "$EV_NOSHA" --ci-evidence "$EV_C1" \
+      --actual-production-tree "$C1_TREE" 2>&1); rc_is "X6 evidence without sha" 1 $?
+has "$OUT" "must carry 'sha:' and 'result:'" "X6 unbound evidence refused"
+
+# X7 evidence file that does not exist
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
+      --merge-check-evidence "$TMP/nope" --ci-evidence "$EV_C1" \
+      --actual-production-tree "$C1_TREE" 2>&1); rc_is "X7 missing evidence file" 1 $?
+has "$OUT" "evidence file not found" "X7 missing file refused"
+
+# X8 unresolvable runtime sha (well-formed but not an object)
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" \
+      --stage-runtime-sha deadbeefdeadbeefdeadbeefdeadbeefdeadbeef \
+      --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" \
+      --actual-production-tree "$C1_TREE" 2>&1); rc_is "X8 unresolvable runtime sha" 1 $?
+has "$OUT" "Stage runtime commit  : BLOCKED (not a reachable commit object" "X8 runtime object validated"
+
+# X9 a tree oid passed where a commit is expected must not satisfy the runtime gate
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1_TREE" \
+      --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" \
+      --actual-production-tree "$C1_TREE" 2>&1); rc_is "X9 tree oid as runtime sha" 1 $?
+has "$OUT" "Stage runtime commit  : BLOCKED" "X9 object type enforced"
+
+# X10 --ci-source with an unsupported form must block rather than pass
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
+      --merge-check-evidence "$EV_C1" --ci-source "trustme" \
+      --actual-production-tree "$C1_TREE" 2>&1); rc_is "X10 unsupported ci-source" 1 $?
+has "$OUT" "unsupported --ci-source" "X10 unsupported source refused"
+
+# X11 --ci-source gh:* queried through a stubbed gh: zero check-runs must block,
+# all-success must pass. This exercises the live-source code path offline.
+STUB="$TMP/stub"; mkdir -p "$STUB"
+cat > "$STUB/gh" <<'GH'
+#!/usr/bin/env bash
+case "${GH_STUB_MODE:-ok}" in
+  empty) echo '{"total_count":0,"check_runs":[]}' ;;
+  fail)  echo '{"total_count":2,"check_runs":[{"conclusion":"success"},{"conclusion":"failure"}]}' ;;
+  *)     echo '{"total_count":2,"check_runs":[{"conclusion":"success"},{"conclusion":"success"}]}' ;;
+esac
+GH
+chmod +x "$STUB/gh"
+OUT=$(PATH="$STUB:$PATH" GH_STUB_MODE=empty bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
+      --merge-check-evidence "$EV_C1" --ci-source "gh:acme/repo" \
+      --actual-production-tree "$C1_TREE" 2>&1); rc_is "X11 ci-source with no check-runs" 1 $?
+has "$OUT" "no check-runs recorded" "X11 empty CI blocks"
+OUT=$(PATH="$STUB:$PATH" GH_STUB_MODE=fail bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
+      --merge-check-evidence "$EV_C1" --ci-source "gh:acme/repo" \
+      --actual-production-tree "$C1_TREE" 2>&1); rc_is "X11b ci-source with a failed run" 1 $?
+has "$OUT" "CI status             : FAIL" "X11b failed CI blocks"
+OUT=$(PATH="$STUB:$PATH" GH_STUB_MODE=ok bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
+      --merge-check-evidence "$EV_C1" --ci-source "gh:acme/repo" \
+      --actual-production-tree "$C1_TREE" 2>&1); rc_is "X11c ci-source all successful" 0 $?
+has "$OUT" "check-runs successful for the candidate sha" "X11c live source accepted"
+
+echo
+echo "-- required evidence gaps --"
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" --actual-production-tree "$C1_TREE" 2>&1); rc_is "missing runtime sha" 1 $?
+has "$OUT" "Stage runtime commit  : BLOCKED" "missing runtime sha blocks"
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --ci-evidence "$EV_C1" --actual-production-tree "$C1_TREE" 2>&1); rc_is "missing merge-check evidence" 1 $?
+has "$OUT" "Canonical merge-check : BLOCKED" "missing merge-check blocks"
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --merge-check-evidence "$EV_C1" --actual-production-tree "$C1_TREE" 2>&1); rc_is "missing CI evidence" 1 $?
+has "$OUT" "CI status             : BLOCKED" "missing CI blocks"
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" 2>&1); rc_is "missing deployed tree" 1 $?
+has "$OUT" "Deployed tree identity : BLOCKED" "missing deployed tree blocks"
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --merge-check-evidence "$EV_C1_FAIL" --ci-evidence "$EV_C1" --actual-production-tree "$C1_TREE" 2>&1); rc_is "merge-check FAIL verdict" 1 $?
+has "$OUT" "Canonical merge-check : FAIL" "FAIL verdict blocks"
+
+echo
+echo "-- acceptance, lock and invariant signals --"
 deltag stage-ok/feat/cand
 OUT=$(bash "$SCRIPT" feat/cand "${READY_ARGS[@]}" 2>&1); rc_is "missing stage-ok" 1 $?
 has "$OUT" "stage-ok (exact)      : ABSENT" "missing stage-ok noted"
-
-# SHA MISMATCH: stage-ok points at c0, candidate tip is c1
 mktag stage-ok/feat/cand "$C0" "$OKBODY"
 OUT=$(bash "$SCRIPT" feat/cand "${READY_ARGS[@]}" 2>&1); rc_is "stage-ok SHA mismatch" 1 $?
 has "$OUT" "stage-ok (exact)      : MISMATCH" "mismatch noted"
-mktag stage-ok/feat/cand "$C1" "$OKBODY"   # restore good
+mktag stage-ok/feat/cand "$C1" "$OKBODY"
 
-# BUSY LOCK: prod-busy held by another branch
 mktag prod-busy "$C0" "$(printf 'Контур занят\nbranch: other/x\ndate: 2026-10-13T00:00:00Z')"
 OUT=$(bash "$SCRIPT" feat/cand "${READY_ARGS[@]}" 2>&1); rc_is "prod-busy held" 1 $?
 has "$OUT" "prod-busy             : HELD by 'other/x'" "prod-busy blocker noted"
 deltag prod-busy
 
-# Missing stage-busy is also incomplete; Stage ownership should remain held until
-# Production closes.
 deltag stage-busy
 OUT=$(bash "$SCRIPT" feat/cand "${READY_ARGS[@]}" 2>&1); rc_is "stage-busy absent" 1 $?
 has "$OUT" "stage-busy            : absent" "stage-busy absence noted"
-has "$OUT" "READINESS              : INCOMPLETE" "stage-busy absence blocks readiness"
-mktag stage-busy "$C1" "$(printf 'Контур занят\nbranch: feat/cand\npr: 9\ndate: 2026-10-13T00:00:00Z')"
+mktag stage-busy "$C1" "$BUSYBODY"
 
-# Required evidence gaps.
-OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --merge-check PASS --ci PASS --expected-production-tree "$C1_TREE" --actual-production-tree "$C1_TREE" 2>&1); rc_is "missing Stage runtime SHA" 1 $?
-has "$OUT" "Stage runtime SHA     : BLOCKED" "missing Stage runtime SHA blocks"
-OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --ci PASS --expected-production-tree "$C1_TREE" --actual-production-tree "$C1_TREE" 2>&1); rc_is "missing merge-check" 1 $?
-has "$OUT" "Canonical merge-check : BLOCKED" "missing merge-check blocks"
-OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --merge-check PASS --expected-production-tree "$C1_TREE" --actual-production-tree "$C1_TREE" 2>&1); rc_is "missing CI" 1 $?
-has "$OUT" "CI status             : BLOCKED" "missing CI blocks"
-OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --merge-check PASS --ci PASS --expected-production-tree "$C1_TREE" 2>&1); rc_is "missing actual production tree" 1 $?
-has "$OUT" "Production tree      : BLOCKED" "missing actual tree blocks"
-
-# Negative signals.
-OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha WRONG --merge-check PASS --ci PASS --expected-production-tree "$C1_TREE" --actual-production-tree "$C1_TREE" 2>&1); rc_is "Stage runtime SHA mismatch" 1 $?
-has "$OUT" "Stage runtime SHA     : MISMATCH" "Stage runtime mismatch blocks"
-OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --merge-check FAIL --ci PASS --expected-production-tree "$C1_TREE" --actual-production-tree "$C1_TREE" 2>&1); rc_is "merge-check failure" 1 $?
-has "$OUT" "Canonical merge-check : FAIL" "merge-check failure blocks"
-OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --merge-check PASS --ci FAIL --expected-production-tree "$C1_TREE" --actual-production-tree "$C1_TREE" 2>&1); rc_is "CI failure" 1 $?
-has "$OUT" "CI status             : FAIL" "CI failure blocks"
-OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --merge-check PASS --ci PASS --expected-production-tree "$C1_TREE" --actual-production-tree WRONGTREE 2>&1); rc_is "production tree mismatch" 1 $?
-has "$OUT" "Production tree      : MISMATCH" "production tree mismatch blocks"
-
-# beta ⊉ prod violation (fresh fixture)
+# beta ⊉ prod (fresh fixture)
 SRC2="$TMP/src2"; BARE2="$TMP/remote2.git"
 git init -q "$SRC2"; ( cd "$SRC2"; git config user.email a@b.c; git config user.name t
   echo x>f; git add f; git commit -qm base; git branch beta; echo y>>f; git commit -qam prodonly; git branch -M prod; git checkout -qb feat/cand )
 git clone -q --bare "$SRC2" "$BARE2"
-OUT=$(bash "$SCRIPT" feat/cand --remote "$BARE2" --stage-runtime-sha "$C1" --merge-check PASS --ci PASS --expected-production-tree "$C1_TREE" --actual-production-tree "$C1_TREE" 2>&1); rc_is "beta ⊉ prod" 1 $?
+OUT=$(bash "$SCRIPT" feat/cand --remote "$BARE2" --stage-runtime-sha "$C1" --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" --actual-production-tree "$C1_TREE" 2>&1); rc_is "beta ⊉ prod" 1 $?
 has "$OUT" "beta ⊇ prod           : VIOLATED" "beta⊉prod noted"
 
-# CANDIDATE NOT IN BETA (the critical fix): beta ⊇ prod OK, stage-ok matches tip,
-# stage-busy held by candidate, but beta does NOT contain the candidate → INCOMPLETE.
+# candidate not contained in beta
 SRC3="$TMP/src3"; BARE3="$TMP/remote3.git"
 git init -q "$SRC3"; ( cd "$SRC3"; git config user.email a@b.c; git config user.name t
-  echo base > f; git add f; git commit -qm c0
-  git branch -M prod
-  git branch beta                     # beta = prod (c0) → beta ⊇ prod OK, but will NOT contain c1
-  git checkout -qb feat/cand
-  echo more >> f; git add -A; git commit -qm c1   # candidate tip c1, NOT in beta
-  git checkout -q prod )
+  echo base > f; git add f; git commit -qm c0; git branch -M prod; git branch beta
+  git checkout -qb feat/cand; echo more >> f; git add -A; git commit -qm c1; git checkout -q prod )
 git clone -q --bare "$SRC3" "$BARE3"
 C1b=$(git ls-remote "$BARE3" refs/heads/feat/cand | awk '{print $1}')
 C1b_TREE=$(git --git-dir="$BARE3" rev-parse "$C1b^{tree}")
-BODY3=$(printf 'Stage acceptance passed\nbranch: feat/cand\nbranch_sha: %s\nstage_sha: %s' "$C1b" "$C1b")
+printf 'sha: %s\nresult: PASS\n' "$C1b" > "$TMP/ev_c1b"; EV_C1b="$TMP/ev_c1b"
 mk3(){ local wt; wt=$(mktemp -d "$TMP/wt.XXXXXX"); git clone -q "$BARE3" "$wt" >/dev/null 2>&1
   ( cd "$wt" && git tag -f -a "$1" "$2" -m "$3" >/dev/null 2>&1 && git push -q -f origin "refs/tags/$1" >/dev/null 2>&1 ); rm -rf "$wt"; }
-mk3 stage-ok/feat/cand "$C1b" "$BODY3"
-mk3 stage-busy "$C1b" "$(printf 'branch: feat/cand\ndate: 2026-10-13T00:00:00Z')"
-OUT=$(bash "$SCRIPT" feat/cand --remote "$BARE3" --stage-runtime-sha "$C1b" --merge-check PASS --ci PASS --expected-production-tree "$C1b_TREE" --actual-production-tree "$C1b_TREE" 2>&1); RC=$?
-rc_is "candidate NOT in beta → INCOMPLETE" 1 $RC
+mk3 stage-ok/feat/cand "$C1b" "$(printf 'branch: feat/cand\nstage_sha: %s' "$C1b")"
+mk3 stage-busy "$C1b" "$(printf 'branch: feat/cand')"
+OUT=$(bash "$SCRIPT" feat/cand --remote "$BARE3" --stage-runtime-sha "$C1b" --merge-check-evidence "$EV_C1b" --ci-evidence "$EV_C1b" --actual-production-tree "$C1b_TREE" 2>&1); rc_is "candidate NOT in beta → INCOMPLETE" 1 $?
 has "$OUT" "beta ⊇ prod           : OK" "  (beta ⊇ prod still OK)"
 has "$OUT" "stage-ok (exact)      : PRESENT and matches" "  (stage-ok still matches tip)"
 has "$OUT" "Candidate ∈ beta      : NO" "candidate-not-in-beta gate fires"
-has "$OUT" "READINESS              : INCOMPLETE" "INCOMPLETE despite stage-ok+stage-busy"
 has "$OUT" "OWNER GO               : REQUIRED" "OWNER-GO warning preserved"
 
-# GIT/NETWORK error
+echo
+echo "-- errors and read-only guarantee --"
 bash "$SCRIPT" feat/cand --remote "$TMP/nope.git" >/dev/null 2>&1; rc_is "remote unreadable" 3 $?
-
-# bad args
 bash "$SCRIPT" >/dev/null 2>&1; rc_is "no candidate arg" 2 $?
+bash "$SCRIPT" feat/cand --remote "$R" --bogus x >/dev/null 2>&1; rc_is "unknown argument" 2 $?
 
-# NO MUTATION of refs/tags (fixture + running repo)
 FB=$(git ls-remote "$R" | sort); RB=$(git show-ref | sort)
 bash "$SCRIPT" feat/cand "${READY_ARGS[@]}" >/dev/null 2>&1
 FA=$(git ls-remote "$R" | sort); RA=$(git show-ref | sort)
