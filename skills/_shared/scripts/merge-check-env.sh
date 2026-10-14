@@ -15,6 +15,16 @@
 # change merge-checks.sh or the release protocol, and does not weaken any check:
 # `prisma generate` still fully validates the schema; build and test are unchanged.
 #
+# PROTOCOL NOTE — NOT wired into the canonical gate. This is a standalone LOCAL
+# developer-loop convenience. It is deliberately NOT integrated into
+# skills/_shared/scripts/merge-checks.sh: the canonical protocol makes backend/.env a
+# mandatory gate (merge-checks.md <env_file>, exit 4) and its <forbidden> block
+# explicitly prohibits "Подставлять DATABASE_URL наугад" (substituting an arbitrary
+# DATABASE_URL), declaring the dummy/partial substitute non-equivalent and
+# developer-consent-gated. Making merge-checks pass via a synthetic URL would change
+# an obligatory release gate — which requires explicit OWNER GO. Until then, use this
+# helper only for local iteration, NOT as a substitute for the canonical merge-check.
+#
 # Subcommands:
 #   value                      print the synthetic non-connecting DATABASE_URL
 #   export                     print `export DATABASE_URL=…` (eval-able)
@@ -40,14 +50,20 @@ SYNTHETIC_URL='postgresql://preflight:preflight@127.0.0.1:1/preflight_noconnect?
 
 die() { echo "merge-check-env: $1" >&2; exit "${2:-2}"; }
 
-# Redact any user-supplied connection string before printing (never echo credentials).
+# Redact a connection string before any print: drop the password in the userinfo and
+# any password=/pwd= query value. Never echo a full DATABASE_URL.
 redact_dsn() {
-  printf '%s' "$1" | sed -E 's#(://[^:/@]+):[^@]*@#\1:***@#; s#(password=)[^&[:space:]]*#\1***#gI'
+  printf '%s' "$1" | sed -E 's#(://[^:/@]+):[^@]*@#\1:***@#; s#(password=)[^&[:space:]]*#\1***#g; s#(pwd=)[^&[:space:]]*#\1***#g'
 }
 
-# Reject a DSN that points at Stage/Production (host-based guard).
-is_forbidden_host() {
-  printf '%s' "$1" | grep -qiE 'stage|prod|sma-assistants\.ru|sma-spare|@sma[:/]'
+# Extract the host of a DSN (postgresql://user:pass@HOST:port/db?...).
+dsn_host() { printf '%s' "$1" | sed -E 's#^[a-z+]+://##; s#^[^@]*@##; s#[:/?].*$##; s#^\[([^]]*)\]$#\1#'; }
+
+# require-db accepts ONLY a loopback local database. Any non-loopback host (a remote
+# dev DB, and a fortiori Stage/Production) is refused — the strict allowlist replaces
+# the earlier Stage/Prod blocklist.
+is_loopback_dsn() {
+  case "$(dsn_host "$1")" in 127.0.0.1|localhost|::1) return 0 ;; *) return 1 ;; esac
 }
 
 classify_op() {
@@ -109,14 +125,18 @@ case "$CMD" in
     if [ -z "$url" ]; then
       echo "BLOCKED: this operation needs a real database." >&2
       echo "         It is NOT run with a synthetic URL and is NEVER pointed at Stage/Production." >&2
-      echo "         OWNER GO required: provide SMA_MERGE_CHECK_DB_URL for a LOCAL test database." >&2
+      echo "         OWNER GO required: provide SMA_MERGE_CHECK_DB_URL for a LOCAL (loopback) test database." >&2
       exit 5
     fi
-    if is_forbidden_host "$url"; then
-      echo "BLOCKED: SMA_MERGE_CHECK_DB_URL looks like a Stage/Production host ($(redact_dsn "$url")) — refused." >&2
+    # Strict allowlist: only a loopback host is permitted. Any non-loopback target —
+    # a remote dev DB, and above all Stage/Production — is refused. The DSN is never
+    # printed in full; only the host (password-redacted) appears, for diagnosis.
+    if ! is_loopback_dsn "$url"; then
+      echo "BLOCKED: SMA_MERGE_CHECK_DB_URL host '$(dsn_host "$url")' is not loopback — refused." >&2
+      echo "         Only 127.0.0.1 / localhost / ::1 is allowed; never a remote, Stage, or Production host." >&2
       exit 5
     fi
-    echo "merge-check-env: running real-DB command against authorized local DB ($(redact_dsn "$url"))"
+    echo "merge-check-env: running real-DB command against an authorized LOCAL loopback database (host $(dsn_host "$url"))"
     DATABASE_URL="$url" "$@"
     ;;
 

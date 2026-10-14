@@ -29,16 +29,25 @@ bash "$SCRIPT" export | grep -q "^export DATABASE_URL='postgresql://" && ok "exp
 # Database-required check: require-db BLOCKED without an authorized URL
 ( unset SMA_MERGE_CHECK_DB_URL; bash "$SCRIPT" require-db -- true >/dev/null 2>&1 ); rc_is "require-db blocked w/o URL" 5 $?
 
-# require-db refuses a Stage/Prod-looking host, and REDACTS the password in the refusal
+# LOOPBACK-ONLY allowlist: a REMOTE (non-loopback) host is refused, even if not Stage/Prod
+OUT=$(SMA_MERGE_CHECK_DB_URL='postgresql://u:TOPSECRETpw@db.example.com:5432/db' bash "$SCRIPT" require-db -- true 2>&1); RC=$?
+rc_is "require-db refuses remote (non-loopback) host" 5 $RC
+printf '%s' "$OUT" | grep -q 'not loopback' && ok "remote host refusal message" || no "remote host refusal message"
+printf '%s' "$OUT" | grep -q 'TOPSECRETpw' && no "redaction (remote URL leaked password)" || ok "redaction: remote URL password not leaked"
+
+# a Stage/Production host is refused too (it is non-loopback)
 OUT=$(SMA_MERGE_CHECK_DB_URL='postgresql://u:TOPSECRETpw@stage-api.sma-assistants.ru:5432/db' bash "$SCRIPT" require-db -- true 2>&1); RC=$?
 rc_is "require-db refuses Stage host" 5 $RC
-printf '%s' "$OUT" | grep -q 'TOPSECRETpw' && no "redaction (Stage URL leaked password)" || ok "redaction: Stage URL password masked"
+printf '%s' "$OUT" | grep -q 'TOPSECRETpw' && no "redaction (Stage URL leaked password)" || ok "redaction: Stage URL password not leaked"
 
-# Secret redaction on an ALLOWED local DB: password masked in the echoed line, command runs
+# ACCEPTED: a loopback local DB runs; the full DSN/password is NEVER printed, only the host
 OUT=$(SMA_MERGE_CHECK_DB_URL='postgresql://u:TOPSECRETpw@127.0.0.1:5432/testdb' bash "$SCRIPT" require-db -- true 2>&1); RC=$?
-rc_is "require-db runs on local DB" 0 $RC
-printf '%s' "$OUT" | grep -q 'TOPSECRETpw' && no "redaction (local URL leaked password)" || ok "redaction: local URL password masked"
-printf '%s' "$OUT" | grep -q 'u:\*\*\*@127.0.0.1' && ok "redaction: masked form shown" || no "redaction: masked form"
+rc_is "require-db runs on loopback DB" 0 $RC
+printf '%s' "$OUT" | grep -q 'TOPSECRETpw' && no "redaction (loopback URL leaked password)" || ok "redaction: loopback URL password not leaked"
+printf '%s' "$OUT" | grep -q 'host 127.0.0.1' && ok "success line shows host only (no DSN)" || no "success line host-only"
+printf '%s' "$OUT" | grep -qE 'postgresql://[^ ]*TOPSECRET' && no "success line leaked full DSN" || ok "success line carries no full DSN"
+# localhost + ::1 also accepted
+( SMA_MERGE_CHECK_DB_URL='postgresql://u:p@localhost:5432/db' bash "$SCRIPT" require-db -- true >/dev/null 2>&1 ); rc_is "require-db accepts localhost" 0 $?
 
 # bad args
 bash "$SCRIPT" >/dev/null 2>&1; rc_is "no subcommand" 2 $?
