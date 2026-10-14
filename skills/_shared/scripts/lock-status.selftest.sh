@@ -21,7 +21,7 @@ iso_hours_ago(){ date -u -d "$1 hours ago" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || da
 
 # --- build fixture: src repo + bare remote; prod ⊆ beta -----------------------
 SRC="$TMP/src"; BARE="$TMP/remote.git"
-git init -q "$SRC"; ( cd "$SRC"
+git init -q "$SRC"; ( cd "$SRC" || exit 1
   git config user.email a@b.c; git config user.name t
   echo one > f; git add f; git commit -qm c0
   git branch -M prod
@@ -99,7 +99,7 @@ has "$OUT" "Stale thresholds     : stage=3h, production=1h" "S6c custom per-lane
 
 # S7 beta NOT containing prod (fresh fixture where prod has a commit beta lacks)
 SRC2="$TMP/src2"; BARE2="$TMP/remote2.git"
-git init -q "$SRC2"; ( cd "$SRC2"
+git init -q "$SRC2"; ( cd "$SRC2" || exit 1
   git config user.email a@b.c; git config user.name t
   echo x > f; git add f; git commit -qm base
   git branch beta

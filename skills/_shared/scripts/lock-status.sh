@@ -89,7 +89,7 @@ human_age() { # $1 epoch → "Nh"/"Nd"/unknown
 # read an annotated tag body (empty for lightweight tags / missing object)
 tag_body() { local o; o=$(tag_obj "$1"); [ -n "$o" ] && git cat-file -p "$o" 2>/dev/null | sed -n '/^$/,$p' | sed '1d' || true; }
 tag_date() { # prefer the body `date:` field, else the annotated tagger timestamp
-  local body tagger
+  local body
   body=$(tag_body "$1")
   local d; d=$(printf '%s\n' "$body" | sed -n 's/^date:[[:space:]]*//p' | head -1)
   if [ -n "$d" ]; then to_epoch "$d"; return; fi
@@ -101,7 +101,7 @@ tag_branch() { tag_body "$1" | sed -n 's/^branch:[[:space:]]*//p' | head -1; }
 STALE_SUSPECTS=""
 
 report_lock() { # $1 = tag name (stage-busy|prod-busy), $2 = stale threshold hours
-  local name="$1" stale_hours="$2" stale_secs commit obj age_epoch age br
+  local name="$1" stale_hours="$2" stale_secs commit age_epoch age br
   stale_secs=$(( stale_hours * 3600 ))
   if [ -z "$(tag_obj "$name")" ] && [ -z "$(tag_commit "$name")" ]; then
     echo "    EXISTS            : NO"
