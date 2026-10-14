@@ -6,7 +6,7 @@ description: "Развёртывание на контур Stage: проверк
 <purpose>
 Проверки, PR в beta, развёртывание на Stage, приёмка. Заканчивается тегом
 stage-ok при живом замке stage-busy. Код в beta без замка, которого нет
-в prod, оставлять нельзя: либо везти в Production, либо ревёрт из beta.
+в prod, оставлять нельзя: либо везти в Production, либо откат указателя beta.
 </purpose>
 
 <contour name="stage">
@@ -43,7 +43,7 @@ stage-ok при живом замке stage-busy. Код в beta без замк
   шаг 10  сверка после развёртывания
   шаг 11  приёмка: откат из beta либо принять и везти в prod
   шаг 12  поставить тег stage-ok, замок не снимать
-  шаг 13  замок держать, спросить про Production; отказ — ревёрт из beta
+  шаг 13  замок держать, спросить про Production; отказ — откат указателя beta
 
   beta_reset         сброс beta = prod: предусловия по тегам и замкам
   expected_warnings  штатный вывод compose, ошибкой не считать
@@ -63,7 +63,7 @@ contour-lock, prerequisites и secrets — до начала работы; merge
 <ref file="skills/_shared/execution-context.md">Где выполняется команда: машина агента или сервер. Прочитать до первой команды.</ref>
 
 <ref file="skills/_shared/contour-lock.md">Замок контура: проверка, постановка, снятие. Прочитать до шага 7, он занимает контур.</ref>
-<ref file="skills/sma-deploy-stage/references/rollback.md">Ревёрт слияния из beta. Читать, только когда пользователь выбрал откат.</ref>
+<ref file="skills/sma-deploy-stage/references/rollback.md">Откат указателя beta. Читать, только когда пользователь выбрал откат.</ref>
 
 <ref file="skills/_shared/prerequisites.md">Условия допуска к работе. Прочитать и выполнить до шага 0. Пункты с contour="stage" относятся к этому скилу.</ref>
 <ref file="skills/_shared/secrets.md">Обращение с секретами и переменными окружения. Прочитать до первой команды, затрагивающей сервер: этого требует блок prerequisites.</ref>
@@ -297,10 +297,15 @@ skills/_shared/scripts/lock-acquire.sh --owned stage &lt;ветка&gt; \
 </command>
 <constraint>Ветку не удалять: она понадобится для PR в prod.</constraint>
 <record>
-После успешного слияния записать SHA origin/beta. Это M, коммит слияния.
-Нужен блоку rollback, если фичу придётся убирать из beta.
+После успешного слияния записать оба SHA. M — коммит слияния origin/beta.
+P — первый родитель M. Нужны блоку rollback, если фичу придётся убирать
+из beta сдвигом указателя. По умолчанию цель сдвига — P.
 git fetch origin beta
 git rev-parse origin/beta
+git rev-parse origin/beta^1
+git rev-parse -q --verify origin/beta^2
+Последняя команда обязана что-то напечатать: слияние в beta идёт с --merge,
+у M есть второй родитель. Нет второго родителя — остановиться и показать SHA.
 </record>
 <on_failure>
 Отказ с указанием, что ветка устарела — целевая ушла вперёд. Слияния
@@ -494,9 +499,9 @@ ssh sma-spare 'docker inspect sma_stage_backend sma_stage_web --format "{{.Name}
 </lock>
 <what_ends_it>
 Разбор заканчивается одним из двух: развёртывание повторено и сверка
-прошла — идти к шагу 11; пользователь отказался принимать — ревёрт
-из beta, skills/sma-deploy-stage/references/rollback.md, затем снять
-замок. Снимать замок при живом слиянии в beta нельзя.
+прошла — идти к шагу 11; пользователь отказался принимать — откат
+указателя beta, skills/sma-deploy-stage/references/rollback.md, затем
+снять замок. Снимать замок при живом слиянии в beta нельзя.
 </what_ends_it>
 <why_say_it>
 Молчание оставляет замок висеть: через четыре часа он попадёт под порог
@@ -520,25 +525,25 @@ ssh sma-spare 'docker inspect sma_stage_backend sma_stage_web --format "{{.Name}
 Не ставить тег. Замок не снимать. Два исхода, решает пользователь.
 Самостоятельно не выбирать.
 
-  откатить: ревёрт слияния из beta,
+  откатить: откат указателя beta,
             skills/sma-deploy-stage/references/rollback.md.
-            Правка дальше в ветке задачи. Возврат на Stage через
-            unrevert в beta, не вторым PR той же ветки
-            поверх живого слияния.
+            Правка дальше в ветке задачи. Возврат на Stage —
+            обычный PR исходной ветки в beta, не вторым PR той же
+            ветки поверх живого слияния.
 
   принять: поставить stage-ok шагом 12, замок оставить, перейти
            к шагу 13 и спросить про Production.
 
 Третьего нет. Не снимать замок при живом слиянии в beta. Не чинить
-отказом приёмки повторным слиянием той же ветки без ревёрта.
+отказом приёмки повторным слиянием той же ветки, пока указатель
+beta это слияние ещё содержит.
 </on_failure>
 </step>
 
 <step id="12" name="поставить тег приёмки">
 <target>
 Тег ставится на вершину исходной feat-ветки задачи, не на развёрнутый
-коммит слияния. &lt;ветка&gt; в stage-ok/&lt;ветка&gt; — исходная feat-ветка,
-не текущая HEAD, если агент стоит на revert/… или unrevert/….
+коммит слияния. &lt;ветка&gt; в stage-ok/&lt;ветка&gt; — исходная feat-ветка.
 Коммит тега — origin/&lt;исходная feat-ветка&gt;.
 </target>
 <naming>
@@ -546,7 +551,7 @@ ssh sma-spare 'docker inspect sma_stage_backend sma_stage_web --format "{{.Name}
 stage-ok/feat/bot-first-master, не stage-ok/bot-first-master.
 Иначе fix/… и feat/… с одним хвостом дают один тег, и второй агент
 либо получит отказ, либо перезапишет чужой признак приёмки.
-Теги stage-ok/unrevert/… и stage-ok/revert/… не создавать.
+Теги stage-ok на служебные ветки не создавать.
 </naming>
 <command>
 git rev-parse origin/&lt;исходная feat-ветка&gt;       # это B, на него ставится тег
@@ -610,7 +615,7 @@ git ls-remote --tags origin 'refs/tags/stage-busy'
 и отсутствие возражений командой не являются.
 </gate>
 <if name="пользователь отказался от Production">
-Код в beta, в prod не поедет. Ревёрт из beta,
+Код в beta, в prod не поедет. Откат указателя beta,
 skills/sma-deploy-stage/references/rollback.md, включая tag_void.
 Уйти с тегом stage-ok и кодом в beta нельзя.
 </if>
@@ -627,10 +632,11 @@ skills/sma-deploy-stage/references/rollback.md, включая tag_void.
 <beta_reset>
 <when>После развёртывания prod в Production.</when>
 <when name="после отката">
-Откат Production убирает фичу из beta ревёртом, блок beta_after_rollback
-в skills/sma-deploy-prod/references/rollback.md. Сброс beta после этого
-не обязателен: ревёрт уже убрал содержимое. Сброс остаётся уборкой
-истории, не способом выкинуть фичу.
+Откат Production убирает фичу из beta сдвигом указателя, блок
+beta_after_rollback в skills/sma-deploy-prod/references/rollback.md.
+Сброс beta после этого не обязателен: откат указателя уже убрал
+содержимое. Сброс остаётся уборкой истории до prod, не способом
+выкинуть фичу.
 </when>
 <why>
 По протоколу код, которого нет в prod, не лежит в beta без stage-busy.
@@ -765,14 +771,15 @@ git push --force-with-lease origin beta
 <f>Удалять ветку задачи после слияния в beta.</f>
 <f>Снимать stage-busy, пока в beta есть код задачи, которого нет в prod.</f>
 <f>Снимать stage-busy после stage-ok, не влив задачу в prod и не откатив из beta.</f>
-<f>Чинить отказ приёмки вторым слиянием той же ветки в beta без ревёрта.</f>
+<f>Чинить отказ приёмки вторым слиянием той же ветки в beta, пока
+указатель beta ещё содержит прежнее слияние.</f>
 </forbidden>
 
 <ask_user>
 <a>Миграция содержит DELETE, DROP или ALTER.</a>
 <a>Сброс beta при наличии неиспользованных тегов stage-ok.</a>
-<a>Отказ приёмки на Stage: откатить из beta либо принять и везти в Production.</a>
-<a>После stage-ok переход в Production. Отказ — ревёрт из beta.</a>
+<a>Отказ приёмки на Stage: откатить указатель beta либо принять и везти в Production.</a>
+<a>После stage-ok переход в Production. Отказ — откат указателя beta.</a>
 <a>Любое удаление, кроме временного worktree, созданного этим же шагом.</a>
 <a>Неизвестный путь при определении области.</a>
 <a>Расхождение факта с этим документом.</a>
@@ -783,5 +790,5 @@ git push --force-with-lease origin beta
 <r file="skills/_shared/secrets.md">переменные окружения и секреты, обязательно</r>
 <r skill="sma-code-delivery" file="skills/sma-code-delivery/SKILL.md">ветвление и работа над задачей</r>
 <r skill="sma-deploy-prod" file="skills/sma-deploy-prod/SKILL.md">развёртывание в Production</r>
-<r file="skills/sma-deploy-stage/references/rollback.md">ревёрт слияния из beta</r>
+<r file="skills/sma-deploy-stage/references/rollback.md">откат указателя beta</r>
 </related>
