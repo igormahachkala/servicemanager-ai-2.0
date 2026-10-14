@@ -58,7 +58,7 @@ printf 'result: PASS\n' > "$TMP/ev_nosha"; EV_NOSHA="$TMP/ev_nosha"
 
 READY_ARGS=(--remote "$R" --stage-runtime-sha "$C1" \
             --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" \
-            --actual-production-tree "$C1_TREE")
+            --deployed-workdir-tree "$C1_TREE")
 
 mktag(){ local wt; wt=$(mktemp -d "$TMP/wt.XXXXXX"); git clone -q "$BARE" "$wt" >/dev/null 2>&1
   ( cd "$wt" && git tag -f -a "$1" "$2" -m "$3" >/dev/null 2>&1 && git push -q -f origin "refs/tags/$1" >/dev/null 2>&1 ); rm -rf "$wt"; }
@@ -83,7 +83,7 @@ has "$OUT" "Runtime vs stage-ok   : OK" "POS runtime equals accepted stage_sha"
 has "$OUT" "Canonical merge-check : OK" "POS merge-check evidence bound to sha"
 has "$OUT" "CI status             : OK" "POS CI evidence bound to sha"
 has "$OUT" "Candidate tree (derived): $C1_TREE" "POS candidate tree derived by git"
-has "$OUT" "Deployed tree identity : OK" "POS deployed tree equals candidate tree"
+has "$OUT" "Deployed workdir tree  : OK" "POS deployed workdir tree equals candidate tree"
 has "$OUT" "Migrations in candidate: YES" "POS migration detected"
 has "$OUT" "DB / runtime actions   : YES" "POS DB action (runbook) detected"
 has "$OUT" "OWNER GO               : REQUIRED" "POS OWNER-GO caveat present"
@@ -97,111 +97,161 @@ echo "-- adversarial: each attack the audit used must be refused --"
 mktag stage-ok/feat/cand "$C1" "$(printf 'branch: feat/cand\nstage_sha: %s' "$OLD")"
 OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$OLD" \
       --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" \
-      --actual-production-tree "$C1_TREE" 2>&1); rc_is "X1 candidate NOT in Stage runtime" 1 $?
+      --deployed-workdir-tree "$C1_TREE" 2>&1); rc_is "X1 candidate NOT in Stage runtime" 1 $?
 has   "$OUT" "Candidate ∈ Stage run : NO" "X1 ancestry gate fires"
 hasnt "$OUT" "READINESS              : COMPLETE" "X1 no false READY"
 mktag stage-ok/feat/cand "$C1" "$OKBODY"
 
 # X2 free-text verdicts are refused outright (they were the unverified strings)
 OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
-      --merge-check PASS --ci PASS --actual-production-tree "$C1_TREE" 2>&1); rc_is "X2 free-text --merge-check refused" 2 $?
+      --merge-check PASS --ci PASS --deployed-workdir-tree "$C1_TREE" 2>&1); rc_is "X2 free-text --merge-check refused" 2 $?
 has "$OUT" "no longer accepted" "X2 refusal explains why"
 OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
-      --merge-check-evidence "$EV_C1" --ci PASS --actual-production-tree "$C1_TREE" 2>&1); rc_is "X2b free-text --ci refused" 2 $?
+      --merge-check-evidence "$EV_C1" --ci PASS --deployed-workdir-tree "$C1_TREE" 2>&1); rc_is "X2b free-text --ci refused" 2 $?
 
 # X3 a string that is not a git tree must not satisfy tree identity
 OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
       --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" \
-      --actual-production-tree TOTALLY_FAKE_TREE 2>&1); rc_is "X3 invented tree string" 1 $?
-has   "$OUT" "Deployed tree identity : BLOCKED (not a real tree object" "X3 tree object validated"
+      --deployed-workdir-tree TOTALLY_FAKE_TREE 2>&1); rc_is "X3 invented tree string" 1 $?
+has   "$OUT" "Deployed workdir tree  : BLOCKED (not a real tree object" "X3 tree object validated"
 hasnt "$OUT" "READINESS              : COMPLETE" "X3 no false READY"
 
 # X3b equal-but-fake pair: the original defect was a bare string comparison
 OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
       --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" \
-      --expected-production-tree FAKE --actual-production-tree FAKE 2>&1); rc_is "X3b equal fake tree pair" 1 $?
+      --expected-candidate-tree FAKE --deployed-workdir-tree FAKE 2>&1); rc_is "X3b equal fake tree pair" 1 $?
 hasnt "$OUT" "READINESS              : COMPLETE" "X3b equal fakes do not pass"
 
 # X4 a real tree, but belonging to another commit
 OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
       --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" \
-      --actual-production-tree "$OLD_TREE" 2>&1); rc_is "X4 real tree of the wrong commit" 1 $?
-has "$OUT" "Deployed tree identity : MISMATCH" "X4 wrong-commit tree blocks"
+      --deployed-workdir-tree "$OLD_TREE" 2>&1); rc_is "X4 real tree of the wrong commit" 1 $?
+has "$OUT" "Deployed workdir tree  : MISMATCH" "X4 wrong-commit tree blocks"
 
 # X5 genuine PASS evidence that attests to a DIFFERENT commit
 OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
       --merge-check-evidence "$EV_OLD" --ci-evidence "$EV_C1" \
-      --actual-production-tree "$C1_TREE" 2>&1); rc_is "X5 evidence for another commit" 1 $?
+      --deployed-workdir-tree "$C1_TREE" 2>&1); rc_is "X5 evidence for another commit" 1 $?
 has   "$OUT" "Canonical merge-check : REJECTED (evidence attests to" "X5 sha binding enforced"
 hasnt "$OUT" "READINESS              : COMPLETE" "X5 no false READY"
 
 # X6 evidence file without a sha binding
 OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
       --merge-check-evidence "$EV_NOSHA" --ci-evidence "$EV_C1" \
-      --actual-production-tree "$C1_TREE" 2>&1); rc_is "X6 evidence without sha" 1 $?
+      --deployed-workdir-tree "$C1_TREE" 2>&1); rc_is "X6 evidence without sha" 1 $?
 has "$OUT" "must carry 'sha:' and 'result:'" "X6 unbound evidence refused"
 
 # X7 evidence file that does not exist
 OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
       --merge-check-evidence "$TMP/nope" --ci-evidence "$EV_C1" \
-      --actual-production-tree "$C1_TREE" 2>&1); rc_is "X7 missing evidence file" 1 $?
+      --deployed-workdir-tree "$C1_TREE" 2>&1); rc_is "X7 missing evidence file" 1 $?
 has "$OUT" "evidence file not found" "X7 missing file refused"
 
 # X8 unresolvable runtime sha (well-formed but not an object)
 OUT=$(bash "$SCRIPT" feat/cand --remote "$R" \
       --stage-runtime-sha deadbeefdeadbeefdeadbeefdeadbeefdeadbeef \
       --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" \
-      --actual-production-tree "$C1_TREE" 2>&1); rc_is "X8 unresolvable runtime sha" 1 $?
+      --deployed-workdir-tree "$C1_TREE" 2>&1); rc_is "X8 unresolvable runtime sha" 1 $?
 has "$OUT" "Stage runtime commit  : BLOCKED (not a reachable commit object" "X8 runtime object validated"
 
 # X9 a tree oid passed where a commit is expected must not satisfy the runtime gate
 OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1_TREE" \
       --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" \
-      --actual-production-tree "$C1_TREE" 2>&1); rc_is "X9 tree oid as runtime sha" 1 $?
+      --deployed-workdir-tree "$C1_TREE" 2>&1); rc_is "X9 tree oid as runtime sha" 1 $?
 has "$OUT" "Stage runtime commit  : BLOCKED" "X9 object type enforced"
 
 # X10 --ci-source with an unsupported form must block rather than pass
 OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
       --merge-check-evidence "$EV_C1" --ci-source "trustme" \
-      --actual-production-tree "$C1_TREE" 2>&1); rc_is "X10 unsupported ci-source" 1 $?
+      --deployed-workdir-tree "$C1_TREE" 2>&1); rc_is "X10 unsupported ci-source" 1 $?
 has "$OUT" "unsupported --ci-source" "X10 unsupported source refused"
 
 # X11 --ci-source gh:* queried through a stubbed gh: zero check-runs must block,
 # all-success must pass. This exercises the live-source code path offline.
 STUB="$TMP/stub"; mkdir -p "$STUB"
+# Stub shaped after the LIVE GitHub contract, verified against
+# repos/:owner/:repo/commits/:sha/check-runs — each run carries name, status,
+# conclusion and head_sha; status is terminal only when "completed".
 cat > "$STUB/gh" <<'GH'
 #!/usr/bin/env bash
+run() { printf '{"name":"%s","status":"%s","conclusion":%s,"head_sha":"%s"}' "$1" "$2" "$3" "${4:-$GH_STUB_SHA}"; }
 case "${GH_STUB_MODE:-ok}" in
-  empty) echo '{"total_count":0,"check_runs":[]}' ;;
-  fail)  echo '{"total_count":2,"check_runs":[{"conclusion":"success"},{"conclusion":"failure"}]}' ;;
-  *)     echo '{"total_count":2,"check_runs":[{"conclusion":"success"},{"conclusion":"success"}]}' ;;
+  empty)       echo '{"total_count":0,"check_runs":[]}' ;;
+  ok)          echo "{\"total_count\":2,\"check_runs\":[$(run A completed '"success"'),$(run B completed '"success"')]}" ;;
+  fail)        echo "{\"total_count\":2,\"check_runs\":[$(run A completed '"success"'),$(run B completed '"failure"')]}" ;;
+  # --- the audit's finding: not finished, conclusion null ---
+  inprogress)  echo "{\"total_count\":1,\"check_runs\":[$(run A in_progress null)]}" ;;
+  queued)      echo "{\"total_count\":1,\"check_runs\":[$(run A queued null)]}" ;;
+  waiting)     echo "{\"total_count\":1,\"check_runs\":[$(run A waiting null)]}" ;;
+  pending)     echo "{\"total_count\":1,\"check_runs\":[$(run A pending null)]}" ;;
+  requested)   echo "{\"total_count\":1,\"check_runs\":[$(run A requested null)]}" ;;
+  mixed)       echo "{\"total_count\":2,\"check_runs\":[$(run A completed '"success"'),$(run B in_progress null)]}" ;;
+  nullconc)    echo "{\"total_count\":1,\"check_runs\":[$(run A completed null)]}" ;;
+  neutral)     echo "{\"total_count\":1,\"check_runs\":[$(run A completed '"neutral"')]}" ;;
+  skipped)     echo "{\"total_count\":1,\"check_runs\":[$(run A completed '"skipped"')]}" ;;
+  cancelled)   echo "{\"total_count\":1,\"check_runs\":[$(run A completed '"cancelled"')]}" ;;
+  timedout)    echo "{\"total_count\":1,\"check_runs\":[$(run A completed '"timed_out"')]}" ;;
+  stale)       echo "{\"total_count\":1,\"check_runs\":[$(run A completed '"stale"')]}" ;;
+  actionreq)   echo "{\"total_count\":1,\"check_runs\":[$(run A completed '"action_required"')]}" ;;
+  foreign)     echo "{\"total_count\":1,\"check_runs\":[$(run A completed '"success"' deadbeefdeadbeefdeadbeefdeadbeefdeadbeef)]}" ;;
+  truncated)   echo "{\"total_count\":5,\"check_runs\":[$(run A completed '"success"')]}" ;;
+  notjson)     echo 'this is not json' ;;
+  notobject)   echo '[]' ;;
+  noarray)     echo '{"total_count":1}' ;;
+  # conclusion nested inside another object — the old tr/grep reader was fooled by this
+  nested)      echo "{\"total_count\":1,\"check_runs\":[{\"name\":\"A\",\"status\":\"in_progress\",\"conclusion\":null,\"head_sha\":\"$GH_STUB_SHA\",\"check_suite\":{\"conclusion\":\"success\"},\"output\":{\"title\":\"conclusion: success\"}}]}" ;;
+  *)           echo '{}' ;;
 esac
 GH
 chmod +x "$STUB/gh"
-OUT=$(PATH="$STUB:$PATH" GH_STUB_MODE=empty bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
-      --merge-check-evidence "$EV_C1" --ci-source "gh:acme/repo" \
-      --actual-production-tree "$C1_TREE" 2>&1); rc_is "X11 ci-source with no check-runs" 1 $?
-has "$OUT" "no check-runs recorded" "X11 empty CI blocks"
-OUT=$(PATH="$STUB:$PATH" GH_STUB_MODE=fail bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
-      --merge-check-evidence "$EV_C1" --ci-source "gh:acme/repo" \
-      --actual-production-tree "$C1_TREE" 2>&1); rc_is "X11b ci-source with a failed run" 1 $?
-has "$OUT" "CI status             : FAIL" "X11b failed CI blocks"
-OUT=$(PATH="$STUB:$PATH" GH_STUB_MODE=ok bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" \
-      --merge-check-evidence "$EV_C1" --ci-source "gh:acme/repo" \
-      --actual-production-tree "$C1_TREE" 2>&1); rc_is "X11c ci-source all successful" 0 $?
-has "$OUT" "check-runs successful for the candidate sha" "X11c live source accepted"
+ci_case() { # mode expected_rc label needle
+  local out rc
+  out=$(PATH="$STUB:$PATH" GH_STUB_MODE="$1" GH_STUB_SHA="$C1" bash "$SCRIPT" feat/cand --remote "$R" \
+        --stage-runtime-sha "$C1" --merge-check-evidence "$EV_C1" --ci-source "gh:acme/repo" \
+        --deployed-workdir-tree "$C1_TREE" 2>&1); rc=$?
+  rc_is "$3" "$2" $rc
+  [ -n "${4:-}" ] && has "$out" "$4" "$3 — reported correctly"
+  if [ "$2" != "0" ]; then hasnt "$out" "READINESS              : COMPLETE" "$3 — no false READY"; fi
+}
+
+# THE AUDIT'S FINDING: unfinished runs must never pass.
+ci_case inprogress 1 "X12 status=in_progress, conclusion=null" "CI status             : INCOMPLETE"
+ci_case queued     1 "X13 status=queued"                       "still running"
+ci_case waiting    1 "X14 status=waiting"                      "still running"
+ci_case pending    1 "X15 status=pending"                      "still running"
+ci_case requested  1 "X16 status=requested"                    "still running"
+ci_case mixed      1 "X17 one success + one in_progress"       "1 of 2 still running"
+ci_case nullconc   1 "X18 completed but conclusion=null"       "CI status             : FAIL"
+# terminal but not success
+ci_case neutral    1 "X19 conclusion=neutral"                  "A(neutral)"
+ci_case skipped    1 "X20 conclusion=skipped"                  "A(skipped)"
+ci_case cancelled  1 "X21 conclusion=cancelled"                "A(cancelled)"
+ci_case timedout   1 "X22 conclusion=timed_out"                "A(timed_out)"
+ci_case stale      1 "X23 conclusion=stale"                    "A(stale)"
+ci_case actionreq  1 "X24 conclusion=action_required"          "A(action_required)"
+# structural integrity of the response
+ci_case foreign    1 "X25 run attached to another commit"      "another commit"
+ci_case truncated  1 "X26 total_count exceeds returned runs"   "does not match"
+ci_case notjson    1 "X27 response is not JSON"                "not JSON"
+ci_case notobject  1 "X28 response is not an object"           "not a JSON object"
+ci_case noarray    1 "X29 response has no check_runs array"    "no check_runs array"
+ci_case nested     1 "X30 success nested in check_suite/output" "CI status             : INCOMPLETE"
+ci_case empty      1 "X31 no check-runs at all"                "no check-runs recorded"
+ci_case fail       1 "X32 one failed run"                      "CI status             : FAIL"
+# only the genuinely green case passes
+ci_case ok         0 "X33 all runs completed successfully"     "all 2 check-runs completed successfully"
 
 echo
 echo "-- required evidence gaps --"
-OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" --actual-production-tree "$C1_TREE" 2>&1); rc_is "missing runtime sha" 1 $?
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" --deployed-workdir-tree "$C1_TREE" 2>&1); rc_is "missing runtime sha" 1 $?
 has "$OUT" "Stage runtime commit  : BLOCKED" "missing runtime sha blocks"
-OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --ci-evidence "$EV_C1" --actual-production-tree "$C1_TREE" 2>&1); rc_is "missing merge-check evidence" 1 $?
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --ci-evidence "$EV_C1" --deployed-workdir-tree "$C1_TREE" 2>&1); rc_is "missing merge-check evidence" 1 $?
 has "$OUT" "Canonical merge-check : BLOCKED" "missing merge-check blocks"
-OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --merge-check-evidence "$EV_C1" --actual-production-tree "$C1_TREE" 2>&1); rc_is "missing CI evidence" 1 $?
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --merge-check-evidence "$EV_C1" --deployed-workdir-tree "$C1_TREE" 2>&1); rc_is "missing CI evidence" 1 $?
 has "$OUT" "CI status             : BLOCKED" "missing CI blocks"
 OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" 2>&1); rc_is "missing deployed tree" 1 $?
-has "$OUT" "Deployed tree identity : BLOCKED" "missing deployed tree blocks"
-OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --merge-check-evidence "$EV_C1_FAIL" --ci-evidence "$EV_C1" --actual-production-tree "$C1_TREE" 2>&1); rc_is "merge-check FAIL verdict" 1 $?
+has "$OUT" "Deployed workdir tree  : BLOCKED" "missing deployed tree blocks"
+OUT=$(bash "$SCRIPT" feat/cand --remote "$R" --stage-runtime-sha "$C1" --merge-check-evidence "$EV_C1_FAIL" --ci-evidence "$EV_C1" --deployed-workdir-tree "$C1_TREE" 2>&1); rc_is "merge-check FAIL verdict" 1 $?
 has "$OUT" "Canonical merge-check : FAIL" "FAIL verdict blocks"
 
 echo
@@ -229,7 +279,7 @@ SRC2="$TMP/src2"; BARE2="$TMP/remote2.git"
 git init -q "$SRC2"; ( cd "$SRC2"; git config user.email a@b.c; git config user.name t
   echo x>f; git add f; git commit -qm base; git branch beta; echo y>>f; git commit -qam prodonly; git branch -M prod; git checkout -qb feat/cand )
 git clone -q --bare "$SRC2" "$BARE2"
-OUT=$(bash "$SCRIPT" feat/cand --remote "$BARE2" --stage-runtime-sha "$C1" --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" --actual-production-tree "$C1_TREE" 2>&1); rc_is "beta ⊉ prod" 1 $?
+OUT=$(bash "$SCRIPT" feat/cand --remote "$BARE2" --stage-runtime-sha "$C1" --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" --deployed-workdir-tree "$C1_TREE" 2>&1); rc_is "beta ⊉ prod" 1 $?
 has "$OUT" "beta ⊇ prod           : VIOLATED" "beta⊉prod noted"
 
 # candidate not contained in beta
@@ -245,7 +295,7 @@ mk3(){ local wt; wt=$(mktemp -d "$TMP/wt.XXXXXX"); git clone -q "$BARE3" "$wt" >
   ( cd "$wt" && git tag -f -a "$1" "$2" -m "$3" >/dev/null 2>&1 && git push -q -f origin "refs/tags/$1" >/dev/null 2>&1 ); rm -rf "$wt"; }
 mk3 stage-ok/feat/cand "$C1b" "$(printf 'branch: feat/cand\nstage_sha: %s' "$C1b")"
 mk3 stage-busy "$C1b" "$(printf 'branch: feat/cand')"
-OUT=$(bash "$SCRIPT" feat/cand --remote "$BARE3" --stage-runtime-sha "$C1b" --merge-check-evidence "$EV_C1b" --ci-evidence "$EV_C1b" --actual-production-tree "$C1b_TREE" 2>&1); rc_is "candidate NOT in beta → INCOMPLETE" 1 $?
+OUT=$(bash "$SCRIPT" feat/cand --remote "$BARE3" --stage-runtime-sha "$C1b" --merge-check-evidence "$EV_C1b" --ci-evidence "$EV_C1b" --deployed-workdir-tree "$C1b_TREE" 2>&1); rc_is "candidate NOT in beta → INCOMPLETE" 1 $?
 has "$OUT" "beta ⊇ prod           : OK" "  (beta ⊇ prod still OK)"
 has "$OUT" "stage-ok (exact)      : PRESENT and matches" "  (stage-ok still matches tip)"
 has "$OUT" "Candidate ∈ beta      : NO" "candidate-not-in-beta gate fires"

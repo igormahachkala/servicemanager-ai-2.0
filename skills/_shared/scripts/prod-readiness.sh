@@ -54,8 +54,22 @@
 #          --stage-runtime-sha SHA
 #          --merge-check-evidence FILE
 #          ( --ci-evidence FILE | --ci-source gh:<owner/repo> )
-#          --actual-production-tree TREE
-#          [--expected-production-tree TREE]   # optional cross-check
+#          --deployed-workdir-tree TREE
+#          [--expected-candidate-tree TREE]    # optional cross-check
+#
+# TREE NAMING follows the CURRENT release protocol (skills/sma-deploy-prod), which
+# knows deploy WORKDIRS and verifies them with 'git rev-parse HEAD' and a clean
+# 'git status' — it has no "production tree" at all. So:
+#   --deployed-workdir-tree    tree of HEAD in the deploy workdir:
+#                              /opt/sma-beta BEFORE promotion (the accepted build),
+#                              /opt/sma-prod AFTER it. Before promotion the
+#                              Production workdir still holds the previous release
+#                              and cannot match the candidate — see the note below.
+#   --expected-candidate-tree  optional operator cross-check; must equal the tree
+#                              derived from the candidate commit.
+# The former --actual-production-tree / --expected-production-tree remain accepted
+# as deprecated aliases. The check itself is unchanged: a real tree object, equal
+# to the tree derived from the candidate commit.
 # Default: --remote origin
 #
 # EVIDENCE FILE FORMAT (merge-check and CI alike), '#' starts a comment:
@@ -95,8 +109,16 @@ while [ $# -gt 0 ]; do
     --merge-check-evidence) MERGE_CHECK_EVIDENCE="${2:-}"; shift 2 || die "--merge-check-evidence needs a value" ;;
     --ci-evidence) CI_EVIDENCE="${2:-}"; shift 2 || die "--ci-evidence needs a value" ;;
     --ci-source) CI_SOURCE="${2:-}"; shift 2 || die "--ci-source needs a value" ;;
-    --expected-production-tree) EXPECTED_PROD_TREE="${2:-}"; shift 2 || die "--expected-production-tree needs a value" ;;
+    # Protocol-aligned names. The release protocol (skills/sma-deploy-prod) speaks
+    # of deploy WORKDIRS — /opt/sma-beta on Stage, /opt/sma-prod in Production —
+    # and verifies them with 'git rev-parse HEAD' plus a clean 'git status'. It has
+    # no notion of a "production tree", so the old flag names named nothing that
+    # exists in the protocol. The subject is the tree of HEAD in the deploy workdir.
+    --deployed-workdir-tree) ACTUAL_PROD_TREE="${2:-}"; shift 2 || die "--deployed-workdir-tree needs a value" ;;
+    --expected-candidate-tree) EXPECTED_PROD_TREE="${2:-}"; shift 2 || die "--expected-candidate-tree needs a value" ;;
+    # Deprecated aliases, accepted so existing callers keep working.
     --actual-production-tree) ACTUAL_PROD_TREE="${2:-}"; shift 2 || die "--actual-production-tree needs a value" ;;
+    --expected-production-tree) EXPECTED_PROD_TREE="${2:-}"; shift 2 || die "--expected-production-tree needs a value" ;;
     # Refused on purpose: these took the operator's word and were the false READY.
     --merge-check|--ci)
       die "'$1' is no longer accepted: a bare verdict is not evidence — it passed for
@@ -192,8 +214,23 @@ check_evidence_file() { # label file candidate_sha
 }
 
 # Live CI read: the authoritative source for the candidate sha, not a claim.
+#
+# A run that has not finished is NOT a pass. The previous revision only counted
+# conclusions it recognised as bad (failure/cancelled/timed_out/action_required/
+# stale) and treated everything else as success — so a check-run with
+# status=in_progress and conclusion=null satisfied the gate. An independent audit
+# found exactly that, and it is the last false READY in this tool.
+#
+# The rule now: every run must be TERMINAL (status=completed) and its conclusion
+# must be success. queued / in_progress / waiting / requested / pending, and any
+# null conclusion, are NOT successful — they are "not finished yet", which makes
+# readiness INCOMPLETE rather than failed, and the report says which.
+#
+# Parsing is structural (python3, json module). The old tr/grep pipeline could not
+# tell which conclusion belonged to which run, and silently mis-read nested
+# objects such as check_suite and output.
 check_ci_source() { # label source candidate_sha
-  local label="$1" source="$2" want="$3" repo json total bad
+  local label="$1" source="$2" want="$3" repo json verdict
   echo -n "  $label"
   case "$source" in
     gh:*/*) repo="${source#gh:}" ;;
@@ -202,19 +239,83 @@ check_ci_source() { # label source candidate_sha
   if ! command -v gh >/dev/null 2>&1; then
     echo "BLOCKED (--ci-source given but gh CLI not found)"; note_missing; return
   fi
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "BLOCKED (--ci-source needs python3 to parse the API response structurally)"; note_missing; return
+  fi
   json=$(gh api "repos/$repo/commits/$want/check-runs" 2>/dev/null) || {
     echo "BLOCKED (cannot read check-runs for $want from $repo)"; note_missing; return; }
-  total=$(printf '%s' "$json" | tr ',' '\n' | sed -n 's/.*"total_count":[[:space:]]*\([0-9]*\).*/\1/p' | head -1)
-  [ -n "$total" ] || total=0
-  if [ "$total" -eq 0 ]; then
-    echo "BLOCKED (no check-runs recorded for the candidate sha)"; note_missing; return
-  fi
-  bad=$(printf '%s' "$json" | tr '{' '\n' | grep -c '"conclusion":[[:space:]]*"\(failure\|cancelled\|timed_out\|action_required\|stale\)"')
-  if [ "$bad" -gt 0 ]; then
-    echo "FAIL ($bad of $total check-runs not successful, from $repo)"; note_missing
-  else
-    echo "OK ($total check-runs successful for the candidate sha, from $repo)"
-  fi
+
+  # The parser prints one line: OK|PENDING|FAIL|MALFORMED <detail>
+  verdict=$(printf '%s' "$json" | python3 -c '
+import json, sys
+
+TERMINAL = "completed"
+GOOD = "success"
+
+try:
+    data = json.load(sys.stdin)
+except Exception as exc:
+    print("MALFORMED response is not JSON (%s)" % type(exc).__name__)
+    raise SystemExit(0)
+
+if not isinstance(data, dict):
+    print("MALFORMED response is not a JSON object")
+    raise SystemExit(0)
+
+runs = data.get("check_runs")
+if not isinstance(runs, list):
+    print("MALFORMED response has no check_runs array")
+    raise SystemExit(0)
+
+want_sha = sys.argv[1] if len(sys.argv) > 1 else ""
+
+total = data.get("total_count")
+if isinstance(total, int) and total != len(runs):
+    # Paginated or truncated: judging a subset as "all green" would be a guess.
+    print("MALFORMED total_count %d does not match %d returned runs (paginated?)"
+          % (total, len(runs)))
+    raise SystemExit(0)
+
+if not runs:
+    print("FAIL no check-runs recorded for the candidate sha")
+    raise SystemExit(0)
+
+unfinished, bad, foreign = [], [], []
+for run in runs:
+    if not isinstance(run, dict):
+        print("MALFORMED check_runs contains a non-object entry")
+        raise SystemExit(0)
+    name = str(run.get("name") or "<unnamed>")
+    status = run.get("status")
+    conclusion = run.get("conclusion")
+    head = run.get("head_sha")
+    if want_sha and isinstance(head, str) and head != want_sha:
+        foreign.append("%s(head %s)" % (name, head[:8]))
+        continue
+    if status != TERMINAL:
+        unfinished.append("%s(status %s)" % (name, status))
+    elif conclusion != GOOD:
+        bad.append("%s(%s)" % (name, conclusion))
+
+if foreign:
+    print("MALFORMED runs attached to another commit: %s" % ", ".join(foreign))
+elif bad:
+    print("FAIL %d of %d not successful: %s" % (len(bad), len(runs), ", ".join(bad)))
+elif unfinished:
+    print("PENDING %d of %d still running: %s" % (len(unfinished), len(runs), ", ".join(unfinished)))
+else:
+    print("OK all %d check-runs completed successfully" % len(runs))
+' "$want" 2>/dev/null)
+
+  case "${verdict%% *}" in
+    OK)      echo "OK (${verdict#* }, from $repo)" ;;
+    PENDING) echo "INCOMPLETE (${verdict#* }, from $repo)"
+             echo "        A run that has not finished is not a pass. Wait for CI to settle."
+             note_missing ;;
+    FAIL)    echo "FAIL (${verdict#* }, from $repo)"; note_missing ;;
+    MALFORMED) echo "BLOCKED (${verdict#* })"; note_missing ;;
+    *)       echo "BLOCKED (could not interpret the check-runs response)"; note_missing ;;
+  esac
 }
 
 echo "PRODUCTION READINESS   (remote: $REMOTE)"
@@ -352,9 +453,9 @@ if git cat-file -e "$CAND_SHA" 2>/dev/null; then
 fi
 if [ -n "$DERIVED_TREE" ]; then echo "$DERIVED_TREE"; else echo "UNKNOWN (candidate object unavailable)"; note_missing; fi
 
-echo -n "  Deployed tree identity : "
+echo -n "  Deployed workdir tree  : "
 if [ -z "$ACTUAL_PROD_TREE" ]; then
-  echo "BLOCKED (--actual-production-tree required: the tree of the deployed checkout)"
+  echo "BLOCKED (--deployed-workdir-tree required: tree of HEAD in the deploy workdir)"
   note_missing
 elif [ -z "$DERIVED_TREE" ]; then
   echo "BLOCKED (no derived candidate tree to compare)"; note_missing
@@ -363,7 +464,8 @@ else
   if [ -z "$ACTUAL_TREE_OID" ]; then
     echo "BLOCKED (not a real tree object: $ACTUAL_PROD_TREE)"
     echo "        A free-text value is not a tree. Supply the output of"
-    echo "        'git rev-parse HEAD^{tree}' taken in the deployed checkout."
+    echo "        'git rev-parse HEAD^{tree}' run inside the deploy workdir"
+    echo "        (/opt/sma-beta before promotion, /opt/sma-prod after)."
     note_missing
   elif [ "$ACTUAL_TREE_OID" = "$DERIVED_TREE" ]; then
     echo "OK ($ACTUAL_TREE_OID matches the candidate tree)"
