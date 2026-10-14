@@ -53,6 +53,7 @@ describe('TwogisGeocoderService', () => {
       precision: 'exact',
       fullName: 'Москва, улица Каретный ряд, 3',
       addressName: 'улица Каретный ряд, 3',
+      matchCount: 2,
     });
 
     expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -92,6 +93,7 @@ describe('TwogisGeocoderService', () => {
       lon: 37.61,
       precision: 'near',
       fullName: 'Москва, улица Каретный ряд, 5',
+      matchCount: 1,
     });
   });
 

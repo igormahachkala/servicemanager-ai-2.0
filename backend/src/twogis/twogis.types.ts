@@ -14,6 +14,7 @@ export type TwogisGeocodeHit = {
   precision: TwogisPrecision | null;
   fullName: string;
   addressName?: string;
+  matchCount: number;
 };
 
 export type TwogisSuggestHit = {

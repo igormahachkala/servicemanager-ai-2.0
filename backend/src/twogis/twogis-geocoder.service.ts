@@ -78,6 +78,7 @@ function parseGeocodeHit(body: unknown): TwogisGeocodeHit | null {
     lon,
     precision: readTwogisPrecision(details?.precision),
     fullName,
+    matchCount: items.length,
   };
   if (addressName) hit.addressName = addressName;
   return hit;
