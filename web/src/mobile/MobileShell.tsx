@@ -11,6 +11,7 @@ import { formatPendingActionsLabel, offlinePendingBannerText, syncNow, useOfflin
 import { getOfflineStatus } from './offline/runtime'
 import { MobileGuidedTour } from './MobileGuidedTour'
 import { MobileShiftGatePrompt } from './MobileShiftGatePrompt'
+import { MobileShiftGeolocation } from './MobileShiftGeolocation'
 import { getMobileRouteRoot, inspectionNavSuffix, mobilePath } from './mobileRoute'
 import { mobileNavSectionForPath, ticketsSlotLabel } from './mobileBottomNav'
 import { MobileMoreSheet } from './MobileMoreSheet'
@@ -477,6 +478,7 @@ export function MobileShell() {
       </nav>
       {moreOpen ? <MobileMoreSheet onClose={() => setMoreOpen(false)} /> : null}
       <MobileShiftGatePrompt user={meQ.data} />
+      <MobileShiftGeolocation user={meQ.data} />
       <MobileGuidedTour userKey={meQ.data?.id || meQ.data?.email || null} />
     </div>
   )
