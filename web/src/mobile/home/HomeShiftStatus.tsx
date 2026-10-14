@@ -36,6 +36,7 @@ export function HomeShiftStatus({ role }: { role?: api.Role | null }) {
     onSuccess: (data) => {
       queryClient.setQueryData(['workforce-me'], data)
       void queryClient.invalidateQueries({ queryKey: ['workforce-me'] })
+      void queryClient.invalidateQueries({ queryKey: ['planner-me-next'] })
     },
   })
 

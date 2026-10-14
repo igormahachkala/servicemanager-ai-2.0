@@ -59,7 +59,7 @@ import {
 } from '../lib/ticketClientGuidance'
 import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { MobileBoardClaimFallbackHint, MobileClaimReasonHintBox } from './MobileUxHints'
-import { TicketCloseModal, type TicketCloseModalState } from './home/HomeList'
+import { TicketCloseModal, type TicketCloseModalState } from './home/MobileHomeTicketCloseModal'
 import { MobileAttachmentThumb, mobileAttachmentLabel } from './MobileAttachmentThumb'
 import { toChatMessages, ticketChatParentFromGet, type ChatMessage } from '../lib/ticketChat'
 import {

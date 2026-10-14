@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 
 const ticketPage = readFileSync(new URL('../MobileTicketPage.tsx', import.meta.url), 'utf8')
-const homePage = readFileSync(new URL('../home/MobileHome.tsx', import.meta.url), 'utf8')
+const homeCloseModal = readFileSync(new URL('../home/MobileHomeTicketCloseModal.tsx', import.meta.url), 'utf8')
 const runPage = readFileSync(new URL('../MobileInspectionRunPage.tsx', import.meta.url), 'utf8')
 const startPage = readFileSync(new URL('../MobileInspectionStartPage.tsx', import.meta.url), 'utf8')
 const todayPage = readFileSync(new URL('../MobileInspectionTodayPage.tsx', import.meta.url), 'utf8')
@@ -13,7 +13,7 @@ describe('physical iPhone offline claim guard', () => {
   it('keeps claim online-only with a Russian local refusal', () => {
     expect(onlineOnly).toContain("ONLINE_ONLY_ACTION_MESSAGE = 'Для этого действия нужен интернет.'")
     expect(ticketPage).toMatch(/if \(!liveApiAllowed\)[\s\S]*ONLINE_ONLY_ACTION_MESSAGE/)
-    expect(homePage).toMatch(/if \(!liveApiAllowed && ticket\.status === 'NEW'\)[\s\S]*ONLINE_ONLY_ACTION_MESSAGE/)
+    expect(homeCloseModal).toMatch(/if \(!liveApiAllowed && ticket\.status === 'NEW'\)[\s\S]*ONLINE_ONLY_ACTION_MESSAGE/)
   })
 
   it('guards request assignment offline on detail', () => {
@@ -31,7 +31,7 @@ describe('physical iPhone offline claim guard', () => {
 
   it('does not change the online canonical claim endpoint', () => {
     expect(ticketPage).toMatch(/techActionM\.mutate\(mode\)/)
-    expect(homePage).toMatch(/actionM\.mutate\(ticket\)/)
+    expect(homeCloseModal).toMatch(/actionM\.mutate\(ticket\)/)
     expect(ticketPage).toMatch(/api\.claimTicket\(ticket\.id, ticketResourceScope\)/)
   })
 
