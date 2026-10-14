@@ -217,7 +217,7 @@ describe('NotificationPreferencesService', () => {
 
     expect(
       ROLE_GRANTS.find((grant) => grant.role === UserRole.CLIENT_ADMIN)?.codes,
-    ).toEqual([PERMISSIONS.TICKETS_VIEW]);
+    ).toEqual([PERMISSIONS.TICKETS_VIEW, PERMISSIONS.WORKFORCE_VIEW]);
     await expect(
       service.resolvePreference({
         ...baseInput,

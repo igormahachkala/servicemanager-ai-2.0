@@ -4,26 +4,15 @@ import * as api from '../../lib/api'
 import { mobileTicketCategoryLocationFromCard, mobileTicketNumberTitle, type MobileTicketNavState } from '../mobileTicketDisplay'
 import { mobileHomeTabEmptyCopy, type MobileHomeBoardFilterTab } from '../mobileHomeBoardFilters'
 import { TicketCard } from './TicketCard'
+import { useLocationRouteLabels } from '../useLocationRouteLabels'
 import { getPrimaryActionLabel, homeTicketActionProgressLabel } from './utils'
 import { formatMobileMutationError } from '../mobileActionErrors'
 import { defaultExpandedLocationIds, groupTicketsByLocation, type MobileHomeLocationGroup } from '../mobileHomeListUtils'
 import { compactIdentityLabel, presentActorIdentity } from '../../lib/ticketActorIdentity'
-import {
-  TICKET_MEDIA_ACCEPT,
-  prepareOutgoingTicketMedia,
-  ticketMediaKind,
-} from '../../lib/ticketAttachmentMedia'
 import type { TicketDetailCacheState } from '../offline/ticketDetailCache'
+import { TicketCloseModal, type TicketCloseModalState } from './MobileHomeTicketCloseModal'
 
-export type TicketCloseModalState = {
-  ticketId: string
-  title: string
-  file: File | null
-  previewUrl: string
-  comment: string
-  failureCauseId: string
-  err: string
-} | null
+export type { TicketCloseModalState }
 
 type Props = {
   boardIsLoading: boolean
@@ -31,6 +20,7 @@ type Props = {
   tabOnlyTickets: api.TicketCard[]
   boardTab: MobileHomeBoardFilterTab
   role: api.Role | undefined
+  scope: api.TicketScopeParams
   meId: string | undefined
   boardTotal: number
   hasHomeListFilters: boolean
@@ -81,6 +71,7 @@ export function HomeList(props: Props) {
     tabOnlyTickets,
     boardTab,
     role,
+    scope,
     meId,
     boardTotal,
     hasHomeListFilters,
@@ -129,6 +120,7 @@ export function HomeList(props: Props) {
     [visibleTickets, groupRenderMode],
   )
 
+  const routeLabels = useLocationRouteLabels(visibleTickets, role, scope)
   const [expandedLocations, setExpandedLocations] = useState<Set<string>>(() => defaultExpandedLocationIds(groups))
 
   const prevGroupKeyRef = useRef('')
@@ -211,6 +203,7 @@ export function HomeList(props: Props) {
             <LocationGroupCard
               key={group.locationId}
               group={group}
+              routeLabel={routeLabels.get(group.locationId) ?? null}
               boardTab={boardTab}
               expanded={expandedLocations.has(group.locationId)}
               onToggle={() => toggleLocation(group.locationId)}
@@ -256,12 +249,14 @@ export function HomeList(props: Props) {
 
 function LocationGroupCard({
   group,
+  routeLabel,
   boardTab,
   expanded,
   onToggle,
   renderTicket,
 }: {
   group: MobileHomeLocationGroup
+  routeLabel: string | null
   boardTab: MobileHomeBoardFilterTab
   expanded: boolean
   onToggle: () => void
@@ -325,6 +320,7 @@ function LocationGroupCard({
               {[group.city, group.address].filter(Boolean).join(', ')}
             </div>
           ) : null}
+          {routeLabel ? <div className="mobileLocationGroupMeta">{routeLabel}</div> : null}
           <div className={`mobileLocationGroupStatGrid${isDoneTab ? ' mobileLocationGroupStatGrid--done' : ''}`}>
             {statCells.map((cell) => (
               <div
@@ -454,163 +450,6 @@ function AssignModal(props: {
         {!assignCandidatesQ.isLoading && assignCandidatesQ.data && assignTechOptions.length === 0 ? (
           <div className="mobileMeta" style={{ marginTop: 12 }}>Нет доступных техников для назначения.</div>
         ) : null}
-      </div>
-    </div>
-  )
-}
-
-export function TicketCloseModal(props: {
-  closeModal: TicketCloseModalState
-  closeBusy: boolean
-  closeCameraInputRef: MutableRefObject<HTMLInputElement | null>
-  closeGalleryInputRef: MutableRefObject<HTMLInputElement | null>
-  setCloseModal: (next: TicketCloseModalState | ((prev: TicketCloseModalState) => TicketCloseModalState)) => void
-  closeCanSubmit: boolean
-  closeM: UseMutationResult<void, unknown, void, unknown>
-  failureCauses?: api.FailureCauseItem[]
-  failureCausesLoading?: boolean
-  failureCausesError?: string
-  /** SMA-ACCEPTANCE-005: переопределение текстов для сценария «Отправить на приёмку». */
-  heading?: string
-  submitLabel?: string
-  submitBusyLabel?: string
-}) {
-  const {
-    closeModal,
-    closeBusy,
-    closeCameraInputRef,
-    closeGalleryInputRef,
-    setCloseModal,
-    closeCanSubmit,
-    closeM,
-    failureCauses = [],
-    failureCausesLoading = false,
-    failureCausesError = '',
-  } = props
-  const heading = props.heading ?? 'Закрыть заявку'
-  const submitLabel = props.submitLabel ?? 'Завершить'
-  const submitBusyLabel = props.submitBusyLabel ?? 'Завершаем…'
-  if (!closeModal) return null
-  const setReportFile = (rawFile: File | null) => {
-    void (async () => {
-      if (!rawFile) {
-        setCloseModal((prev) => {
-          if (!prev) return prev
-          if (prev.previewUrl) URL.revokeObjectURL(prev.previewUrl)
-          return { ...prev, file: null, previewUrl: '', err: '' }
-        })
-        return
-      }
-      const prepared = await prepareOutgoingTicketMedia(rawFile)
-      setCloseModal((prev) => {
-        if (!prev) return prev
-        if (prev.previewUrl) URL.revokeObjectURL(prev.previewUrl)
-        if (prepared.error) return { ...prev, file: null, previewUrl: '', err: prepared.error }
-        return { ...prev, file: prepared.file, previewUrl: URL.createObjectURL(prepared.file), err: '' }
-      })
-    })()
-  }
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(17, 24, 39, 0.55)', zIndex: 60, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 12 }}>
-      <div className="mobileCard" style={{ width: '100%', maxWidth: 720, marginBottom: 12 }}>
-        <div className="mobileRow" style={{ alignItems: 'flex-start' }}>
-          <div>
-            <div style={{ fontWeight: 900 }}>{heading}</div>
-            <div className="mobileMeta" style={{ marginTop: 4 }}>{closeModal.title}</div>
-          </div>
-          <button
-            type="button"
-            className="mobileBtn mobileBtnSecondary"
-            disabled={closeBusy}
-            onClick={() => {
-              if (closeModal.previewUrl) URL.revokeObjectURL(closeModal.previewUrl)
-              setCloseModal(null)
-              if (closeCameraInputRef.current) closeCameraInputRef.current.value = ''
-              if (closeGalleryInputRef.current) closeGalleryInputRef.current.value = ''
-            }}
-          >
-            Отмена
-          </button>
-        </div>
-        {closeModal.err ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>{closeModal.err}</div> : null}
-        <div className="mobileForm" style={{ marginTop: 12 }}>
-          <div className="mobilePhotoCardBlock">
-            <div style={{ fontWeight: 800, marginBottom: 8 }}>Фото или видео отчёта *</div>
-            <p className="mobileHint">Фото или видео результата обязательно для завершения заявки.</p>
-            <input
-              ref={closeCameraInputRef}
-              className="mobileHiddenFileInput"
-              type="file"
-              accept={TICKET_MEDIA_ACCEPT}
-              capture="environment"
-              disabled={closeBusy}
-              onChange={(e) => {
-                setReportFile(e.target.files?.[0] || null)
-              }}
-            />
-            <input
-              ref={closeGalleryInputRef}
-              className="mobileHiddenFileInput"
-              type="file"
-              accept={TICKET_MEDIA_ACCEPT}
-              disabled={closeBusy}
-              onChange={(e) => {
-                setReportFile(e.target.files?.[0] || null)
-              }}
-            />
-            <div className="mobilePhotoSourceRow">
-              <button type="button" className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn" disabled={closeBusy} onClick={() => closeCameraInputRef.current?.click()}>
-                Снять фото/видео отчёта
-              </button>
-              <button type="button" className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn" disabled={closeBusy} onClick={() => closeGalleryInputRef.current?.click()}>
-                Выбрать файл из телефона
-              </button>
-            </div>
-            {closeModal.previewUrl ? (
-              <div className="mobilePhotoPreview">
-                {ticketMediaKind(closeModal.file || {}) === 'video' ? (
-                  <video src={closeModal.previewUrl} controls playsInline preload="metadata" style={{ width: '100%', maxHeight: 320, borderRadius: 12, border: '1px solid #e5e7eb', background: '#111827' }} />
-                ) : (
-                  <img src={closeModal.previewUrl} alt={closeModal.file?.name || 'preview'} style={{ width: '100%', maxHeight: 240, objectFit: 'cover', borderRadius: 12, border: '1px solid #e5e7eb' }} />
-                )}
-              </div>
-            ) : null}
-            {closeModal.file ? <div className="mobileMeta" style={{ marginTop: 10 }}>Файл: {closeModal.file.name}</div> : null}
-          </div>
-          <label className="mobileFormFieldAfterPhoto">
-            Причина неисправности *
-            <select
-              value={closeModal.failureCauseId}
-              disabled={closeBusy || failureCausesLoading}
-              onChange={(e) => setCloseModal((prev) => (prev ? { ...prev, failureCauseId: e.target.value, err: '' } : prev))}
-            >
-              <option value="">Выберите причину</option>
-              {failureCauses.map((cause) => (
-                <option key={cause.id} value={cause.id}>{cause.name}</option>
-              ))}
-            </select>
-            {failureCausesLoading ? <div className="mobileMeta" style={{ marginTop: 6 }}>Загружаем причины…</div> : null}
-            {failureCausesError ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 8 }}>{failureCausesError}</div> : null}
-          </label>
-          <label className="mobileFormFieldAfterPhoto">
-            Комментарий к закрытию *
-            <textarea
-              rows={3}
-              value={closeModal.comment}
-              disabled={closeBusy}
-              placeholder="Коротко: что сделали / результат"
-              onChange={(e) => setCloseModal((prev) => (prev ? { ...prev, comment: e.target.value, err: '' } : prev))}
-            />
-          </label>
-          <div className="mobileFormSubmitStack">
-            <button type="button" className="mobileBtn mobileBtn--done" disabled={!closeCanSubmit} onClick={() => closeM.mutate()}>
-              {closeBusy ? submitBusyLabel : submitLabel}
-            </button>
-            <p className="mobileHint" style={{ marginBottom: 0 }}>
-              Комментарий не короче трёх символов. Сначала сохранится медиаотчёт, затем заявка перейдёт дальше по процессу.
-            </p>
-          </div>
-        </div>
       </div>
     </div>
   )
