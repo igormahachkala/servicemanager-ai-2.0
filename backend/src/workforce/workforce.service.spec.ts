@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common'
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import { CompanyType, UserRole, WorkShiftStatus } from '@prisma/client'
 
 import { resolveTicketOperationAccess } from '../tickets/ticket-access.utils'
@@ -202,25 +202,29 @@ describe('WorkforceService.updateSettings — provider shift policy', () => {
     )
   })
 
-  it('refuses to enable the policy on a CLIENT company rather than storing it inert', async () => {
+  it.each([
+    { shiftAutoCloseTime: '21:30' },
+    { requireActiveShiftForWork: true },
+    { requireActiveShiftForWork: false },
+  ])('denies every settings write for a CLIENT company: %p', async (settings) => {
     const prisma = settingsPrisma(CompanyType.CLIENT)
     const service = new WorkforceService(prisma, {} as any)
 
-    await expect(
-      service.updateSettings(actor.companyId, { requireActiveShiftForWork: true }),
-    ).rejects.toBeInstanceOf(BadRequestException)
+    await expect(service.updateSettings(actor.companyId, settings)).rejects.toMatchObject({
+      response: { code: 'WORKFORCE_SETTINGS_PROVIDER_ONLY' },
+    })
     expect(prisma.company.update).not.toHaveBeenCalled()
   })
 
-  it('allows a CLIENT company to explicitly disable the policy', async () => {
-    const prisma = settingsPrisma(CompanyType.CLIENT)
+  it('fails closed when the actor company cannot be resolved', async () => {
+    const prisma = settingsPrisma()
+    prisma.company.findUnique.mockResolvedValue(null)
     const service = new WorkforceService(prisma, {} as any)
 
-    await service.updateSettings(actor.companyId, { requireActiveShiftForWork: false })
-
-    expect(prisma.company.update).toHaveBeenCalledWith(
-      expect.objectContaining({ data: { requireActiveShiftForWork: false } }),
-    )
+    await expect(
+      service.updateSettings(actor.companyId, { shiftAutoCloseTime: '21:30' }),
+    ).rejects.toBeInstanceOf(NotFoundException)
+    expect(prisma.company.update).not.toHaveBeenCalled()
   })
 
   it('leaves shiftAutoCloseTime untouched when only the policy is sent', async () => {
@@ -241,7 +245,10 @@ describe('WorkforceService.updateSettings — provider shift policy', () => {
 
     const data = (prisma.company.update as jest.Mock).mock.calls[0][0].data
     expect(data).toEqual({ shiftAutoCloseTime: '21:30' })
-    expect(prisma.company.findUnique).not.toHaveBeenCalled()
+    expect(prisma.company.findUnique).toHaveBeenCalledWith({
+      where: { id: actor.companyId },
+      select: { type: true },
+    })
   })
 
   it('rejects a malformed shiftAutoCloseTime', async () => {
