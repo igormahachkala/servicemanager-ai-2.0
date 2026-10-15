@@ -5,14 +5,21 @@ import * as api from '../lib/api'
 import { getTicketRoutes, type TicketRoutesResponse } from '../lib/ticketRouteApi'
 import { hasOpenWorkShift, isShiftGateSubjectRole, type ShiftGateRole } from './mobileShiftGate'
 import { formatTicketRouteLabel } from './MobileTicketRouteDuration'
-import { SHIFT_GEO_INTERVAL_MS } from './shiftGeolocation'
+import { ROUTE_LABELS_STALE_MS } from './shiftGeolocation'
 
 type TicketWithLocation = Pick<api.TicketCard, 'id' | 'location'>
 
+/** Cap unique locations per routes batch (next object + up to two more). */
+export const LOCATION_ROUTE_LABELS_MAX = 3
+
 /** One ticket per location: the route depends only on the location, access is checked per ticket. */
-export function pickLocationRouteTickets(tickets: TicketWithLocation[]): Map<string, string> {
+export function pickLocationRouteTickets(
+  tickets: TicketWithLocation[],
+  maxLocations: number = LOCATION_ROUTE_LABELS_MAX,
+): Map<string, string> {
   const byLocation = new Map<string, string>()
   for (const ticket of tickets) {
+    if (byLocation.size >= maxLocations) break
     const locationId = ticket.location?.id
     if (locationId && !byLocation.has(locationId)) byLocation.set(locationId, ticket.id)
   }
@@ -55,7 +62,7 @@ export function useLocationRouteLabels(
     queryKey: ['ticket-routes', openShiftId, scope.companyId ?? null, scope.linkedClientCompanyId ?? null, ticketIds.join(',')],
     queryFn: () => getTicketRoutes(ticketIds, scope),
     enabled: !!openShiftId && ticketIds.length > 0,
-    staleTime: SHIFT_GEO_INTERVAL_MS,
+    staleTime: ROUTE_LABELS_STALE_MS,
     retry: false,
   })
 
