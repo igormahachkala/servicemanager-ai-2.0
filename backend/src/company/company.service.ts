@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { CompanyType, PublicRequestType, UserRole } from '@prisma/client'
+
+import { ensureDefaultFailureCauses } from '../failure-causes/standard-failure-causes'
 import * as bcrypt from 'bcrypt'
 import { randomUUID } from 'crypto'
 
@@ -138,6 +140,12 @@ export class CompanyService {
       },
       select: this.platformCompanySelect(),
     })
+
+    // Новая CLIENT-компания получает стандартный справочник причин отказа:
+    // без него техник не сможет отправить работу на приёмку. PROVIDER — не трогаем.
+    if (company.type === CompanyType.CLIENT) {
+      await ensureDefaultFailureCauses(this.prisma, company.id)
+    }
 
     return this.toPlatformCompany(company)
   }
