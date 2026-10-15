@@ -320,11 +320,35 @@ describe('102/10 объём среза не расширен', () => {
   })
 
   it('10. ссылки ведут только на существующие маршруты', () => {
-    expect(pageCode).toContain('to={equipmentListPath(outboundScope)}')
-    expect(pageCode).toContain("to=\"/inspection/schedules\"")
+    /*
+     * LOCATION CARD V2 Phase 1 + CURRENT PRODUCTION: путь списка
+     * оборудования строит КАНОНИЧЕСКИЙ equipmentListPath, а переход несёт
+     * ещё и саму точку (locationSectionLinks). Прежняя редакция закрепляла
+     * ссылки без контекста — «/equipment» и «/inspection/schedules» без
+     * параметров, — то есть ровно то состояние, которое исправлено.
+     *
+     * Канонический построитель остаётся единственным источником пути
+     * «/equipment»: карточка добавляет к нему только сужение по точке.
+     */
+    expect(pageCode).toContain('equipmentPath: equipmentListPath(outboundScope)')
+    expect(pageCode).toContain('locationSectionLinks({')
+    expect(pageCode).toContain('to={sections.equipment}')
+    expect(pageCode).toContain('to={sections.rounds}')
+    // Второго построителя «/equipment» в карточке не появляется.
+    expect(pageCode).not.toContain('to="/equipment"')
+    expect(pageCode).not.toContain('to="/inspection/schedules"')
     expect(pageCode).toContain('to={ticketsTo}')
-    // Ссылка на заявки строится существующим контрактом доски, а не выдуманным параметром.
+
+    // Новых маршрутов не появилось: только существующие разделы.
+    for (const route of ['/equipment', '/inspection/schedules', '/analytics/locations']) {
+      expect(readSrc('lib/locationCardSections.ts'), route).toContain(`'${route}'`)
+    }
+
+    /*
+     * Заявки по-прежнему строятся каноническим контрактом доски, а не
+     * параметром locationId: второго механизма переноса фильтров нет.
+     */
     expect(pageCode).toContain('appendBoardNavigationContextToPath')
-    expect(pageCode).not.toContain('?locationId=')
+    expect(pageCode).not.toMatch(/ticketsTo\s*=\s*[^\n]*\?locationId=/)
   })
 })

@@ -1,6 +1,13 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
+import { UserRole } from '@prisma/client'
+
+import { PERMISSIONS_KEY } from '../common/permissions.decorator'
+import { PERMISSIONS } from '../common/permissions.constants'
+import { ROLES_KEY } from '../common/roles.decorator'
+import { WorkforceController } from './workforce.controller'
+
 /**
  * Контракт read-only доступа CLIENT_ADMIN к Workforce на БЭКЕНДЕ.
  * Фронтенд не является security boundary: решают @Roles (role guard) +
@@ -51,5 +58,14 @@ describe('Workforce CLIENT_ADMIN read-only route contract', () => {
   it('covers the two canonical read endpoints (shift list + shift detail)', () => {
     expect(controller).toMatch(/@Get\('shifts'\)[\s\S]*?UserRole\.CLIENT_ADMIN[\s\S]*?WORKFORCE_VIEW/)
     expect(controller).toMatch(/@Get\('shifts\/:shiftId'\)[\s\S]*?UserRole\.CLIENT_ADMIN[\s\S]*?WORKFORCE_VIEW/)
+  })
+
+  it('keeps settings writes on the existing ADMIN + COMPANY_SETTINGS_EDIT policy', () => {
+    const method = WorkforceController.prototype.updateSettings
+
+    expect(Reflect.getMetadata(ROLES_KEY, method)).toEqual([UserRole.ADMIN])
+    expect(Reflect.getMetadata(PERMISSIONS_KEY, method)).toEqual([
+      PERMISSIONS.COMPANY_SETTINGS_EDIT,
+    ])
   })
 })
