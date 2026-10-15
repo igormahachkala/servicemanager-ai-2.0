@@ -50,9 +50,39 @@ export function renderCompletePhotoAskMessage(ticketId: string, ticketNumber: nu
   ]);
 }
 
+export type MaxTicketFailureCauseOption = {
+  id: string;
+  name: string;
+};
+
+export function renderCompleteFailureCauseMessage(
+  ticketId: string,
+  ticketNumber: number,
+  causes: MaxTicketFailureCauseOption[],
+): MaxBotCommandResponse {
+  const choices = causes.map((cause) => callbackButton(cause.name, `tkfc:${ticketId}:${cause.id}`));
+  return withKeyboard(`Выберите причину неисправности.\nЗаявка #${ticketNumber}`, [
+    ...chunk2([...choices, callbackButton('Отмена', `tk:${ticketId}`)]),
+    ...technicianMenuRow(),
+  ]);
+}
+
+export function renderCompleteFailureCausesEmptyMessage(ticketId: string, ticketNumber: number): MaxBotCommandResponse {
+  return withKeyboard(
+    `Причины неисправности не настроены.\nЗаявку #${ticketNumber} нельзя отправить на приёмку без причины.`,
+    [[callbackButton('К заявке', `tk:${ticketId}`)], ...technicianMenuRow()],
+  );
+}
+
 export function renderCompleteDoneMessage(ticketId: string, ticketNumber: number, statusLabel: string): MaxBotCommandResponse {
   return withKeyboard(`Заявка #${ticketNumber}\nСтатус: ${statusLabel}`, [
     [callbackButton('К заявке', `tk:${ticketId}`), callbackButton('Мои заявки', 'my')],
     ...technicianMenuRow(),
   ]);
+}
+
+function chunk2<T>(items: T[]) {
+  const rows: T[][] = [];
+  for (let i = 0; i < items.length; i += 2) rows.push(items.slice(i, i + 2));
+  return rows;
 }

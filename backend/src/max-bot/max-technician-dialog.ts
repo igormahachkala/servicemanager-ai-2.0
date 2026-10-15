@@ -3,6 +3,8 @@ import { DownloadedMaxFile, MaxFileClient, MaxIncomingMedia } from './max-file.c
 import {
   renderAwaitingPhotoMessage,
   renderCompleteDoneMessage,
+  renderCompleteFailureCauseMessage,
+  renderCompleteFailureCausesEmptyMessage,
   renderCompletePhotoAskMessage,
   renderCompleteReportPrompt,
   renderPhotoPromptMessage,
@@ -37,7 +39,8 @@ type TicketWait =
   | { kind: 'comment'; ticketId: string; ticketNumber: number }
   | { kind: 'photo'; ticketId: string; ticketNumber: number }
   | { kind: 'complete-text'; ticketId: string; ticketNumber: number }
-  | { kind: 'complete-photo'; ticketId: string; ticketNumber: number; report: string; awaitingFile: boolean }
+  | { kind: 'complete-cause'; ticketId: string; ticketNumber: number; report: string }
+  | { kind: 'complete-photo'; ticketId: string; ticketNumber: number; report: string; failureCauseId: string; awaitingFile: boolean }
   | { kind: 'find'; query: string | null }
   | { kind: 'round-text'; runId: string; itemId: string; status: 'ISSUE' | 'CRITICAL' }
   | { kind: 'round-photo'; runId: string; itemId: string; status: 'ISSUE' | 'CRITICAL'; comment: string }
@@ -47,6 +50,7 @@ const KEEP_WAIT = new Set([
   'comment',
   'photo',
   'complete',
+  'completeCause',
   'completePhoto',
   'completeAsk',
   'completeSkip',
@@ -170,6 +174,25 @@ export class MaxTechnicianDialog {
     return this.finishComplete(technician, pending, undefined);
   }
 
+  async selectCompleteFailureCause(technician: ResolvedTechnician, ticketId: string, failureCauseId: string) {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED);
+    const pending = this.wait.get(technician.maxUserId);
+    if (!pending || pending.kind !== 'complete-cause' || pending.ticketId !== ticketId) {
+      return this.beginComplete(technician, ticketId);
+    }
+    const choice = await this.resolveCompleteFailureCause(technician, pending, failureCauseId);
+    if (!choice.ok) return choice.response;
+    this.wait.set(technician.maxUserId, {
+      kind: 'complete-photo',
+      ticketId: pending.ticketId,
+      ticketNumber: pending.ticketNumber,
+      report: pending.report,
+      failureCauseId: choice.value.id,
+      awaitingFile: false,
+    });
+    return renderCompletePhotoAskMessage(pending.ticketId, pending.ticketNumber);
+  }
+
   async submitText(technician: ResolvedTechnician, text: string): Promise<MaxBotCommandResponse | null> {
     const pending = this.wait.get(technician.maxUserId);
     if (!pending) return null;
@@ -199,6 +222,9 @@ export class MaxTechnicianDialog {
     if (pending.kind === 'photo' || (pending.kind === 'complete-photo' && pending.awaitingFile)) {
       return renderAwaitingPhotoMessage(this.cancelPayload(pending));
     }
+    if (pending.kind === 'complete-cause') {
+      return this.promptCompleteFailureCause(technician, pending);
+    }
     if (pending.kind === 'complete-photo') {
       return renderCompletePhotoAskMessage(pending.ticketId, pending.ticketNumber);
     }
@@ -208,13 +234,17 @@ export class MaxTechnicianDialog {
     }
     if (!text) return renderCompleteReportPrompt(pending.ticketId, pending.ticketNumber);
     this.wait.set(technician.maxUserId, {
-      kind: 'complete-photo',
+      kind: 'complete-cause',
       ticketId: pending.ticketId,
       ticketNumber: pending.ticketNumber,
       report: text,
-      awaitingFile: false,
     });
-    return renderCompletePhotoAskMessage(pending.ticketId, pending.ticketNumber);
+    return this.promptCompleteFailureCause(technician, {
+      kind: 'complete-cause',
+      ticketId: pending.ticketId,
+      ticketNumber: pending.ticketNumber,
+      report: text,
+    });
   }
 
   async submitMedia(
@@ -229,6 +259,7 @@ export class MaxTechnicianDialog {
     if (pending.kind === 'round-ticket') return this.reloadRoundTicketPrompt(pending.runId);
     if (pending.kind === 'comment') return renderCommentPromptMessage(pending.ticketId, pending.ticketNumber);
     if (pending.kind === 'complete-text') return renderCompleteReportPrompt(pending.ticketId, pending.ticketNumber);
+    if (pending.kind === 'complete-cause') return this.promptCompleteFailureCause(technician, pending);
     if (pending.kind === 'complete-photo' && !pending.awaitingFile) {
       return renderCompletePhotoAskMessage(pending.ticketId, pending.ticketNumber);
     }
@@ -343,7 +374,13 @@ export class MaxTechnicianDialog {
     file: { buffer: Buffer; size: number; mimetype: string; originalname: string } | undefined,
   ) {
     if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED);
-    const result = await this.workplace.completeMyTicket(technician, pending.ticketId, pending.report, file);
+    const result = await this.workplace.completeMyTicket(
+      technician,
+      pending.ticketId,
+      pending.report,
+      pending.failureCauseId,
+      file,
+    );
     if (!result.ok) {
       pending.awaitingFile = false;
       this.wait.set(technician.maxUserId, pending);
@@ -392,6 +429,50 @@ export class MaxTechnicianDialog {
     return renderRoundAfterItem({ kind: 'ticket-prompt', runId, itemId: '' });
   }
 
+  private async promptCompleteFailureCause(
+    technician: ResolvedTechnician,
+    pending: Extract<TicketWait, { kind: 'complete-cause' }>,
+  ) {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED);
+    const causes = await this.workplace.ticketFailureCauses(technician, pending.ticketId);
+    if (!causes.ok) {
+      this.wait.delete(technician.maxUserId);
+      return this.fail(causes.message);
+    }
+    if (causes.value.length === 0) {
+      this.wait.delete(technician.maxUserId);
+      return renderCompleteFailureCausesEmptyMessage(pending.ticketId, pending.ticketNumber);
+    }
+    this.wait.set(technician.maxUserId, pending);
+    return renderCompleteFailureCauseMessage(pending.ticketId, pending.ticketNumber, causes.value);
+  }
+
+  private async resolveCompleteFailureCause(
+    technician: ResolvedTechnician,
+    pending: Extract<TicketWait, { kind: 'complete-cause' }>,
+    failureCauseId: string,
+  ) {
+    const causes = await this.workplace!.ticketFailureCauses(technician, pending.ticketId);
+    if (!causes.ok) {
+      this.wait.delete(technician.maxUserId);
+      return { ok: false as const, response: this.fail(causes.message) };
+    }
+    const selected = causes.value.find((cause) => cause.id === failureCauseId);
+    if (!selected) {
+      if (causes.value.length === 0) {
+        return {
+          ok: false as const,
+          response: renderCompleteFailureCausesEmptyMessage(pending.ticketId, pending.ticketNumber),
+        };
+      }
+      return {
+        ok: false as const,
+        response: renderCompleteFailureCauseMessage(pending.ticketId, pending.ticketNumber, causes.value),
+      };
+    }
+    return { ok: true as const, value: selected };
+  }
+
   private async requireCard(technician: ResolvedTechnician, ticketId: string) {
     if (!this.workplace) return { ok: false as const, response: renderPersistentMenuMessage(ACTION_FAILED) };
     const result = await this.workplace.ticketCard(technician, ticketId);
@@ -411,6 +492,7 @@ export class MaxTechnicianDialog {
     if (pending.kind === 'round-text' || pending.kind === 'round-photo' || pending.kind === 'round-ticket') {
       return `rit:${pending.runId}`;
     }
+    if (pending.kind === 'complete-cause') return `tk:${pending.ticketId}`;
     if (pending.kind === 'complete-photo') return `tky:${pending.ticketId}`;
     return `tk:${pending.ticketId}`;
   }
