@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { locationRouteLabels, pickLocationRouteTickets } from './useLocationRouteLabels'
+import {
+  LOCATION_ROUTE_LABELS_MAX,
+  locationRouteLabels,
+  pickLocationRouteTickets,
+} from './useLocationRouteLabels'
 
 const loc = (id: string) => ({ id, name: id })
 
@@ -17,6 +21,19 @@ describe('pickLocationRouteTickets', () => {
       ['loc-a', 't-1'],
       ['loc-b', 't-4'],
     ])
+  })
+
+  it(`keeps at most ${LOCATION_ROUTE_LABELS_MAX} unique locations`, () => {
+    const picked = pickLocationRouteTickets([
+      { id: 't-1', location: loc('loc-a') },
+      { id: 't-2', location: loc('loc-b') },
+      { id: 't-3', location: loc('loc-c') },
+      { id: 't-4', location: loc('loc-d') },
+      { id: 't-5', location: loc('loc-e') },
+    ])
+
+    expect([...picked.keys()]).toEqual(['loc-a', 'loc-b', 'loc-c'])
+    expect(picked.size).toBe(LOCATION_ROUTE_LABELS_MAX)
   })
 })
 
