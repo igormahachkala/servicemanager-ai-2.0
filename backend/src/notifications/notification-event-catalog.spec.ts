@@ -87,7 +87,7 @@ describe('notification event catalog', () => {
     ).toBe(true);
     expect(
       ROLE_GRANTS.find((grant) => grant.role === UserRole.CLIENT_ADMIN)?.codes,
-    ).toEqual([PERMISSIONS.TICKETS_VIEW]);
+    ).toEqual([PERMISSIONS.TICKETS_VIEW, PERMISSIONS.WORKFORCE_VIEW]);
     expect(
       getSystemNotificationDefault({
         contour: NotificationContour.CLIENT,

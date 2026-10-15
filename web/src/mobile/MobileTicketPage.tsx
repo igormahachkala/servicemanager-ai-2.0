@@ -59,7 +59,7 @@ import {
 } from '../lib/ticketClientGuidance'
 import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { MobileBoardClaimFallbackHint, MobileClaimReasonHintBox } from './MobileUxHints'
-import { TicketCloseModal, type TicketCloseModalState } from './home/HomeList'
+import { TicketCloseModal, type TicketCloseModalState } from './home/MobileHomeTicketCloseModal'
 import { MobileAttachmentThumb, mobileAttachmentLabel } from './MobileAttachmentThumb'
 import { toChatMessages, ticketChatParentFromGet, type ChatMessage } from '../lib/ticketChat'
 import {
@@ -79,6 +79,7 @@ import { MobileModalBackdrop } from './MobileModalBackdrop'
 import { TicketMaterialsPanel } from '../components/tickets/TicketMaterialsPanel'
 import { compactIdentityLabel, identityLines, presentActorIdentity, presentTicketAssignee, presentTicketCreator } from '../lib/ticketActorIdentity'
 import { MobileTicketWorkTimer } from './MobileTicketWorkTimer'
+import { MobileTicketRouteDuration } from './MobileTicketRouteDuration'
 import { canOfferTicketClaimAction, readBackendCanClaim } from '../lib/ticketActionCapabilities'
 import { dateTimeLocalToIso, formatPlannedDueAt, isoToDateTimeLocalValue } from '../lib/plannedDueAt'
 import { orderProblemCategories } from '../lib/problemCategoryOrdering'
@@ -956,6 +957,7 @@ export function MobileTicketPage() {
     await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
     await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
     await queryClient.invalidateQueries({ queryKey: ['board'] })
+    await queryClient.invalidateQueries({ queryKey: ['planner-me-next'] })
   }
 
   // SMA-MOBILE-TICKET-EDIT-V1: справочники для формы редактирования — те же api-эндпоинты и scope,
@@ -1854,6 +1856,7 @@ export function MobileTicketPage() {
                 </>
               )
             })()}
+            <MobileTicketRouteDuration ticketId={ticket.id} scope={ticketResourceScope} />
           </div>
         ) : null}
         {ticket ? (

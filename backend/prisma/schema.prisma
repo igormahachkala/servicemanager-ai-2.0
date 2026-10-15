@@ -977,6 +977,9 @@ model WorkShift {
   openedAt    DateTime        @default(now())
   closedAt    DateTime?
   closeReason String?
+  lastLatitude  Float?
+  lastLongitude Float?
+  lastGeoAt     DateTime?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 

@@ -39,6 +39,7 @@ import { TicketAcceptanceDto } from './dto/ticket-acceptance.dto'
 import { RequestAssignmentDto } from './dto/request-assignment.dto'
 import { SubmitTicketAcceptanceDto } from './dto/submit-ticket-acceptance.dto'
 import { FailureCausesService } from '../failure-causes/failure-causes.service'
+import { TicketRouteService } from './ticket-route.service'
 
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsContextGuard, PermissionsGuard)
 @Controller('tickets')
@@ -47,6 +48,7 @@ export class TicketsController {
     private readonly svc: TicketsService,
     private readonly failureCauses: FailureCausesService,
     private readonly detach: TicketDetachService,
+    private readonly ticketRoute: TicketRouteService,
   ) {}
 
   @Post()
@@ -260,6 +262,41 @@ export class TicketsController {
       req.accessFlags,
       companyId,
       linkedClientCompanyId,
+    )
+  }
+
+  @Get(':id/route')
+  @Roles(
+    UserRole.ADMIN,
+    UserRole.CLIENT_ADMIN,
+    UserRole.MASTER,
+    UserRole.DISPATCHER,
+    UserRole.NETWORK_DIRECTOR,
+    UserRole.TECHNICIAN,
+    UserRole.CLIENT,
+    UserRole.TERRITORIAL_MANAGER,
+    UserRole.PLATFORM_ADMIN,
+  )
+  @RequirePermission(PERMISSIONS.TICKETS_VIEW)
+  @ApiForbiddenResponse({
+    description: 'Missing permission: TICKETS_VIEW',
+  })
+  getRoute(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Query('companyId') companyId?: string,
+    @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
+  ) {
+    return this.ticketRoute.getForTicket(
+      {
+        id: req.user.id,
+        role: req.user.role as UserRole,
+        companyId: req.user.companyId,
+        accessFlags: req.accessFlags,
+      },
+      id,
+      linkedClientCompanyId,
+      companyId,
     )
   }
 
