@@ -30,8 +30,12 @@ const UNAVAILABLE: TicketRouteResult = {
   durationSeconds: null,
 }
 
-const ROUTE_CACHE_TTL_MS = 3 * 60 * 1000
-const COORD_CACHE_DECIMALS = 4
+/** Cache route summaries long enough that standing still does not re-hit 2GIS. */
+export const ROUTE_CACHE_TTL_MS = 20 * 60 * 1000
+/** ~111 m cells — GPS jitter must not create a new cache key. */
+const ORIGIN_CACHE_DECIMALS = 3
+/** Keep destinations finer so nearby buildings stay distinct. */
+const DESTINATION_CACHE_DECIMALS = 4
 export const TICKET_ROUTES_BATCH_MAX = 50
 const ROUTING_CONCURRENCY = 4
 
@@ -46,17 +50,17 @@ function readLatLon(lat: unknown, lon: unknown): LatLon | null {
   return { lat: resolvedLat, lon: resolvedLon }
 }
 
-function roundCoord(value: number): number {
-  const factor = 10 ** COORD_CACHE_DECIMALS
+function roundCoord(value: number, decimals: number): number {
+  const factor = 10 ** decimals
   return Math.round(value * factor) / factor
 }
 
-function pointKey(point: LatLon): string {
-  return `${roundCoord(point.lat)}:${roundCoord(point.lon)}`
+function pointKey(point: LatLon, decimals: number): string {
+  return `${roundCoord(point.lat, decimals)}:${roundCoord(point.lon, decimals)}`
 }
 
 function routeCacheKey(from: LatLon, to: LatLon): string {
-  return `${pointKey(from)}:${pointKey(to)}`
+  return `${pointKey(from, ORIGIN_CACHE_DECIMALS)}:${pointKey(to, DESTINATION_CACHE_DECIMALS)}`
 }
 
 function toResult(summary: RouteSummary | null): TicketRouteResult {
@@ -167,7 +171,7 @@ export class TicketRouteService {
     for (const row of rows) {
       const destination = readLatLon(row.location?.latitude, row.location?.longitude)
       if (!destination) continue
-      const key = pointKey(destination)
+      const key = pointKey(destination, DESTINATION_CACHE_DECIMALS)
       const entry = ticketsByDestination.get(key)
       if (entry) entry.ticketIds.push(row.id)
       else ticketsByDestination.set(key, { destination, ticketIds: [row.id] })
