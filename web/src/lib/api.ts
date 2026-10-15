@@ -2073,7 +2073,7 @@ function isAbortError(err: unknown): boolean {
   return (err as { name?: unknown })?.name === 'AbortError'
 }
 
-async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = options.method || 'GET'
   const headers: Record<string, string> = {
     ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
@@ -3242,28 +3242,32 @@ export async function createLocation(input: CreateLocationInput, companyId?: str
   })
 }
 
-export async function updateLocation(id: string, input: UpdateLocationInput): Promise<LocationListItem> {
-  return request<LocationListItem>(`/locations/${id}`, {
+function locationScopeSuffix(companyId?: string) {
+  return companyId ? '?companyId=' + encodeURIComponent(companyId) : ''
+}
+
+export async function updateLocation(id: string, input: UpdateLocationInput, companyId?: string): Promise<LocationListItem> {
+  return request<LocationListItem>(`/locations/${id}` + locationScopeSuffix(companyId), {
     method: 'PATCH',
     body: input,
   })
 }
 
-export async function setLocationStatus(id: string, isActive: boolean): Promise<LocationListItem> {
-  return request<LocationListItem>(`/locations/${id}/status`, {
+export async function setLocationStatus(id: string, isActive: boolean, companyId?: string): Promise<LocationListItem> {
+  return request<LocationListItem>(`/locations/${id}/status` + locationScopeSuffix(companyId), {
     method: 'PATCH',
     body: { isActive },
   })
 }
 
-export async function deleteLocation(id: string): Promise<LocationListItem> {
-  return request<LocationListItem>(`/locations/${id}`, {
+export async function deleteLocation(id: string, companyId?: string): Promise<LocationListItem> {
+  return request<LocationListItem>(`/locations/${id}` + locationScopeSuffix(companyId), {
     method: 'DELETE',
   })
 }
 
-export async function restoreLocation(id: string): Promise<LocationListItem> {
-  return request<LocationListItem>(`/locations/${id}/restore`, {
+export async function restoreLocation(id: string, companyId?: string): Promise<LocationListItem> {
+  return request<LocationListItem>(`/locations/${id}/restore` + locationScopeSuffix(companyId), {
     method: 'PATCH',
   })
 }

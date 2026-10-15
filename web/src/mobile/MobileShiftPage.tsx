@@ -5,7 +5,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { mobilePath } from './mobileRoute'
 import { MobileSectionBackLink } from './MobileSectionBackLink'
-
 function durationLabel(start: string, end?: string | null, now = Date.now()) {
   const startMs = new Date(start).getTime()
   const endMs = end ? new Date(end).getTime() : now
@@ -63,6 +62,7 @@ export function MobileShiftPage() {
   const data = stateQ.data
   const shift = data?.shift
   const running = data?.runningWorkLog
+
   const busy = openM.isPending || closeM.isPending
   const totalWorkMinutes = useMemo(
     () =>

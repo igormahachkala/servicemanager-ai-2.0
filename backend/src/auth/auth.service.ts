@@ -4,6 +4,7 @@ import * as bcrypt from 'bcrypt'
 import { JwtService } from '@nestjs/jwt'
 
 import { PrismaService } from '../prisma/prisma.service'
+import { ensureDefaultFailureCauses } from '../failure-causes/standard-failure-causes'
 import { isEngineeringAgentOwner } from '../agent-tasks/agent-tasks.access'
 import { canAccessManagementSurface } from '../common/management-surface-access'
 import { MaxBindingService } from '../max-bot/max-binding.service'
@@ -81,6 +82,10 @@ export class AuthService {
         isActive: true,
       },
     })
+
+    // Самостоятельная регистрация создаёт CLIENT-компанию — сразу наполняем
+    // стандартный справочник причин отказа, иначе приёмка работ заблокирована.
+    await ensureDefaultFailureCauses(this.prisma, company.id)
 
     return this.issueAuthPayload({
       id: user.id,

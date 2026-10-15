@@ -13,6 +13,7 @@ import { appendBoardNavigationContextToPath, readBoardNavigationContextFromSearc
 import { ticketMatchesMobileHomeSearch } from './mobileHomeListUtils'
 import { mobilePath } from './mobileRoute'
 import { MobileInspectionList } from './MobileInspectionList'
+import { useLocationRouteLabels } from './useLocationRouteLabels'
 
 type FilterKey = 'active' | 'done' | 'archive'
 
@@ -222,6 +223,8 @@ export function MobileMyTickets() {
     if (advFilters.period) result = result.filter((t) => isTicketInPeriod(t, advFilters.period))
     return result
   }, [statusFilteredTickets, textSearch, advFilters])
+
+  const routeLabels = useLocationRouteLabels(filteredTickets, meQ.data?.role, pageScope)
 
   const hasAdvancedFilters =
     !!textSearch.trim() ||
@@ -539,6 +542,7 @@ export function MobileMyTickets() {
                 ticket={ticket}
                 ticketHref={ticketHref(ticket)}
                 linkState={ticketLinkState(ticket.companyId)}
+                routeLabel={ticket.location?.id ? routeLabels.get(ticket.location.id) ?? null : null}
               />
             ))
           )}
