@@ -40,8 +40,9 @@ lock_message() {
   printf '%s' "$msg"
 }
 stage_message() {
-  local branch="$1" candidate="$2" stage="$3" msg
-  printf -v msg 'Stage acceptance passed\nbranch: %s\nbranch_sha: %s\nstage_sha: %s\ncriterion: fixture acceptance\nchecks: gate self-test\ndate: 2026-10-16T00:00:00Z' "$branch" "$candidate" "$stage"
+  local branch="$1" candidate="$2" stage="$3" msg tree
+  tree=$(git -C "$WORK" rev-parse "$stage^{tree}")
+  printf -v msg 'Stage acceptance passed\nbranch: %s\nbranch_sha: %s\nstage_sha: %s\nstage_tree: %s\ncriterion: fixture acceptance\nchecks: gate self-test\ndate: 2026-10-16T00:00:00Z' "$branch" "$candidate" "$stage" "$tree"
   printf '%s' "$msg"
 }
 new_lock() { new_tag "$1" "$(lock_message "$2" "$3")"; }
@@ -54,6 +55,7 @@ git -C "$WORK" config user.email release-lane-selftest@example.invalid
 printf 'base\n' >"$WORK/fixture.txt"; git -C "$WORK" add fixture.txt; git -C "$WORK" commit -qm base
 git -C "$WORK" branch -M prod
 BASE_SHA=$(git -C "$WORK" rev-parse HEAD)
+BASE_SHA_ORIG="$BASE_SHA"
 git -C "$WORK" switch -qc beta "$BASE_SHA"
 git -C "$WORK" switch -qc feat/release-lane-fixture "$BASE_SHA"
 printf 'candidate\n' >>"$WORK/fixture.txt"; git -C "$WORK" commit -qam candidate
@@ -70,19 +72,28 @@ set_beta() {
 }
 set_prod() {
   BASE_REF=prod
+  BASE_SHA="$BASE_SHA_ORIG"
+  git -C "$WORK" push -q origin "$CANDIDATE_SHA":refs/heads/beta
   write_meta "$CURRENT_META" 8 prod "$BASE_SHA" feat/release-lane-fixture "$CANDIDATE_SHA" "$MERGE_SHA"
   write_meta "$STAGE_META" 7 prod "$BASE_SHA" feat/release-lane-fixture "$CANDIDATE_SHA" "$MERGE_SHA"
   write_meta "$PROD_META" 7 prod "$BASE_SHA" feat/release-lane-fixture "$CANDIDATE_SHA" "$MERGE_SHA"
 }
+set_beta_current() {
+  BASE_SHA="$CANDIDATE_SHA"
+  set_beta
+}
 set_beta
 new_lock stage-busy feat/release-lane-fixture 7
 new_lock prod-busy feat/release-lane-fixture 7
-new_stage_ok feat/release-lane-fixture "$CANDIDATE_SHA" "$BASE_SHA"
+new_stage_ok feat/release-lane-fixture "$CANDIDATE_SHA" "$CANDIDATE_SHA"
 
 expect_pass "valid beta release" beta feat/release-lane-fixture "$CANDIDATE_SHA" 8
 set_prod
 expect_pass "valid production release" production feat/release-lane-fixture "$CANDIDATE_SHA" 8
-set_beta
+new_tag "stage-ok/feat/release-lane-fixture" "$(stage_message feat/release-lane-fixture "$CANDIDATE_SHA" "$BASE_SHA_ORIG")" "$CANDIDATE_SHA"
+expect_fail "candidate absent from accepted Stage denied" 'candidate is not an ancestor' production feat/release-lane-fixture "$CANDIDATE_SHA" 8
+new_stage_ok feat/release-lane-fixture "$CANDIDATE_SHA" "$CANDIDATE_SHA"
+set_beta_current
 expect_fail "prod/production alias rejected" 'unknown contour|contour/base' prod feat/release-lane-fixture "$CANDIDATE_SHA" 8
 new_lock stage-busy other/release 9
 expect_fail "#360 foreign stage lock denied" 'owner branch mismatch' beta feat/release-lane-fixture "$CANDIDATE_SHA" 8
@@ -91,22 +102,25 @@ git -C "$WORK" push -q origin :refs/tags/prod-busy
 set_prod
 expect_fail "missing prod lock denied" 'prod-busy is missing' production feat/release-lane-fixture "$CANDIDATE_SHA" 8
 new_lock prod-busy feat/release-lane-fixture 7
-set_beta
+set_beta_current
 new_tag stage-busy $'Release lock\n\nbranch: feat/release-lane-fixture\npr: 7\nagent: selftest / feat/release-lane-fixture\ndate: 2026-10-16T00:00:00Z\nbranch: contradictory'
 expect_fail "malformed duplicate lock denied" 'missing or duplicate branch|unknown metadata' beta feat/release-lane-fixture "$CANDIDATE_SHA" 8
 new_lock stage-busy feat/release-lane-fixture 7
-write_meta "$CURRENT_META" 8 beta "$BASE_SHA" feat/release-lane-fixture "$BASE_SHA" "$BASE_SHA"
-expect_fail "wrong candidate denied" 'remote head does not match' beta feat/release-lane-fixture "$BASE_SHA" 8
+new_tag stage-busy $'Release lock\n\nbranch: feat/release-lane-fixture\npr: 7\nagent: selftest\ndate: 2026-02-30T00:00:00Z'
+expect_fail "impossible lock date denied" 'date metadata is malformed' beta feat/release-lane-fixture "$CANDIDATE_SHA" 8
+new_lock stage-busy feat/release-lane-fixture 7
+write_meta "$CURRENT_META" 8 beta "$BASE_SHA" feat/release-lane-fixture "$BASE_SHA_ORIG" "$BASE_SHA_ORIG"
+expect_fail "wrong candidate denied" 'remote head does not match' beta feat/release-lane-fixture "$BASE_SHA_ORIG" 8
 write_meta "$CURRENT_META" 8 beta "$BASE_SHA" feat/release-lane-fixture "$CANDIDATE_SHA" "$MERGE_SHA"
-new_tag "stage-ok/feat/release-lane-fixture" "$(stage_message feat/release-lane-fixture "$BASE_SHA" "$BASE_SHA")" "$BASE_SHA"
+new_tag "stage-ok/feat/release-lane-fixture" "$(stage_message feat/release-lane-fixture "$BASE_SHA_ORIG" "$BASE_SHA_ORIG")" "$BASE_SHA_ORIG"
 set_prod
 expect_fail "invalid stage-ok denied" 'stage-ok does not identify' production feat/release-lane-fixture "$CANDIDATE_SHA" 8
-new_stage_ok feat/release-lane-fixture "$CANDIDATE_SHA" "$BASE_SHA"
+new_stage_ok feat/release-lane-fixture "$CANDIDATE_SHA" "$CANDIDATE_SHA"
 new_tag prod-busy "$(lock_message other/release 22)"
 set_prod
 expect_fail "foreign prod lock denied" 'owner branch mismatch' production feat/release-lane-fixture "$CANDIDATE_SHA" 8
 new_lock prod-busy feat/release-lane-fixture 7
-set_beta
+set_beta_current
 python3 - "$CURRENT_META" <<'PY'
 import json, sys
 p=sys.argv[1]; d=json.load(open(p)); d["head"]["repo"]["full_name"]="evil/fork"; json.dump(d,open(p,"w"))
@@ -137,10 +151,11 @@ BASE_REF=beta
 write_meta "$CURRENT_META" 9 beta "$BASE_SHA" feat/release-lane-fixture "$FOLLOWUP_SHA" "$FOLLOWUP_SHA"
 write_meta "$STAGE_META" 7 beta "$BASE_SHA" feat/release-lane-fixture "$CANDIDATE_SHA" "$CANDIDATE_SHA"
 write_meta "$PROD_META" 7 beta "$BASE_SHA" feat/release-lane-fixture "$CANDIDATE_SHA" "$CANDIDATE_SHA"
-new_stage_ok feat/release-lane-fixture "$CANDIDATE_SHA" "$BASE_SHA"
+new_stage_ok feat/release-lane-fixture "$CANDIDATE_SHA" "$CANDIDATE_SHA"
 expect_pass "same-branch beta follow-up" beta feat/release-lane-fixture "$FOLLOWUP_SHA" 9
 git -C "$WORK" push -q origin HEAD:refs/heads/beta
 BASE_REF=prod
+BASE_SHA="$BASE_SHA_ORIG"
 write_meta "$CURRENT_META" 9 prod "$BASE_SHA" feat/release-lane-fixture "$FOLLOWUP_SHA" "$FOLLOWUP_SHA"
 write_meta "$STAGE_META" 7 prod "$BASE_SHA" feat/release-lane-fixture "$CANDIDATE_SHA" "$CANDIDATE_SHA"
 write_meta "$PROD_META" 7 prod "$BASE_SHA" feat/release-lane-fixture "$CANDIDATE_SHA" "$CANDIDATE_SHA"

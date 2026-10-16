@@ -75,6 +75,17 @@ ensure_tag() {
 tag_body() { git cat-file -p "refs/tags/$1" | sed -n '/^$/,$p' | sed '1,2d'; }
 field_count() { awk -F': ' -v key="$1" '$1 == key { n++ } END { print n + 0 }' <<<"$2"; }
 field_value() { awk -F': ' -v key="$1" '$1 == key { print substr($0, length(key) + 3); exit }' <<<"$2"; }
+valid_iso_date() {
+  python3 - "$1" <<'PY'
+import datetime, sys
+try:
+    value = sys.argv[1]
+    parsed = datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+    assert parsed.strftime("%Y-%m-%dT%H:%M:%SZ") == value
+except (AssertionError, ValueError, TypeError):
+    raise SystemExit(1)
+PY
+}
 validate_lock() {
   local tag="$1" expected_branch="$2" expected_pr="$3" body value
   [ "$(git cat-file -t "refs/tags/$tag")" = tag ] || fail "$tag is not an annotated tag"
@@ -85,7 +96,7 @@ validate_lock() {
   value="$(field_value branch "$body")"; [ "$value" = "$expected_branch" ] || fail "$tag owner branch mismatch"
   value="$(field_value pr "$body")"; [ "$value" = "$expected_pr" ] || fail "$tag PR metadata mismatch"
   value="$(field_value agent "$body")"; [ -n "$value" ] || fail "$tag agent metadata is empty"
-  value="$(field_value date "$body")"; [[ "$value" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || fail "$tag date metadata is malformed"
+  value="$(field_value date "$body")"; valid_iso_date "$value" || fail "$tag date metadata is malformed"
   while IFS= read -r line; do
     [[ -z "$line" || "$line" == branch:* || "$line" == pr:* || "$line" == agent:* || "$line" == date:* ]] || fail "$tag contains unknown metadata"
   done <<<"$body"
@@ -94,16 +105,19 @@ validate_stage_ok() {
   local tag="$1" body value
   [ "$(git cat-file -t "refs/tags/$tag")" = tag ] || fail "$tag is not an annotated tag"
   body="$(tag_body "$tag")"
-  for field in branch branch_sha stage_sha criterion checks date; do
+  for field in branch branch_sha stage_sha stage_tree criterion checks date; do
     [ "$(field_count "$field" "$body")" = 1 ] || fail "$tag has missing or duplicate $field metadata"
   done
   value="$(field_value branch "$body")"; [ "$value" = "$BRANCH" ] || fail "$tag owner branch mismatch"
   value="$(field_value branch_sha "$body")"; [ "$value" = "$HEAD_SHA" ] || fail "$tag branch_sha mismatch"
   value="$(field_value stage_sha "$body")"; is_sha "$value" || fail "$tag stage_sha is malformed"; STAGE_SHA="$value"
+  value="$(field_value stage_tree "$body")"; is_sha "$value" || fail "$tag stage_tree is malformed"; STAGE_TREE="$value"
   [ -n "$(field_value criterion "$body")" ] && [ -n "$(field_value checks "$body")" ] || fail "$tag acceptance evidence is incomplete"
-  value="$(field_value date "$body")"; [[ "$value" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || fail "$tag date metadata is malformed"
+  value="$(field_value date "$body")"; valid_iso_date "$value" || fail "$tag date metadata is malformed"
+  actual_stage_tree="$(git rev-parse "$STAGE_SHA^{tree}" 2>/dev/null || true)"
+  [ "$STAGE_TREE" = "$actual_stage_tree" ] || fail "$tag Stage tree identity mismatch"
   while IFS= read -r line; do
-    [[ -z "$line" || "$line" == branch:* || "$line" == branch_sha:* || "$line" == stage_sha:* || "$line" == criterion:* || "$line" == checks:* || "$line" == date:* ]] || fail "$tag contains unknown metadata"
+    [[ -z "$line" || "$line" == branch:* || "$line" == branch_sha:* || "$line" == stage_sha:* || "$line" == stage_tree:* || "$line" == criterion:* || "$line" == checks:* || "$line" == date:* ]] || fail "$tag contains unknown metadata"
   done <<<"$body"
 }
 validate_json_metadata "$METADATA_FILE" "$PR_NUMBER" "$REPOSITORY" "$BASE_REF" "$BRANCH" "$HEAD_SHA" || fail "current PR metadata identity mismatch"
@@ -126,7 +140,9 @@ validate_json_metadata "$LOCK_METADATA_FILE" "$lock_pr" "$REPOSITORY" "$BASE_REF
 if [ "$CONTOUR" = production ]; then
   ensure_tag "stage-ok/$BRANCH" || fail "exact stage-ok is missing or unreadable"
   stage_ok_target="$(git rev-parse "refs/tags/stage-ok/$BRANCH^{commit}")"; [ "$stage_ok_target" = "$HEAD_SHA" ] || fail "stage-ok does not identify the exact candidate"
-  validate_stage_ok "stage-ok/$BRANCH"; ensure_commit "$STAGE_SHA" || fail "stage_sha object is unavailable"; git merge-base --is-ancestor "$STAGE_SHA" "$beta_sha" || fail "accepted Stage SHA is not contained in beta"
+  validate_stage_ok "stage-ok/$BRANCH"; ensure_commit "$STAGE_SHA" || fail "stage_sha object is unavailable"; git merge-base --is-ancestor "$STAGE_SHA" "$beta_sha" || fail "accepted Stage SHA is not contained in beta"; git merge-base --is-ancestor "$HEAD_SHA" "$STAGE_SHA" || fail "candidate is not an ancestor of accepted Stage SHA"
+  beta_tree="$(git rev-parse "$beta_sha^{tree}" 2>/dev/null || true)"; [ "$beta_tree" = "$STAGE_TREE" ] || fail "accepted Stage tree does not match current beta tree"
+  [ "$merge_tree" = "$beta_tree" ] || fail "prospective Production merge tree does not match accepted Stage tree"
   ensure_tag prod-busy || fail "prod-busy is missing or unreadable"
   prod_lock_body="$(tag_body prod-busy)"; prod_lock_pr="$(field_value pr "$prod_lock_body")"; validate_lock prod-busy "$BRANCH" "$prod_lock_pr"
   [ -f "$PROD_LOCK_METADATA_FILE" ] || fail "prod-busy owner PR metadata is missing"

@@ -1,77 +1,67 @@
 #!/usr/bin/env bash
-# Read-only governance policy checker. It never changes GitHub settings.
 set -euo pipefail
-usage() { echo "Usage: $0 --fixture DIR | --repo OWNER/REPO" >&2; }
-MODE="${1:-}"; VALUE="${2:-}"
-[[ "$MODE" == --fixture || "$MODE" == --repo ]] && [[ -n "$VALUE" ]] || { usage; exit 2; }
-failed=0
-check() { local label="$1"; shift; if "$@"; then echo "PASS $label"; else echo "FAIL $label" >&2; failed=$((failed + 1)); fi; }
-
-if [[ "$MODE" == --fixture ]]; then
-  [[ -f "$VALUE/beta.json" && -f "$VALUE/prod.json" && -f "$VALUE/rulesets.json" && -f "$VALUE/environments.json" ]] || { echo "BLOCKED missing governance fixture" >&2; exit 1; }
-  check "beta protection" python3 - "$VALUE/beta.json" <<'PY'
-import json, sys
-d=json.load(open(sys.argv[1])); assert d["protected"] is True
-assert d["enforce_admins"]["enabled"] is True
-assert d["required_pull_request_reviews"]["required_approving_review_count"] >= 1
-assert d["required_pull_request_reviews"]["require_code_owner_reviews"] is True
-assert d["restrictions"] is None
-assert d["allow_force_pushes"] is False and d["allow_deletions"] is False
-PY
-  check "prod protection" python3 - "$VALUE/prod.json" <<'PY'
-import json, sys
-d=json.load(open(sys.argv[1])); assert d["protected"] is True
-assert d["enforce_admins"]["enabled"] is True
-assert d["required_pull_request_reviews"]["required_approving_review_count"] >= 1
-assert d["required_pull_request_reviews"]["require_code_owner_reviews"] is True
-assert d["allow_force_pushes"] is False and d["allow_deletions"] is False
-PY
-  check "active release ruleset" python3 - "$VALUE/rulesets.json" <<'PY'
-import json, sys
-rules=json.load(open(sys.argv[1]))
-assert any(r.get("enforcement") == "active" and set(r.get("branches", [])) >= {"beta", "prod"} and r.get("required_status_check") == "release-lane-gate" for r in rules)
-assert any(r.get("enforcement") == "active" and set(r.get("tags", [])) >= {"stage-busy", "prod-busy", "stage-ok/*"} for r in rules)
-PY
-  check "deployment environment protection" python3 - "$VALUE/environments.json" <<'PY'
-import json, sys
-d=json.load(open(sys.argv[1])); assert d.get("production", {}).get("required_reviewers", 0) >= 1
-assert d.get("production", {}).get("deployment_branch_policy") == "prod-only"
-PY
-else
-  command -v gh >/dev/null || { echo "BLOCKED gh CLI is required for live read-only inspection" >&2; exit 1; }
-  tmp=$(mktemp -d "${TMPDIR:-/tmp}/release-governance.XXXXXX"); trap 'rm -rf "$tmp"' EXIT
-  gh api "repos/$VALUE/branches/beta/protection" >"$tmp/beta.json"
-  gh api "repos/$VALUE/branches/prod/protection" >"$tmp/prod.json"
-  gh api "repos/$VALUE/rulesets" >"$tmp/rulesets.json"
-  gh api "repos/$VALUE/environments/production" >"$tmp/environment.json" || :
-  python3 - "$tmp/beta.json" "$tmp/prod.json" "$tmp/rulesets.json" "$tmp/environment.json" <<'PY'
-import json, sys
-beta, prod, rules, env = [json.load(open(path)) for path in sys.argv[1:]]
-def protected(data):
-    assert data.get("protected") is True
-    assert data.get("enforce_admins", {}).get("enabled") is True
-    reviews = data.get("required_pull_request_reviews") or {}
+usage() { echo "Usage: $0 [--mode pre|post] --fixture DIR | [--mode pre|post] --repo OWNER/REPO" >&2; }
+mode_check=post
+if [[ "${1:-}" == --mode ]]; then mode_check="${2:-}"; shift 2; fi
+mode="${1:-}"; value="${2:-}"
+[[ "$mode_check" == pre || "$mode_check" == post ]] || { usage; exit 2; }
+[[ "$mode" == --fixture || "$mode" == --repo ]] && [[ -n "$value" ]] || { usage; exit 2; }
+if [[ "$mode" == --fixture ]]; then
+  [[ -f "$value/beta.json" && -f "$value/prod.json" && -f "$value/rulesets.json" && -f "$value/environments.json" ]] || { echo "BLOCKED missing governance fixture" >&2; exit 1; }
+  python3 - "$value" "$mode_check" <<'PY'
+import json, pathlib, sys
+root = pathlib.Path(sys.argv[1]); mode = sys.argv[2]
+beta = json.loads((root / "beta.json").read_text()); prod = json.loads((root / "prod.json").read_text())
+rules = json.loads((root / "rulesets.json").read_text()); env = json.loads((root / "environments.json").read_text())
+def protected(d):
+    assert d.get("protected") is True
+    assert d.get("enforce_admins", {}).get("enabled") is True
+    reviews = d.get("required_pull_request_reviews") or {}
     assert reviews.get("required_approving_review_count", 0) >= 1
     assert reviews.get("require_code_owner_reviews") is True
-    assert data.get("allow_force_pushes") is False and data.get("allow_deletions") is False
-protected(beta); protected(prod)
-branch_refs = {"refs/heads/beta", "refs/heads/prod"}
-tag_refs = {"refs/tags/stage-busy", "refs/tags/prod-busy", "refs/tags/stage-ok/*"}
-branch_gate = False; tag_gate = False
-for ruleset in rules:
-    if ruleset.get("enforcement") != "active": continue
-    includes = set((ruleset.get("conditions") or {}).get("ref_name", {}).get("include", []))
-    rule_types = {r.get("type") for r in ruleset.get("rules", [])}
-    if ruleset.get("target") == "branch" and branch_refs <= includes and "required_status_checks" in rule_types:
-        branch_gate = True
-    if ruleset.get("target") == "tag" and tag_refs <= includes:
-        tag_gate = True
-assert branch_gate and tag_gate
-assert env.get("protection_rules", {}).get("required_reviewers")
-assert env.get("deployment_branch_policy", {}).get("protected_branches") is True
-print("GOVERNANCE: PASS")
+    assert d.get("allow_force_pushes") is False and d.get("allow_deletions") is False
+branch = next((r for r in rules if r.get("enforcement") == "active" and set(r.get("branches", [])) >= {"beta", "prod"}), None)
+tags = next((r for r in rules if r.get("enforcement") == "active" and set(r.get("tags", [])) >= {"stage-busy", "prod-busy", "stage-ok/*"}), None)
+assert branch and branch.get("required_status_check") == "release-lane-gate"
+source = branch.get("trusted_check_source", {})
+assert source.get("context") == "Release lane gate" and source.get("integration_id", 0) > 0
+assert branch.get("bypass_actors", []) == []
+assert tags and tags.get("lock_tags_protected") is True
+p = env.get("production", {})
+assert p.get("required_reviewers", 0) >= 1 and p.get("deployment_branch_policy") == "prod-only"
+if mode == "post": protected(beta); protected(prod)
+print(f"GOVERNANCE: PASS ({mode})")
 PY
   exit $?
 fi
-((failed == 0)) || { echo "GOVERNANCE: BLOCKED ($failed failed checks)" >&2; exit 1; }
-echo "GOVERNANCE: PASS"
+command -v gh >/dev/null || { echo "BLOCKED gh CLI is required for live read-only inspection" >&2; exit 1; }
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/release-governance.XXXXXX"); trap 'rm -rf "$tmp"' EXIT
+gh api "repos/$value/branches/beta/protection" >"$tmp/beta.json"
+gh api "repos/$value/branches/prod/protection" >"$tmp/prod.json"
+gh api "repos/$value/rulesets" >"$tmp/rulesets.json"
+gh api "repos/$value/environments/production" >"$tmp/environments.json" || :
+python3 - "$tmp" "$mode_check" <<'PY'
+import json, pathlib, sys
+root = pathlib.Path(sys.argv[1]); mode = sys.argv[2]
+beta = json.loads((root / "beta.json").read_text()); prod = json.loads((root / "prod.json").read_text())
+rules = json.loads((root / "rulesets.json").read_text()); env = json.loads((root / "environments.json").read_text())
+def protected(d):
+    assert d.get("protected") is True and d.get("enforce_admins", {}).get("enabled") is True
+    reviews = d.get("required_pull_request_reviews") or {}
+    assert reviews.get("required_approving_review_count", 0) >= 1 and reviews.get("require_code_owner_reviews") is True
+    assert d.get("allow_force_pushes") is False and d.get("allow_deletions") is False
+if mode == "post": protected(beta); protected(prod)
+branch = next((r for r in rules if r.get("enforcement") == "active" and r.get("target") == "branch"), None)
+tags = next((r for r in rules if r.get("enforcement") == "active" and r.get("target") == "tag"), None)
+if mode == "post":
+    assert branch and tags
+    includes = set((branch.get("conditions") or {}).get("ref_name", {}).get("include", []))
+    assert {"refs/heads/beta", "refs/heads/prod"} <= includes
+    checks = [r for r in branch.get("rules", []) if r.get("type") == "required_status_checks"]
+    assert any(any(x.get("context") == "Release lane gate" and x.get("integration_id", 0) > 0 for x in c.get("parameters", {}).get("required_status_checks", [])) for c in checks)
+    tag_includes = set((tags.get("conditions") or {}).get("ref_name", {}).get("include", []))
+    assert {"refs/tags/stage-busy", "refs/tags/prod-busy", "refs/tags/stage-ok/*"} <= tag_includes
+    assert any(r.get("type") in {"deletion", "update", "creation"} for r in tags.get("rules", [])) and not tags.get("bypass_actors")
+assert env.get("protection_rules") or env.get("production", {}).get("required_reviewers", 0) >= 1
+print(f"GOVERNANCE: PASS ({mode})")
+PY
