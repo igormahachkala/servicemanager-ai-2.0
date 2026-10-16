@@ -53,6 +53,9 @@ if [[ -n "$MERGE_SHA" ]]; then
   is_sha "$MERGE_SHA" || fail "merge SHA is not canonical"
   ensure_commit "$MERGE_SHA" || fail "prospective merge object is unavailable"
   git merge-base --is-ancestor "$HEAD_SHA" "$MERGE_SHA" || fail "prospective merge does not contain candidate"
+  merge_tree="$(git rev-parse "$MERGE_SHA^{tree}" 2>/dev/null || true)"
+  [[ "$merge_tree" =~ ^[0-9a-f]{40}$ ]] || fail "prospective merge tree is not a real Git tree"
+  echo "RELEASE LANE: merge tree $merge_tree"
 fi
 
 ensure_tag stage-busy || fail "stage-busy is missing, lightweight, or unreadable"

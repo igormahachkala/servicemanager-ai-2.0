@@ -43,8 +43,35 @@ else
   gh api "repos/$VALUE/branches/beta/protection" >"$tmp/beta.json"
   gh api "repos/$VALUE/branches/prod/protection" >"$tmp/prod.json"
   gh api "repos/$VALUE/rulesets" >"$tmp/rulesets.json"
-  gh api "repos/$VALUE/environments" >"$tmp/environments.json"
-  "$0" --fixture "$tmp"; exit $?
+  gh api "repos/$VALUE/environments/production" >"$tmp/environment.json" || :
+  python3 - "$tmp/beta.json" "$tmp/prod.json" "$tmp/rulesets.json" "$tmp/environment.json" <<'PY'
+import json, sys
+beta, prod, rules, env = [json.load(open(path)) for path in sys.argv[1:]]
+def protected(data):
+    assert data.get("protected") is True
+    assert data.get("enforce_admins", {}).get("enabled") is True
+    reviews = data.get("required_pull_request_reviews") or {}
+    assert reviews.get("required_approving_review_count", 0) >= 1
+    assert reviews.get("require_code_owner_reviews") is True
+    assert data.get("allow_force_pushes") is False and data.get("allow_deletions") is False
+protected(beta); protected(prod)
+branch_refs = {"refs/heads/beta", "refs/heads/prod"}
+tag_refs = {"refs/tags/stage-busy", "refs/tags/prod-busy", "refs/tags/stage-ok/*"}
+branch_gate = False; tag_gate = False
+for ruleset in rules:
+    if ruleset.get("enforcement") != "active": continue
+    includes = set((ruleset.get("conditions") or {}).get("ref_name", {}).get("include", []))
+    rule_types = {r.get("type") for r in ruleset.get("rules", [])}
+    if ruleset.get("target") == "branch" and branch_refs <= includes and "required_status_checks" in rule_types:
+        branch_gate = True
+    if ruleset.get("target") == "tag" and tag_refs <= includes:
+        tag_gate = True
+assert branch_gate and tag_gate
+assert env.get("protection_rules", {}).get("required_reviewers")
+assert env.get("deployment_branch_policy", {}).get("protected_branches") is True
+print("GOVERNANCE: PASS")
+PY
+  exit $?
 fi
 ((failed == 0)) || { echo "GOVERNANCE: BLOCKED ($failed failed checks)" >&2; exit 1; }
 echo "GOVERNANCE: PASS"
