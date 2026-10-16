@@ -11,11 +11,11 @@ const TONE_COLOR = {
 export function RecentEvents() {
   return (
     <DashboardSection
-      title="Recent Events"
-      eyebrow="Operations feed"
+      title="Последние события"
+      eyebrow="Поток операций"
       action={
         <span className="tag" style={{ background: '#eff6ff', borderColor: '#bfdbfe', color: '#1d4ed8' }}>
-          {DASHBOARD_EVENTS.length} signals
+          {DASHBOARD_EVENTS.length} событий
         </span>
       }
     >
@@ -57,7 +57,7 @@ export function RecentEvents() {
                           className="tag"
                           style={{ background: '#f8fafc', borderColor: '#dbe4f0', color: '#0f172a', fontWeight: 800 }}
                         >
-                          Latest
+                          Последнее
                         </span>
                       ) : null}
                       <span

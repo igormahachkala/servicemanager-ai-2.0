@@ -530,7 +530,7 @@ export function EmployeesPage() {
             onChange={(e) => setBindingsScopeCompanyId(e.target.value)}
             disabled={bindingsBusy || providerLinkedClientOptions.length === 0}
           >
-            {providerLinkedClientOptions.length === 0 ? <option value="">Нет доступных linked clients</option> : null}
+            {providerLinkedClientOptions.length === 0 ? <option value="">Нет доступных связанных клиентов</option> : null}
             {providerLinkedClientOptions.map((item) => (
               <option key={item.id} value={item.id}>{item.name}</option>
             ))}
@@ -646,7 +646,7 @@ export function EmployeesPage() {
         </label>
         <input
           type="search"
-          placeholder="Поиск: имя, email, телефон"
+          placeholder="Поиск: имя, эл. почта, телефон"
           value={searchQ}
           onChange={(e) => setSearchQ(e.target.value)}
           style={{ flex: '1 1 260px', maxWidth: 420 }}
@@ -661,7 +661,7 @@ export function EmployeesPage() {
       {isObserverMode ? (
         <div className="panel" style={{ marginBottom: 12 }}>
           <div style={{ fontWeight: 700 }}>Режим просмотра компании: {observerLabel}</div>
-          <div className="muted small">PLATFORM_ADMIN просматривает сотрудников компании без cross-tenant изменений.</div>
+          <div className="muted small">Администратор платформы просматривает сотрудников компании без права их изменять.</div>
         </div>
       ) : null}
 

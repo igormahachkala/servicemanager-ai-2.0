@@ -66,7 +66,7 @@ export function ChecksPanel({ checks, collapsed, onToggle }: Props) {
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: '#6b7280', fontFamily: 'monospace' }}>⑤</span>
-          <span>Checks</span>
+          <span>Проверки</span>
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {passed > 0 && <span style={{ fontSize: 12, color: '#16a34a', fontWeight: 600 }}>✓ {passed}</span>}

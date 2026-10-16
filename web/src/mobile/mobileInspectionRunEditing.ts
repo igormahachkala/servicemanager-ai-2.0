@@ -5,6 +5,7 @@ import type {
   UpdateInspectionRunItemInput,
 } from '../lib/api'
 import { mobileTicketNumberTitle } from './mobileTicketDisplay'
+import { INSPECTION_ITEM_CHOICE_LABELS_RU, INSPECTION_ITEM_STATUS_LABELS_RU } from '../lib/enumLabelsRu'
 
 export type EditableCheckpointStatus = Extract<InspectionRunItemStatus, 'OK' | 'ISSUE' | 'CRITICAL'>
 
@@ -20,18 +21,18 @@ export const EDITABLE_CHECKPOINT_STATUSES: Array<{
   value: EditableCheckpointStatus
   label: string
 }> = [
-  { value: 'OK', label: 'Норма' },
-  { value: 'ISSUE', label: 'Проблема' },
-  { value: 'CRITICAL', label: 'Критично' },
+  { value: 'OK', label: INSPECTION_ITEM_CHOICE_LABELS_RU.OK },
+  { value: 'ISSUE', label: INSPECTION_ITEM_CHOICE_LABELS_RU.ISSUE },
+  { value: 'CRITICAL', label: INSPECTION_ITEM_CHOICE_LABELS_RU.CRITICAL },
 ]
 
-export const CHECKPOINT_STATE_LABELS: Record<InspectionRunItemStatus, string> = {
-  PENDING: 'Не заполнено',
-  OK: 'Норма',
-  ISSUE: 'Проблема',
-  CRITICAL: 'Критично',
-  SKIPPED: 'Не заполнено',
-}
+/*
+ * Подписи состояния — из общей карты: у перечисления одна терминология на
+ * весь продукт. Прежде этот словарь жил здесь отдельно и расходился с
+ * десктопом по формулировкам.
+ */
+export const CHECKPOINT_STATE_LABELS: Record<InspectionRunItemStatus, string> =
+  INSPECTION_ITEM_STATUS_LABELS_RU
 
 export function checkpointStateLabel(status: InspectionRunItemStatus): string {
   return CHECKPOINT_STATE_LABELS[status]

@@ -371,7 +371,7 @@ export function CompanyPage() {
           <div className="row" style={{ marginBottom: 8, alignItems: 'flex-start' }}>
             <div>
               <div style={{ fontWeight: 700 }}>Режим подрядчика</div>
-              <div className="muted small">Сводка клиента открывается в том же linked-client контексте, что и доска с аналитикой.</div>
+              <div className="muted small">Сводка клиента открывается в контексте того же связанного клиента, что и доска заявок с аналитикой.</div>
             </div>
             <div style={{ minWidth: 260 }}>
               <select
@@ -421,14 +421,14 @@ export function CompanyPage() {
       {providerHasNoLinkedClients ? (
         <div className="panel" style={{ marginBottom: 12 }}>
           <h3 style={{ marginBottom: 6 }}>Нет связанных клиентов</h3>
-          <div className="muted small">Когда у компании-подрядчика появится ACTIVE PRIMARY ServiceContract, здесь откроется сводка клиента.</div>
+          <div className="muted small">Когда у компании-подрядчика появится действующий договор с основным подрядчиком, здесь откроется сводка клиента.</div>
         </div>
       ) : null}
 
       {providerRestrictedSelection && selectedLinkedClient ? (
         <div className="panel" style={{ marginBottom: 12 }}>
           <h3 style={{ marginBottom: 6 }}>Ограниченный доступ</h3>
-          <div className="muted small">SECONDARY provider пока не получает полный сводка клиента.</div>
+          <div className="muted small">Субподрядчик пока не получает полную сводку клиента.</div>
         </div>
       ) : null}
 
@@ -527,7 +527,7 @@ export function CompanyPage() {
                 <label>
                   Режим preset-локации
                   <select value={publicRequestLocationPresetMode} onChange={(e) => setPublicRequestLocationPresetMode(e.target.value as api.PublicRequestLocationPresetMode)} disabled={readOnly}>
-                    <option value="HIDE_WHEN_VALID">Скрывать выбор точки, если preset валиден</option>
+                    <option value="HIDE_WHEN_VALID">Скрывать выбор точки, если она уже задана ссылкой</option>
                     <option value="ALWAYS_OPTIONAL">Разрешать сменить точку даже при предустановке</option>
                   </select>
                 </label>

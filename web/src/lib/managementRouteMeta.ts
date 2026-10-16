@@ -138,25 +138,27 @@ export const MANAGEMENT_ROUTES: readonly ManagementRouteMeta[] = Object.freeze([
   { path: '/companies', section: 'platform', pageLabel: 'Компании', breadcrumbLabel: 'Компании', parentPath: null, entity: null, primaryNav: true },
   { path: '/platform/permissions', section: 'platform', pageLabel: 'Роли и права', breadcrumbLabel: 'Роли и права', parentPath: null, entity: null, primaryNav: true },
   { path: '/platform/access-constructor', section: 'platform', pageLabel: 'Конструктор доступа', breadcrumbLabel: 'Конструктор доступа', parentPath: null, entity: null, primaryNav: false },
-  { path: '/agents/engineering', section: 'platform', pageLabel: 'Engineering Agent', breadcrumbLabel: 'Engineering Agent', parentPath: null, entity: null, primaryNav: false },
+  { path: '/agents/engineering', section: 'platform', pageLabel: 'Инженерный агент', breadcrumbLabel: 'Инженерный агент', parentPath: null, entity: null, primaryNav: false },
 
   /**
    * 121E: модуль IT Company. Эти маршруты монтируются в том же управленческом
    * Shell списком IT_COMPANY_ROUTES (router.tsx), и без них на пяти страницах
    * цепочка просто не строилась.
    *
-   * Подпись «IT Company» — существующая терминология продукта: так раздел
-   * назван в боковом меню (lib/navigation.ts) и на карточке главной. Второе
-   * имя для того же раздела было бы хуже, чем нерусское слово.
+   * Подпись «ИТ-компания» — та же, что в боковом меню (lib/navigation.ts)
+   * и на карточке главной. Прежняя редакция держала здесь английское
+   * «IT Company» ровно для того, чтобы у раздела не появилось второго
+   * имени; русификация это требование не нарушает — имя по-прежнему одно,
+   * просто на русском, и переименовано во всех пяти местах сразу.
    *
    * Вложенность взята из самих страниц: AIEmployeeDetailsPage возвращает
    * ссылкой на /it/employees, а Mission Control и AI-разработчик — на /it.
    */
-  { path: '/it', section: 'platform', pageLabel: 'IT Company', breadcrumbLabel: 'IT Company', parentPath: null, entity: null, primaryNav: false },
+  { path: '/it', section: 'platform', pageLabel: 'ИТ-компания', breadcrumbLabel: 'ИТ-компания', parentPath: null, entity: null, primaryNav: false },
   { path: '/it/employees', section: 'platform', pageLabel: 'Сотрудники', breadcrumbLabel: 'Сотрудники', parentPath: '/it', entity: null, primaryNav: false },
   { path: '/it/employees/:slug', section: 'platform', pageLabel: 'Сотрудник', breadcrumbLabel: 'Сотрудник', parentPath: '/it/employees', entity: 'employee', primaryNav: false },
-  { path: '/it/mission-control', section: 'platform', pageLabel: 'Mission Control', breadcrumbLabel: 'Mission Control', parentPath: '/it', entity: null, primaryNav: false },
-  { path: '/it/ai-developer', section: 'platform', pageLabel: 'AI-разработчик', breadcrumbLabel: 'AI-разработчик', parentPath: '/it', entity: null, primaryNav: false },
+  { path: '/it/mission-control', section: 'platform', pageLabel: 'Центр управления', breadcrumbLabel: 'Центр управления', parentPath: '/it', entity: null, primaryNav: false },
+  { path: '/it/ai-developer', section: 'platform', pageLabel: 'ИИ-разработчик', breadcrumbLabel: 'ИИ-разработчик', parentPath: '/it', entity: null, primaryNav: false },
 ])
 
 /**

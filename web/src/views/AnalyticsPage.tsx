@@ -236,7 +236,7 @@ export function AnalyticsPage() {
       {isObserverMode ? (
         <div className="panel" style={{ marginBottom: 12 }}>
           <div style={{ fontWeight: 700 }}>Режим просмотра компании: {observerLabel}</div>
-          <div className="muted small">PLATFORM_ADMIN просматривает аналитику компании без tenant-имперсонации.</div>
+          <div className="muted small">Администратор платформы просматривает аналитику компании, не входя от имени пользователя.</div>
         </div>
       ) : null}
 
@@ -275,8 +275,8 @@ export function AnalyticsPage() {
           ) : null}
 
           {linkedClientsQ.isLoading ? <div className="muted small">Загружаем связанных клиентов…</div> : null}
-          {providerHasNoLinkedClients ? <div className="muted small">У вашей provider company пока нет активных связанных клиентов.</div> : null}
-          {providerNeedsClientSelection ? <div className="muted small">Выберите клиента, чтобы открыть analytics в его контексте.</div> : null}
+          {providerHasNoLinkedClients ? <div className="muted small">У вашей сервисной компании пока нет активных связанных клиентов.</div> : null}
+          {providerNeedsClientSelection ? <div className="muted small">Выберите клиента, чтобы открыть аналитику в его контексте.</div> : null}
           {providerRestrictedSelection && selectedLinkedClient ? (
             <div className="muted small">Для клиента {selectedLinkedClient.clientCompany.name} связь имеет роль SECONDARY, поэтому общий обзор аналитики пока недоступен.</div>
           ) : null}
@@ -302,14 +302,14 @@ export function AnalyticsPage() {
       {providerHasNoLinkedClients ? (
         <div className="panel" style={{ marginBottom: 12 }}>
           <h3 style={{ marginBottom: 6 }}>Нет связанных клиентов</h3>
-          <div className="muted small">Когда у provider company появится ACTIVE PRIMARY ServiceContract, здесь откроется аналитика клиента.</div>
+          <div className="muted small">Когда у сервисной компании появится действующий договор с основным подрядчиком, здесь откроется аналитика клиента.</div>
         </div>
       ) : null}
 
       {!meQ.isLoading && meQ.data?.role === 'CLIENT' ? (
         <div className="panel" style={{ marginBottom: 12 }}>
           <h3 style={{ marginBottom: 6 }}>Аналитика недоступна</h3>
-          <div className="muted small">Для роли CLIENT доступ к аналитике закрыт по продуктовым правилам.</div>
+          <div className="muted small">Для роли «Клиент» доступ к аналитике закрыт по продуктовым правилам.</div>
         </div>
       ) : null}
 

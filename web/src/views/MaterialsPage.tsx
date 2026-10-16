@@ -185,7 +185,7 @@ function MaterialFields(props: {
     <>
       <label>Название<input value={value.name} onChange={field('name')} disabled={disabled} /></label>
       <label>Единица измерения<input value={value.unit} onChange={field('unit')} disabled={disabled} /></label>
-      <label>SKU<input value={value.sku} onChange={field('sku')} disabled={disabled} /></label>
+      <label>Артикул (SKU)<input value={value.sku} onChange={field('sku')} disabled={disabled} /></label>
       <label>Категория<input value={value.category} onChange={field('category')} disabled={disabled} /></label>
     </>
   )

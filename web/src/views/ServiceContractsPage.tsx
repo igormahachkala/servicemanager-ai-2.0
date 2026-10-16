@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { SERVICE_CONTRACT_ROLE_LABELS_RU, SERVICE_CONTRACT_STATUS_LABELS_RU } from '../lib/enumLabelsRu'
 
 type ContractFormValue = {
   clientCompanyId: string
@@ -44,7 +45,7 @@ function serviceTypeLabel(role: api.ServiceContractRole) {
 function serviceLocationModeLabel(mode: api.ServiceContractLocationMode) {
   if (mode === 'ALL_LOCATIONS') return 'Все объекты клиента'
   if (mode === 'SELECTED_LOCATIONS') return 'Только выбранные объекты'
-  return 'Наследовать объекты PRIMARY'
+  return 'Наследовать объекты основного подрядчика'
 }
 
 function serviceLocationSummary(contract: api.ServiceContractItem) {
@@ -57,12 +58,12 @@ function serviceLocationSummary(contract: api.ServiceContractItem) {
 
 function providerUserRoleLabel(role: string) {
   const labels: Record<string, string> = {
-    OWNER: 'Provider Owner',
-    ADMIN: 'Provider Admin',
-    DISPATCHER: 'Dispatcher',
-    MASTER: 'Master',
-    TECHNICIAN: 'Technician',
-    VIEWER: 'Viewer',
+    OWNER: 'Владелец (сервисная компания)',
+    ADMIN: 'Администратор (сервисная компания)',
+    DISPATCHER: 'Диспетчер',
+    MASTER: 'Мастер',
+    TECHNICIAN: 'Техник',
+    VIEWER: 'Наблюдатель',
   }
   return labels[role] ?? role
 }
@@ -253,7 +254,7 @@ export function ServiceContractsPage() {
             <label>
               Клиентская компания
               <select value={form.clientCompanyId} onChange={(e) => updateClientCompanyId(e.target.value)}>
-                <option value="">Выберите CLIENT компанию</option>
+                <option value="">Выберите клиента</option>
                 {clientCompanies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
               </select>
             </label>
@@ -261,7 +262,7 @@ export function ServiceContractsPage() {
             <label>
               Подрядчик
               <select value={form.providerCompanyId} onChange={(e) => setForm((current) => ({ ...current, providerCompanyId: e.target.value }))}>
-                <option value="">Выберите PROVIDER компанию</option>
+                <option value="">Выберите сервисную компанию</option>
                 {providerCompanies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
               </select>
             </label>
@@ -269,18 +270,18 @@ export function ServiceContractsPage() {
             <label>
               Тип связи
               <select value={form.role} onChange={(e) => updateRole(e.target.value as api.ServiceContractRole)}>
-                <option value="PRIMARY">PRIMARY</option>
-                <option value="SECONDARY">SECONDARY</option>
+                <option value="PRIMARY">{SERVICE_CONTRACT_ROLE_LABELS_RU.PRIMARY}</option>
+                <option value="SECONDARY">{SERVICE_CONTRACT_ROLE_LABELS_RU.SECONDARY}</option>
               </select>
             </label>
 
             <label>
               Статус
               <select value={form.status} onChange={(e) => setForm((current) => ({ ...current, status: e.target.value as api.ServiceContractStatus }))}>
-                <option value="DRAFT">DRAFT</option>
-                <option value="ACTIVE">ACTIVE</option>
-                <option value="INACTIVE">INACTIVE</option>
-                <option value="ENDED">ENDED</option>
+                <option value="DRAFT">{SERVICE_CONTRACT_STATUS_LABELS_RU.DRAFT}</option>
+                <option value="ACTIVE">{SERVICE_CONTRACT_STATUS_LABELS_RU.ACTIVE}</option>
+                <option value="INACTIVE">{SERVICE_CONTRACT_STATUS_LABELS_RU.INACTIVE}</option>
+                <option value="ENDED">{SERVICE_CONTRACT_STATUS_LABELS_RU.ENDED}</option>
               </select>
             </label>
 
@@ -328,7 +329,7 @@ export function ServiceContractsPage() {
                       checked={form.locationMode === 'INHERIT_PRIMARY'}
                       onChange={() => updateLocationMode('INHERIT_PRIMARY')}
                     />
-                    <span>Наследовать объекты PRIMARY</span>
+                    <span>Наследовать объекты основного подрядчика</span>
                   </label>
                 ) : null}
               </div>
@@ -383,9 +384,9 @@ export function ServiceContractsPage() {
         <div className="panel">
           <h3 style={{ marginBottom: 12 }}>Подсказка</h3>
           <div className="muted small" style={{ lineHeight: 1.6 }}>
-            <div><b>Тип связи</b>: PRIMARY или SECONDARY определяет договорной контур обслуживания.</div>
+            <div><b>Тип связи</b>: основной подрядчик или субподрядчик определяет договорной контур обслуживания.</div>
             <div><b>Роль пользователя</b>: {['OWNER', 'ADMIN', 'DISPATCHER', 'MASTER', 'TECHNICIAN', 'VIEWER'].map(providerUserRoleLabel).join(', ')}.</div>
-            <div>Provider ADMIN не получает доступ вне области обслуживания договора.</div>
+            <div>Администратор сервисной компании не получает доступ вне области обслуживания договора.</div>
           </div>
         </div>
       </div>

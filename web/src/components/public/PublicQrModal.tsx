@@ -62,7 +62,7 @@ export async function createQrPosterDataUrl({ url, title, subtitle }: RenderQrPo
   canvas.width = 720
   canvas.height = subtitle ? 980 : 920
   const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('Canvas is not available')
+  if (!ctx) throw new Error('Холст недоступен')
 
   ctx.fillStyle = '#FFFFFF'
   ctx.fillRect(0, 0, canvas.width, canvas.height)
