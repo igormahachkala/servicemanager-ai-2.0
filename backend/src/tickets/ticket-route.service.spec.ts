@@ -1,7 +1,7 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common'
 import { UserRole, WorkShiftStatus } from '@prisma/client'
 
-import { TicketRouteService } from './ticket-route.service'
+import { ROUTE_CACHE_TTL_MS, TicketRouteService } from './ticket-route.service'
 import * as ticketAccessUtils from './ticket-access.utils'
 
 jest.mock('./ticket-access.utils', () => ({
@@ -226,5 +226,46 @@ describe('TicketRouteService.getForTickets', () => {
 
     expect(result).toEqual({ 't-1': UNAVAILABLE, 't-2': UNAVAILABLE })
     expect(routing.routeSummary).not.toHaveBeenCalled()
+  })
+
+  it('reuses the cache for origins inside the same ~100 m cell within TTL', async () => {
+    const { svc, prisma, routing } = makeBatchSetup([{ id: 't-1', location: LOCATION_POINT }])
+
+    await svc.getForTickets(ACTOR, ['t-1'])
+    prisma.workShift.findFirst.mockResolvedValue({
+      lastLatitude: SHIFT_POINT.lastLatitude + 0.0004,
+      lastLongitude: SHIFT_POINT.lastLongitude,
+    })
+    await svc.getForTickets(ACTOR, ['t-1'])
+
+    expect(routing.routeSummary).toHaveBeenCalledTimes(1)
+  })
+
+  it('calls routing again when the origin moves into another cache cell', async () => {
+    const { svc, prisma, routing } = makeBatchSetup([{ id: 't-1', location: LOCATION_POINT }])
+
+    await svc.getForTickets(ACTOR, ['t-1'])
+    prisma.workShift.findFirst.mockResolvedValue({
+      lastLatitude: SHIFT_POINT.lastLatitude + 0.002,
+      lastLongitude: SHIFT_POINT.lastLongitude,
+    })
+    await svc.getForTickets(ACTOR, ['t-1'])
+
+    expect(routing.routeSummary).toHaveBeenCalledTimes(2)
+  })
+
+  it('calls routing again after the cache TTL expires', async () => {
+    jest.useFakeTimers()
+    jest.setSystemTime(new Date('2026-10-15T10:00:00.000Z'))
+    const { svc, routing } = makeBatchSetup([{ id: 't-1', location: LOCATION_POINT }])
+
+    await svc.getForTickets(ACTOR, ['t-1'])
+    expect(routing.routeSummary).toHaveBeenCalledTimes(1)
+
+    jest.setSystemTime(new Date(Date.now() + ROUTE_CACHE_TTL_MS + 1))
+    await svc.getForTickets(ACTOR, ['t-1'])
+    expect(routing.routeSummary).toHaveBeenCalledTimes(2)
+
+    jest.useRealTimers()
   })
 })

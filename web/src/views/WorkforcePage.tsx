@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { canManageWorkforceSettings } from '../lib/workforceSettingsAccess'
 
 function dayInput(date: Date) {
   return date.toISOString().slice(0, 10)
@@ -20,6 +21,7 @@ function employeeName(user: api.WorkShiftItem['user']) {
 export function WorkforcePage() {
   const queryClient = useQueryClient()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const companyQ = useQuery({ queryKey: ['company'], queryFn: () => api.company() })
   const [from, setFrom] = useState(() => dayInput(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000)))
   const [to, setTo] = useState(() => dayInput(new Date()))
   const [autoCloseTime, setAutoCloseTime] = useState('19:00')
@@ -50,6 +52,10 @@ export function WorkforcePage() {
   })
 
   const report = reportQ.data
+  const canManageSettings = canManageWorkforceSettings({
+    role: meQ.data?.role,
+    companyType: companyQ.data?.type,
+  })
   return (
     <div>
       <h1>Смены и трудозатраты</h1>
@@ -89,7 +95,7 @@ export function WorkforcePage() {
             {report.employees.length === 0 ? <div className="muted small">За период смен нет.</div> : null}
           </div>
 
-          {meQ.data?.role === 'ADMIN' ? (
+          {canManageSettings ? (
             <div className="panel">
               <h3>Настройки смен</h3>
               <div style={{ display: 'flex', gap: 10, alignItems: 'end', flexWrap: 'wrap' }}>

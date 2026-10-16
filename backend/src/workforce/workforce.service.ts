@@ -463,13 +463,26 @@ export class WorkforceService {
    * (ADMIN + COMPANY_SETTINGS_EDIT on the controller) and there is one settings surface
    * rather than two to keep in sync.
    *
-   * Both fields are optional: an omitted field is left untouched, so a caller updating one
-   * setting cannot accidentally reset the other.
+   * The settings are operational provider controls. ADMIN is shared by CLIENT and PROVIDER,
+   * so the service verifies the company contour as a backend authorization boundary before
+   * accepting either field. Both fields are optional: an omitted field is left untouched.
    */
   async updateSettings(
     companyId: string,
     settings: { shiftAutoCloseTime?: string; requireActiveShiftForWork?: boolean },
   ) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { type: true },
+    })
+    if (!company) throw new NotFoundException('Company not found')
+    if (!ShiftPolicyService.canCompanyUseShiftPolicy(company.type)) {
+      throw new ForbiddenException({
+        code: 'WORKFORCE_SETTINGS_PROVIDER_ONLY',
+        message: 'Настройки смен доступны только компании-подрядчику',
+      })
+    }
+
     const data: Prisma.CompanyUpdateInput = {}
 
     if (settings.shiftAutoCloseTime !== undefined) {
@@ -480,22 +493,6 @@ export class WorkforceService {
     }
 
     if (settings.requireActiveShiftForWork !== undefined) {
-      const company = await this.prisma.company.findUnique({
-        where: { id: companyId },
-        select: { type: true },
-      })
-      if (!company) throw new NotFoundException('Company not found')
-
-      // Refuse rather than store an inert value: on a CLIENT company the policy could never
-      // take effect, and a setting that reads as configured but does nothing is a trap.
-      if (
-        settings.requireActiveShiftForWork &&
-        !ShiftPolicyService.canCompanyUseShiftPolicy(company.type)
-      ) {
-        throw new BadRequestException(
-          'requireActiveShiftForWork доступен только для компаний-подрядчиков',
-        )
-      }
       data.requireActiveShiftForWork = settings.requireActiveShiftForWork
     }
 
