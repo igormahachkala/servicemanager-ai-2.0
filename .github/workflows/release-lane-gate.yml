@@ -1,0 +1,42 @@
+name: Trusted Release Lane Gate
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    branches: [beta, prod]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: release-lane-${{ github.event.pull_request.base.ref }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  release-lane-gate:
+    name: Release lane gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted base only
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Admit release lane
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          merge_sha="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER/merge" --jq '.sha')"
+          test -n "$merge_sha"
+          skills/_shared/scripts/release-lane-gate.sh \
+            "$BASE" "$BRANCH" "$HEAD_SHA" "$PR_NUMBER" \
+            --event pull_request --merge-sha "$merge_sha"
