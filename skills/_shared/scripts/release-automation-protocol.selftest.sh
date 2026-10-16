@@ -77,7 +77,7 @@ check_codeowners_coverage() {
     fail "CODEOWNERS coverage: file is missing"
     return
   fi
-  for name in area-map reconcile-preflight worktree-prep qa-preflight merge-check-env lock-status stage-smoke prod-readiness; do
+  for name in area-map reconcile-preflight worktree-prep qa-preflight merge-check-env lock-status stage-smoke prod-readiness release-lane-gate release-lane-governance release-lane-bootstrap-check; do
     for suffix in .sh .selftest.sh; do
       path="/skills/_shared/scripts/${name}${suffix}"
       grep -Fqx "$path @igormahachkala" "$codeowners" || missing=$((missing + 1))

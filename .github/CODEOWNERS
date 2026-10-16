@@ -25,3 +25,5 @@
 /skills/_shared/scripts/release-lane-gate.selftest.sh @igormahachkala
 /skills/_shared/scripts/release-lane-governance.sh @igormahachkala
 /skills/_shared/scripts/release-lane-governance.selftest.sh @igormahachkala
+/skills/_shared/scripts/release-lane-bootstrap-check.sh @igormahachkala
+/skills/_shared/scripts/release-lane-bootstrap-check.selftest.sh @igormahachkala
