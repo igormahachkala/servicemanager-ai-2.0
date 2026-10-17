@@ -4,7 +4,8 @@
 #
 # READ-ONLY aggregator of the Production-readiness signals for one candidate:
 # current prod/beta SHAs, the beta ⊇ prod invariant, candidate containment in
-# current beta, a stage-ok tag that matches the exact candidate, actual Stage
+# current beta, a stage-ok tag with a cryptographically checked stage tree that
+# matches the exact candidate, actual Stage
 # runtime SHA evidence, canonical merge-check / CI evidence, Production tree
 # identity evidence, the stage-busy / prod-busy lock state, migrations and DB
 # actions carried by the candidate, and whether anything looks unfinished.
@@ -368,10 +369,26 @@ else
 fi
 # acceptance confirmation from the tag body
 if [ -n "$STAGE_OK_COMMIT" ]; then
-  acc_branch=$(tag_field "$STAGE_OK_TAG" branch); acc_stage=$(tag_field "$STAGE_OK_TAG" stage_sha); acc_crit=$(tag_field "$STAGE_OK_TAG" criterion)
+  acc_branch=$(tag_field "$STAGE_OK_TAG" branch); acc_branch_sha=$(tag_field "$STAGE_OK_TAG" branch_sha); acc_stage=$(tag_field "$STAGE_OK_TAG" stage_sha); acc_tree=$(tag_field "$STAGE_OK_TAG" stage_tree); acc_crit=$(tag_field "$STAGE_OK_TAG" criterion)
   echo "    acceptance branch   : ${acc_branch:-<none>}"
+  echo "    accepted branch_sha : ${acc_branch_sha:-<none>}"
   echo "    accepted stage_sha  : ${acc_stage:-<none>}"
+  echo "    accepted stage_tree : ${acc_tree:-<none>}"
   [ -n "$acc_crit" ] && echo "    criterion           : $acc_crit"
+fi
+
+echo -n "  Stage tree identity   : "
+if [ -z "${acc_stage:-}" ] || [ -z "${acc_tree:-}" ]; then
+  echo "BLOCKED (stage-ok requires stage_sha and stage_tree)"; note_missing
+else
+  accepted_stage_tree=$(git rev-parse --verify --quiet "${acc_stage}^{tree}" 2>/dev/null || true)
+  if [ -z "$accepted_stage_tree" ] || [ "$accepted_stage_tree" != "$acc_tree" ]; then
+    echo "MISMATCH (stage-ok stage_tree is not the tree of stage_sha)"; note_missing
+  elif ! git merge-base --is-ancestor "$CAND_SHA" "$acc_stage" 2>/dev/null; then
+    echo "BLOCKED (candidate is not an ancestor of accepted stage_sha)"; note_missing
+  else
+    echo "OK ($acc_tree)"
+  fi
 fi
 
 # locks

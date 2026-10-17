@@ -56,6 +56,7 @@ printf 'base\n' >"$WORK/fixture.txt"; git -C "$WORK" add fixture.txt; git -C "$W
 git -C "$WORK" branch -M prod
 BASE_SHA=$(git -C "$WORK" rev-parse HEAD)
 BASE_SHA_ORIG="$BASE_SHA"
+BASE_TREE=$(git -C "$WORK" rev-parse "$BASE_SHA^{tree}")
 git -C "$WORK" switch -qc beta "$BASE_SHA"
 git -C "$WORK" switch -qc feat/release-lane-fixture "$BASE_SHA"
 printf 'candidate\n' >>"$WORK/fixture.txt"; git -C "$WORK" commit -qam candidate
@@ -90,6 +91,11 @@ new_stage_ok feat/release-lane-fixture "$CANDIDATE_SHA" "$CANDIDATE_SHA"
 expect_pass "valid beta release" beta feat/release-lane-fixture "$CANDIDATE_SHA" 8
 set_prod
 expect_pass "valid production release" production feat/release-lane-fixture "$CANDIDATE_SHA" 8
+new_tag "stage-ok/feat/release-lane-fixture" $'Stage acceptance passed\nbranch: feat/release-lane-fixture\nbranch_sha: '"$CANDIDATE_SHA"$'\nstage_sha: '"$CANDIDATE_SHA"$'\ncriterion: missing tree'
+expect_fail "missing stage_tree denied" 'missing or duplicate stage_tree' production feat/release-lane-fixture "$CANDIDATE_SHA" 8
+new_tag "stage-ok/feat/release-lane-fixture" $'Stage acceptance passed\nbranch: feat/release-lane-fixture\nbranch_sha: '"$CANDIDATE_SHA"$'\nstage_sha: '"$CANDIDATE_SHA"$'\nstage_tree: '"$BASE_TREE"$'\ncriterion: incorrect tree\nchecks: gate self-test\ndate: 2026-10-17T00:00:00Z'
+expect_fail "incorrect stage_tree denied" 'Stage tree identity mismatch' production feat/release-lane-fixture "$CANDIDATE_SHA" 8
+new_stage_ok feat/release-lane-fixture "$CANDIDATE_SHA" "$CANDIDATE_SHA"
 new_tag "stage-ok/feat/release-lane-fixture" "$(stage_message feat/release-lane-fixture "$CANDIDATE_SHA" "$BASE_SHA_ORIG")" "$CANDIDATE_SHA"
 expect_fail "candidate absent from accepted Stage denied" 'candidate is not an ancestor' production feat/release-lane-fixture "$CANDIDATE_SHA" 8
 new_stage_ok feat/release-lane-fixture "$CANDIDATE_SHA" "$CANDIDATE_SHA"

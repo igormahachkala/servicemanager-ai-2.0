@@ -199,10 +199,13 @@ make_a7_fixture() {
     local candidate_sha
     candidate_sha=$(git rev-parse HEAD)
     git branch beta
+    local candidate_tree
+    candidate_tree=$(git rev-parse "$candidate_sha^{tree}")
     git tag -a stage-ok/feat/candidate "$candidate_sha" -m "Stage acceptance passed
 branch: feat/candidate
 branch_sha: $candidate_sha
 stage_sha: $prod_sha
+stage_tree: $candidate_tree
 criterion: offline negative control"
     git tag -a stage-busy "$candidate_sha" -m "branch: feat/candidate
 date: 2026-10-14T00:00:00Z"
@@ -222,10 +225,13 @@ replace_a7_stage_ok() {
     git config user.name ci
     local candidate_sha
     candidate_sha=$(git rev-parse origin/feat/candidate)
+    local stage_tree
+    stage_tree=$(git rev-parse "$stage_sha^{tree}")
     git tag -f -a stage-ok/feat/candidate "$candidate_sha" -m "Stage acceptance passed
 branch: feat/candidate
 branch_sha: $candidate_sha
 stage_sha: $stage_sha
+stage_tree: $stage_tree
 criterion: offline negative control"
     git push -q -f origin refs/tags/stage-ok/feat/candidate
   )

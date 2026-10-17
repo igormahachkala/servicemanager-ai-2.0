@@ -95,6 +95,14 @@ test "$(git rev-parse stage-ok/&lt;ветка&gt;^{commit})" = "$(git rev-parse 
 STAGE_HEAD=$(ssh sma-spare 'cd /opt/sma-beta &amp;&amp; git rev-parse HEAD')
 git fetch origin beta
 git merge-base --is-ancestor "$(git rev-parse stage-ok/&lt;ветка&gt;^{commit})" "$STAGE_HEAD"
+
+# 4 — Stage identity из тела stage-ok: поля обязательны и проверяются по Git
+STAGE_SHA=$(git tag -l --format='%(contents:body)' stage-ok/&lt;ветка&gt; | sed -n 's/^stage_sha:[[:space:]]*//p' | head -1)
+STAGE_TREE=$(git tag -l --format='%(contents:body)' stage-ok/&lt;ветка&gt; | sed -n 's/^stage_tree:[[:space:]]*//p' | head -1)
+test -n "$STAGE_SHA" &amp;&amp; test -n "$STAGE_TREE"
+test "$(git rev-parse "$STAGE_SHA^{tree}")" = "$STAGE_TREE"
+git merge-base --is-ancestor "$(git rev-parse origin/&lt;ветка&gt;)" "$STAGE_SHA"
+test "$(git rev-parse origin/beta^{tree})" = "$STAGE_TREE"
 </command>
 <expect>Сверки 1 и 3 завершились кодом 0. Сверка 2 дала совпадение.</expect>
 <on_failure>
@@ -107,7 +115,10 @@ git merge-base --is-ancestor "$(git rev-parse stage-ok/&lt;ветка&gt;^{commi
 <known_limit>
 Сверка 3 не отличает чужое развёртывание на Stage после вашей приёмки:
 ваш код на контуре остался, допуск сохраняется. Обстоятельства приёмки —
-поле stage_sha тела тега.
+поля stage_sha и stage_tree тела тега. stage_tree обязан равняться
+`git rev-parse &lt;stage_sha&gt;^{tree}`; кандидат из branch_sha должен быть
+предком stage_sha. Отсутствующее или несовпадающее поле — блокирующая ошибка,
+даже если тег указывает на правильную вершину ветки.
 </known_limit>
 <lock_check name="Production не занят">
 test -z "$(git ls-remote --tags origin 'refs/tags/prod-busy')"
