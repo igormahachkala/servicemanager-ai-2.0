@@ -1,6 +1,7 @@
 # CI definitions and their trust-boundary tests require repository-owner review.
 /.github/CODEOWNERS @igormahachkala
 /.github/workflows/release-automation-ci.yml @igormahachkala
+/.github/workflows/release-lane-gate.yml @igormahachkala
 /skills/_shared/scripts/run-release-automation-selftests.sh @igormahachkala
 /skills/_shared/scripts/run-release-automation-selftests.selftest.sh @igormahachkala
 /skills/_shared/scripts/release-automation-protocol.selftest.sh @igormahachkala
@@ -20,3 +21,9 @@
 /skills/_shared/scripts/stage-smoke.selftest.sh @igormahachkala
 /skills/_shared/scripts/prod-readiness.sh @igormahachkala
 /skills/_shared/scripts/prod-readiness.selftest.sh @igormahachkala
+/skills/_shared/scripts/release-lane-gate.sh @igormahachkala
+/skills/_shared/scripts/release-lane-gate.selftest.sh @igormahachkala
+/skills/_shared/scripts/release-lane-governance.sh @igormahachkala
+/skills/_shared/scripts/release-lane-governance.selftest.sh @igormahachkala
+/skills/_shared/scripts/release-lane-bootstrap-check.sh @igormahachkala
+/skills/_shared/scripts/release-lane-bootstrap-check.selftest.sh @igormahachkala

@@ -79,7 +79,7 @@ deltag(){
   rm -rf "$wt"
 }
 
-OKBODY=$(printf 'Stage acceptance passed\nbranch: feat/cand\nbranch_sha: %s\nstage_sha: %s\ncriterion: smoke green' "$C1" "$C1")
+OKBODY=$(printf 'Stage acceptance passed\nbranch: feat/cand\nbranch_sha: %s\nstage_sha: %s\nstage_tree: %s\ncriterion: smoke green' "$C1" "$C1" "$C1_TREE")
 BUSYBODY=$(printf 'Контур занят\nbranch: feat/cand\npr: 9\ndate: 2026-10-13T00:00:00Z')
 
 echo "== A7 prod-readiness self-test =="
