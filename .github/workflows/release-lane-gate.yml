@@ -43,15 +43,23 @@ jobs:
           assert str(d["number"]) == number
           assert d["base"]["repo"]["full_name"] == repo
           assert d["head"]["repo"]["full_name"] == repo
-          assert isinstance(d.get("merge_commit_sha"), str)
-          print("\t".join((d["base"]["ref"], d["base"]["sha"], d["head"]["ref"], d["head"]["sha"], d["head"]["repo"]["full_name"], d["merge_commit_sha"])))
+          print("\t".join((d["base"]["ref"], d["base"]["sha"], d["head"]["ref"], d["head"]["sha"], d["head"]["repo"]["full_name"])))
           PY
-          IFS=$'\t' read -r base_ref base_sha branch head_sha head_repo merge_sha <"$tmp/fields"
+          IFS=$'\t' read -r base_ref base_sha branch head_sha head_repo <"$tmp/fields"
           case "$base_ref" in
             beta) contour=beta ;;
             prod) contour=production ;;
             *) echo "Unsupported PR base: $base_ref" >&2; exit 1 ;;
           esac
+          git fetch -q --no-tags --force origin "refs/pull/$PR_NUMBER/merge"
+          merge_sha="$(git rev-parse FETCH_HEAD)"
+          python3 - "$tmp/pr.json" "$tmp/pr-gate.json" "$merge_sha" <<'PY'
+          import json, sys
+          source, target, merge_sha = sys.argv[1:]
+          d = json.load(open(source))
+          d["merge_commit_sha"] = merge_sha
+          json.dump(d, open(target, "w"))
+          PY
           git fetch -q --no-tags --force origin refs/tags/stage-busy:refs/tags/stage-busy
           stage_pr="$(git cat-file -p refs/tags/stage-busy | sed -n '/^$/,$p' | sed '1d' | awk -F': ' '$1 == "pr" { print $2; exit }')"
           test -n "$stage_pr"
@@ -81,11 +89,21 @@ jobs:
               assert open(sys.argv[6]).read().strip()
               assert critical(sys.argv[5]) == critical(sys.argv[6])
           PY
+          git fetch -q --no-tags --force origin "refs/pull/$PR_NUMBER/merge"
+          merge_sha_final="$(git rev-parse FETCH_HEAD)"
+          test "$merge_sha_final" = "$merge_sha"
+          python3 - "$tmp/pr-final.json" "$tmp/pr-final-gate.json" "$merge_sha_final" <<'PY'
+          import json, sys
+          source, target, merge_sha = sys.argv[1:]
+          d = json.load(open(source))
+          d["merge_commit_sha"] = merge_sha
+          json.dump(d, open(target, "w"))
+          PY
           skills/_shared/scripts/release-lane-gate.sh \
             "$contour" "$branch" "$head_sha" "$PR_NUMBER" \
             --event pull_request --repo "$REPOSITORY" --base-ref "$base_ref" \
             --base-sha "$base_sha" --head-repo "$head_repo" \
-            --metadata-file "$tmp/pr-final.json" \
+            --metadata-file "$tmp/pr-final-gate.json" \
             --lock-metadata-file "$tmp/stage-lock-final.json" \
             --prod-lock-metadata-file "$tmp/prod-lock-final.json" \
             --merge-sha "$merge_sha"
@@ -107,11 +125,21 @@ jobs:
               assert open(sys.argv[6]).read().strip()
               assert critical(sys.argv[5]) == critical(sys.argv[6])
           PY
+          git fetch -q --no-tags --force origin "refs/pull/$PR_NUMBER/merge"
+          merge_sha_post="$(git rev-parse FETCH_HEAD)"
+          test "$merge_sha_post" = "$merge_sha_final"
+          python3 - "$tmp/pr-post.json" "$tmp/pr-post-gate.json" "$merge_sha_post" <<'PY'
+          import json, sys
+          source, target, merge_sha = sys.argv[1:]
+          d = json.load(open(source))
+          d["merge_commit_sha"] = merge_sha
+          json.dump(d, open(target, "w"))
+          PY
           skills/_shared/scripts/release-lane-gate.sh \
             "$contour" "$branch" "$head_sha" "$PR_NUMBER" \
             --event pull_request --repo "$REPOSITORY" --base-ref "$base_ref" \
             --base-sha "$base_sha" --head-repo "$head_repo" \
-            --metadata-file "$tmp/pr-post.json" \
+            --metadata-file "$tmp/pr-post-gate.json" \
             --lock-metadata-file "$tmp/stage-lock-post.json" \
             --prod-lock-metadata-file "$tmp/prod-lock-post.json" \
             --merge-sha "$merge_sha"
