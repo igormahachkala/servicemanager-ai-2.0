@@ -145,7 +145,7 @@ export function MobileInspectionStartPage() {
     if (!offline.online) return setError(ONLINE_ONLY_ACTION_MESSAGE)
     if (!templateId) return setError('Выберите тип обхода')
     if (isProviderContext && !clientCompanyId) return setError('Выберите клиентский контур')
-    if (!locationId) return setError('Выберите локацию')
+    if (!locationId) return setError('Выберите объект')
     setError(null)
     startRunM.mutate({ templateId, locationId })
   }
@@ -174,7 +174,7 @@ export function MobileInspectionStartPage() {
 
       <div>
         <h1 className="mobileTitle">Начать обход</h1>
-        <div className="mobileSubtitle">Выберите тип обхода и доступную локацию</div>
+        <div className="mobileSubtitle">Выберите тип обхода и доступный объект</div>
       </div>
 
       {error ? <div className="mobileNotice mobileNoticeError">{error}</div> : null}
@@ -239,7 +239,7 @@ export function MobileInspectionStartPage() {
           ) : null}
 
           <label className="mobileInspectionStartField">
-            <span>Локация</span>
+            <span>Объект</span>
             <select
               value={locationId}
               onChange={(event) => setLocationId(event.target.value)}
@@ -249,8 +249,8 @@ export function MobileInspectionStartPage() {
                 {isProviderContext && !clientCompanyId
                   ? 'Сначала выберите клиента'
                   : locationsLoading
-                    ? 'Загружаем локации…'
-                    : 'Выберите локацию'}
+                    ? 'Загружаем объекты…'
+                    : 'Выберите объект'}
               </option>
               {activeLocations.map((item) => (
                 <option key={item.id} value={item.id}>{item.name}{item.city ? ` · ${item.city}` : ''}</option>
@@ -259,12 +259,12 @@ export function MobileInspectionStartPage() {
           </label>
 
           {!isTechnician && locationsQ.isError ? (
-            <div className="mobileNotice mobileNoticeError">Не удалось загрузить доступные локации.</div>
+            <div className="mobileNotice mobileNoticeError">Не удалось загрузить доступные объекты.</div>
           ) : null}
           {((isTechnician && !!clientCompanyId) || locationsQ.isSuccess) && activeLocations.length === 0 ? (
             <div className="mobileCard mobileEmptyState" role="status">
-              <div className="mobileEmptyStateTitle">Нет доступных локаций</div>
-              <p className="mobileEmptyStateHint">Для выбранного контура нет локаций, доступных для обхода.</p>
+              <div className="mobileEmptyStateTitle">Нет доступных объектов</div>
+              <p className="mobileEmptyStateHint">Для выбранного контура нет объектов, доступных для обхода.</p>
             </div>
           ) : null}
 

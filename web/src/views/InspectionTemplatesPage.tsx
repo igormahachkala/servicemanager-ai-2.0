@@ -490,7 +490,7 @@ export function InspectionTemplatesPage() {
       return
     }
     if (!locationId) {
-      setError('Выберите локацию')
+      setError('Выберите объект')
       return
     }
 
@@ -757,13 +757,13 @@ export function InspectionTemplatesPage() {
             ) : null}
 
             <label>
-              Локация
+              Объект
               <select
                 value={locationId}
                 onChange={(e) => { setLocationId(e.target.value); setEquipmentId('') }}
                 disabled={isProviderScope && !scopeCompanyId}
               >
-                <option value="">{isProviderScope && !scopeCompanyId ? 'Сначала выберите клиента' : 'Выберите локацию'}</option>
+                <option value="">{isProviderScope && !scopeCompanyId ? 'Сначала выберите клиента' : 'Выберите объект'}</option>
                 {activeLocations.map((location) => (
                   <option key={location.id} value={location.id}>
                     {location.name}{location.city ? ` · ${location.city}` : ''}

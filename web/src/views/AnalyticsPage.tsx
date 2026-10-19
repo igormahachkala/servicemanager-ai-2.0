@@ -284,7 +284,7 @@ export function AnalyticsPage() {
             <div className="card" style={{ padding: 12, marginTop: 8, borderRadius: 12, border: '1px solid #c7d2fe', background: '#eef2ff' }}>
               <div style={{ fontWeight: 700 }}>{selectedLinkedClient.clientCompany.name}</div>
               <div className="muted small" style={{ marginTop: 4 }}>
-                {providerScopeLabel(selectedLinkedClient.role)} · открытых заявок: {selectedLinkedClient.summary.openTickets} · локаций: {selectedLinkedClient.summary.locations}
+                {providerScopeLabel(selectedLinkedClient.role)} · открытых заявок: {selectedLinkedClient.summary.openTickets} · объектов: {selectedLinkedClient.summary.locations}
               </div>
               <div className="muted small" style={{ marginTop: 4 }}>
                 Публичные заявки: {selectedLinkedClient.summary.publicRequestEnabled ? 'включён' : 'выключен'}

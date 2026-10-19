@@ -219,7 +219,7 @@ export function LocationForm({
           onChange={(e) => onChange({ isActive: e.target.checked })}
           disabled={submitting}
         />
-        <span>Локация активна</span>
+        <span>Объект активен</span>
       </label>
 
       {error ? (

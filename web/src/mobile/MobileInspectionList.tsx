@@ -164,7 +164,7 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
         <div className="mobileCard mobileEmptyState" role="status">
           <div className="mobileEmptyStateTitle">Обходов пока нет</div>
           <p className="mobileEmptyStateHint">
-            Нажмите «Начать обход», выберите тип и доступную локацию.
+            Нажмите «Начать обход», выберите тип и доступный объект.
           </p>
         </div>
       )

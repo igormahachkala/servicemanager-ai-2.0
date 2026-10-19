@@ -403,7 +403,7 @@ export function CompanyPage() {
             <div className="card" style={{ padding: 12, marginTop: 8, borderRadius: 12, border: '1px solid #c7d2fe', background: '#eef2ff' }}>
               <div style={{ fontWeight: 700 }}>{selectedLinkedClient.clientCompany.name}</div>
               <div className="muted small" style={{ marginTop: 4 }}>
-                {contractRoleLabel(selectedLinkedClient.role)} · открытых заявок: {selectedLinkedClient.summary.openTickets} · локаций: {selectedLinkedClient.summary.locations}
+                {contractRoleLabel(selectedLinkedClient.role)} · открытых заявок: {selectedLinkedClient.summary.openTickets} · объектов: {selectedLinkedClient.summary.locations}
               </div>
               <div className="muted small" style={{ marginTop: 4 }}>
                 Публичные заявки: {selectedLinkedClient.summary.publicRequestEnabled ? 'включён' : 'выключен'}
@@ -525,7 +525,7 @@ export function CompanyPage() {
                   </select>
                 </label>
                 <label>
-                  Режим preset-локации
+                  Режим preset-объекта
                   <select value={publicRequestLocationPresetMode} onChange={(e) => setPublicRequestLocationPresetMode(e.target.value as api.PublicRequestLocationPresetMode)} disabled={readOnly}>
                     <option value="HIDE_WHEN_VALID">Скрывать выбор точки, если она уже задана ссылкой</option>
                     <option value="ALWAYS_OPTIONAL">Разрешать сменить точку даже при предустановке</option>
@@ -611,7 +611,7 @@ export function CompanyPage() {
                       <div style={{ fontWeight: 600 }}>{contract.clientCompany.name}</div>
                       <div className="muted small">Статус: {contract.status}</div>
                       <div className="muted small">Роль связи: {contractRoleLabel(contract.role)}</div>
-                      <div className="muted small">Открытых заявок: {contract.summary.openTickets} · Локаций: {contract.summary.locations}</div>
+                      <div className="muted small">Открытых заявок: {contract.summary.openTickets} · Объектов: {contract.summary.locations}</div>
                       <div className="muted small">Публичные заявки: {contract.summary.publicRequestEnabled ? 'включён' : 'выключен'}</div>
                       <div className="muted small">Действует: {formatDate(contract.startsAt)} — {formatDate(contract.endsAt)}</div>
                       {contract.notes ? <div className="muted small">{contract.notes}</div> : null}
