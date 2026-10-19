@@ -8,8 +8,10 @@ import { describe, expect, it } from 'vitest'
 
 import {
   NO_DATA,
+  describeOpenOverdue,
   describeSlaBasis,
   formatMinutes,
+  formatOpenOverdue,
   formatSlaRatio,
   pickSlaForScope,
   type SlaMetricsView,
@@ -81,6 +83,34 @@ describe('describeSlaBasis', () => {
   it('когда оценивать нечего, так и говорит', () => {
     expect(describeSlaBasis(metrics())).toContain('нет завершённых заявок со сроком')
     expect(describeSlaBasis(metrics({ withoutSlaCount: 2 }))).toContain('без срока')
+  })
+})
+
+describe('текущая просрочка отделена от исторических нарушений', () => {
+  it('показывает число открытых просроченных со знаменателем', () => {
+    const m = metrics({ openCount: 7, openOverdueCount: 3, slaBreaches: 99 })
+    expect(formatOpenOverdue(m)).toBe('3')
+    expect(describeOpenOverdue(m)).toBe('из 7 открытых')
+  })
+
+  it('не подменяет текущую просрочку историческими нарушениями', () => {
+    // Исторических 99, но сейчас просрочено 0 — и это должно быть видно.
+    const m = metrics({ openCount: 4, openOverdueCount: 0, slaBreaches: 99 })
+    expect(formatOpenOverdue(m)).toBe('0')
+    expect(formatOpenOverdue(m)).not.toBe(String(m.slaBreaches))
+  })
+
+  it('нет открытых заявок — так и говорит', () => {
+    expect(describeOpenOverdue(metrics({ openCount: 0, openOverdueCount: 0 }))).toBe(
+      'открытых заявок нет',
+    )
+  })
+
+  it('старый бэкенд без этих полей даёт прочерк, а не ноль', () => {
+    const m = metrics()
+    expect(formatOpenOverdue(m)).toBe(NO_DATA)
+    expect(formatOpenOverdue(m)).not.toBe('0')
+    expect(describeOpenOverdue(m)).toContain('нет данных')
   })
 })
 

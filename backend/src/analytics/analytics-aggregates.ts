@@ -11,11 +11,12 @@
  * может, и область запроса отсюда не меняется.
  *
  * Почему агрегаты по городу считаются здесь, а не на фронтенде: заявка
- * принадлежит ровно одной точке, поэтому сумма по точкам города — корректное
- * разбиение. Но заявки БЕЗ точки в строки не попадают вовсе, и сумма по
- * городам поэтому меньше summary.totalTickets. Фронтенд этого расхождения
- * объяснить не может, бэкенд — может: см. withoutLocationTickets в summary и
- * reconcileCityTotals ниже.
+ * принадлежит ровно одной точке (Ticket.locationId обязателен), поэтому сумма
+ * по точкам города — корректное разбиение, а не оценка. Но часть заявок не
+ * получает строки вовсе: строки берутся с isActive: true, а summary считается
+ * по всем заявкам области, плюс строки может отбросить порог minTickets.
+ * Фронтенд этого расхождения объяснить не может, бэкенд — может: см.
+ * ticketsOutsideRows в summary и reconcileCityTotals ниже.
  */
 
 /** Город не заполнен. Отдельная понятная группа, а не «прочее». */
@@ -80,8 +81,25 @@ export type SlaMetrics = {
   withinSlaCount: number
   /** Знаменатель доли: завершённые заявки, у которых задан slaDueAt. */
   slaEvaluatedCount: number
-  /** Нарушения SLA по slaBreachedAt. */
+  /**
+   * ИСТОРИЧЕСКИЕ нарушения: признак slaBreachedAt, записанный системой.
+   *
+   * Это факт из прошлого, он остаётся у заявки навсегда — в том числе у уже
+   * закрытой. С текущей просрочкой НЕ смешивается: та считается от срока и
+   * «сейчас», и у закрытой заявки её не бывает по определению. Две разные
+   * величины и два разных поля.
+   */
   slaBreaches: number
+  /** Открытые заявки (closedAt не заполнен). Знаменатель для текущей просрочки. */
+  openCount: number
+  /**
+   * ТЕКУЩАЯ просрочка: открытые заявки, у которых срок уже прошёл.
+   *
+   * Считается как closedAt === null && slaDueAt < now, а не по slaBreachedAt:
+   * признак мог быть не записан, а мог остаться от закрытой заявки. Открытая
+   * заявка без срока сюда не попадает — просрочить нечего.
+   */
+  openOverdueCount: number
   /** Сколько заявок получили реакцию (участвуют в avgResponseMinutes). */
   respondedCount: number
   /** Сколько заявок завершено (участвуют в avgResolutionMinutes). */
@@ -121,6 +139,8 @@ export function emptySlaMetrics(): SlaMetrics {
     withinSlaCount: 0,
     slaEvaluatedCount: 0,
     slaBreaches: 0,
+    openCount: 0,
+    openOverdueCount: 0,
     respondedCount: 0,
     resolvedCount: 0,
     withoutSlaCount: 0,
@@ -137,17 +157,28 @@ export function emptySlaMetrics(): SlaMetrics {
  * 2. Решение считается только по завершённым. Открытые заявки не смешиваются
  *    с завершёнными: иначе среднее росло бы само по себе с каждым днём, пока
  *    заявка висит.
- * 3. Доля в SLA считается по завершённым заявкам, у которых задан срок.
+ * 3. Доля в SLA считается ТОЛЬКО по закрытым заявкам, у которых задан срок.
  *    Заявка без срока не считается выполненной в срок — она уходит в
- *    withoutSlaCount.
- * 4. Нарушения берутся из slaBreachedAt, а не пересчитываются: это тот же
- *    признак, по которому остальная аналитика считает просрочку.
+ *    withoutSlaCount и в знаменатель не попадает.
+ * 4. Исторические нарушения берутся из slaBreachedAt, а не пересчитываются:
+ *    это тот же признак, по которому остальная аналитика считает просрочку.
+ * 5. Текущая просрочка открытых заявок считается ОТДЕЛЬНО, от срока и «сейчас»,
+ *    и с историческим признаком не смешивается. Закрытая заявка в текущую
+ *    просрочку не попадает никогда, даже если была просрочена.
+ *
+ * `now` передаётся параметром, а не берётся внутри: иначе разрезы по
+ * организации, городу и точке могли бы посчитаться по разным моментам, и
+ * цифры в одном ответе не сошлись бы между собой.
  */
-export function computeSlaMetrics(tickets: readonly SlaSourceTicket[]): SlaMetrics {
+export function computeSlaMetrics(
+  tickets: readonly SlaSourceTicket[],
+  now: Date = new Date(),
+): SlaMetrics {
   const result = emptySlaMetrics()
 
   let responseSum = 0
   let resolutionSum = 0
+  const nowMs = now.getTime()
 
   for (const ticket of tickets) {
     if (ticket.slaBreachedAt) result.slaBreaches += 1
@@ -157,7 +188,13 @@ export function computeSlaMetrics(tickets: readonly SlaSourceTicket[]): SlaMetri
       responseSum += durationMinutes(ticket.createdAt, ticket.firstAssignedAt)
     }
 
-    if (!ticket.closedAt) continue
+    if (!ticket.closedAt) {
+      result.openCount += 1
+      if (ticket.slaDueAt && ticket.slaDueAt.getTime() < nowMs) {
+        result.openOverdueCount += 1
+      }
+      continue
+    }
 
     result.resolvedCount += 1
     resolutionSum += durationMinutes(ticket.createdAt, ticket.closedAt)
@@ -189,6 +226,7 @@ export function computeSlaMetrics(tickets: readonly SlaSourceTicket[]): SlaMetri
 /** Разложить заявки по точкам и посчитать SLA в каждой. */
 export function computeSlaByLocation(
   tickets: readonly SlaSourceTicket[],
+  now: Date = new Date(),
 ): Map<string, SlaMetrics> {
   const byLocation = new Map<string, SlaSourceTicket[]>()
   for (const ticket of tickets) {
@@ -200,7 +238,7 @@ export function computeSlaByLocation(
 
   const result = new Map<string, SlaMetrics>()
   for (const [locationId, bucket] of byLocation) {
-    result.set(locationId, computeSlaMetrics(bucket))
+    result.set(locationId, computeSlaMetrics(bucket, now))
   }
   return result
 }
@@ -253,6 +291,7 @@ export type CityAggregate = {
 export function buildCityAggregates(
   locations: readonly AggregableLocation[],
   slaTickets: readonly SlaSourceTicket[] = [],
+  now: Date = new Date(),
 ): CityAggregate[] {
   const cityKeyByLocation = new Map<string, string>()
   const groups = new Map<string, CityAggregate>()
@@ -301,7 +340,7 @@ export function buildCityAggregates(
   }
   for (const [cityKey, bucket] of ticketsByCity) {
     const group = groups.get(cityKey)
-    if (group) group.sla = computeSlaMetrics(bucket)
+    if (group) group.sla = computeSlaMetrics(bucket, now)
   }
 
   return Array.from(groups.values()).sort((left, right) => {

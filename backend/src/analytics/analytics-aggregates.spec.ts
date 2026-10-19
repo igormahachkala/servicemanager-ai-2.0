@@ -162,6 +162,114 @@ describe('computeSlaMetrics — доля в SLA', () => {
   })
 })
 
+/**
+ * Решение владельца: текущая просрочка ОТКРЫТЫХ заявок учитывается отдельно
+ * от исторического признака slaBreachedAt. Пять состояний ниже — полный
+ * перебор того, как заявка может соотноситься со сроком.
+ */
+describe('computeSlaMetrics — текущая просрочка против исторических нарушений', () => {
+  const NOW = at(1000)
+
+  it('open overdue: открытая, срок прошёл → текущая просрочка, но не доля SLA', () => {
+    const m = computeSlaMetrics([ticket({ slaDueAt: at(900), closedAt: null })], NOW)
+    expect(m.openCount).toBe(1)
+    expect(m.openOverdueCount).toBe(1)
+    // В доле не участвует: она только по закрытым.
+    expect(m.slaEvaluatedCount).toBe(0)
+    expect(m.withinSlaRatio).toBeNull()
+    expect(m.resolvedCount).toBe(0)
+    // Исторического признака нет — значит и исторических нарушений нет.
+    expect(m.slaBreaches).toBe(0)
+  })
+
+  it('open not overdue: открытая, срок ещё не наступил → ни просрочки, ни доли', () => {
+    const m = computeSlaMetrics([ticket({ slaDueAt: at(1100), closedAt: null })], NOW)
+    expect(m.openCount).toBe(1)
+    expect(m.openOverdueCount).toBe(0)
+    expect(m.slaEvaluatedCount).toBe(0)
+    expect(m.withinSlaRatio).toBeNull()
+  })
+
+  it('open без срока: просрочить нечего', () => {
+    const m = computeSlaMetrics([ticket({ slaDueAt: null, closedAt: null })], NOW)
+    expect(m.openCount).toBe(1)
+    expect(m.openOverdueCount).toBe(0)
+  })
+
+  it('closed late: закрыта позже срока → в доле, но НЕ в текущей просрочке', () => {
+    const m = computeSlaMetrics([ticket({ slaDueAt: at(500), closedAt: at(600) })], NOW)
+    expect(m.slaEvaluatedCount).toBe(1)
+    expect(m.withinSlaCount).toBe(0)
+    expect(m.withinSlaRatio).toBe(0)
+    // Закрытая заявка в текущую просрочку не попадает никогда.
+    expect(m.openCount).toBe(0)
+    expect(m.openOverdueCount).toBe(0)
+  })
+
+  it('closed on time: закрыта в срок → соблюдение, текущей просрочки нет', () => {
+    const m = computeSlaMetrics([ticket({ slaDueAt: at(600), closedAt: at(500) })], NOW)
+    expect(m.withinSlaCount).toBe(1)
+    expect(m.withinSlaRatio).toBe(1)
+    expect(m.openOverdueCount).toBe(0)
+  })
+
+  it('missing slaDueAt: закрыта без срока → вне доли и вне просрочки', () => {
+    const m = computeSlaMetrics([ticket({ slaDueAt: null, closedAt: at(500) })], NOW)
+    expect(m.withoutSlaCount).toBe(1)
+    expect(m.slaEvaluatedCount).toBe(0)
+    expect(m.withinSlaRatio).toBeNull()
+    expect(m.openOverdueCount).toBe(0)
+  })
+
+  it('persisted slaBreachedAt у ЗАКРЫТОЙ заявки не создаёт текущей просрочки', () => {
+    const m = computeSlaMetrics(
+      [ticket({ slaDueAt: at(500), closedAt: at(600), slaBreachedAt: at(501) })],
+      NOW,
+    )
+    expect(m.slaBreaches).toBe(1) // исторический факт остаётся
+    expect(m.openOverdueCount).toBe(0) // текущей просрочки нет
+    expect(m.slaBreaches).not.toBe(m.openOverdueCount)
+  })
+
+  it('текущая просрочка считается от срока, а не от признака', () => {
+    // Признак не записан, но срок прошёл — заявка просрочена сейчас.
+    const m = computeSlaMetrics([ticket({ slaDueAt: at(900), closedAt: null, slaBreachedAt: null })], NOW)
+    expect(m.slaBreaches).toBe(0)
+    expect(m.openOverdueCount).toBe(1)
+  })
+
+  it('две величины не подменяют друг друга в смешанном наборе', () => {
+    const m = computeSlaMetrics(
+      [
+        ticket({ slaDueAt: at(900), closedAt: null }), // текущая просрочка
+        ticket({ slaDueAt: at(1100), closedAt: null }), // открыта, в сроке
+        ticket({ slaDueAt: at(500), closedAt: at(600), slaBreachedAt: at(501) }), // историческое
+        ticket({ slaDueAt: at(600), closedAt: at(500) }), // закрыта в срок
+        ticket({ slaDueAt: null, closedAt: at(500) }), // без срока
+      ],
+      NOW,
+    )
+    expect(m.openCount).toBe(2)
+    expect(m.openOverdueCount).toBe(1)
+    expect(m.slaBreaches).toBe(1)
+    expect(m.slaEvaluatedCount).toBe(2) // две закрытые со сроком
+    expect(m.withinSlaCount).toBe(1)
+    expect(m.withinSlaRatio).toBe(0.5)
+    expect(m.withoutSlaCount).toBe(1)
+  })
+
+  it('«сейчас» приходит параметром, поэтому результат детерминирован', () => {
+    const t = [ticket({ slaDueAt: at(1000), closedAt: null })]
+    expect(computeSlaMetrics(t, at(999)).openOverdueCount).toBe(0)
+    expect(computeSlaMetrics(t, at(1001)).openOverdueCount).toBe(1)
+  })
+
+  it('срок ровно сейчас просрочкой ещё не считается', () => {
+    const m = computeSlaMetrics([ticket({ slaDueAt: at(1000), closedAt: null })], at(1000))
+    expect(m.openOverdueCount).toBe(0)
+  })
+})
+
 describe('computeSlaMetrics — нарушения', () => {
   it('берёт нарушения из slaBreachedAt', () => {
     const m = computeSlaMetrics([

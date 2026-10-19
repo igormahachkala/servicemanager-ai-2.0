@@ -1154,7 +1154,15 @@ export type SlaMetricsDto = {
   withinSlaRatio: number | null
   withinSlaCount: number
   slaEvaluatedCount: number
+  /**
+   * Исторические нарушения: признак slaBreachedAt. Факт из прошлого, остаётся
+   * и у закрытой заявки. С текущей просрочкой не смешивается.
+   */
   slaBreaches: number
+  /** Открытые заявки. Поля необязательные: контур может быть старее бэкенда. */
+  openCount?: number
+  /** Текущая просрочка: открытые заявки, у которых срок уже прошёл. */
+  openOverdueCount?: number
   respondedCount: number
   resolvedCount: number
   withoutSlaCount: number

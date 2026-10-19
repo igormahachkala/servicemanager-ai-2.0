@@ -17,6 +17,8 @@ export type SlaMetricsView = {
   withinSlaCount: number
   slaEvaluatedCount: number
   slaBreaches: number
+  openCount?: number
+  openOverdueCount?: number
   respondedCount: number
   resolvedCount: number
   withoutSlaCount: number
@@ -75,6 +77,31 @@ export function describeSlaBasis(metrics: SlaMetricsView): string {
   return metrics.withoutSlaCount > 0
     ? `${base}; ещё ${metrics.withoutSlaCount} без срока`
     : base
+}
+
+/**
+ * Пояснение к текущей просрочке.
+ *
+ * Решение владельца: текущая просрочка открытых заявок и исторические
+ * нарушения — две разные величины, и на экране они не должны подменять друг
+ * друга. Поэтому подпись всегда называет знаменатель — сколько заявок сейчас
+ * открыто, — а не оставляет голое число.
+ *
+ * Старый бэкенд этих полей не отдаёт: тогда прочерк, а не ноль, иначе
+ * отсутствие данных читалось бы как «просрочек нет».
+ */
+export function describeOpenOverdue(metrics: SlaMetricsView): string {
+  if (metrics.openOverdueCount == null || metrics.openCount == null) {
+    return 'нет данных по открытым заявкам'
+  }
+  if (metrics.openCount === 0) return 'открытых заявок нет'
+  return `из ${metrics.openCount} открытых`
+}
+
+/** Текущая просрочка числом. Прочерк, если бэкенд её не отдал. */
+export function formatOpenOverdue(metrics: SlaMetricsView): string {
+  if (metrics.openOverdueCount == null) return NO_DATA
+  return String(metrics.openOverdueCount)
 }
 
 /**

@@ -815,7 +815,13 @@ export class AnalyticsService {
       slaBreachedAt: row.slaBreachedAt ?? null,
     }))
 
-    const slaByLocation = computeSlaByLocation(slaTickets)
+    /*
+     * Один момент «сейчас» на весь ответ. Иначе текущая просрочка по
+     * организации, городу и точке посчиталась бы по разным меткам времени, и
+     * цифры в одном ответе не сошлись бы между собой.
+     */
+    const slaNow = new Date()
+    const slaByLocation = computeSlaByLocation(slaTickets, slaNow)
 
     const items = locations
       .map((loc) => {
@@ -876,7 +882,7 @@ export class AnalyticsService {
      * Тождество: сумма по городам + withoutLocationTickets === totalTickets.
      * Точки, отброшенные порогом, дают нули и на сумму не влияют.
      */
-    const cityGroups = buildCityAggregates(items, slaTickets)
+    const cityGroups = buildCityAggregates(items, slaTickets, slaNow)
 
     /*
      * Разница между итогом области и суммой показанных строк.
@@ -907,7 +913,7 @@ export class AnalyticsService {
         canceledTotal,
         ticketsOutsideRows,
         /** A3: SLA по организации — по всем заявкам области, включая заявки без точки. */
-        sla: computeSlaMetrics(slaTickets),
+        sla: computeSlaMetrics(slaTickets, slaNow),
       },
       meta: { scopeCompanyId, visibilityMode: scope.visibilityMode, workforceCompanyId },
     }

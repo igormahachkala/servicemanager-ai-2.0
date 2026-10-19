@@ -11,8 +11,10 @@ import {
   toggleLocationSelection,
 } from '../lib/locationAnalyticsGrouping'
 import {
+  describeOpenOverdue,
   describeSlaBasis,
   formatMinutes,
+  formatOpenOverdue,
   formatSlaRatio,
   pickSlaForScope,
 } from '../lib/slaFormat'
@@ -318,19 +320,33 @@ export function LocationAnalyticsPage() {
               </div>
               <div className="muted small">{describeSlaBasis(scopeSla)}</div>
             </div>
+            {/*
+              Решение владельца: текущая просрочка открытых заявок и
+              исторические нарушения — ДВЕ РАЗНЫЕ величины, и показываются
+              двумя отдельными карточками. Исторический признак остаётся у
+              заявки навсегда, в том числе у закрытой; текущая просрочка
+              считается от срока и «сейчас» и у закрытой невозможна.
+            */}
             <div>
-              <div className="muted small">Нарушения SLA</div>
+              <div className="muted small">Просрочено сейчас</div>
               <div
                 style={{
                   fontSize: 22,
                   fontWeight: 800,
                   marginTop: 2,
-                  color: scopeSla.slaBreaches > 0 ? '#dc2626' : undefined,
+                  color: (scopeSla.openOverdueCount ?? 0) > 0 ? '#dc2626' : undefined,
                 }}
               >
+                {formatOpenOverdue(scopeSla)}
+              </div>
+              <div className="muted small">{describeOpenOverdue(scopeSla)}</div>
+            </div>
+            <div>
+              <div className="muted small">Нарушения SLA за период</div>
+              <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>
                 {fmtNumber(scopeSla.slaBreaches)}
               </div>
-              <div className="muted small">по признаку просрочки</div>
+              <div className="muted small">исторический признак, включая закрытые</div>
             </div>
           </div>
           {typeof summary?.ticketsOutsideRows === 'number' && summary.ticketsOutsideRows > 0 ? (
