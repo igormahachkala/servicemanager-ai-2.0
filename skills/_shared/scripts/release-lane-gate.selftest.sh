@@ -89,6 +89,9 @@ new_lock prod-busy feat/release-lane-fixture 7
 new_stage_ok feat/release-lane-fixture "$CANDIDATE_SHA" "$CANDIDATE_SHA"
 
 expect_pass "valid beta release" beta feat/release-lane-fixture "$CANDIDATE_SHA" 8
+git -C "$WORK" push -q origin :refs/tags/stage-busy
+expect_fail "missing stage lock denied" 'stage-busy is missing or unreadable' beta feat/release-lane-fixture "$CANDIDATE_SHA" 8
+new_lock stage-busy feat/release-lane-fixture 7
 set_prod
 expect_pass "valid production release" production feat/release-lane-fixture "$CANDIDATE_SHA" 8
 new_tag "stage-ok/feat/release-lane-fixture" $'Stage acceptance passed\nbranch: feat/release-lane-fixture\nbranch_sha: '"$CANDIDATE_SHA"$'\nstage_sha: '"$CANDIDATE_SHA"$'\ncriterion: missing tree'

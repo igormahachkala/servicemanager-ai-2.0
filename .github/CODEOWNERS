@@ -23,6 +23,8 @@
 /skills/_shared/scripts/prod-readiness.selftest.sh @igormahachkala
 /skills/_shared/scripts/release-lane-gate.sh @igormahachkala
 /skills/_shared/scripts/release-lane-gate.selftest.sh @igormahachkala
+/skills/_shared/scripts/release-lane-tag-fetch.sh @igormahachkala
+/skills/_shared/scripts/release-lane-tag-fetch.selftest.sh @igormahachkala
 /skills/_shared/scripts/release-lane-governance.sh @igormahachkala
 /skills/_shared/scripts/release-lane-governance.selftest.sh @igormahachkala
 /skills/_shared/scripts/release-lane-bootstrap-check.sh @igormahachkala

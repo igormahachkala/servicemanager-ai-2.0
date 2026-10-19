@@ -39,6 +39,12 @@ if grep -Fq ': >"$tmp/prod-lock.json"' "$workflow" \
 else
   fail "beta workflow path materializes both lock metadata files"
 fi
+if grep -Fq 'release-lane-tag-fetch.sh stage-busy' "$workflow" \
+  && grep -Fq 'release-lane-tag-fetch.sh prod-busy' "$workflow"; then
+  pass "trusted workflow uses controlled fail-closed lock acquisition"
+else
+  fail "trusted workflow uses controlled fail-closed lock acquisition"
+fi
 if grep -Fq 'pull_request_target:' "$workflow" \
   && grep -Fq 'ref: ${{ github.event.pull_request.base.ref }}' "$workflow" \
   && grep -Fq 'persist-credentials: false' "$workflow" \

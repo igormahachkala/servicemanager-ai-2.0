@@ -52,12 +52,12 @@ jobs:
             prod) contour=production ;;
             *) echo "Unsupported PR base: $base_ref" >&2; exit 1 ;;
           esac
-          git fetch -q --no-tags --force origin refs/tags/stage-busy:refs/tags/stage-busy
+          skills/_shared/scripts/release-lane-tag-fetch.sh stage-busy
           stage_pr="$(git cat-file -p refs/tags/stage-busy | sed -n '/^$/,$p' | sed '1d' | awk -F': ' '$1 == "pr" { print $2; exit }')"
           test -n "$stage_pr"
           gh api "repos/$REPOSITORY/pulls/$stage_pr" >"$tmp/stage-lock.json"
           if [[ "$contour" == production ]]; then
-            git fetch -q --no-tags --force origin refs/tags/prod-busy:refs/tags/prod-busy
+            skills/_shared/scripts/release-lane-tag-fetch.sh prod-busy
             prod_pr="$(git cat-file -p refs/tags/prod-busy | sed -n '/^$/,$p' | sed '1d' | awk -F': ' '$1 == "pr" { print $2; exit }')"
             test -n "$prod_pr"
             gh api "repos/$REPOSITORY/pulls/$prod_pr" >"$tmp/prod-lock.json"
