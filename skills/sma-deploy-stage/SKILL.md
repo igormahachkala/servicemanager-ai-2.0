@@ -564,11 +564,19 @@ git tag -a stage-ok/&lt;исходная feat-ветка&gt; $(git rev-parse ori
 branch: &lt;исходная feat-ветка&gt;
 branch_sha: &lt;B&gt;
 stage_sha: &lt;M — коммит, развёрнутый на Stage во время приёмки&gt;
+stage_tree: &lt;точный Git tree stage_sha^{tree}&gt;
 criterion: &lt;критерий приёмки&gt;
 checks: &lt;перечень пройденных наборов&gt;
 date: &lt;дата&gt;"
 git push origin stage-ok/&lt;исходная feat-ветка&gt;
 </command>
+<contract>
+Поля branch, branch_sha, stage_sha и stage_tree обязательны. branch_sha — точная
+вершина исходной feat-ветки, на которую указывает тег. stage_sha — фактический
+коммит слияния, развёрнутый на Stage; stage_tree обязан в точности равняться
+`git rev-parse &lt;stage_sha&gt;^{tree}`. Приёмка считается недействительной, если
+кандидат не является предком stage_sha или stage_tree отсутствует/не совпадает.
+</contract>
 <rationale>
 Три коммита: вершина исходной feat-ветки B, слияние с beta M, слияние
 с prod. Приёмка идёт на M, но M в prod не попадает никогда. Общий объект
