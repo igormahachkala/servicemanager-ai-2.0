@@ -1,7 +1,7 @@
 import { TicketStatus, TicketUrgency, UserRole, WorkLogStatus, WorkShiftStatus } from '@prisma/client'
 
 import { REASON_LABELS } from './planner.scoring'
-import { PlannerService } from './planner.service'
+import { PlannerService, resolveClientScope } from './planner.service'
 
 const TECH_ID = 'tech-1'
 const PROVIDER_ID = 'provider-1'
@@ -346,5 +346,178 @@ describe('PlannerService.getMyNext', () => {
         where: expect.objectContaining({ status: WorkShiftStatus.OPEN }),
       }),
     )
+  })
+
+  it('с linkedClientCompanyId считает только этот контур (один board)', async () => {
+    const boardByLinkedClient = new Map<string | undefined, any>([
+      [
+        CLIENT_A,
+        boardWithCards([
+          ticketCard({
+            id: 'a-ticket',
+            status: TicketStatus.ASSIGNED,
+            assignedTechnicianId: TECH_ID,
+            company: { id: CLIENT_A, name: 'Клиент А' },
+            location: { id: LOC_A, name: 'А', city: null, address: 'a' },
+          }),
+        ]),
+      ],
+      [
+        CLIENT_B,
+        boardWithCards([
+          ticketCard({
+            id: 'b-ticket',
+            status: TicketStatus.ASSIGNED,
+            assignedTechnicianId: TECH_ID,
+            urgency: TicketUrgency.URGENT,
+            company: { id: CLIENT_B, name: 'Клиент Б' },
+            location: { id: LOC_B, name: 'Б', city: null, address: 'b' },
+          }),
+        ]),
+      ],
+    ])
+
+    const { service, ticketsQuery } = makeService({
+      contexts: [
+        { clientCompany: { id: CLIENT_A, name: 'Клиент А' } },
+        { clientCompany: { id: CLIENT_B, name: 'Клиент Б' } },
+      ],
+      boardByLinkedClient,
+      domainEvents: [],
+    })
+
+    const result = await service.getMyNext({
+      ...actor,
+      linkedClientCompanyId: CLIENT_A,
+    })
+    expect(ticketsQuery.board).toHaveBeenCalledTimes(1)
+    expect(ticketsQuery.board.mock.calls[0][5]).toBe(CLIENT_A)
+    expect(result.shiftOpen).toBe(true)
+    if (!result.shiftOpen) return
+    const ids = [result.first, ...result.next]
+      .filter(Boolean)
+      .flatMap((o) => o!.works)
+      .map((w) => w.id)
+    expect(ids).toEqual(['a-ticket'])
+    expect(ids).not.toContain('b-ticket')
+  })
+
+  it('чужой linkedClientCompanyId — пустой ответ, board не зовётся', async () => {
+    const { service, ticketsQuery } = makeService({
+      contexts: [{ clientCompany: { id: CLIENT_A, name: 'Клиент А' } }],
+      board: boardWithCards([
+        ticketCard({
+          id: 'a-ticket',
+          status: TicketStatus.ASSIGNED,
+          assignedTechnicianId: TECH_ID,
+        }),
+      ]),
+    })
+
+    const result = await service.getMyNext({
+      ...actor,
+      linkedClientCompanyId: CLIENT_B,
+    })
+    expect(ticketsQuery.board).not.toHaveBeenCalled()
+    expect(result).toEqual({
+      shiftOpen: true,
+      currentLocationId: null,
+      first: null,
+      next: [],
+    })
+  })
+
+  it('обход чужого клиента отфильтровывается при scope', async () => {
+    const { service } = makeService({
+      contexts: [
+        { clientCompany: { id: CLIENT_A, name: 'Клиент А' } },
+        { clientCompany: { id: CLIENT_B, name: 'Клиент Б' } },
+      ],
+      boardByLinkedClient: new Map([
+        [CLIENT_A, boardWithCards([])],
+        [CLIENT_B, boardWithCards([])],
+      ]),
+      schedules: [
+        {
+          id: 'insp-b',
+          name: 'Обход Б',
+          isActive: true,
+          nextDueAt: new Date(Date.now() - 60_000),
+          leadTimeDays: 0,
+          intervalDays: 7,
+          frequency: 'WEEKLY',
+          assignedToUserId: TECH_ID,
+          location: {
+            id: LOC_B,
+            name: 'Б',
+            city: null,
+            address: 'b',
+            clientCompanyId: CLIENT_B,
+          },
+        },
+        {
+          id: 'insp-a',
+          name: 'Обход А',
+          isActive: true,
+          nextDueAt: new Date(Date.now() - 60_000),
+          leadTimeDays: 0,
+          intervalDays: 7,
+          frequency: 'WEEKLY',
+          assignedToUserId: TECH_ID,
+          location: {
+            id: LOC_A,
+            name: 'А',
+            city: null,
+            address: 'a',
+            clientCompanyId: CLIENT_A,
+          },
+        },
+      ],
+      domainEvents: [],
+    })
+
+    const result = await service.getMyNext({
+      ...actor,
+      linkedClientCompanyId: CLIENT_A,
+    })
+    expect(result.shiftOpen).toBe(true)
+    if (!result.shiftOpen) return
+    const ids = [result.first, ...result.next]
+      .filter(Boolean)
+      .flatMap((o) => o!.works)
+      .map((w) => w.id)
+    expect(ids).toEqual(['insp-a'])
+    expect(ids).not.toContain('insp-b')
+  })
+})
+
+describe('resolveClientScope', () => {
+  const contexts = [
+    { clientCompany: { id: CLIENT_A, name: 'А' } },
+    { clientCompany: { id: CLIENT_B, name: 'Б' } },
+  ]
+
+  it('без запроса — все контуры', () => {
+    expect(resolveClientScope(contexts, null)).toEqual({
+      denied: false,
+      linkedClientIds: [CLIENT_A, CLIENT_B],
+      scopedClientId: null,
+    })
+  })
+
+  it('с запросом — один контур', () => {
+    expect(resolveClientScope(contexts, CLIENT_A)).toEqual({
+      denied: false,
+      linkedClientIds: [CLIENT_A],
+      scopedClientId: CLIENT_A,
+    })
+  })
+
+  it('чужой запрос — denied', () => {
+    expect(resolveClientScope(contexts, 'other')).toEqual({
+      denied: true,
+      linkedClientIds: [],
+      scopedClientId: null,
+    })
   })
 })

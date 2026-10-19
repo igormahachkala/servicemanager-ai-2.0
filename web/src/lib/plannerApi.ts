@@ -36,6 +36,26 @@ export type PlannerNextResponse =
       next: PlannerNextObject[]
     }
 
-export function getPlannerMeNext(): Promise<PlannerNextResponse> {
-  return request<PlannerNextResponse>('/planner/me/next')
+/** Ключ кэша React Query: один расчёт на компанию-клиента за сессию. */
+export function plannerMeNextQueryKey(linkedClientCompanyId?: string | null) {
+  return ['planner-me-next', (linkedClientCompanyId || '').trim()] as const
+}
+
+/**
+ * Пока кэш не инвалидирован (claim / смена статуса), повторный заход
+ * на ту же компанию-клиента не дергает /planner/me/next.
+ */
+export const PLANNER_ME_NEXT_CACHE = {
+  staleTime: Infinity,
+  gcTime: Infinity,
+  refetchOnMount: false as const,
+  refetchOnWindowFocus: false as const,
+}
+
+export function getPlannerMeNext(linkedClientCompanyId?: string | null): Promise<PlannerNextResponse> {
+  const linked = (linkedClientCompanyId || '').trim()
+  const search = new URLSearchParams()
+  if (linked) search.set('linkedClientCompanyId', linked)
+  const qs = search.toString()
+  return request<PlannerNextResponse>(`/planner/me/next${qs ? `?${qs}` : ''}`)
 }
