@@ -3,7 +3,13 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, useLocation } from 'react-router-dom'
 
 import * as api from '../../lib/api'
-import { getPlannerMeNext, type PlannerNextObject, type PlannerNextWork } from '../../lib/plannerApi'
+import {
+  getPlannerMeNext,
+  PLANNER_ME_NEXT_CACHE,
+  plannerMeNextQueryKey,
+  type PlannerNextObject,
+  type PlannerNextWork,
+} from '../../lib/plannerApi'
 import { compactTicketScope, mobileTicketNavState } from '../mobileTicketDisplay'
 import { inspectionNavSuffix, mobilePath } from '../mobileRoute'
 import { useLocationRouteLabels } from '../useLocationRouteLabels'
@@ -36,23 +42,22 @@ function ObjectPreview({ obj }: { obj: PlannerNextObject }) {
 
 /**
  * Карточка «Первый / Следующий объект» для техника на главной.
- * Запрос GET /planner/me/next; без сети и без смены / first — не рендерится.
- * Сворачивается. Под адресом — «До объекта · …» через ticket routes. Список работ — до 5.
+ * Запрос GET /planner/me/next в scope выбранного клиента.
+ * Кэш на компанию-клиента: смена A→B→A не пересчитывает A повторно
+ * (пока нет invalidate от claim / смены статуса).
  */
 export function HomeNextObjectCard({ role, isOnline, me, pageScope }: Props) {
   const location = useLocation()
   const [expanded, setExpanded] = useState(true)
+  const linkedClientCompanyId = (pageScope.linkedClientCompanyId || '').trim()
   const enabled = role === 'TECHNICIAN' && isOnline
 
   const nextQ = useQuery({
-    queryKey: ['planner-me-next'],
-    queryFn: getPlannerMeNext,
+    queryKey: plannerMeNextQueryKey(linkedClientCompanyId),
+    queryFn: () => getPlannerMeNext(linkedClientCompanyId || undefined),
     enabled,
-    staleTime: 15_000,
-    refetchOnWindowFocus: true,
-    refetchOnMount: 'always',
+    ...PLANNER_ME_NEXT_CACHE,
     networkMode: 'online',
-    gcTime: 0,
   })
 
   const first =

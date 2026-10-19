@@ -1,4 +1,4 @@
-import { Controller, Get, Req, UseGuards } from '@nestjs/common'
+import { Controller, Get, Query, Req, UseGuards } from '@nestjs/common'
 import { ApiForbiddenResponse } from '@nestjs/swagger'
 import { UserRole } from '@prisma/client'
 
@@ -22,12 +22,13 @@ export class PlannerController {
   @ApiForbiddenResponse({
     description: 'Missing permission: TICKETS_VIEW',
   })
-  getMyNext(@Req() req: any) {
+  getMyNext(@Req() req: any, @Query('linkedClientCompanyId') linkedClientCompanyId?: string) {
     return this.planner.getMyNext({
       companyId: req.user.companyId,
       userId: req.user.id,
       role: req.user.role as UserRole,
       accessFlags: req.accessFlags,
+      linkedClientCompanyId,
     })
   }
 }
