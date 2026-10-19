@@ -1,27 +1,51 @@
 /**
- * Stage / ops: создать PLATFORM_ADMIN и при необходимости платформенную компанию.
+ * SMA-SECURITY-P1 — единственный путь первоначального создания PLATFORM_ADMIN.
  *
- * Пароль только из окружения (не хардкодить в репозитории).
- * Хеш — bcrypt cost 10, как в AuthService.register / ensurePlatformAdmin.
+ * Раньше ту же сущность мог создать обычный вход: AuthService.login() вызывал
+ * ensurePlatformAdmin() до проверки пароля, поэтому любой неаутентифицированный
+ * POST /auth/login при настроенных PLATFORM_ADMIN_* создавал привилегированного
+ * пользователя и платформенную компанию, а удаление аккаунта не держалось.
+ * Этот путь убран. Остался только осознанный операторский запуск — вот этот.
  *
- * Запуск из контейнера backend (WORKDIR /app):
+ * Что скрипт НЕ делает:
+ *   - не меняет пароль действующего аккаунта;
+ *   - не повышает роль существующему пользователю;
+ *   - не удаляет и не деактивирует ничего;
+ *   - не печатает пароль и не печатает аргументы запросов при ошибке.
  *
- *   docker exec -it sma_stage_backend sh -lc '
- *   PLATFORM_ADMIN_EMAIL="admin@stage.local" \
- *   PLATFORM_ADMIN_PASSWORD="CHANGE_ME_STAGE_PASSWORD" \
- *   npx ts-node scripts/create-platform-admin.ts
+ * Повторный запуск безопасен: действующий PLATFORM_ADMIN остаётся как есть.
+ *
+ * ── Запуск ──────────────────────────────────────────────────────────────────
+ *
+ * В production-образе devDependencies нет, поэтому ts-node не нужен — скрипт
+ * собирается вместе с бэкендом и запускается обычным node:
+ *
+ *   docker exec -i <backend> sh -lc '
+ *     PLATFORM_ADMIN_BOOTSTRAP_CONFIRM=create-platform-admin \
+ *     PLATFORM_ADMIN_EMAIL="admin@example.com" \
+ *     PLATFORM_ADMIN_PASSWORD="<из защищённого хранилища>" \
+ *     node dist/scripts/create-platform-admin.js
  *   '
  *
- * Если `npx ts-node` недоступен в образе (npm ci --omit=dev):
- *   - временно: `docker exec ... npm install ts-node typescript --no-save` (не для prod), или
- *   - задать PLATFORM_ADMIN_EMAIL + PLATFORM_ADMIN_PASSWORD в env контейнера и выполнить любой успешный
- *     POST /auth/login с этими учётными данными — AuthService.login вызовет ensurePlatformAdmin() и создаст ту же сущность.
+ * В окружении разработки доступен и ts-node: `npm run platform:admin:create`.
+ *
+ * Пароль задаётся только через окружение и только на время запуска. Не
+ * прописывать его в compose, не оставлять в истории команд (см.
+ * docs/PLATFORM_ADMIN_RECOVERY.md — там разобран безопасный ввод).
  */
 
 import { PrismaClient, CompanyType, UserRole } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
 
+import {
+  BOOTSTRAP_CONFIRM_ENV,
+  decidePlatformAdminBootstrap,
+  describeBootstrapFailure,
+} from '../src/auth/platform-admin-bootstrap'
+
 const prisma = new PrismaClient()
+
+/* eslint-disable no-console */
 
 async function main() {
   const email = (process.env.PLATFORM_ADMIN_EMAIL || '').trim().toLowerCase()
@@ -30,27 +54,36 @@ async function main() {
   const lastName = (process.env.PLATFORM_ADMIN_LAST_NAME || 'Admin').trim()
   const companyName = (process.env.PLATFORM_COMPANY_NAME || 'СМА-Тех').trim()
   const timezone = (process.env.PLATFORM_COMPANY_TIMEZONE || 'UTC').trim() || 'UTC'
+  const confirm = process.env[BOOTSTRAP_CONFIRM_ENV]
 
-  if (!email || !password) {
-    // eslint-disable-next-line no-console
-    console.error('[create-platform-admin] Set PLATFORM_ADMIN_EMAIL and PLATFORM_ADMIN_PASSWORD')
-    process.exit(1)
-  }
+  /*
+   * Запрос в базу делается только когда есть и подтверждение, и учётные
+   * данные: без них решение уже отрицательное, и трогать базу незачем.
+   */
+  const existingUser =
+    confirm && email
+      ? await prisma.user.findUnique({
+          where: { email },
+          select: { id: true, role: true },
+        })
+      : null
 
-  const existing = await prisma.user.findUnique({
-    where: { email },
-    select: { id: true, role: true },
-  })
-  if (existing) {
-    if (existing.role !== UserRole.PLATFORM_ADMIN) {
-      // eslint-disable-next-line no-console
-      console.error(`[create-platform-admin] Refusing: ${email} already exists as ${existing.role}`)
-      process.exit(1)
-    }
-    // eslint-disable-next-line no-console
-    console.log(`[create-platform-admin] Already exists (PLATFORM_ADMIN): ${email}`)
+  const decision = decidePlatformAdminBootstrap({ email, password, confirm, existingUser })
+
+  if (decision.action === 'refuse') {
+    console.error(`[create-platform-admin] refused: ${decision.reason}`)
+    process.exitCode = 1
     return
   }
+
+  if (decision.action === 'noop') {
+    console.log(`[create-platform-admin] no changes: ${decision.reason}`)
+    return
+  }
+
+  // Оператор видит, в какую базу пишет: имя базы не секрет, а ошибиться контуром легко.
+  const target = await prisma.$queryRaw<Array<{ db: string }>>`SELECT current_database() AS db`
+  console.log(`[create-platform-admin] target database: ${target[0]?.db ?? 'unknown'}`)
 
   const passwordHash = await bcrypt.hash(password, 10)
 
@@ -70,11 +103,9 @@ async function main() {
       },
       select: { id: true },
     })
-    // eslint-disable-next-line no-console
-    console.log(`[create-platform-admin] Created company: ${companyName}`)
+    console.log(`[create-platform-admin] created company: ${companyName}`)
   } else {
-    // eslint-disable-next-line no-console
-    console.log(`[create-platform-admin] Using company: ${companyName}`)
+    console.log(`[create-platform-admin] using company: ${companyName}`)
   }
 
   await prisma.user.create({
@@ -89,15 +120,18 @@ async function main() {
       isActive: true,
     },
   })
-  // eslint-disable-next-line no-console
-  console.log(`[create-platform-admin] Created user: ${email} (PLATFORM_ADMIN)`)
+  console.log(`[create-platform-admin] created user: ${email} (PLATFORM_ADMIN)`)
 }
 
 main()
   .catch((e) => {
-    // eslint-disable-next-line no-console
-    console.error('[create-platform-admin] failed', e)
-    process.exit(1)
+    /*
+     * Только класс и код ошибки. Полный объект Prisma включает аргументы
+     * вызова, а среди них поле password с хешем — в журнал оно попасть
+     * не должно.
+     */
+    console.error(`[create-platform-admin] failed: ${describeBootstrapFailure(e)}`)
+    process.exitCode = 1
   })
   .finally(async () => {
     await prisma.$disconnect()

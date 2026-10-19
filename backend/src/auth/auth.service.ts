@@ -102,8 +102,20 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    await this.ensurePlatformAdmin()
-
+    /*
+     * SMA-SECURITY-P1.
+     *
+     * Здесь раньше стоял вызов ensurePlatformAdmin(): на КАЖДЫЙ
+     * неаутентифицированный POST /auth/login система, при настроенных
+     * PLATFORM_ADMIN_* в окружении, могла создать привилегированного
+     * пользователя и платформенную компанию. Создание шло до проверки пароля,
+     * то есть запускалось любым запросом с любыми учётными данными, а удаление
+     * аккаунта не держалось: следующий же запрос воссоздавал его.
+     *
+     * Единственный путь первоначального создания теперь — операторский запуск
+     * scripts/create-platform-admin.ts с явным подтверждением. Вход ничего не
+     * создаёт и не повышает прав; см. docs/PLATFORM_ADMIN_RECOVERY.md.
+     */
     const email = dto.email.toLowerCase().trim()
     const password = dto.password.trim()
 
@@ -305,63 +317,6 @@ export class AuthService {
   // Temporary demo bootstrap: ensures one PLATFORM_ADMIN exists from env.
   // Long-term this should move to an explicit seed/init flow, but it stays here
   // for now to keep closed onboarding operable in demo deployments.
-  private async ensurePlatformAdmin() {
-    const email = (process.env.PLATFORM_ADMIN_EMAIL || '').trim().toLowerCase()
-    const password = (process.env.PLATFORM_ADMIN_PASSWORD || '').trim()
-    const firstName = (process.env.PLATFORM_ADMIN_FIRST_NAME || 'Platform').trim()
-    const lastName = (process.env.PLATFORM_ADMIN_LAST_NAME || 'Admin').trim()
-    const companyName = (process.env.PLATFORM_COMPANY_NAME || 'СМА-Тех').trim()
-    const timezone = (process.env.PLATFORM_COMPANY_TIMEZONE || 'UTC').trim() || 'UTC'
-
-    if (!email && !password) return
-    if (!email || !password) {
-      throw new BadRequestException('PLATFORM_ADMIN_EMAIL and PLATFORM_ADMIN_PASSWORD must be configured together')
-    }
-
-    const existing = await this.prisma.user.findUnique({
-      where: { email },
-      select: { id: true },
-    })
-
-    if (existing) return
-
-    const passwordHash = await bcrypt.hash(password, 10)
-
-    const company = await this.prisma.company.findFirst({
-      where: { name: companyName },
-      select: { id: true },
-    })
-
-    const companyId =
-      company?.id ??
-      (
-        await this.prisma.company.create({
-          data: {
-            name: companyName,
-            type: CompanyType.PROVIDER,
-            timezone,
-            publicRequestEnabled: false,
-            publicRequestToken: null,
-            publicRequestIntro: null,
-          },
-          select: { id: true },
-        })
-      ).id
-
-    await this.prisma.user.create({
-      data: {
-        company: { connect: { id: companyId } },
-        email,
-        password: passwordHash,
-        firstName: firstName || 'Platform',
-        lastName: lastName || 'Admin',
-        avatarUrl: null,
-        role: UserRole.PLATFORM_ADMIN,
-        isActive: true,
-      },
-    })
-  }
-
   private issueAuthPayload(user: {
     id: string
     email: string
