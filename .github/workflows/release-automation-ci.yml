@@ -1,0 +1,135 @@
+name: Release Automation CI
+
+on:
+  pull_request:
+    branches:
+      - beta
+      - prod
+  push:
+    branches:
+      - beta
+      - prod
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-automation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: "true"
+
+jobs:
+  shell-quality:
+    name: Shell quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out merge result
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y shellcheck
+          shellcheck --version
+
+      - name: Check shell syntax
+        run: |
+          mapfile -t files < <(skills/_shared/scripts/run-release-automation-selftests.sh --list-files)
+          ((${#files[@]} > 0))
+          bash -n "${files[@]}"
+
+      - name: Run ShellCheck
+        run: |
+          mapfile -t files < <(skills/_shared/scripts/run-release-automation-selftests.sh --list-files)
+          ((${#files[@]} > 0))
+          shellcheck --severity=warning -x "${files[@]}"
+
+      - name: Check patch whitespace
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            base="$PR_BASE_SHA"
+          elif [[ -n "$PUSH_BEFORE_SHA" && ! "$PUSH_BEFORE_SHA" =~ ^0+$ ]]; then
+            base="$PUSH_BEFORE_SHA"
+          else
+            base="HEAD^"
+          fi
+          git diff --check "$base" HEAD
+
+  self-tests:
+    name: A1-A7 self-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out merge result
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Run available A1-A7 self-tests
+        run: skills/_shared/scripts/run-release-automation-selftests.sh
+
+      - name: Verify repository was not mutated
+        run: test -z "$(git status --porcelain --untracked-files=all)"
+
+  protocol-regression:
+    name: Protocol regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out merge result
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Run release protocol regressions
+        run: skills/_shared/scripts/release-automation-protocol.selftest.sh
+
+      - name: Verify repository was not mutated
+        run: test -z "$(git status --porcelain --untracked-files=all)"
+
+  a4-prisma:
+    name: A4 Prisma integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out merge result
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        if: ${{ hashFiles('skills/_shared/scripts/merge-check-env.selftest.sh') != '' }}
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "20"
+
+      - name: Install backend dependencies without lifecycle scripts
+        if: ${{ hashFiles('skills/_shared/scripts/merge-check-env.selftest.sh') != '' }}
+        working-directory: backend
+        run: npm ci --ignore-scripts
+
+      - name: Run A4 Prisma integration
+        run: |
+          test_script=skills/_shared/scripts/merge-check-env.selftest.sh
+          if [[ -f "$test_script" ]]; then
+            bash "$test_script" backend
+          else
+            echo "SKIP A4: implementation has not reached this merge result yet"
+          fi
+
+      - name: Verify no environment file or source change was created
+        run: |
+          test ! -e backend/.env
+          test -z "$(git status --porcelain --untracked-files=all)"
