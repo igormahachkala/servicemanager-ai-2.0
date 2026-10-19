@@ -24,6 +24,16 @@ function validate(value: LocationFormValue) {
   return null
 }
 
+function suggestCoordsPatch(value: LocationFormValue): {
+  latitude?: number
+  longitude?: number
+} {
+  if (typeof value.latitude === 'number' && typeof value.longitude === 'number') {
+    return { latitude: value.latitude, longitude: value.longitude }
+  }
+  return {}
+}
+
 function toCreateInput(value: LocationFormValue): api.CreateLocationInput {
   return {
     name: normalizeText(value.name),
@@ -31,6 +41,7 @@ function toCreateInput(value: LocationFormValue): api.CreateLocationInput {
     address: normalizeText(value.address) || undefined,
     platformCode: normalizeText(value.pointNumber),
     isActive: value.isActive,
+    ...suggestCoordsPatch(value),
   }
 }
 
@@ -40,6 +51,7 @@ function toUpdateInput(value: LocationFormValue): api.UpdateLocationInput {
     city: normalizeText(value.city) || null,
     address: normalizeText(value.address) || null,
     platformCode: normalizeText(value.pointNumber),
+    ...suggestCoordsPatch(value),
   }
 }
 
