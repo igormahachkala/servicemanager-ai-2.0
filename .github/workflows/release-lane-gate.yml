@@ -1,0 +1,117 @@
+name: Trusted Release Lane Gate
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    branches: [beta, prod]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: release-lane-${{ github.event.pull_request.base.ref }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  release-lane-gate:
+    name: Release lane gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted base only
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.base.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Admit release lane
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" >"$tmp/pr.json"
+          python3 - "$tmp/pr.json" "$REPOSITORY" "$PR_NUMBER" >"$tmp/fields" <<'PY'
+          import json, sys
+          d = json.load(open(sys.argv[1]))
+          repo, number = sys.argv[2:]
+          assert str(d["number"]) == number
+          assert d["base"]["repo"]["full_name"] == repo
+          assert d["head"]["repo"]["full_name"] == repo
+          assert isinstance(d.get("merge_commit_sha"), str)
+          print("\t".join((d["base"]["ref"], d["base"]["sha"], d["head"]["ref"], d["head"]["sha"], d["head"]["repo"]["full_name"], d["merge_commit_sha"])))
+          PY
+          IFS=$'\t' read -r base_ref base_sha branch head_sha head_repo merge_sha <"$tmp/fields"
+          case "$base_ref" in
+            beta) contour=beta ;;
+            prod) contour=production ;;
+            *) echo "Unsupported PR base: $base_ref" >&2; exit 1 ;;
+          esac
+          git fetch -q --no-tags --force origin refs/tags/stage-busy:refs/tags/stage-busy
+          stage_pr="$(git cat-file -p refs/tags/stage-busy | sed -n '/^$/,$p' | sed '1d' | awk -F': ' '$1 == "pr" { print $2; exit }')"
+          test -n "$stage_pr"
+          gh api "repos/$REPOSITORY/pulls/$stage_pr" >"$tmp/stage-lock.json"
+          if [[ "$contour" == production ]]; then
+            git fetch -q --no-tags --force origin refs/tags/prod-busy:refs/tags/prod-busy
+            prod_pr="$(git cat-file -p refs/tags/prod-busy | sed -n '/^$/,$p' | sed '1d' | awk -F': ' '$1 == "pr" { print $2; exit }')"
+            test -n "$prod_pr"
+            gh api "repos/$REPOSITORY/pulls/$prod_pr" >"$tmp/prod-lock.json"
+          else
+            : >"$tmp/prod-lock.json"
+          fi
+          : >"$tmp/prod-lock-final.json"
+          gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" >"$tmp/pr-final.json"
+          gh api "repos/$REPOSITORY/pulls/$stage_pr" >"$tmp/stage-lock-final.json"
+          if [[ "$contour" == production ]]; then
+            gh api "repos/$REPOSITORY/pulls/$prod_pr" >"$tmp/prod-lock-final.json"
+          fi
+          python3 - "$tmp/pr.json" "$tmp/pr-final.json" "$tmp/stage-lock.json" "$tmp/stage-lock-final.json" "$tmp/prod-lock.json" "$tmp/prod-lock-final.json" <<'PY'
+          import json, sys
+          def critical(path):
+              d=json.load(open(path))
+              return (d.get("number"), d.get("base",{}).get("ref"), d.get("base",{}).get("sha"), d.get("head",{}).get("ref"), d.get("head",{}).get("sha"), d.get("head",{}).get("repo",{}).get("full_name"), d.get("merge_commit_sha"))
+          assert critical(sys.argv[1]) == critical(sys.argv[2])
+          assert critical(sys.argv[3]) == critical(sys.argv[4])
+          if open(sys.argv[5]).read().strip():
+              assert open(sys.argv[6]).read().strip()
+              assert critical(sys.argv[5]) == critical(sys.argv[6])
+          PY
+          skills/_shared/scripts/release-lane-gate.sh \
+            "$contour" "$branch" "$head_sha" "$PR_NUMBER" \
+            --event pull_request --repo "$REPOSITORY" --base-ref "$base_ref" \
+            --base-sha "$base_sha" --head-repo "$head_repo" \
+            --metadata-file "$tmp/pr-final.json" \
+            --lock-metadata-file "$tmp/stage-lock-final.json" \
+            --prod-lock-metadata-file "$tmp/prod-lock-final.json" \
+            --merge-sha "$merge_sha"
+          gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" >"$tmp/pr-post.json"
+          gh api "repos/$REPOSITORY/pulls/$stage_pr" >"$tmp/stage-lock-post.json"
+          if [[ "$contour" == production ]]; then
+            gh api "repos/$REPOSITORY/pulls/$prod_pr" >"$tmp/prod-lock-post.json"
+          else
+            : >"$tmp/prod-lock-post.json"
+          fi
+          python3 - "$tmp/pr-final.json" "$tmp/pr-post.json" "$tmp/stage-lock-final.json" "$tmp/stage-lock-post.json" "$tmp/prod-lock-final.json" "$tmp/prod-lock-post.json" <<'PY'
+          import json, sys
+          def critical(path):
+              d=json.load(open(path))
+              return (d.get("number"), d.get("base",{}).get("ref"), d.get("base",{}).get("sha"), d.get("head",{}).get("ref"), d.get("head",{}).get("sha"), d.get("head",{}).get("repo",{}).get("full_name"), d.get("merge_commit_sha"))
+          assert critical(sys.argv[1]) == critical(sys.argv[2])
+          assert critical(sys.argv[3]) == critical(sys.argv[4])
+          if open(sys.argv[5]).read().strip():
+              assert open(sys.argv[6]).read().strip()
+              assert critical(sys.argv[5]) == critical(sys.argv[6])
+          PY
+          skills/_shared/scripts/release-lane-gate.sh \
+            "$contour" "$branch" "$head_sha" "$PR_NUMBER" \
+            --event pull_request --repo "$REPOSITORY" --base-ref "$base_ref" \
+            --base-sha "$base_sha" --head-repo "$head_repo" \
+            --metadata-file "$tmp/pr-post.json" \
+            --lock-metadata-file "$tmp/stage-lock-post.json" \
+            --prod-lock-metadata-file "$tmp/prod-lock-post.json" \
+            --merge-sha "$merge_sha"
