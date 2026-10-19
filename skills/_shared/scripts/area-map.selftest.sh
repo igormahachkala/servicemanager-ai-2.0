@@ -33,6 +33,8 @@ mkdir -p "$repo/.github/workflows"
 printf '* @owner\n' >"$repo/.github/CODEOWNERS"
 printf 'name: release automation\n' >"$repo/.github/workflows/release-automation-ci.yml"
 printf 'name: trusted release lane gate\n' >"$repo/.github/workflows/release-lane-gate.yml"
+printf 'name: trusted Stage admission\n' >"$repo/.github/workflows/release-stage-admission.yml"
+printf 'name: trusted Production admission\n' >"$repo/.github/workflows/release-production-admission.yml"
 git -C "$repo" add .github
 git -C "$repo" commit -qm approved
 

@@ -1,0 +1,49 @@
+name: Trusted Stage Admission
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Beta pull request number
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-stage-admission
+  cancel-in-progress: false
+
+jobs:
+  admit:
+    name: Stage admission dispatcher
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release-governance
+    steps:
+      - name: Check out trusted default branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Mint source-bound Release Gate App token
+        id: gate-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
+        with:
+          app-id: ${{ vars.RELEASE_GATE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_GATE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+
+      - name: Validate Stage admission and publish candidate check
+        env:
+          GH_TOKEN: ${{ steps.gate-token.outputs.token }}
+          MODE: stage
+          PR_NUMBER: ${{ inputs.pr_number }}
+          REPOSITORY: ${{ github.repository }}
+          REVIEW_APP_ID: ${{ vars.INDEPENDENT_REVIEW_APP_ID }}
+          ADMISSION_CHECK_NAME: Stage admission
+        run: skills/_shared/scripts/release-gate-v2-github.sh

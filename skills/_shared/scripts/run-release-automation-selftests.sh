@@ -18,6 +18,8 @@ CASES=(
   "A6|stage-smoke.sh|stage-smoke.selftest.sh|incremental"
   "A7|prod-readiness.sh|prod-readiness.selftest.sh|incremental"
   "Release lane gate|release-lane-gate.sh|release-lane-gate.selftest.sh|required"
+  "Release System V2 gate|release-gate-v2.sh|release-gate-v2.selftest.sh|required"
+  "Release System V2 workflows|release-gate-v2-github.sh|release-gate-v2-github.selftest.sh|required"
   "Release lane governance|release-lane-governance.sh|release-lane-governance.selftest.sh|required"
   "Release lane bootstrap|release-lane-bootstrap-check.sh|release-lane-bootstrap-check.selftest.sh|required"
 )

@@ -2,6 +2,8 @@
 /.github/CODEOWNERS @igormahachkala
 /.github/workflows/release-automation-ci.yml @igormahachkala
 /.github/workflows/release-lane-gate.yml @igormahachkala
+/.github/workflows/release-stage-admission.yml @igormahachkala
+/.github/workflows/release-production-admission.yml @igormahachkala
 /skills/_shared/scripts/run-release-automation-selftests.sh @igormahachkala
 /skills/_shared/scripts/run-release-automation-selftests.selftest.sh @igormahachkala
 /skills/_shared/scripts/release-automation-protocol.selftest.sh @igormahachkala
@@ -23,6 +25,10 @@
 /skills/_shared/scripts/prod-readiness.selftest.sh @igormahachkala
 /skills/_shared/scripts/release-lane-gate.sh @igormahachkala
 /skills/_shared/scripts/release-lane-gate.selftest.sh @igormahachkala
+/skills/_shared/scripts/release-gate-v2.sh @igormahachkala
+/skills/_shared/scripts/release-gate-v2.selftest.sh @igormahachkala
+/skills/_shared/scripts/release-gate-v2-github.sh @igormahachkala
+/skills/_shared/scripts/release-gate-v2-github.selftest.sh @igormahachkala
 /skills/_shared/scripts/release-lane-governance.sh @igormahachkala
 /skills/_shared/scripts/release-lane-governance.selftest.sh @igormahachkala
 /skills/_shared/scripts/release-lane-bootstrap-check.sh @igormahachkala
