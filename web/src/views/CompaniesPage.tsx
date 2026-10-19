@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
 import { PublicQrModalLazy, downloadQrPosterPng } from '../components/public/PublicQrLazy'
+import { COMPANY_TYPE_LABELS_RU } from '../lib/enumLabelsRu'
 
 type CompanyFormValue = {
   name: string
@@ -238,7 +239,7 @@ export function CompaniesPage() {
 
     if (!adminForm.firstName.trim()) return setErr('Имя обязательно')
     if (!adminForm.lastName.trim()) return setErr('Фамилия обязательна')
-    if (!adminForm.email.trim()) return setErr('Email обязателен')
+    if (!adminForm.email.trim()) return setErr('Эл. почта обязательна')
     if (adminForm.password.trim().length < 8) return setErr('Пароль должен содержать минимум 8 символов')
 
     createAdminM.mutate()
@@ -275,7 +276,7 @@ export function CompaniesPage() {
         <div>
           <h2 style={{ marginBottom: 4 }}>Компании</h2>
           <div className="muted small">
-            Platform control center: создание компаний, observer mode, impersonation и управление public intake.
+            Центр управления платформой: создание компаний, режим наблюдателя, вход под администратором и управление публичным приёмом заявок.
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -294,7 +295,7 @@ export function CompaniesPage() {
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {modeBadge('Observer mode', 'observer')}
-            {modeBadge('Public intake', 'public')}
+            {modeBadge('Публичный приём заявок', 'public')}
           </div>
         </div>
       </div>
@@ -322,8 +323,8 @@ export function CompaniesPage() {
                 value={companyForm.type}
                 onChange={(e) => setCompanyForm((current) => ({ ...current, type: e.target.value as api.CompanyType }))}
               >
-                <option value="CLIENT">CLIENT</option>
-                <option value="PROVIDER">PROVIDER</option>
+                <option value="CLIENT">{COMPANY_TYPE_LABELS_RU.CLIENT}</option>
+                <option value="PROVIDER">{COMPANY_TYPE_LABELS_RU.PROVIDER}</option>
               </select>
             </label>
 
@@ -355,7 +356,7 @@ export function CompaniesPage() {
                 <input value={adminForm.lastName} onChange={(e) => setAdminForm((current) => ({ ...current, lastName: e.target.value }))} />
               </label>
               <label>
-                Email
+                Эл. почта
                 <input value={adminForm.email} onChange={(e) => setAdminForm((current) => ({ ...current, email: e.target.value }))} placeholder="admin@company.com" />
               </label>
               <label>
@@ -491,7 +492,7 @@ export function CompaniesPage() {
             const hasAdmin = activeAdmins.length > 0
             const baseLink = api.buildPublicRequestLink(company.publicRequestToken)
             const isImpersonatingThisCompany = api.getImpersonationMeta()?.companyId === company.id
-            const adminButtonTitle = hasAdmin ? 'Switch to this company tenant session' : 'At least one active ADMIN is required'
+            const adminButtonTitle = hasAdmin ? 'Перейти в сессию этой компании' : 'Нужен хотя бы один активный администратор'
 
             return (
               <div key={company.id} className="card" style={{ padding: 16 }}>
@@ -501,21 +502,21 @@ export function CompaniesPage() {
                       <div className="row" style={{ alignItems: 'center', gap: 8, marginBottom: 6 }}>
                         <div style={{ fontWeight: 700 }}>{company.name}</div>
                         {modeBadge(company.type, company.type === 'PROVIDER' ? 'observer' : 'platform')}
-                        {company.publicRequestEnabled ? modeBadge('Public intake включён', 'public') : null}
-                        {isImpersonatingThisCompany ? modeBadge('Impersonation mode', 'observer') : null}
+                        {company.publicRequestEnabled ? modeBadge('Публичный приём включён', 'public') : null}
+                        {isImpersonatingThisCompany ? modeBadge('Режим входа под администратором', 'observer') : null}
                       </div>
 
                       <div className="muted small">Часовой пояс: {company.timezone || 'UTC'}</div>
                       <div className="muted small">Создана: {formatDate(company.createdAt)}</div>
                       <div className="muted small">Админов: {activeAdmins.length}</div>
-                      <div className="muted small">Public intake: {company.publicRequestEnabled ? 'включён' : 'выключен'}</div>
+                      <div className="muted small">Публичный приём: {company.publicRequestEnabled ? 'включён' : 'выключен'}</div>
                     </div>
 
                     <div className="panel" style={{ padding: 12, display: 'grid', gap: 8 }}>
-                      <div style={{ fontWeight: 700 }}>Platform actions</div>
+                      <div style={{ fontWeight: 700 }}>Действия платформы</div>
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         <Link to={`/company?companyId=${company.id}`}><button className="ghost">Открыть</button></Link>
-                        <Link to={`/board?companyId=${company.id}`}><button className="ghost">Observer</button></Link>
+                        <Link to={`/board?companyId=${company.id}`}><button className="ghost">Наблюдатель</button></Link>
                         <Link to={`/analytics?companyId=${company.id}`}><button className="ghost">Открыть аналитику</button></Link>
                         <button
                           type="button"
@@ -524,11 +525,11 @@ export function CompaniesPage() {
                           disabled={!hasAdmin || impersonateM.isPending}
                           title={adminButtonTitle}
                         >
-                          {impersonateM.isPending ? 'Opening...' : 'Impersonate admin'}
+                          {impersonateM.isPending ? 'Открываем…' : 'Войти как администратор'}
                         </button>
                       </div>
-                      {!hasAdmin ? <div className="muted small">No active administrator.</div> : null}
-                      {isImpersonatingThisCompany ? <div className="muted small">You are already inside this company.</div> : null}
+                      {!hasAdmin ? <div className="muted small">Активного администратора нет.</div> : null}
+                      {isImpersonatingThisCompany ? <div className="muted small">Вы уже работаете в этой компании.</div> : null}
                       {hasAdmin ? (
                         <div className="muted small">Администратор уже есть</div>
                       ) : (
@@ -547,13 +548,13 @@ export function CompaniesPage() {
                     </div>
 
                     <div className="panel" style={{ padding: 12, display: 'grid', gap: 8 }}>
-                      <div style={{ fontWeight: 700 }}>Public intake</div>
+                      <div style={{ fontWeight: 700 }}>Публичный приём заявок</div>
                       <code style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
                         {baseLink || 'Публичный токен ещё не создан'}
                       </code>
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         <button type="button" className="ghost" onClick={() => void copyText(baseLink)} disabled={!baseLink}>
-                          Скопировать public link
+                          Скопировать публичную ссылку
                         </button>
                         <button
                           type="button"
@@ -561,7 +562,7 @@ export function CompaniesPage() {
                           onClick={() => baseLink && window.open(baseLink, '_blank', 'noopener,noreferrer')}
                           disabled={!baseLink}
                         >
-                          Открыть public link
+                          Открыть публичную ссылку
                         </button>
                         <button
                           type="button"
@@ -593,7 +594,7 @@ export function CompaniesPage() {
                           Скачать PNG
                         </button>
                         <button type="button" className="ghost" onClick={() => regenerateTokenM.mutate(company.id)} disabled={regenerateTokenM.isPending}>
-                          {regenerateTokenM.isPending ? 'Обновляем...' : 'Обновить public token'}
+                          {regenerateTokenM.isPending ? 'Обновляем…' : 'Обновить публичный токен'}
                         </button>
                       </div>
                     </div>

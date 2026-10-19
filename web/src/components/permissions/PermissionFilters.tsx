@@ -10,7 +10,7 @@ type Props = {
 const COMPANY_TYPE_LABELS: Record<string, string> = {
   CLIENT: 'CLIENT',
   PROVIDER: 'PROVIDER',
-  ANY: 'Любой тип (wildcard)',
+  ANY: 'Любой тип (все)',
 }
 
 /** Read-only фильтры матрицы прав: по роли и по типу компании. */

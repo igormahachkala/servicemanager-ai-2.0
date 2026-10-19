@@ -11,16 +11,16 @@ const EVENT_META: Record<
   EmployeeActivityType,
   { icon: string; accent: string; glow: string; label: string }
 > = {
-  TASK_CREATED: { icon: '◆', accent: '#60a5fa', glow: 'rgba(96, 165, 250, 0.18)', label: 'Task created' },
-  TASK_STARTED: { icon: '↻', accent: '#fbbf24', glow: 'rgba(251, 191, 36, 0.18)', label: 'Task started' },
-  TASK_COMPLETED: { icon: '✓', accent: '#34d399', glow: 'rgba(52, 211, 153, 0.18)', label: 'Task completed' },
-  TASK_FAILED: { icon: '✕', accent: '#f87171', glow: 'rgba(248, 113, 113, 0.18)', label: 'Task failed' },
-  BUILD_STARTED: { icon: '◫', accent: '#a78bfa', glow: 'rgba(167, 139, 250, 0.18)', label: 'Build started' },
-  BUILD_SUCCESS: { icon: '⬢', accent: '#22c55e', glow: 'rgba(34, 197, 94, 0.18)', label: 'Build success' },
-  BUILD_FAILED: { icon: '⚠', accent: '#ef4444', glow: 'rgba(239, 68, 68, 0.18)', label: 'Build failed' },
-  PR_OPENED: { icon: '⇢', accent: '#38bdf8', glow: 'rgba(56, 189, 248, 0.18)', label: 'PR opened' },
-  PR_MERGED: { icon: '≡', accent: '#10b981', glow: 'rgba(16, 185, 129, 0.18)', label: 'PR merged' },
-  MCP_CONNECTED: { icon: '⟡', accent: '#c084fc', glow: 'rgba(192, 132, 252, 0.18)', label: 'MCP connected' },
+  TASK_CREATED: { icon: '◆', accent: '#60a5fa', glow: 'rgba(96, 165, 250, 0.18)', label: 'Задача создана' },
+  TASK_STARTED: { icon: '↻', accent: '#fbbf24', glow: 'rgba(251, 191, 36, 0.18)', label: 'Задача начата' },
+  TASK_COMPLETED: { icon: '✓', accent: '#34d399', glow: 'rgba(52, 211, 153, 0.18)', label: 'Задача выполнена' },
+  TASK_FAILED: { icon: '✕', accent: '#f87171', glow: 'rgba(248, 113, 113, 0.18)', label: 'Задача не выполнена' },
+  BUILD_STARTED: { icon: '◫', accent: '#a78bfa', glow: 'rgba(167, 139, 250, 0.18)', label: 'Сборка начата' },
+  BUILD_SUCCESS: { icon: '⬢', accent: '#22c55e', glow: 'rgba(34, 197, 94, 0.18)', label: 'Сборка успешна' },
+  BUILD_FAILED: { icon: '⚠', accent: '#ef4444', glow: 'rgba(239, 68, 68, 0.18)', label: 'Сборка не удалась' },
+  PR_OPENED: { icon: '⇢', accent: '#38bdf8', glow: 'rgba(56, 189, 248, 0.18)', label: 'PR открыт' },
+  PR_MERGED: { icon: '≡', accent: '#10b981', glow: 'rgba(16, 185, 129, 0.18)', label: 'PR влит' },
+  MCP_CONNECTED: { icon: '⟡', accent: '#c084fc', glow: 'rgba(192, 132, 252, 0.18)', label: 'MCP подключён' },
 }
 
 export interface EmployeeActivityFeedProps {
@@ -85,7 +85,7 @@ function ActivityRow({ item }: { item: EmployeeActivityItem }) {
 
 export function EmployeeActivityFeed({
   activities = EMPLOYEE_ACTIVITY,
-  title = 'Employee activity',
+  title = 'Активность сотрудника',
   maxItems,
   className,
 }: EmployeeActivityFeedProps) {
@@ -96,7 +96,7 @@ export function EmployeeActivityFeed({
       <div style={styles.surface}>
         <div style={styles.headingRow}>
           <div>
-            <div style={styles.kicker}>Mission Control</div>
+            <div style={styles.kicker}>Центр управления</div>
             <h3 style={styles.heading}>{title}</h3>
           </div>
           <div style={styles.count}>{items.length} events</div>

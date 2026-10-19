@@ -190,7 +190,7 @@ export function TechnicianPage() {
       <div className="row">
         <div>
           <h2 style={{ marginBottom: 4 }}>Кабинет техника</h2>
-          <div className="muted small">Упрощённый technician workflow как основа mobile-ready интерфейса</div>
+          <div className="muted small">Упрощённый рабочий процесс техника как основа интерфейса для телефона</div>
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>

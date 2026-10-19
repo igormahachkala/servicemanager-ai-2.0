@@ -447,7 +447,7 @@ export function MobileChatsPage() {
   const ticketQ = useQuery({
     queryKey: ['mobile-chats-ticket', ticketId, boardParams.companyId || '', boardParams.linkedClientCompanyId || ''],
     queryFn: async () => {
-      if (!ticketId) throw new Error('ticketId is empty')
+      if (!ticketId) throw new Error('Не указан идентификатор заявки')
       let lastErr: unknown = null
       for (const scope of ticketReadScopes) {
         try {
@@ -457,7 +457,7 @@ export function MobileChatsPage() {
           if (!isNotFoundGetTicketError(err)) throw err
         }
       }
-      throw lastErr || new Error('Ticket not found')
+      throw lastErr || new Error('Заявка не найдена')
     },
     enabled: !!ticketId && isMeReady,
   })
@@ -542,7 +542,7 @@ export function MobileChatsPage() {
   const sendCommentM = useMutation({
     networkMode: 'always',
     mutationFn: async (comment: string) => {
-      if (!ticketQ.data) throw new Error('Ticket not loaded')
+      if (!ticketQ.data) throw new Error('Заявка не загружена')
       const scope = ticketResourceScope || {}
       const delivery = await deliverTicketComment({
         reportedOnline: offline.liveApiAllowed,

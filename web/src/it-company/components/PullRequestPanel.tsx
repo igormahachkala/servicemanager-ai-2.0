@@ -54,7 +54,7 @@ export function PullRequestPanel({ pr, collapsed, onToggle }: Props) {
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: '#6b7280', fontFamily: 'monospace' }}>⑥</span>
-          <span>Draft PR</span>
+          <span>Черновик PR</span>
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span

@@ -34,7 +34,7 @@ const MOCK_TASKS: MockTask[] = [
   },
   {
     id: 'mock-001',
-    title: 'Оптимизировать запрос board по статусам',
+    title: 'Оптимизировать запрос доски заявок по статусам',
     prompt:
       'Запрос GET /board грузит все заявки и группирует в JS. Перенести группировку на сторону БД через Prisma groupBy.',
     status: 'DONE',
@@ -143,18 +143,18 @@ const MOCK_BUILD: MockBuild = {
   commit: 'a4f2c1d',
   duration: '1m 12s',
   steps: [
-    { name: 'Install dependencies', status: 'pass', duration: '18s' },
-    { name: 'TypeScript typecheck', status: 'pass', duration: '22s' },
-    { name: 'Vite build', status: 'running', detail: 'bundling…' },
-    { name: 'Unit tests (vitest)', status: 'pending' },
+    { name: 'Установка зависимостей', status: 'pass', duration: '18s' },
+    { name: 'Проверка типов TypeScript', status: 'pass', duration: '22s' },
+    { name: 'Сборка Vite', status: 'running', detail: 'собираем…' },
+    { name: 'Модульные тесты (vitest)', status: 'pending' },
   ],
 }
 
 const MOCK_CHECKS: MockCheck[] = [
-  { name: 'TypeScript', status: 'pass', detail: '0 errors' },
-  { name: 'ESLint', status: 'pass', detail: '0 warnings' },
-  { name: 'Vite Build', status: 'running', detail: 'bundling…' },
-  { name: 'Unit Tests', status: 'pending' },
+  { name: 'TypeScript', status: 'pass', detail: 'без ошибок' },
+  { name: 'ESLint', status: 'pass', detail: 'без предупреждений' },
+  { name: 'Сборка Vite', status: 'running', detail: 'собираем…' },
+  { name: 'Модульные тесты', status: 'pending' },
   { name: 'Lighthouse CI', status: 'pending' },
 ]
 
@@ -212,7 +212,7 @@ export function AIDeveloperPage() {
     return (
       <div className="panel" style={{ padding: 16 }}>
         <div style={{ fontWeight: 700, marginBottom: 6 }}>Раздел недоступен</div>
-        <div className="muted small">Рабочее место AI Developer доступно только администратору платформы.</div>
+        <div className="muted small">Рабочее место ИИ-разработчика доступно только администратору платформы.</div>
       </div>
     )
   }
@@ -234,10 +234,10 @@ export function AIDeveloperPage() {
       >
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Link to="/it" style={{ color: '#9ca3af', fontSize: 13, textDecoration: 'none' }}>← IT Company</Link>
+            <Link to="/it" style={{ color: '#9ca3af', fontSize: 13, textDecoration: 'none' }}>← ИТ-компания</Link>
           </div>
           <h2 style={{ margin: 0, fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>
-            AI Developer
+            ИИ-разработчик
           </h2>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -269,7 +269,7 @@ export function AIDeveloperPage() {
               letterSpacing: '0.02em',
             }}
           >
-            MOCK
+            ДЕМО
           </span>
         </div>
       </div>
