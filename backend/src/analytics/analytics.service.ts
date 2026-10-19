@@ -13,6 +13,13 @@ import {
   type LocationScope,
 } from '../tickets/ticket-access.utils'
 import { EXECUTOR_CAPABLE_ROLES } from '../common/executor.utils'
+import {
+  buildCityAggregates,
+  computeSlaByLocation,
+  computeSlaMetrics,
+  emptySlaMetrics,
+  type SlaSourceTicket,
+} from './analytics-aggregates'
 
 @Injectable()
 export class AnalyticsService {
@@ -633,6 +640,15 @@ export class AnalyticsService {
       from?: string
       to?: string
       minTickets?: number
+      /**
+       * A2: показать точки без заявок.
+       *
+       * Отдельный флаг, а не minTickets=0: контракт minTickets остаётся
+       * прежним (по умолчанию 1), и старые клиенты ведут себя как раньше.
+       * Доступ флаг не расширяет — список точек и так сужен областью
+       * видимости, флаг лишь перестаёт отбрасывать нулевые строки.
+       */
+      includeEmptyLocations?: boolean
     },
   ) {
     const scope = await this.resolveScope(actorCompanyId, actorRole, params.companyId, params.linkedClientCompanyId)
@@ -676,6 +692,8 @@ export class AnalyticsService {
       overdueByLocationCategory,
       summaryTotal,
       summaryOverdue,
+      slaTicketRows,
+      firstAssignedRows,
     ] = await Promise.all([
       this.prisma.location.findMany({
         where: this.applyLocationScopeToLocationWhere({
@@ -712,6 +730,35 @@ export class AnalyticsService {
       }),
       this.prisma.ticket.count({ where: ticketWhere }),
       this.prisma.ticket.count({ where: overdueWhere }),
+      /*
+       * A3: источник времён для SLA.
+       *
+       * Проекция минимальная — шесть скалярных полей. Средние по разнице дат
+       * не выражаются ни через groupBy, ни через _avg, поэтому разницы
+       * считаются в чистом модуле; тот же where, что и у остальных агрегатов,
+       * поэтому ни одной лишней заявки сюда не попадёт.
+       */
+      this.prisma.ticket.findMany({
+        where: ticketWhere,
+        select: {
+          id: true,
+          locationId: true,
+          createdAt: true,
+          closedAt: true,
+          slaDueAt: true,
+          slaBreachedAt: true,
+        },
+      }),
+      /*
+       * Первый перевод в ASSIGNED по каждой заявке — это и есть реакция.
+       * Ticket.statusUpdatedAt тут не годится: он хранит ПОСЛЕДНЕЕ изменение.
+       * Область берётся тем же ticketWhere через связь ticket.
+       */
+      this.prisma.ticketStatusHistory.groupBy({
+        by: ['ticketId'],
+        where: { toStatus: TicketStatus.ASSIGNED, ticket: ticketWhere },
+        _min: { createdAt: true },
+      }),
     ])
 
     const categoryNameById = new Map<string, string>(categories.map((c) => [c.id, c.name]))
@@ -745,7 +792,30 @@ export class AnalyticsService {
       catOverdueByLoc.set(row.locationId, m)
     }
 
-    const minTickets = params.minTickets ?? 1
+    /*
+     * A2: порог остаётся 1 по умолчанию. Включённый флаг опускает его до нуля,
+     * то есть перестаёт отбрасывать точки без заявок. Явный minTickets в
+     * запросе сильнее флага — иначе клиент не смог бы задать свой порог.
+     */
+    const minTickets = params.minTickets ?? (params.includeEmptyLocations ? 0 : 1)
+
+    // A3: сопоставление заявка → первый ASSIGNED.
+    const firstAssignedByTicket = new Map<string, Date>()
+    for (const row of firstAssignedRows) {
+      const at = row._min.createdAt
+      if (at) firstAssignedByTicket.set(row.ticketId, at)
+    }
+
+    const slaTickets: SlaSourceTicket[] = slaTicketRows.map((row) => ({
+      locationId: row.locationId ?? null,
+      createdAt: row.createdAt,
+      firstAssignedAt: firstAssignedByTicket.get(row.id) ?? null,
+      closedAt: row.closedAt ?? null,
+      slaDueAt: row.slaDueAt ?? null,
+      slaBreachedAt: row.slaBreachedAt ?? null,
+    }))
+
+    const slaByLocation = computeSlaByLocation(slaTickets)
 
     const items = locations
       .map((loc) => {
@@ -786,6 +856,8 @@ export class AnalyticsService {
           canceledTickets,
           overdueTickets,
           categories: categoryBreakdown,
+          // A3: SLA точки. Нет заявок — нулевые счётчики и null у средних.
+          sla: slaByLocation.get(loc.id) ?? emptySlaMetrics(),
         }
       })
       .filter((item) => item.totalTickets >= minTickets)
@@ -796,8 +868,35 @@ export class AnalyticsService {
     const awaitingAcceptanceTotal = items.reduce((s, i) => s + i.awaitingAcceptanceTickets, 0)
     const canceledTotal = items.reduce((s, i) => s + i.canceledTickets, 0)
 
+    /*
+     * A1: агрегаты по городам считаются здесь, из канонических счётчиков тех
+     * же строк, что уходят клиенту. Складывать их на фронтенде нельзя: он не
+     * знает про заявки без точки и не сможет объяснить расхождение с summary.
+     *
+     * Тождество: сумма по городам + withoutLocationTickets === totalTickets.
+     * Точки, отброшенные порогом, дают нули и на сумму не влияют.
+     */
+    const cityGroups = buildCityAggregates(items, slaTickets)
+
+    /*
+     * Разница между итогом области и суммой показанных строк.
+     *
+     * Ticket.locationId обязателен, так что «заявок без точки» не бывает.
+     * Расхождение даёт другое: строки точек берутся с isActive: true и
+     * deletedAt: null, а заявки в summary — нет, поэтому заявки
+     * деактивированных точек в строки не попадают. Плюс строки, отброшенные
+     * порогом minTickets, если клиент задал его выше нуля.
+     *
+     * Считается вычитанием, поэтому тождество держится по построению при любой
+     * причине расхождения:
+     *   сумма по городам + ticketsOutsideRows === summary.totalTickets
+     */
+    const locatedTickets = items.reduce((sum, item) => sum + item.totalTickets, 0)
+    const ticketsOutsideRows = summaryTotal - locatedTickets
+
     return {
       items,
+      cityGroups,
       summary: {
         totalLocations: items.length,
         totalTickets: summaryTotal,
@@ -806,6 +905,9 @@ export class AnalyticsService {
         awaitingAcceptanceTotal,
         doneTotal,
         canceledTotal,
+        ticketsOutsideRows,
+        /** A3: SLA по организации — по всем заявкам области, включая заявки без точки. */
+        sla: computeSlaMetrics(slaTickets),
       },
       meta: { scopeCompanyId, visibilityMode: scope.visibilityMode, workforceCompanyId },
     }

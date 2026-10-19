@@ -1134,10 +1134,51 @@ export type LocationAnalyticsItem = {
     ticketsCount: number
     overdueCount: number
   }>
+  /**
+   * Phase 2 (A3): показатели SLA точки. Необязательное поле: контур может быть
+   * старее бэкенда, отдающего его.
+   */
+  sla?: SlaMetricsDto
+}
+
+/**
+ * Phase 2 (A3): показатели SLA.
+ *
+ * null у средних и у доли означает «нечего считать», а не ноль: заявок с
+ * нужными данными не было. Отсутствие срока не считается соблюдением SLA —
+ * такие заявки видны в withoutSlaCount.
+ */
+export type SlaMetricsDto = {
+  avgResponseMinutes: number | null
+  avgResolutionMinutes: number | null
+  withinSlaRatio: number | null
+  withinSlaCount: number
+  slaEvaluatedCount: number
+  slaBreaches: number
+  respondedCount: number
+  resolvedCount: number
+  withoutSlaCount: number
+}
+
+/** Phase 2 (A1): агрегат по городу, посчитанный бэкендом. */
+export type CityAnalyticsGroup = {
+  cityKey: string
+  cityLabel: string
+  locationsCount: number
+  totalTickets: number
+  newTickets: number
+  inProgressTickets: number
+  awaitingAcceptanceTickets: number
+  doneTickets: number
+  canceledTickets: number
+  overdueTickets: number
+  sla: SlaMetricsDto
 }
 
 export type LocationAnalyticsResponse = {
   items: LocationAnalyticsItem[]
+  /** Phase 2 (A1): городские агрегаты. Необязательно — контур может быть старее. */
+  cityGroups?: CityAnalyticsGroup[]
   summary: {
     totalLocations: number
     totalTickets: number
@@ -1146,6 +1187,14 @@ export type LocationAnalyticsResponse = {
     awaitingAcceptanceTotal?: number
     doneTotal: number
     canceledTotal?: number
+    /**
+     * Phase 2 (A1): заявки, которым не досталось строки — точка
+     * деактивирована или строка отброшена порогом. Нужны, чтобы сумма по
+     * городам сходилась с totalTickets.
+     */
+    ticketsOutsideRows?: number
+    /** Phase 2 (A3): SLA по организации. */
+    sla?: SlaMetricsDto
   }
   meta?: {
     scopeCompanyId?: string
@@ -3709,7 +3758,38 @@ export async function analyticsLocations(params?: {
   from?: string
   to?: string
   minTickets?: number
+  /**
+   * Phase 2 (A2): показать точки без заявок.
+   *
+   * Параметр уходит только когда включён. Выключенный флаг не отправляется
+   * вовсе, поэтому поведение по умолчанию (порог 1) остаётся прежним.
+   */
+  includeEmptyLocations?: boolean
 }): Promise<LocationAnalyticsResponse> {
+  return request<LocationAnalyticsResponse>(
+    '/analytics/locations' + buildAnalyticsLocationsQuery(params),
+  )
+}
+
+/**
+ * Строка запроса для /analytics/locations.
+ *
+ * Вынесена отдельно и экспортирована, чтобы проверяться исполнением: иначе
+ * про параметр области легко забыть, и запрос молча уедет без него.
+ *
+ * Пустые значения не отправляются вовсе — так поведение по умолчанию на
+ * бэкенде остаётся прежним (порог minTickets = 1).
+ */
+export function buildAnalyticsLocationsQuery(params?: {
+  linkedClientCompanyId?: string
+  companyId?: string
+  locationId?: string
+  categoryId?: string
+  from?: string
+  to?: string
+  minTickets?: number
+  includeEmptyLocations?: boolean
+}): string {
   const search = new URLSearchParams()
   if (params?.linkedClientCompanyId) search.set('linkedClientCompanyId', params.linkedClientCompanyId)
   if (params?.companyId) search.set('companyId', params.companyId)
@@ -3718,8 +3798,8 @@ export async function analyticsLocations(params?: {
   if (params?.from) search.set('from', params.from)
   if (params?.to) search.set('to', params.to)
   if (params?.minTickets != null) search.set('minTickets', String(params.minTickets))
-  const suffix = search.toString() ? '?' + search.toString() : ''
-  return request<LocationAnalyticsResponse>('/analytics/locations' + suffix)
+  if (params?.includeEmptyLocations) search.set('includeEmptyLocations', 'true')
+  return search.toString() ? '?' + search.toString() : ''
 }
 
 export async function ticketContextAnalytics(params?: {

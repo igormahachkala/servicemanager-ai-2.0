@@ -10,6 +10,12 @@ import {
   selectVisibleLocations,
   toggleLocationSelection,
 } from '../lib/locationAnalyticsGrouping'
+import {
+  describeSlaBasis,
+  formatMinutes,
+  formatSlaRatio,
+  pickSlaForScope,
+} from '../lib/slaFormat'
 import { readLocationFilterFromSearch, readOutboundScopeFromSearch } from '../lib/locationCardSections'
 import { locationCardPath } from '../lib/equipmentCard'
 
@@ -38,6 +44,8 @@ export function LocationAnalyticsPage() {
   const [locationId, setLocationId] = useState(() => readLocationFilterFromSearch(searchParams))
   const [categoryId, setCategoryId] = useState('')
   const [minTickets, setMinTickets] = useState('')
+  /* SMA-ANALYTICS-V2-PHASE2 (A2): показывать точки, у которых заявок ещё нет. */
+  const [includeEmptyLocations, setIncludeEmptyLocations] = useState(false)
   const [expandedLocationId, setExpandedLocationId] = useState<string | null>(null)
 
   /*
@@ -60,7 +68,8 @@ export function LocationAnalyticsPage() {
     locationId: locationId || undefined,
     categoryId: categoryId || undefined,
     minTickets: minTickets ? Math.max(1, parseInt(minTickets, 10) || 1) : undefined,
-  }), [scopeCompanyId, scopeLinkedClientCompanyId, from, to, locationId, categoryId, minTickets])
+    includeEmptyLocations: includeEmptyLocations || undefined,
+  }), [scopeCompanyId, scopeLinkedClientCompanyId, from, to, locationId, categoryId, minTickets, includeEmptyLocations])
 
   const q = useQuery<api.LocationAnalyticsResponse>({
     queryKey: ['analytics', 'locations', queryParams],
@@ -80,6 +89,27 @@ export function LocationAnalyticsPage() {
     () => cityGroups.find((group) => group.cityKey === selectedCityKey) ?? null,
     [cityGroups, selectedCityKey],
   )
+
+  /*
+   * SMA-ANALYTICS-V2-PHASE2 (A1): агрегаты по городам приходят с бэкенда.
+   *
+   * Клиентская группировка Phase 1 остаётся — она задаёт состав и порядок
+   * списка. А ЧИСЛА берутся из cityGroups бэкенда: складывать заявки по
+   * городу на клиенте нельзя, он не знает про заявки, которым не досталось
+   * строки (см. summary.ticketsOutsideRows).
+   */
+  const serverCityByKey = useMemo(() => {
+    const map = new Map<string, api.CityAnalyticsGroup>()
+    for (const group of data?.cityGroups ?? []) map.set(group.cityKey, group)
+    return map
+  }, [data])
+
+  const activeServerCity = selectedCityKey === ALL_CITIES_KEY
+    ? null
+    : serverCityByKey.get(selectedCityKey) ?? null
+
+  /* SLA текущего выбора: город, если он выбран, иначе организация. */
+  const scopeSla = pickSlaForScope(summary?.sla, activeServerCity?.sla, selectedCityKey !== ALL_CITIES_KEY)
 
   /*
    * Выбор точек приводится к текущему составу: при смене города и при
@@ -180,6 +210,25 @@ export function LocationAnalyticsPage() {
               style={{ width: '100%' }}
             />
           </label>
+          {/*
+            SMA-ANALYTICS-V2-PHASE2 (A2): точки без заявок.
+
+            По умолчанию бэкенд отбрасывает строки с нулём заявок (порог 1).
+            Флаг опускает порог до нуля — это ровно те точки, куда ещё не
+            выезжали. Доступ флаг не расширяет: список точек и так сужен
+            областью видимости.
+          */}
+          <label>
+            <div className="fieldLabel">Точки без заявок</div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, paddingTop: 6 }}>
+              <input
+                type="checkbox"
+                checked={includeEmptyLocations}
+                onChange={(e) => setIncludeEmptyLocations(e.target.checked)}
+              />
+              <span className="small">Показывать</span>
+            </label>
+          </label>
         </div>
       </div>
 
@@ -225,6 +274,75 @@ export function LocationAnalyticsPage() {
         Сводка выше остаётся канонической — она по всей доступной области,
         а не по выбранному городу: пересчитывать её здесь нельзя.
       */}
+      {/*
+        SMA-ANALYTICS-V2-PHASE2 (A3): показатели SLA.
+
+        Считает бэкенд: по организации — по всем заявкам области, по городу —
+        по заявкам города. Прочерк означает «нечего считать»: ноль и
+        отсутствие данных на экране обязаны различаться.
+      */}
+      {!q.isLoading && scopeSla ? (
+        <div className="panel" style={{ marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+            <h3 style={{ marginBottom: 0 }}>SLA</h3>
+            <span className="muted small">
+              {activeServerCity ? activeServerCity.cityLabel : 'по организации'}
+            </span>
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+              gap: 12,
+              marginTop: 10,
+            }}
+          >
+            <div>
+              <div className="muted small">Среднее время реакции</div>
+              <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>
+                {formatMinutes(scopeSla.avgResponseMinutes)}
+              </div>
+              <div className="muted small">по {fmtNumber(scopeSla.respondedCount)} заявкам в работе</div>
+            </div>
+            <div>
+              <div className="muted small">Среднее время решения</div>
+              <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>
+                {formatMinutes(scopeSla.avgResolutionMinutes)}
+              </div>
+              <div className="muted small">по {fmtNumber(scopeSla.resolvedCount)} завершённым</div>
+            </div>
+            <div>
+              <div className="muted small">Доля в SLA</div>
+              <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>
+                {formatSlaRatio(scopeSla.withinSlaRatio)}
+              </div>
+              <div className="muted small">{describeSlaBasis(scopeSla)}</div>
+            </div>
+            <div>
+              <div className="muted small">Нарушения SLA</div>
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 800,
+                  marginTop: 2,
+                  color: scopeSla.slaBreaches > 0 ? '#dc2626' : undefined,
+                }}
+              >
+                {fmtNumber(scopeSla.slaBreaches)}
+              </div>
+              <div className="muted small">по признаку просрочки</div>
+            </div>
+          </div>
+          {typeof summary?.ticketsOutsideRows === 'number' && summary.ticketsOutsideRows > 0 ? (
+            <div className="muted small" style={{ marginTop: 8 }}>
+              {fmtNumber(summary.ticketsOutsideRows)} заявок не попали в строки точек: точка
+              деактивирована или строка отброшена порогом. Сумма по городам плюс это число равна
+              общему итогу.
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       {!q.isLoading && cityGroups.length > 0 ? (
         <div className="panel" style={{ marginBottom: 12 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
@@ -251,8 +369,21 @@ export function LocationAnalyticsPage() {
                 onClick={() => selectCity(group.cityKey)}
                 aria-pressed={selectedCityKey === group.cityKey}
                 style={group.cityKey === NO_CITY_KEY ? { fontStyle: 'italic' } : undefined}
+                /*
+                  A1: заявки берутся из агрегата бэкенда, число точек — из
+                  группировки. Если бэкенд старее и агрегатов не отдал,
+                  показывается только число точек.
+                */
+                title={
+                  serverCityByKey.has(group.cityKey)
+                    ? `Точек: ${fmtNumber(group.locationsCount)} · заявок: ${fmtNumber(serverCityByKey.get(group.cityKey)!.totalTickets)} · просрочено: ${fmtNumber(serverCityByKey.get(group.cityKey)!.overdueTickets)}`
+                    : undefined
+                }
               >
                 {group.cityLabel} · {fmtNumber(group.locationsCount)}
+                {serverCityByKey.has(group.cityKey)
+                  ? ` · ${fmtNumber(serverCityByKey.get(group.cityKey)!.totalTickets)} заявок`
+                  : ''}
               </button>
             ))}
           </div>

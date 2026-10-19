@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common'
-import { ServiceContractRole, ServiceContractStatus, UserAccessLocationMode, UserRole } from '@prisma/client'
+import { ServiceContractRole, ServiceContractStatus, TicketStatus, UserAccessLocationMode, UserRole } from '@prisma/client'
 
 import { AnalyticsService } from './analytics.service'
 
@@ -87,6 +87,11 @@ describe('AnalyticsService provider linked-client scope', () => {
       ticket: {
         groupBy: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(0),
+        // Phase 2: источник времён для SLA.
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      ticketStatusHistory: {
+        groupBy: jest.fn().mockResolvedValue([]),
       },
     }
     const contracts = {
@@ -116,5 +121,257 @@ describe('AnalyticsService provider linked-client scope', () => {
     )
     expect(JSON.stringify(prisma.ticket.groupBy.mock.calls[0][0].where)).toContain('__no_access__')
     expect(JSON.stringify(prisma.ticket.groupBy.mock.calls[0][0].where)).toContain('loc-forbidden')
+
+    /*
+     * Phase 2: источники SLA обязаны идти по ТОЙ ЖЕ области. Если бы они
+     * ходили по собственному where, fail-closed обходился бы через аналитику
+     * SLA — поэтому проверяется каждый из двух новых запросов.
+     */
+    const slaWhere = JSON.stringify(prisma.ticket.findMany.mock.calls[0][0].where)
+    expect(slaWhere).toContain('__no_access__')
+    expect(slaWhere).toContain('loc-forbidden')
+
+    const historyCall = prisma.ticketStatusHistory.groupBy.mock.calls[0][0]
+    expect(historyCall.where.toStatus).toBe(TicketStatus.ASSIGNED)
+    const historyWhere = JSON.stringify(historyCall.where.ticket)
+    expect(historyWhere).toContain('__no_access__')
+    expect(historyWhere).toContain('loc-forbidden')
+
+    expect(result.cityGroups).toEqual([])
+    expect(result.summary.sla.slaBreaches).toBe(0)
+    expect(result.summary.sla.withinSlaRatio).toBeNull()
+  })
+})
+
+/**
+ * SMA-ANALYTICS-V2-PHASE2 — поведение A1/A2/A3 на уровне сервиса.
+ *
+ * Чистые формулы проверены в analytics-aggregates.spec.ts. Здесь проверяется
+ * сборка: что флаг A2 действительно меняет состав строк, что городские суммы
+ * сходятся с summary и что SLA попадает в строки, города и организацию.
+ */
+describe('AnalyticsService Phase 2: города, пустые точки, SLA', () => {
+  const CLIENT = 'client-company'
+
+  function buildPrisma(options: {
+    locations: Array<{ id: string; name: string; city: string | null }>
+    statusRows: Array<{ locationId: string; status: TicketStatus; count: number }>
+    overdueRows?: Array<{ locationId: string; count: number }>
+    slaTickets?: Array<{
+      id: string
+      locationId: string
+      createdAt: Date
+      closedAt: Date | null
+      slaDueAt: Date | null
+      slaBreachedAt: Date | null
+    }>
+    firstAssigned?: Array<{ ticketId: string; createdAt: Date }>
+    summaryTotal?: number
+  }) {
+    const statusGroupBy = options.statusRows.map((row) => ({
+      locationId: row.locationId,
+      status: row.status,
+      _count: { _all: row.count },
+    }))
+    const overdueGroupBy = (options.overdueRows ?? []).map((row) => ({
+      locationId: row.locationId,
+      _count: { _all: row.count },
+    }))
+    const summaryTotal =
+      options.summaryTotal ?? options.statusRows.reduce((sum, row) => sum + row.count, 0)
+
+    return {
+      user: { findFirst: jest.fn().mockResolvedValue({ id: 'admin-1' }) },
+      userAccessScope: { findUnique: jest.fn().mockResolvedValue(null) },
+      userLocationBinding: { findMany: jest.fn().mockResolvedValue([]) },
+      location: { findMany: jest.fn().mockResolvedValue(options.locations) },
+      problemCategory: { findMany: jest.fn().mockResolvedValue([]) },
+      ticket: {
+        // Порядок вызовов повторяет Promise.all в сервисе.
+        groupBy: jest
+          .fn()
+          .mockResolvedValueOnce(statusGroupBy) // byLocationStatus
+          .mockResolvedValueOnce([]) // byLocationCategory
+          .mockResolvedValueOnce(overdueGroupBy) // overdueByLocation
+          .mockResolvedValueOnce([]), // overdueByLocationCategory
+        count: jest
+          .fn()
+          .mockResolvedValueOnce(summaryTotal)
+          .mockResolvedValueOnce((options.overdueRows ?? []).reduce((s, r) => s + r.count, 0)),
+        findMany: jest.fn().mockResolvedValue(options.slaTickets ?? []),
+      },
+      ticketStatusHistory: {
+        groupBy: jest.fn().mockResolvedValue(
+          (options.firstAssigned ?? []).map((row) => ({
+            ticketId: row.ticketId,
+            _min: { createdAt: row.createdAt },
+          })),
+        ),
+      },
+    }
+  }
+
+  function buildService(prisma: any) {
+    return new AnalyticsService(prisma as any, {} as any, {
+      getLinkedClientAccess: jest.fn(),
+    } as any)
+  }
+
+  it('A2: по умолчанию точка без заявок не показывается', async () => {
+    const prisma = buildPrisma({
+      locations: [
+        { id: 'busy', name: 'С заявками', city: 'Москва' },
+        { id: 'idle', name: 'Без заявок', city: 'Казань' },
+      ],
+      statusRows: [{ locationId: 'busy', status: TicketStatus.NEW, count: 3 }],
+    })
+    const result = await buildService(prisma).getLocationsAnalytics(CLIENT, 'admin-1', UserRole.ADMIN, {})
+
+    expect(result.items.map((i) => i.locationId)).toEqual(['busy'])
+    expect(result.summary.totalLocations).toBe(1)
+  })
+
+  it('A2: с флагом точка без заявок показывается с нулями', async () => {
+    const prisma = buildPrisma({
+      locations: [
+        { id: 'busy', name: 'С заявками', city: 'Москва' },
+        { id: 'idle', name: 'Без заявок', city: 'Казань' },
+      ],
+      statusRows: [{ locationId: 'busy', status: TicketStatus.NEW, count: 3 }],
+    })
+    const result = await buildService(prisma).getLocationsAnalytics(CLIENT, 'admin-1', UserRole.ADMIN, {
+      includeEmptyLocations: true,
+    })
+
+    const idle = result.items.find((i) => i.locationId === 'idle')
+    expect(idle).toBeDefined()
+    expect(idle?.totalTickets).toBe(0)
+    expect(idle?.overdueTickets).toBe(0)
+    expect(idle?.sla.avgResolutionMinutes).toBeNull()
+    expect(idle?.sla.withinSlaRatio).toBeNull()
+    expect(result.summary.totalLocations).toBe(2)
+  })
+
+  it('A2: явный minTickets сильнее флага', async () => {
+    const prisma = buildPrisma({
+      locations: [
+        { id: 'one', name: 'Одна', city: 'Москва' },
+        { id: 'idle', name: 'Без заявок', city: 'Москва' },
+      ],
+      statusRows: [{ locationId: 'one', status: TicketStatus.NEW, count: 1 }],
+    })
+    const result = await buildService(prisma).getLocationsAnalytics(CLIENT, 'admin-1', UserRole.ADMIN, {
+      includeEmptyLocations: true,
+      minTickets: 2,
+    })
+    expect(result.items).toEqual([])
+  })
+
+  it('A1: города складываются из канонических счётчиков строк', async () => {
+    const prisma = buildPrisma({
+      locations: [
+        { id: 'm1', name: 'М1', city: 'Москва' },
+        { id: 'm2', name: 'М2', city: 'москва' },
+        { id: 'k1', name: 'К1', city: 'Казань' },
+      ],
+      statusRows: [
+        { locationId: 'm1', status: TicketStatus.NEW, count: 20 },
+        { locationId: 'm2', status: TicketStatus.DONE, count: 14 },
+        { locationId: 'k1', status: TicketStatus.NEW, count: 7 },
+      ],
+      overdueRows: [{ locationId: 'm1', count: 2 }],
+    })
+    const result = await buildService(prisma).getLocationsAnalytics(CLIENT, 'admin-1', UserRole.ADMIN, {})
+
+    const moscow = result.cityGroups.find((c) => c.cityLabel === 'Москва')
+    expect(moscow?.locationsCount).toBe(2)
+    expect(moscow?.totalTickets).toBe(34)
+    expect(moscow?.overdueTickets).toBe(2)
+    expect(result.cityGroups.find((c) => c.cityLabel === 'Казань')?.totalTickets).toBe(7)
+  })
+
+  it('A1: сумма по городам плюс ticketsOutsideRows равна summary.totalTickets', async () => {
+    // 27 заявок в строках, в области 30: три относятся к деактивированной точке.
+    const prisma = buildPrisma({
+      locations: [
+        { id: 'm1', name: 'М1', city: 'Москва' },
+        { id: 'k1', name: 'К1', city: 'Казань' },
+      ],
+      statusRows: [
+        { locationId: 'm1', status: TicketStatus.NEW, count: 20 },
+        { locationId: 'k1', status: TicketStatus.NEW, count: 7 },
+      ],
+      summaryTotal: 30,
+    })
+    const result = await buildService(prisma).getLocationsAnalytics(CLIENT, 'admin-1', UserRole.ADMIN, {})
+
+    const citySum = result.cityGroups.reduce((sum, c) => sum + c.totalTickets, 0)
+    expect(citySum).toBe(27)
+    expect(result.summary.ticketsOutsideRows).toBe(3)
+    expect(citySum + result.summary.ticketsOutsideRows).toBe(result.summary.totalTickets)
+  })
+
+  it('A3: SLA попадает в строку, город и организацию', async () => {
+    const created = new Date('2026-10-01T10:00:00.000Z')
+    const prisma = buildPrisma({
+      locations: [{ id: 'm1', name: 'М1', city: 'Москва' }],
+      statusRows: [{ locationId: 'm1', status: TicketStatus.DONE, count: 2 }],
+      slaTickets: [
+        {
+          id: 't1',
+          locationId: 'm1',
+          createdAt: created,
+          closedAt: new Date(created.getTime() + 60 * 60_000), // 60 минут
+          slaDueAt: new Date(created.getTime() + 120 * 60_000), // в срок
+          slaBreachedAt: null,
+        },
+        {
+          id: 't2',
+          locationId: 'm1',
+          createdAt: created,
+          closedAt: new Date(created.getTime() + 180 * 60_000), // 180 минут
+          slaDueAt: new Date(created.getTime() + 120 * 60_000), // просрочено
+          slaBreachedAt: new Date(created.getTime() + 121 * 60_000),
+        },
+      ],
+      firstAssigned: [{ ticketId: 't1', createdAt: new Date(created.getTime() + 10 * 60_000) }],
+    })
+    const result = await buildService(prisma).getLocationsAnalytics(CLIENT, 'admin-1', UserRole.ADMIN, {})
+
+    const row = result.items[0]
+    expect(row.sla.avgResolutionMinutes).toBe(120) // (60 + 180) / 2
+    expect(row.sla.avgResponseMinutes).toBe(10) // только t1 получила реакцию
+    expect(row.sla.respondedCount).toBe(1)
+    expect(row.sla.withinSlaCount).toBe(1)
+    expect(row.sla.slaEvaluatedCount).toBe(2)
+    expect(row.sla.withinSlaRatio).toBe(0.5)
+    expect(row.sla.slaBreaches).toBe(1)
+
+    expect(result.cityGroups[0].sla.avgResolutionMinutes).toBe(120)
+    expect(result.summary.sla.avgResolutionMinutes).toBe(120)
+    expect(result.summary.sla.slaBreaches).toBe(1)
+  })
+
+  it('A3: завершённая заявка без срока не считается выполненной в срок', async () => {
+    const created = new Date('2026-10-01T10:00:00.000Z')
+    const prisma = buildPrisma({
+      locations: [{ id: 'm1', name: 'М1', city: 'Москва' }],
+      statusRows: [{ locationId: 'm1', status: TicketStatus.DONE, count: 1 }],
+      slaTickets: [
+        {
+          id: 't1',
+          locationId: 'm1',
+          createdAt: created,
+          closedAt: new Date(created.getTime() + 60 * 60_000),
+          slaDueAt: null,
+          slaBreachedAt: null,
+        },
+      ],
+    })
+    const result = await buildService(prisma).getLocationsAnalytics(CLIENT, 'admin-1', UserRole.ADMIN, {})
+
+    expect(result.items[0].sla.withoutSlaCount).toBe(1)
+    expect(result.items[0].sla.slaEvaluatedCount).toBe(0)
+    expect(result.items[0].sla.withinSlaRatio).toBeNull()
   })
 })
