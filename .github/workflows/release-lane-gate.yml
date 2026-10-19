@@ -52,12 +52,30 @@ jobs:
             prod) contour=production ;;
             *) echo "Unsupported PR base: $base_ref" >&2; exit 1 ;;
           esac
-          git fetch -q --no-tags --force origin refs/tags/stage-busy:refs/tags/stage-busy
+          # BEGIN RELEASE_LANE_LOCK_FETCH
+          fetch_required_lock_tag() {
+            local tag="$1" remote_tag rc
+            set +e
+            remote_tag="$(git ls-remote --exit-code --tags origin "refs/tags/$tag" 2>/dev/null)"
+            rc=$?
+            set -e
+            case "$rc" in
+              0) [[ -n "$remote_tag" ]] || { echo "RELEASE LANE: BLOCKED - $tag is missing" >&2; return 1; } ;;
+              2) echo "RELEASE LANE: BLOCKED - $tag is missing" >&2; return 1 ;;
+              *) echo "RELEASE LANE: BLOCKED - $tag could not be read from origin" >&2; return 1 ;;
+            esac
+            git fetch -q --no-tags --force origin "refs/tags/$tag:refs/tags/$tag" \
+              || { echo "RELEASE LANE: BLOCKED - $tag could not be fetched from origin" >&2; return 1; }
+            [[ "$(git cat-file -t "refs/tags/$tag" 2>/dev/null || true)" == tag ]] \
+              || { echo "RELEASE LANE: BLOCKED - $tag is not an annotated tag" >&2; return 1; }
+          }
+          # END RELEASE_LANE_LOCK_FETCH
+          fetch_required_lock_tag stage-busy
           stage_pr="$(git cat-file -p refs/tags/stage-busy | sed -n '/^$/,$p' | sed '1d' | awk -F': ' '$1 == "pr" { print $2; exit }')"
           test -n "$stage_pr"
           gh api "repos/$REPOSITORY/pulls/$stage_pr" >"$tmp/stage-lock.json"
           if [[ "$contour" == production ]]; then
-            git fetch -q --no-tags --force origin refs/tags/prod-busy:refs/tags/prod-busy
+            fetch_required_lock_tag prod-busy
             prod_pr="$(git cat-file -p refs/tags/prod-busy | sed -n '/^$/,$p' | sed '1d' | awk -F': ' '$1 == "pr" { print $2; exit }')"
             test -n "$prod_pr"
             gh api "repos/$REPOSITORY/pulls/$prod_pr" >"$tmp/prod-lock.json"
