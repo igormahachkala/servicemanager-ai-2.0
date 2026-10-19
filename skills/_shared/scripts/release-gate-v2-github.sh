@@ -105,6 +105,10 @@ admit() {
   IFS=$'\t' read -r base_ref base_sha branch head_sha head_repo merge_sha < <(fields "$TMP/pr-initial.json")
   [[ "$base_ref" == beta || "$base_ref" == prod ]] || { echo "unsupported PR base" >&2; return 1; }
   [[ -z "$EXPECTED_BASE" || "$base_ref" == "$EXPECTED_BASE" ]] || { echo "admission/base mismatch" >&2; return 1; }
+  git fetch -q --no-tags --force origin "refs/pull/$PR_NUMBER/merge"
+  fetched_merge_sha=$(git rev-parse FETCH_HEAD)
+  [ "$fetched_merge_sha" = "$merge_sha" ] \
+    || { echo "RELEASE V2: BLOCKED - GitHub merge ref and PR metadata disagree" >&2; return 1; }
   fetch_review "$head_sha" "$TMP/review-initial.json"
 
   compare=("$TMP/pr-initial.json" "$TMP/pr-final.json" "$TMP/review-initial.json" "$TMP/review-final.json")
@@ -135,6 +139,9 @@ PY
   [[ "$MODE" == verify ]] || fetch_pr "$stage_pr" "$TMP/stage-final.json"
   [[ "$MODE" != production ]] || fetch_pr "$prod_pr" "$TMP/prod-final.json"
   same_evidence "${compare[@]}" || { echo "RELEASE V2: BLOCKED - GitHub evidence changed during validation" >&2; return 1; }
+  git fetch -q --no-tags --force origin "refs/pull/$PR_NUMBER/merge"
+  [ "$(git rev-parse FETCH_HEAD)" = "$fetched_merge_sha" ] \
+    || { echo "RELEASE V2: BLOCKED - prospective merge changed during validation" >&2; return 1; }
 
   "$GATE" "$MODE" "$branch" "$head_sha" "$PR_NUMBER" "${gate_args[@]}"
   printf '%s\n' "$head_sha" >"$TMP/head-sha"

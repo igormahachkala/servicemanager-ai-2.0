@@ -33,6 +33,7 @@ printf 'candidate\n' >>"$WORK/fixture"; git -C "$WORK" commit -qam candidate
 HEAD=$(git -C "$WORK" rev-parse HEAD)
 git -C "$WORK" clone -q --bare . "$REMOTE"; git -C "$WORK" remote add origin "$REMOTE"
 git -C "$WORK" push -q origin prod beta feat/v2
+git -C "$WORK" push -q origin "$HEAD":refs/pull/8/merge
 
 python3 - "$API" "$PROD" "$HEAD" <<'PY'
 import json, pathlib, sys
