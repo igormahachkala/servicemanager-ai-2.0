@@ -39,12 +39,39 @@ if grep -Fq ': >"$tmp/prod-lock.json"' "$workflow" \
 else
   fail "beta workflow path materializes both lock metadata files"
 fi
-if grep -Fq 'release-lane-tag-fetch.sh stage-busy' "$workflow" \
-  && grep -Fq 'release-lane-tag-fetch.sh prod-busy' "$workflow"; then
-  pass "trusted workflow uses controlled fail-closed lock acquisition"
+sed -n '/# BEGIN RELEASE_LANE_LOCK_FETCH/,/# END RELEASE_LANE_LOCK_FETCH/p' "$workflow" \
+  | sed 's/^          //' >"$TMP/lock-fetch.sh"
+if grep -Fq 'fetch_required_lock_tag()' "$TMP/lock-fetch.sh" \
+  && grep -Fq 'fetch_required_lock_tag stage-busy' "$workflow" \
+  && grep -Fq 'fetch_required_lock_tag prod-busy' "$workflow"; then
+  pass "trusted workflow embeds controlled lock acquisition"
 else
-  fail "trusted workflow uses controlled fail-closed lock acquisition"
+  fail "trusted workflow embeds controlled lock acquisition"
 fi
+
+LOCK_WORK="$TMP/lock-work"
+LOCK_REMOTE="$TMP/lock-remote.git"
+git init -q "$LOCK_WORK"
+git -C "$LOCK_WORK" config user.name "Release Lane Workflow Self-Test"
+git -C "$LOCK_WORK" config user.email release-lane-workflow-selftest@example.invalid
+printf 'fixture\n' >"$LOCK_WORK/fixture.txt"
+git -C "$LOCK_WORK" add fixture.txt
+git -C "$LOCK_WORK" commit -qm fixture
+git -C "$LOCK_WORK" clone -q --bare . "$LOCK_REMOTE"
+git -C "$LOCK_WORK" remote add origin "$LOCK_REMOTE"
+run_lock_fetch() { (cd "$LOCK_WORK" && source "$TMP/lock-fetch.sh" && fetch_required_lock_tag "$1"); }
+expect_lock_failure() {
+  local label="$1" tag="$2" reason="$3" rc
+  set +e; run_lock_fetch "$tag" >"$TMP/lock.out" 2>&1; rc=$?; set -e
+  if ((rc != 0)) && grep -Fq "$reason" "$TMP/lock.out"; then pass "$label"; else fail "$label"; fi
+}
+expect_lock_failure "missing stage-busy is denied clearly" stage-busy "stage-busy is missing"
+git -C "$LOCK_WORK" tag -a stage-busy -m "fixture stage lock"
+git -C "$LOCK_WORK" push -q origin refs/tags/stage-busy
+if run_lock_fetch stage-busy >"$TMP/lock.out" 2>&1; then pass "annotated stage-busy is fetched"; else fail "annotated stage-busy is fetched"; fi
+git -C "$LOCK_WORK" tag prod-busy
+git -C "$LOCK_WORK" push -q origin refs/tags/prod-busy
+expect_lock_failure "lightweight prod-busy is denied" prod-busy "prod-busy is not an annotated tag"
 if grep -Fq 'pull_request_target:' "$workflow" \
   && grep -Fq 'ref: ${{ github.event.pull_request.base.ref }}' "$workflow" \
   && grep -Fq 'persist-credentials: false' "$workflow" \
