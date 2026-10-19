@@ -19,6 +19,8 @@ export type PlannerActor = {
   userId: string
   role: UserRole
   accessFlags?: { canTechnicianViewAllCompanyTickets?: boolean }
+  /** Scope расчёта к одному клиенту. Без него — все bound-контуры. */
+  linkedClientCompanyId?: string | null
 }
 
 type LocationMeta = {
@@ -92,6 +94,8 @@ type ScheduleRow = {
   } | null
 }
 
+type BoundContext = { clientCompany: { id: string; name: string } }
+
 @Injectable()
 export class PlannerService {
   constructor(
@@ -112,14 +116,18 @@ export class PlannerService {
     })
     if (!openShift) return { shiftOpen: false }
 
-    const contexts = await this.technicians.getBoundContexts(actor.companyId, actor.userId)
-    const linkedClientIds =
-      contexts.length > 0
-        ? contexts.map((ctx: { clientCompany: { id: string } }) => ctx.clientCompany.id)
-        : [undefined]
+    const contexts = (await this.technicians.getBoundContexts(
+      actor.companyId,
+      actor.userId,
+    )) as BoundContext[]
+
+    const scope = resolveClientScope(contexts, actor.linkedClientCompanyId)
+    if (scope.denied) {
+      return { shiftOpen: true, currentLocationId: null, first: null, next: [] }
+    }
 
     const clientNameById = new Map<string, string>()
-    for (const ctx of contexts as Array<{ clientCompany: { id: string; name: string } }>) {
+    for (const ctx of contexts) {
       clientNameById.set(ctx.clientCompany.id, ctx.clientCompany.name)
     }
 
@@ -128,7 +136,7 @@ export class PlannerService {
     const seenTicketIds = new Set<string>()
     let currentLocationId: string | null = null
 
-    for (const linkedClientCompanyId of linkedClientIds) {
+    for (const linkedClientCompanyId of scope.linkedClientIds) {
       const board = await this.ticketsQuery.board(
         actor.companyId,
         actor.userId,
@@ -197,6 +205,7 @@ export class PlannerService {
       { active: 'true' },
     )) as ScheduleRow[]
 
+    const scopedClientId = scope.scopedClientId
     const inspectionPool: PlannerPoolItem[] = []
     for (const schedule of scheduleRows) {
       if (schedule.isActive === false) continue
@@ -204,6 +213,11 @@ export class PlannerService {
       if (assigneeId && assigneeId !== actor.userId) continue
       const locationId = schedule.location?.id
       if (!locationId || !schedule.nextDueAt) continue
+
+      if (scopedClientId) {
+        const scheduleClientId = schedule.location?.clientCompanyId ?? null
+        if (scheduleClientId !== scopedClientId) continue
+      }
 
       this.rememberLocationFromSchedule(locationMeta, schedule, clientNameById)
       inspectionPool.push({
@@ -358,6 +372,41 @@ export class PlannerService {
       reasons: works[0]?.reasons ?? [],
       works,
     }
+  }
+}
+
+/** Which client boards to load. Denied = requested client is not in bound contexts. */
+export function resolveClientScope(
+  contexts: BoundContext[],
+  linkedClientCompanyId?: string | null,
+): {
+  denied: boolean
+  linkedClientIds: Array<string | undefined>
+  scopedClientId: string | null
+} {
+  const requested = (linkedClientCompanyId || '').trim()
+  if (!requested) {
+    return {
+      denied: false,
+      linkedClientIds:
+        contexts.length > 0
+          ? contexts.map((ctx) => ctx.clientCompany.id)
+          : [undefined],
+      scopedClientId: null,
+    }
+  }
+
+  if (contexts.length > 0) {
+    const allowed = contexts.some((ctx) => ctx.clientCompany.id === requested)
+    if (!allowed) {
+      return { denied: true, linkedClientIds: [], scopedClientId: null }
+    }
+  }
+
+  return {
+    denied: false,
+    linkedClientIds: [requested],
+    scopedClientId: requested,
   }
 }
 
