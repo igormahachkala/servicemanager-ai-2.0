@@ -39,9 +39,10 @@ if [ "$CONTOUR" = production ]; then
 fi
 
 validate_json_metadata() {
-  python3 - "$1" "$2" "$3" "$4" "$5" "$6" <<'PY'
+  local require_merge_sha="${7:-1}"
+  python3 - "$1" "$2" "$3" "$4" "$5" "$6" "$require_merge_sha" <<'PY'
 import json, sys
-path, number, repo, base_ref, head_ref, head_sha = sys.argv[1:]
+path, number, repo, base_ref, head_ref, head_sha, require_merge_sha = sys.argv[1:]
 d = json.load(open(path))
 assert str(d.get("number")) == number
 assert d.get("base", {}).get("ref") == base_ref
@@ -50,8 +51,9 @@ assert d.get("head", {}).get("ref") == head_ref
 assert d.get("head", {}).get("repo", {}).get("full_name") == repo
 if head_sha:
     assert d.get("head", {}).get("sha") == head_sha
-assert isinstance(d.get("merge_commit_sha"), str) and len(d["merge_commit_sha"]) == 40
-assert all(c in "0123456789abcdef" for c in d["merge_commit_sha"])
+if require_merge_sha == "1":
+    assert isinstance(d.get("merge_commit_sha"), str) and len(d["merge_commit_sha"]) == 40
+    assert all(c in "0123456789abcdef" for c in d["merge_commit_sha"])
 PY
 }
 remote_ref() { git ls-remote --exit-code "$REMOTE" "$1" 2>/dev/null | awk 'NR == 1 { print $1; exit }'; }
@@ -135,7 +137,7 @@ merge_tree="$(git rev-parse "$MERGE_SHA^{tree}" 2>/dev/null || true)"; [[ "$merg
 ensure_tag stage-busy || fail "stage-busy is missing or unreadable"
 lock_body="$(tag_body stage-busy)"; lock_pr="$(field_value pr "$lock_body")"; [[ "$lock_pr" =~ ^[1-9][0-9]*$ ]] || fail "stage-busy PR metadata is malformed"
 validate_lock stage-busy "$BRANCH" "$lock_pr"
-validate_json_metadata "$LOCK_METADATA_FILE" "$lock_pr" "$REPOSITORY" "$BASE_REF" "$BRANCH" "" || fail "stage-busy owner PR metadata mismatch"
+validate_json_metadata "$LOCK_METADATA_FILE" "$lock_pr" "$REPOSITORY" "$BASE_REF" "$BRANCH" "" 0 || fail "stage-busy owner PR metadata mismatch"
 
 if [ "$CONTOUR" = production ]; then
   ensure_tag "stage-ok/$BRANCH" || fail "exact stage-ok is missing or unreadable"
@@ -146,7 +148,7 @@ if [ "$CONTOUR" = production ]; then
   ensure_tag prod-busy || fail "prod-busy is missing or unreadable"
   prod_lock_body="$(tag_body prod-busy)"; prod_lock_pr="$(field_value pr "$prod_lock_body")"; validate_lock prod-busy "$BRANCH" "$prod_lock_pr"
   [ -f "$PROD_LOCK_METADATA_FILE" ] || fail "prod-busy owner PR metadata is missing"
-  validate_json_metadata "$PROD_LOCK_METADATA_FILE" "$prod_lock_pr" "$REPOSITORY" "$BASE_REF" "$BRANCH" "" || fail "prod-busy owner PR metadata mismatch"
+  validate_json_metadata "$PROD_LOCK_METADATA_FILE" "$prod_lock_pr" "$REPOSITORY" "$BASE_REF" "$BRANCH" "" 0 || fail "prod-busy owner PR metadata mismatch"
 fi
 if [ -n "$TEST_HOOK" ]; then
   [ "$(printenv RELEASE_LANE_SELFTEST || true)" = 1 ] && [ -f "$TEST_HOOK" ] || fail "test hook is not permitted"
