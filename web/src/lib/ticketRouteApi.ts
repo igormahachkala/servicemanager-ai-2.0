@@ -3,6 +3,7 @@ import { getBaseUrl, getToken, type TicketScopeParams } from './api'
 export type TicketRouteResponse = {
   available: boolean
   distanceMeters: number | null
+  /** Always null from the API. Straight-line distance has no travel time. */
   durationSeconds: number | null
 }
 

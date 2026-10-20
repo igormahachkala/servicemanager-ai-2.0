@@ -551,3 +551,4 @@ size limits without checking the reverse proxy limit as well.
 - [04 Development Workflow](04_DEVELOPMENT_WORKFLOW.md) — Stage and production behavior
 - [Database Readiness Runbook](DATABASE_READINESS_RUNBOOK.md) — `/health` отвечает ok, но пользователи видят ошибки базы
 - [Database Backup Requirements](DATABASE_BACKUP_REQUIREMENTS.md) — требования к копиям, восстановлению и оповещениям (issue #378)
+- [PLATFORM_ADMIN Recovery](PLATFORM_ADMIN_RECOVERY.md) — потерян доступ администратора платформы, или разворачивается новый контур

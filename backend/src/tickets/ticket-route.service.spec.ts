@@ -1,16 +1,12 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common'
 import { UserRole, WorkShiftStatus } from '@prisma/client'
 
-import { ROUTE_CACHE_TTL_MS, TicketRouteService } from './ticket-route.service'
+import { haversineMeters, TicketRouteService } from './ticket-route.service'
 import * as ticketAccessUtils from './ticket-access.utils'
 
 jest.mock('./ticket-access.utils', () => ({
   resolveReadableTicketAccess: jest.fn(),
 }))
-
-jest.mock('../twogis/twogis-routing.service', () => ({
-  TwogisRoutingService: class TwogisRoutingService {},
-}), { virtual: true })
 
 const mockResolveReadable =
   ticketAccessUtils.resolveReadableTicketAccess as jest.MockedFunction<
@@ -26,7 +22,19 @@ const ACTOR = {
 
 const LOCATION_POINT = { latitude: 55.751244, longitude: 37.618423 }
 const SHIFT_POINT = { lastLatitude: 55.760002, lastLongitude: 37.618423 }
-const ROUTE_SUMMARY = { distanceMeters: 4200, durationSeconds: 1080 }
+const OTHER_POINT = { latitude: 55.7, longitude: 37.5 }
+
+function expectedMeters(
+  fromLat: number,
+  fromLon: number,
+  toLat: number,
+  toLon: number,
+): number {
+  return haversineMeters(
+    { lat: fromLat, lon: fromLon },
+    { lat: toLat, lon: toLon },
+  )
+}
 
 function makeAccess() {
   return {
@@ -47,12 +55,24 @@ function makeSetup() {
       findFirst: jest.fn().mockResolvedValue(SHIFT_POINT),
     },
   }
-  const routing = {
-    routeSummary: jest.fn().mockResolvedValue(ROUTE_SUMMARY),
-  }
-  const svc = new TicketRouteService(prisma as any, {} as any, routing as any)
-  return { svc, prisma, routing }
+  const svc = new TicketRouteService(prisma as any, {} as any)
+  return { svc, prisma }
 }
+
+describe('haversineMeters', () => {
+  it('returns ~0 for the same point', () => {
+    expect(haversineMeters({ lat: 55.75, lon: 37.62 }, { lat: 55.75, lon: 37.62 })).toBeLessThan(1)
+  })
+
+  it('measures roughly one hundred meters for a 0.001° latitude step', () => {
+    const meters = haversineMeters(
+      { lat: 55.75, lon: 37.62 },
+      { lat: 55.751, lon: 37.62 },
+    )
+    expect(meters).toBeGreaterThan(100)
+    expect(meters).toBeLessThan(130)
+  })
+})
 
 describe('TicketRouteService.getForTicket', () => {
   beforeEach(() => {
@@ -60,8 +80,8 @@ describe('TicketRouteService.getForTicket', () => {
     mockResolveReadable.mockResolvedValue(makeAccess() as any)
   })
 
-  it('does not call routeSummary when ticket location coords are missing', async () => {
-    const { svc, prisma, routing } = makeSetup()
+  it('does not compute distance when ticket location coords are missing', async () => {
+    const { svc, prisma } = makeSetup()
     prisma.ticket.findFirst.mockResolvedValue({
       location: { latitude: null, longitude: null },
     })
@@ -71,11 +91,10 @@ describe('TicketRouteService.getForTicket', () => {
       distanceMeters: null,
       durationSeconds: null,
     })
-    expect(routing.routeSummary).not.toHaveBeenCalled()
   })
 
-  it('does not call routeSummary when the open shift has no last geo', async () => {
-    const { svc, prisma, routing } = makeSetup()
+  it('does not compute distance when the open shift has no last geo', async () => {
+    const { svc, prisma } = makeSetup()
     prisma.workShift.findFirst.mockResolvedValue({
       lastLatitude: null,
       lastLongitude: null,
@@ -86,16 +105,21 @@ describe('TicketRouteService.getForTicket', () => {
       distanceMeters: null,
       durationSeconds: null,
     })
-    expect(routing.routeSummary).not.toHaveBeenCalled()
   })
 
-  it('returns duration when both points are present', async () => {
-    const { svc, prisma, routing } = makeSetup()
+  it('returns straight-line meters and null duration when both points are present', async () => {
+    const { svc, prisma } = makeSetup()
+    const meters = expectedMeters(
+      SHIFT_POINT.lastLatitude,
+      SHIFT_POINT.lastLongitude,
+      LOCATION_POINT.latitude,
+      LOCATION_POINT.longitude,
+    )
 
     await expect(svc.getForTicket(ACTOR, TICKET_ID)).resolves.toEqual({
       available: true,
-      distanceMeters: 4200,
-      durationSeconds: 1080,
+      distanceMeters: meters,
+      durationSeconds: null,
     })
     expect(prisma.workShift.findFirst).toHaveBeenCalledWith({
       where: {
@@ -108,14 +132,10 @@ describe('TicketRouteService.getForTicket', () => {
         lastLongitude: true,
       },
     })
-    expect(routing.routeSummary).toHaveBeenCalledWith(
-      { lat: SHIFT_POINT.lastLatitude, lon: SHIFT_POINT.lastLongitude },
-      { lat: LOCATION_POINT.latitude, lon: LOCATION_POINT.longitude },
-    )
   })
 
   it('bubbles access denied from resolveReadableTicketAccess', async () => {
-    const { svc, prisma, routing } = makeSetup()
+    const { svc, prisma } = makeSetup()
     mockResolveReadable.mockRejectedValue(new NotFoundException('Ticket not found'))
 
     await expect(svc.getForTicket(ACTOR, TICKET_ID)).rejects.toBeInstanceOf(
@@ -123,11 +143,10 @@ describe('TicketRouteService.getForTicket', () => {
     )
     expect(prisma.ticket.findFirst).not.toHaveBeenCalled()
     expect(prisma.workShift.findFirst).not.toHaveBeenCalled()
-    expect(routing.routeSummary).not.toHaveBeenCalled()
   })
 
   it('bubbles ForbiddenException from ticket read access', async () => {
-    const { svc, routing } = makeSetup()
+    const { svc } = makeSetup()
     mockResolveReadable.mockRejectedValue(
       new ForbiddenException('Linked client access is not available'),
     )
@@ -141,26 +160,27 @@ describe('TicketRouteService.getForTicket', () => {
         linkedClientCompanyId: 'client-2',
       }),
     )
-    expect(routing.routeSummary).not.toHaveBeenCalled()
-  })
-
-  it('returns unavailable when routeSummary is null', async () => {
-    const { svc, routing } = makeSetup()
-    routing.routeSummary.mockResolvedValue(null)
-
-    await expect(svc.getForTicket(ACTOR, TICKET_ID)).resolves.toEqual({
-      available: false,
-      distanceMeters: null,
-      durationSeconds: null,
-    })
-    expect(routing.routeSummary).toHaveBeenCalledTimes(1)
   })
 })
 
 describe('TicketRouteService.getForTickets', () => {
   const UNAVAILABLE = { available: false, distanceMeters: null, durationSeconds: null }
-  const AVAILABLE = { available: true, ...ROUTE_SUMMARY }
-  const OTHER_POINT = { latitude: 55.7, longitude: 37.5 }
+
+  function availableFor(
+    toLat: number,
+    toLon: number,
+  ): { available: true; distanceMeters: number; durationSeconds: null } {
+    return {
+      available: true,
+      distanceMeters: expectedMeters(
+        SHIFT_POINT.lastLatitude,
+        SHIFT_POINT.lastLongitude,
+        toLat,
+        toLon,
+      ),
+      durationSeconds: null,
+    }
+  }
 
   function makeBatchSetup(rows: Array<{ id: string; location: { latitude: number | null; longitude: number | null } | null }>) {
     const setup = makeSetup()
@@ -174,8 +194,8 @@ describe('TicketRouteService.getForTickets', () => {
     mockResolveReadable.mockResolvedValue(makeAccess() as any)
   })
 
-  it('calls routing once per destination and fans the result out to its tickets', async () => {
-    const { svc, routing } = makeBatchSetup([
+  it('computes once per destination and fans the result out to its tickets', async () => {
+    const { svc } = makeBatchSetup([
       { id: 't-1', location: LOCATION_POINT },
       { id: 't-2', location: LOCATION_POINT },
       { id: 't-3', location: OTHER_POINT },
@@ -183,8 +203,11 @@ describe('TicketRouteService.getForTickets', () => {
 
     const result = await svc.getForTickets(ACTOR, ['t-1', 't-2', 't-3'], 'client-1')
 
-    expect(result).toEqual({ 't-1': AVAILABLE, 't-2': AVAILABLE, 't-3': AVAILABLE })
-    expect(routing.routeSummary).toHaveBeenCalledTimes(2)
+    expect(result).toEqual({
+      't-1': availableFor(LOCATION_POINT.latitude, LOCATION_POINT.longitude),
+      't-2': availableFor(LOCATION_POINT.latitude, LOCATION_POINT.longitude),
+      't-3': availableFor(OTHER_POINT.latitude, OTHER_POINT.longitude),
+    })
     expect(mockResolveReadable).toHaveBeenCalledWith(
       expect.objectContaining({ ticketId: 't-1', linkedClientCompanyId: 'client-1' }),
     )
@@ -199,25 +222,27 @@ describe('TicketRouteService.getForTickets', () => {
 
     const result = await svc.getForTickets(ACTOR, ['t-1', 't-foreign'])
 
-    expect(result).toEqual({ 't-1': AVAILABLE, 't-foreign': UNAVAILABLE })
+    expect(result).toEqual({
+      't-1': availableFor(LOCATION_POINT.latitude, LOCATION_POINT.longitude),
+      't-foreign': UNAVAILABLE,
+    })
     expect(prisma.ticket.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: { in: ['t-1'] } } }),
     )
   })
 
-  it('returns all unavailable without access checks or routing when the shift has no point', async () => {
-    const { svc, prisma, routing } = makeBatchSetup([])
+  it('returns all unavailable without access checks when the shift has no point', async () => {
+    const { svc, prisma } = makeBatchSetup([])
     prisma.workShift.findFirst.mockResolvedValue(null)
 
     const result = await svc.getForTickets(ACTOR, ['t-1', 't-2'])
 
     expect(result).toEqual({ 't-1': UNAVAILABLE, 't-2': UNAVAILABLE })
     expect(mockResolveReadable).not.toHaveBeenCalled()
-    expect(routing.routeSummary).not.toHaveBeenCalled()
   })
 
   it('leaves tickets without location coords unavailable', async () => {
-    const { svc, routing } = makeBatchSetup([
+    const { svc } = makeBatchSetup([
       { id: 't-1', location: { latitude: null, longitude: null } },
       { id: 't-2', location: null },
     ])
@@ -225,47 +250,5 @@ describe('TicketRouteService.getForTickets', () => {
     const result = await svc.getForTickets(ACTOR, ['t-1', 't-2'])
 
     expect(result).toEqual({ 't-1': UNAVAILABLE, 't-2': UNAVAILABLE })
-    expect(routing.routeSummary).not.toHaveBeenCalled()
-  })
-
-  it('reuses the cache for origins inside the same ~100 m cell within TTL', async () => {
-    const { svc, prisma, routing } = makeBatchSetup([{ id: 't-1', location: LOCATION_POINT }])
-
-    await svc.getForTickets(ACTOR, ['t-1'])
-    prisma.workShift.findFirst.mockResolvedValue({
-      lastLatitude: SHIFT_POINT.lastLatitude + 0.0004,
-      lastLongitude: SHIFT_POINT.lastLongitude,
-    })
-    await svc.getForTickets(ACTOR, ['t-1'])
-
-    expect(routing.routeSummary).toHaveBeenCalledTimes(1)
-  })
-
-  it('calls routing again when the origin moves into another cache cell', async () => {
-    const { svc, prisma, routing } = makeBatchSetup([{ id: 't-1', location: LOCATION_POINT }])
-
-    await svc.getForTickets(ACTOR, ['t-1'])
-    prisma.workShift.findFirst.mockResolvedValue({
-      lastLatitude: SHIFT_POINT.lastLatitude + 0.002,
-      lastLongitude: SHIFT_POINT.lastLongitude,
-    })
-    await svc.getForTickets(ACTOR, ['t-1'])
-
-    expect(routing.routeSummary).toHaveBeenCalledTimes(2)
-  })
-
-  it('calls routing again after the cache TTL expires', async () => {
-    jest.useFakeTimers()
-    jest.setSystemTime(new Date('2026-10-15T10:00:00.000Z'))
-    const { svc, routing } = makeBatchSetup([{ id: 't-1', location: LOCATION_POINT }])
-
-    await svc.getForTickets(ACTOR, ['t-1'])
-    expect(routing.routeSummary).toHaveBeenCalledTimes(1)
-
-    jest.setSystemTime(new Date(Date.now() + ROUTE_CACHE_TTL_MS + 1))
-    await svc.getForTickets(ACTOR, ['t-1'])
-    expect(routing.routeSummary).toHaveBeenCalledTimes(2)
-
-    jest.useRealTimers()
   })
 })
