@@ -4,10 +4,6 @@ import { validate } from 'class-validator'
 import { TICKET_ROUTES_BATCH_MAX } from '../ticket-route.service'
 import { TicketRoutesDto } from './ticket-routes.dto'
 
-jest.mock('../../twogis/twogis-routing.service', () => ({
-  TwogisRoutingService: class TwogisRoutingService {},
-}))
-
 async function errorsFor(body: unknown) {
   return validate(plainToInstance(TicketRoutesDto, body))
 }

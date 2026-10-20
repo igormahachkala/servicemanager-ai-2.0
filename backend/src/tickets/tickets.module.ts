@@ -19,7 +19,6 @@ import { TechniciansModule } from '../technicians/technicians.module'
 import { NotificationsModule } from '../notifications/notifications.module'
 import { WorkforceModule } from '../workforce/workforce.module'
 import { FailureCausesModule } from '../failure-causes/failure-causes.module'
-import { TwogisModule } from '../twogis/twogis.module'
 import { TicketRouteService } from './ticket-route.service'
 import { TicketRoutesController } from './ticket-routes.controller'
 
@@ -33,7 +32,6 @@ import { TicketRoutesController } from './ticket-routes.controller'
     NotificationsModule,
     WorkforceModule,
     FailureCausesModule,
-    TwogisModule,
   ],
   providers: [
     TicketsService,

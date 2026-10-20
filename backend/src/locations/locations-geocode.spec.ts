@@ -1,61 +1,53 @@
 import {
   coordsFromGeocodeHit,
   decideGeocodeIntent,
-  isAcceptedGeocodePrecision,
+  isAcceptedQcGeo,
 } from './location-geocode'
 
-describe('location-geocode precision', () => {
-  it('accepts exact and number', () => {
-    expect(isAcceptedGeocodePrecision('exact')).toBe(true)
-    expect(isAcceptedGeocodePrecision('number')).toBe(true)
+describe('location-geocode qc_geo', () => {
+  it('accepts qc_geo 0 and 1', () => {
+    expect(isAcceptedQcGeo(0)).toBe(true)
+    expect(isAcceptedQcGeo(1)).toBe(true)
     expect(
       coordsFromGeocodeHit({
         lat: 56.838,
         lon: 60.597,
-        precision: 'exact',
-        fullName: 'Екатеринбург, ул. Ленина, 1',
+        qcGeo: 0,
+        fullName: 'г Екатеринбург, ул Ленина, д 1',
       }),
     ).toEqual({ latitude: 56.838, longitude: 60.597 })
     expect(
       coordsFromGeocodeHit({
         lat: 55.75,
         lon: 37.61,
-        precision: 'number',
-        fullName: 'Москва, Тверская, 1',
+        qcGeo: 1,
+        fullName: 'г Москва, ул Тверская, д 1',
       }),
     ).toEqual({ latitude: 55.75, longitude: 37.61 })
   })
 
-  it('rejects near, street and null', () => {
-    expect(isAcceptedGeocodePrecision('near')).toBe(false)
-    expect(isAcceptedGeocodePrecision('street')).toBe(false)
-    expect(isAcceptedGeocodePrecision('other')).toBe(false)
-    expect(isAcceptedGeocodePrecision(null)).toBe(false)
+  it('rejects qc_geo ≥ 2 and null', () => {
+    expect(isAcceptedQcGeo(2)).toBe(false)
+    expect(isAcceptedQcGeo(3)).toBe(false)
+    expect(isAcceptedQcGeo(null)).toBe(false)
+    expect(isAcceptedQcGeo(undefined)).toBe(false)
     expect(
       coordsFromGeocodeHit({
         lat: 56.838,
         lon: 60.597,
-        precision: 'near',
-        fullName: 'Екатеринбург',
+        qcGeo: 2,
+        fullName: 'г Екатеринбург',
       }),
     ).toBeNull()
     expect(
       coordsFromGeocodeHit({
         lat: 56.838,
         lon: 60.597,
-        precision: 'street',
-        fullName: 'ул. Ленина',
+        qcGeo: null,
+        fullName: 'ул Ленина',
       }),
     ).toBeNull()
     expect(coordsFromGeocodeHit(null)).toBeNull()
-    expect(
-      coordsFromGeocodeHit({
-        lat: 56.838,
-        lon: 60.597,
-        precision: null,
-        fullName: 'Екатеринбург, ул. Ленина, 1',
-      }),
-    ).toBeNull()
   })
 })
 
@@ -104,7 +96,7 @@ describe('location-geocode decideGeocodeIntent', () => {
     ).toEqual({ kind: 'skip' })
   })
 
-  it('asks 2GIS when create has address and no coords', () => {
+  it('asks Dadata when create has address and no coords', () => {
     expect(
       decideGeocodeIntent({
         mode: 'create',
