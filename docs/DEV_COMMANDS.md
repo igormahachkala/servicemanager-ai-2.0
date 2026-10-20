@@ -1,132 +1,156 @@
-# DEV COMMANDS — ServiceManager.AI
+# DEV COMMANDS - ServiceManager.AI
 
-Цель: быстрые команды для разработки без хранения токенов вручную.
+Purpose:
 
-Base URL (dev):
+Standardize the API development and verification commands.
+
+Base URLs (dev):
+
+- Docker backend: `http://localhost:3000`
+- Local WSL backend: `http://localhost:3001`
+
+---
+
+# 1. Runtime modes
+
+## Local WSL backend
+
+- env source: `backend/.env`
+- database host: `localhost:5432`
+- backend port: `3001`
+- docker backend can stay running on `3000`
+- command: `cd /home/igor/projects/sma-service/backend && npm run start:dev`
+
+## Docker backend
+
+- env source: `backend/.env.docker`
+- database host: `postgres:5432`
+- backend port: `3000`
+- command: `cd /home/igor/projects/sma-service && docker compose up -d --build postgres backend`
+
+Do not switch `DATABASE_URL` manually inside the same `.env` file.
+
+---
+
+# 2. Node 20 in WSL
+
+A normal WSL dev shell must use Node 20 by default.
+
+Check:
+
+```bash
+node -v
+npm -v
+```
+
+If the shell was opened before the init-file update, open a new WSL session or run:
+
+```bash
+source ~/.profile
+node -v
+npm -v
+```
+
+---
+
+# 3. Local WSL setup
+
+Start Postgres through compose:
+
+```bash
+cd /home/igor/projects/sma-service
+docker compose up -d postgres
+```
+
+Start the backend locally from WSL:
+
+```bash
+cd /home/igor/projects/sma-service/backend
+npm install
+npm run prisma:generate:local
+npm run start:dev
+```
+
+Expected local backend URL:
+
+```text
+http://localhost:3001
+```
+
+Docker backend does not need to be stopped, because it stays on `3000`.
+
+---
+
+# 4. Docker setup
+
+Start Postgres and backend in compose:
+
+```bash
+cd /home/igor/projects/sma-service
+docker compose up -d --build postgres backend
+```
+
+Expected docker backend URL:
+
+```text
 http://localhost:3000
+```
 
----
+Show backend logs:
 
-## 1. Получить JWT токен (ADMIN)
+```bash
+docker logs -n 100 sma_backend
+```
 
-TOKEN=$(curl -s -X POST http://localhost:3000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"owner@sma.local","password":"ChangeMe123!"}' \
-  | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+Stop the stack:
 
-echo "TOKEN_LEN=${#TOKEN}"
-
----
-
-## 2. Проверить текущего пользователя
-
-curl -s http://localhost:3000/auth/me \
-  -H "Authorization: Bearer $TOKEN"
-
----
-
-## 3. Создать техника
-
-curl -s -X POST http://localhost:3000/users \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"email":"tech@test.local","password":"ChangeMe123!","role":"TECHNICIAN"}'
-
----
-
-## 4. Список техников
-
-curl -s http://localhost:3000/technicians \
-  -H "Authorization: Bearer $TOKEN"
-
----
-
-## 5. Создать тикет
-
-curl -s -X POST http://localhost:3000/tickets \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "problemCategoryId":"<CATEGORY_ID>",
-    "problemText":"Test ticket",
-    "urgency":"NOT_URGENT",
-    "requesterName":"Test User",
-    "requesterPhone":"+7 999 000-00-00",
-    "address":"Test address",
-    "pointName":"Point A"
-  }'
-
----
-
-## 6. Получить список тикетов
-
-curl -s http://localhost:3000/tickets \
-  -H "Authorization: Bearer $TOKEN"
-
----
-
-## 7. Получить один тикет
-
-curl -s http://localhost:3000/tickets/<TICKET_ID> \
-  -H "Authorization: Bearer $TOKEN"
-
----
-
-## 8. Ручное назначение техника
-
-curl -s -X PUT http://localhost:3000/tickets/<TICKET_ID>/assign/<TECH_ID> \
-  -H "Authorization: Bearer $TOKEN"
-
----
-
-## 9. Создать дочерний тикет
-
-curl -s -X POST http://localhost:3000/tickets/<PARENT_ID>/child \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "problemCategoryId":"<CATEGORY_ID>",
-    "problemText":"Child task",
-    "urgency":"NOT_URGENT"
-  }'
-
----
-
-## 10. Включить автоназначение
-
-curl -s -X PATCH http://localhost:3000/company/auto-assign \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"enabled":true}'
-
----
-
-## 11. Выключить автоназначение
-
-curl -s -X PATCH http://localhost:3000/company/auto-assign \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"enabled":false}'
-
----
-
-## 12. Prisma
-
-Миграция:
-npx prisma migrate dev --name <migration_name>
-
-Форматирование:
-npx prisma format
-
----
-
-## 13. Docker
-
-Пересобрать backend:
-docker compose up -d --build backend
-
-Посмотреть логи:
-docker logs -n 80 sma_backend
-
-Остановить:
+```bash
 docker compose down
+```
+
+---
+
+# 5. Prisma
+
+Local generate:
+
+```bash
+cd /home/igor/projects/sma-service/backend
+npm run prisma:generate:local
+```
+
+Docker-oriented generate:
+
+```bash
+cd /home/igor/projects/sma-service/backend
+npm run prisma:generate:docker
+```
+
+Local migration:
+
+```bash
+cd /home/igor/projects/sma-service/backend
+npm run prisma:migrate:dev -- --name migration_name
+```
+
+Studio:
+
+```bash
+cd /home/igor/projects/sma-service/backend
+npm run prisma:studio
+```
+
+---
+
+# 6. Onboarding model
+
+Self-service registration is disabled.
+
+Company provisioning path:
+- PLATFORM_ADMIN logs in
+- PLATFORM_ADMIN creates company in /companies
+- PLATFORM_ADMIN creates the first company admin
+- tenant users log in with issued credentials
+
+Public users must not use /auth/register for company creation.
+Use the public /request-access route for support and public intake instead.

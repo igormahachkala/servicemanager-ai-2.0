@@ -1,77 +1,327 @@
-# SCALING_STRATEGY — ServiceManager.AI
+# SCALING STRATEGY — ServiceManager.AI
 
-Цель: масштабирование до 15+ клиентов и 1500+ заявок/мес за год, с ростом дальше.
+Этот документ описывает стратегию масштабирования платформы.
 
----
+Цель документа:
 
-## 1) Архитектурные уровни
-### MVP (сейчас)
-- монолитный NestJS API
-- Postgres
-- Docker compose
+- подготовить систему к росту
+- избежать архитектурных тупиков
+- определить этапы масштабирования
 
-### Scale v1
-- разделение окружений (dev/stage/prod)
-- Nginx reverse proxy
-- HTTPS
-- CI/CD
-- backup базы
-- мониторинг
-
-### Scale v2
-- background jobs (bullmq/redis): уведомления, SLA checks, PDF генерация
-- event log / audit log
-- caching (redis)
-- read models для аналитики
-
-### Scale v3
-- разделение доменов на модули/сервисы (по мере надобности)
-- отдельный сервис нотификаций (Telegram/Max)
-- отдельный сервис биллинга
 
 ---
 
-## 2) База данных
-- индексы на companyId + createdAt + status
-- pagination везде
-- архивирование закрытых тикетов (partitioning позже)
-- реплика read-only (если потребуется)
+# 1. Текущий уровень архитектуры
+
+ServiceManager.AI сейчас является:
+
+Modular Monolith.
+
+Архитектура:
+
+NestJS  
+Prisma  
+PostgreSQL  
+Docker
+
+
+Это оптимальная архитектура для:
+
+MVP  
+раннего SaaS  
+быстрой разработки
+
 
 ---
 
-## 3) API и клиенты
-- стабилизировать API contract
-- versioning /v1
-- rate limiting per company
-- API keys (для интеграций)
+# 2. Принцип масштабирования
+
+Система должна масштабироваться постепенно.
+
+Этапы роста:
+
+Stage 1 — Modular Monolith  
+Stage 2 — Optimized Monolith  
+Stage 3 — Distributed Services  
+Stage 4 — Platform Architecture
+
+
+Нельзя преждевременно переходить
+к микросервисам.
+
 
 ---
 
-## 4) Multi-tenant
-- строгая изоляция companyId
-- опционально row-level security (RLS) в Postgres позже
+# 3. Stage 1 — Modular Monolith
+
+Текущий этап.
+
+Особенности:
+
+- один backend
+- одна база данных
+- модули внутри NestJS
+
+
+Преимущества:
+
+- простая разработка
+- высокая скорость
+- минимальная сложность
+
 
 ---
 
-## 5) Асинхронщина
-Добавим очередь:
-- PDF generation
-- SLA breach scan
-- telegram notifications
-- analytics aggregation
+# 4. Stage 2 — Optimized Monolith
+
+Когда переходить:
+
+100+ компаний  
+50k+ тикетов в месяц
+
+
+Добавляется:
+
+### 4.1 Redis cache
+
+Используется для:
+
+- board cache
+- session cache
+- rate limiting
+
 
 ---
 
-## 6) Observability
-- structured logs
-- metrics (Prometheus)
-- tracing (OpenTelemetry) позже
-- alerting (Grafana)
+### 4.2 Query optimization
+
+Добавляются:
+
+- индексы
+- pagination
+- optimized queries
+
 
 ---
 
-## 7) План на год (вехи)
-- 0–1 месяц: стабильный MVP + e2e + docs
-- 1–3: status history + SLA + PDF acts + notifications
-- 3–6: billing v1 + limits + admin panel
-- 6–12: mobile + offline sync v1 + advanced analytics
+### 4.3 Background jobs
+
+Добавляется:
+
+job queue
+
+
+Используется для:
+
+- SLA calculation
+- аналитики
+- отправки уведомлений
+
+
+Рекомендуемые технологии:
+
+BullMQ  
+Redis
+
+
+---
+
+# 5. Stage 3 — Distributed Services
+
+Когда переходить:
+
+1000+ компаний  
+миллионы тикетов
+
+
+Система начинает разделяться
+на сервисы.
+
+
+Основные кандидаты
+для выделения сервисов:
+
+Ticket Service  
+Analytics Service  
+Notification Service  
+File Service
+
+
+---
+
+# 6. Stage 4 — Platform Architecture
+
+Когда переходить:
+
+enterprise масштаб.
+
+
+Система становится
+платформой сервисов.
+
+
+Добавляются:
+
+API Gateway  
+Event Bus  
+Service Mesh
+
+
+---
+
+# 7. Event driven architecture
+
+DomainEvent уже используется
+как Event Store.
+
+
+Будущий шаг:
+
+перевести события
+в Event Bus.
+
+
+Технологии:
+
+Kafka  
+NATS  
+RabbitMQ
+
+
+---
+
+# 8. Scaling database
+
+PostgreSQL может масштабироваться
+достаточно долго.
+
+
+Этапы:
+
+Stage 1:
+
+одна база
+
+
+Stage 2:
+
+read replicas
+
+
+Stage 3:
+
+sharding
+
+
+---
+
+# 9. Scaling API
+
+API масштабируется через:
+
+horizontal scaling.
+
+
+Backend контейнеры:
+
+backend-1  
+backend-2  
+backend-3
+
+
+Балансировка:
+
+load balancer
+
+
+---
+
+# 10. File storage
+
+Файлы не должны храниться
+в базе данных.
+
+
+Использовать:
+
+S3 storage
+
+
+Примеры:
+
+AWS S3  
+MinIO
+
+
+---
+
+# 11. Caching strategy
+
+Кэш используется для:
+
+ticket board  
+analytics  
+configuration
+
+
+Технология:
+
+Redis
+
+
+---
+
+# 12. Queue architecture
+
+Очереди используются для:
+
+уведомлений  
+аналитики  
+SLA engine  
+workflow engine
+
+
+Рекомендуемые технологии:
+
+BullMQ  
+RabbitMQ
+
+
+---
+
+# 13. Monitoring
+
+Для production системы
+необходимо добавить мониторинг.
+
+
+Инструменты:
+
+Prometheus  
+Grafana
+
+
+---
+
+# 14. Logging
+
+Централизованные логи.
+
+Инструменты:
+
+ELK stack
+
+
+---
+
+# 15. Архитектурная цель
+
+ServiceManager.AI должен масштабироваться
+до уровня enterprise SaaS.
+
+
+Архитектура должна поддерживать:
+
+- миллионы заявок
+- тысячи компаний
+- распределенную систему

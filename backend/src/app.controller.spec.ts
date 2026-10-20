@@ -1,22 +1,31 @@
+// backend/src/app.controller.spec.ts
+
 import { Test, TestingModule } from '@nestjs/testing';
+
 import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { PrismaService } from './prisma/prisma.service';
 
 describe('AppController', () => {
   let appController: AppController;
 
   beforeEach(async () => {
-    const app: TestingModule = await Test.createTestingModule({
+    const prismaMock = {
+      user: {
+        count: jest.fn().mockResolvedValue(42),
+      },
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
       controllers: [AppController],
-      providers: [AppService],
+      providers: [{ provide: PrismaService, useValue: prismaMock }],
     }).compile();
 
-    appController = app.get<AppController>(AppController);
+    appController = module.get<AppController>(AppController);
   });
 
   describe('root', () => {
-    it('should return "Hello World!"', () => {
-      expect(appController.getHello()).toBe('Hello World!');
+    it('should return users count', async () => {
+      await expect(appController.getUsersCount()).resolves.toEqual({ usersCount: 42 });
     });
   });
 });

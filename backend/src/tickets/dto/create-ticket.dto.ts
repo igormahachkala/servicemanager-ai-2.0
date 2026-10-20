@@ -1,16 +1,89 @@
-import { TicketUrgency } from '@prisma/client';
+import { TicketPriority, TicketUrgency } from '@prisma/client'
+import { IsArray, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Max, Min } from 'class-validator'
+
+import { IsCanonicalUuid } from '../../common/validators/is-canonical-uuid.decorator'
 
 export class CreateTicketDto {
-  parentId?: string | null;
+  @IsOptional()
+  @IsString()
+  createMode?: 'quick' | 'full'
 
-  requesterName?: string;
-  requesterPhone?: string;
-  address?: string;
-  pointName?: string;
+  @IsOptional()
+  @IsCanonicalUuid()
+  parentId?: string | null
 
-  problemCategoryId: string;
-  problemText: string;
+  @IsOptional()
+  @IsCanonicalUuid()
+  clientCompanyId?: string
 
-  urgency?: TicketUrgency; // URGENT | NOT_URGENT
-  slaMinutes?: number;
+  @IsCanonicalUuid()
+  @IsNotEmpty()
+  locationId!: string
+
+  @IsOptional()
+  @IsCanonicalUuid()
+  equipmentId?: string
+
+  @IsOptional()
+  @IsCanonicalUuid()
+  categoryId?: string
+
+  @IsOptional()
+  @IsCanonicalUuid()
+  problemCategoryId?: string
+
+  @IsOptional()
+  @IsString()
+  title?: string
+
+  @IsOptional()
+  @IsString()
+  description?: string
+
+  @IsOptional()
+  @IsString()
+  problemText?: string
+
+  @IsOptional()
+  @IsString()
+  comment?: string
+
+  @IsOptional()
+  @IsArray()
+  @IsCanonicalUuid({ each: true })
+  attachmentIds?: string[]
+
+  @IsOptional()
+  @IsString()
+  requesterName?: string
+
+  @IsOptional()
+  @IsString()
+  requesterPhone?: string
+
+  @IsOptional()
+  @IsString()
+  address?: string
+
+  @IsOptional()
+  @IsString()
+  pointName?: string
+
+  @IsOptional()
+  @IsEnum(TicketUrgency)
+  urgency?: TicketUrgency
+
+  @IsOptional()
+  @IsEnum(TicketPriority)
+  priority?: TicketPriority
+
+  @IsOptional()
+  @IsString()
+  urgencyReason?: string
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(60 * 24 * 30)
+  slaMinutes?: number
 }

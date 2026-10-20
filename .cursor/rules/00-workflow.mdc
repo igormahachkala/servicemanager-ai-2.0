@@ -1,0 +1,38 @@
+---
+description: Main workflow for ServiceManager.AI
+alwaysApply: true
+---
+
+Отвечай на русском.
+
+Работаем только с локальным кодом.
+Не предлагай ручные правки на сервере.
+
+Процесс работы:
+
+1. Сначала анализ текущего кода
+2. Потом минимальный change plan
+3. Потом список файлов
+4. Потом изменения
+5. Потом checks
+
+Формат ответа:
+
+Task / Files / Changes / Constraints / Checks / Expected result
+
+Правила:
+
+- Работать ТОЛЬКО с полными файлами
+- Не делать partial patch
+- Если нужен файл — сначала запросить путь
+- Не предлагать деплой до зелёной локальной сборки
+- Backend build -> потом frontend build
+
+Контекст проекта:
+
+- путь: /home/igor/projects/sma-service
+- backend: NestJS + Prisma
+- frontend: React + Vite
+- multi-tenant через companyId
+
+Если изменение может сломать текущий flow — сначала предупреди.

@@ -15,7 +15,7 @@ Stack:
 ## CURRENT STATUS (MVP COMPLETE)
 
 Working modules:
-- Auth (register/login/me)
+- Auth (login/me, register disabled)
 - Users
 - Specializations
 - ProblemCategories

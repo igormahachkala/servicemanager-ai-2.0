@@ -1,0 +1,42 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# env
+.env
+.env.local
+.env.*.local
+
+# archives
+*.tar.gz
+*.tgz
+*.zip
+
+# backend build/runtime
+backend/node_modules/
+backend/dist/
+backend/uploads/
+uploads/
+
+# web build/runtime
+web/node_modules/
+web/dist/
+web/.vite/
+
+# misc
+coverage/
+.tmp/
+.cache/
+
+# local docker temp
+.docker-tmp/
+
+backup_before_*.sql
+*.sql
+!backend/prisma/migrations/**/migration.sql
