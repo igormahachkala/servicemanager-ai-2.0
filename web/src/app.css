@@ -530,6 +530,11 @@ button.ghost {
   border-radius: var(--ui-radius);
   padding: var(--ui-space-2);
 }
+button.panel {
+  height: auto;
+  color: #111827;
+  white-space: normal;
+}
 .uiSection {
   display: grid;
   gap: var(--ui-space-2);
