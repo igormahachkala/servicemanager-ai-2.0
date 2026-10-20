@@ -1,10 +1,10 @@
 ---
 name: sma-deploy-stage
-description: "Развёртывание на контур Stage: проверки на результате слияния, PR в ветку beta, выкладка на сервер, приёмка и тег stage-ok. Обязательно применять, когда пользователь просит выкатить, задеплоить, развернуть, проверить изменение на Stage или beta, а также когда работа в ветке закончена и её надо довести до контура. Применять и тогда, когда контур не назван: любая доставка кода начинается со Stage, ускоренного маршрута в Production нет. Скилл работает с живым сервером по ssh. Требует настроенной машины, это sma-agent-setup. Следующий шаг после тега stage-ok, это sma-deploy-prod."
+description: "Развёртывание на контур Stage: PR в ветку beta, выкладка на сервер, сверка после развёртывания, живая приёмка и тег stage-ok. Набора prisma:generate, сборки и тестов на Stage нет. Обязательно применять, когда пользователь просит выкатить, задеплоить, развернуть, проверить изменение на Stage или beta, а также когда работа в ветке закончена и её надо довести до контура. Применять и тогда, когда контур не назван: любая доставка кода начинается со Stage, ускоренного маршрута в Production нет. Скилл работает с живым сервером по ssh. Требует настроенной машины, это sma-agent-setup. Следующий шаг после тега stage-ok, это sma-deploy-prod."
 ---
 
 <purpose>
-Проверки, PR в beta, развёртывание на Stage, приёмка. Заканчивается тегом
+PR в beta, развёртывание на Stage, сверка после развёртывания, живая приёмка. Набора prisma:generate, сборки и тестов на Stage нет. Заканчивается тегом
 stage-ok при живом замке stage-busy. Код в beta без замка, которого нет
 в prod, оставлять нельзя: либо везти в Production, либо откат указателя beta.
 </purpose>
@@ -33,7 +33,7 @@ stage-ok при живом замке stage-busy. Код в beta без замк
   шаг 2   опубликовать ветку
   шаг 3   создать PR в beta, precheck на уже открытый
   шаг 4   получить результат слияния, разбор конфликта
-  шаг 5   проверки на результате слияния, скрипт merge-checks.sh
+  шаг 5   вернуться в ветку задачи. Набор merge-checks.sh на Stage не выполняется
   шаг 6   проверить каталог и конфигурацию контура — только для областей
           backend, frontend, infra
   шаг 7   занять контур замком и слить PR, скрипт lock-acquire.sh
@@ -52,8 +52,8 @@ stage-ok при живом замке stage-busy. Код в beta без замк
   ask_user           что спрашивать у пользователя всегда
 
 Общие файлы читаются по ссылкам ref ниже: precedence, execution-context,
-contour-lock, prerequisites и secrets — до начала работы; merge-checks —
-на шаге 5; описания областей в areas/ — только для той области,
+contour-lock, prerequisites и secrets — до начала работы. Набор merge-checks
+на Stage не выполняется. Описания областей в areas/ — только для той области,
 которую вернул скрипт шага 1. Откат из beta — references/rollback.md,
 читать только когда пользователь выбрал откат.
 </contents>
@@ -114,11 +114,16 @@ skills/_shared/scripts/area-map.sh &lt;ветка задачи&gt;
 и needs_rebuild. Код возврата 0.
 </expect>
 <on_failure>
-Код 1 — неизвестный путь, скрипт назвал какие. Остановиться и спросить
-пользователя, к какой области отнести, затем добавить правило в скрипт.
 Код 5 — изменений относительно origin/prod нет, разворачивать нечего.
 Код 2 или 3 — неверные аргументы либо git не отработал, разобрать вывод.
 </on_failure>
+<unknown_path>
+Путь, который не попал ни в одно правило, скрипт не печатает и поток
+не останавливает. Проверок он не требует. Правило в скрипт из-за него
+не дописывать. Известные области той же ветки проверяются как раньше.
+Если известных областей нет, набор проверок пуст и контейнеры из-за
+этого пути не поднимаются.
+</unknown_path>
 <resolution>
 Совпало несколько областей — выполняются все наборы.
 Скрипт уже отбросил none, если были другие совпадения.
@@ -131,7 +136,7 @@ backend, frontend, infra и none описаний нет: их наборы пр
 <carry>Области и флаги переносятся в шаги 5 и 8.</carry>
 </step>
 <ref file="skills/_shared/areas/nginx.md">Область nginx: конфигурация вне compose, сравнение с рабочей, порядок применения. Читать, только если скрипт вернул nginx.</ref>
-<ref file="skills/_shared/areas/agent-runner.md">Область agent-runner: порядок доставки не определён. Читать, только если скрипт вернул agent-runner.</ref>
+<ref file="skills/_shared/areas/agent-runner.md">Область agent-runner: мусор, проверок нет, доставки нет, вопрос не задавать. Читать, только если скрипт вернул agent-runner.</ref>
 <ref file="skills/_shared/areas/skills.md">Область skills: требования к телу PR. Читать, только если скрипт вернул skills.</ref>
 <ref file="skills/_shared/areas/scripts.md">Область scripts: проверка синтаксиса. Читать, только если скрипт вернул scripts.</ref>
 
@@ -217,15 +222,18 @@ git merge --abort обязателен и выполняется в любом �
 </conflict_files>
 </step>
 
-<step id="5" name="проверки на результате слияния">
-<ref file="skills/_shared/merge-checks.md">Наборы проверок, локальных и на сервере. Прочитать целиком перед выполнением. Команды приведены готовыми строками для каждого контура: брать блок contour="stage".</ref>
+<step id="5" name="вернуться в ветку задачи">
+<rule>Набор merge-checks.sh на Stage не выполняется. prisma:generate, сборка и тесты здесь не гоняются.</rule>
+<command>git switch &lt;ветка&gt;</command>
+<expect>Текущая ветка — ветка задачи. Копия не в отсоединённом состоянии.</expect>
 </step>
 
 <step id="6" name="проверить каталог и конфигурацию контура">
 <applies_if>
 Шаг выполняется, только если задета область, требующая подъёма контейнеров:
 backend, frontend, infra. Для областей none, scripts, skills, nginx
-пропускается — то же условие, что в блоке skip_deploy шага 8.
+пропускается, как и для agent-runner и для пустого списка областей.
+То же условие, что в блоке skip_deploy шага 8.
 </applies_if>
 <why_condition>
 Проверка защищает от последствий up -d: compose опознаёт контейнеры
@@ -316,11 +324,7 @@ skills/_shared/contour-lock.md: снять stage-busy, затем повтори
 </step>
 
 <step id="8" name="развернуть">
-<skip_deploy if="ни одна из задетых областей не требует развёртывания контейнеров: none, scripts, skills, nginx" first="true">
-<not_here>
-Область agent-runner сюда не входит: порядок её доставки не определён.
-При ней остановиться и спросить пользователя, см. блок area agent-runner.
-</not_here>
+<skip_deploy if="ни одна из задетых областей не требует развёртывания контейнеров: none, scripts, skills, nginx. Область agent-runner игнорируется. Пустой список областей контейнеры не поднимает" first="true">
 <nginx_note>
 Область nginx входит в перечень: контейнеры она не затрагивает, применяется
 командами пользователя. Но git pull в каталоге всё равно выполняется —
@@ -421,7 +425,53 @@ ssh sma-spare 'docker compose -p sma-service -f /opt/sma-beta/docker-compose.sta
 Stage не применяет миграции автоматически: в docker-compose.stage.yml нет
 переопределения command. Это отдельный шаг.
 </fact>
-<ask_user>Миграция содержит DELETE, DROP или ALTER.</ask_user>
+<sql_check>
+Взять SQL новых миграций ветки относительно origin/prod.
+git diff --name-only origin/prod...HEAD -- backend/prisma/migrations
+В каждом таком migration.sql искать операторы без учёта регистра.
+grep -E -i -n '\b(DELETE|DROP|ALTER)\b' &lt;файл&gt;
+Совпадение есть — сначала блок dump, затем команда применения.
+Совпадений нет — блок dump пропустить и сразу применить миграцию.
+Вопрос не задавать.
+</sql_check>
+<dump if="в SQL есть DELETE, DROP или ALTER">
+<precondition name="каталог существует">
+ssh sma-spare 'test -d /var/backups/sma -a -w /var/backups/sma'
+</precondition>
+<on_precondition_failure>
+Каталога нет. Миграцию не применять. Сообщить пользователю.
+Вопрос «применять ли» не задавать.
+</on_precondition_failure>
+<command>
+ssh sma-spare bash -c 'set -o pipefail; F=/var/backups/sma/pre-migration-$(date +%Y%m%d-%H%M%S).sql.gz; docker exec sma_stage_postgres sh -c "pg_dump -U \$POSTGRES_USER \$POSTGRES_DB" | gzip &gt; "$F"; echo "$F"'
+</command>
+<note>
+Тот же способ, что бэкап шага 6 sma-deploy-prod. Хост sma-spare,
+каталог /var/backups/sma, контейнер sma_stage_postgres сервиса
+stage_postgres. pipefail обязателен по той же причине.
+</note>
+<verify>
+ssh sma-spare 'ls -l &lt;путь из вывода&gt;'
+ssh sma-spare 'gzip -t &lt;путь из вывода&gt;'
+</verify>
+<expect>
+Команда снятия завершилась кодом 0. gzip -t завершился кодом 0.
+Размер файла больше 10 килобайт.
+</expect>
+<on_failure>
+Дамп не снялся либо повреждён. Миграцию не применять и выкатку
+не продолжать. Это отказ, не вопрос.
+</on_failure>
+<secrets>
+Дамп содержит пароли и персональные данные. Не печатать содержимое,
+не копировать за пределы /var/backups/sma. В выводе допустимы путь и размер.
+</secrets>
+<restore>
+Восстановление из дампа выполняет человек и только по отдельному решению.
+Здесь его не предлагать.
+</restore>
+<then>Дамп прошёл проверки. Перейти к команде применения, ответа не ждать.</then>
+</dump>
 <command>
 ssh sma-spare 'docker compose -p sma-service -f /opt/sma-beta/docker-compose.stage.yml -f /etc/servicemanager-ai/docker-compose.stage.override.yml exec -T stage_backend npx prisma migrate deploy'
 ssh sma-spare 'docker compose -p sma-service -f /opt/sma-beta/docker-compose.stage.yml -f /etc/servicemanager-ai/docker-compose.stage.override.yml exec -T stage_backend npx prisma migrate status'
@@ -619,6 +669,9 @@ git ls-remote --tags origin 'refs/tags/stage-busy'
 Задача принята на Stage, замок stage-busy на месте. Сообщить
 пользователю: критерий, ветка, тег. Спросить, выкатывать ли
 в Production по sma-deploy-prod. Самому его не начинать.
+Ответ «выкатывать» запускает sma-deploy-prod целиком. Отдельных
+вопросов про начало выкатки, слияние PR в prod, развёртывание
+контейнеров и переход после дампа в том скиле нет.
 </action>
 <gate>
 Переход в Production выполняется только по явной команде пользователя.
@@ -643,11 +696,10 @@ skills/sma-deploy-stage/references/rollback.md, включая tag_void.
 <beta_reset>
 <when>После развёртывания prod в Production.</when>
 <when name="после отката">
-Откат Production убирает фичу из beta сдвигом указателя, блок
-beta_after_rollback в skills/sma-deploy-prod/references/rollback.md.
-Сброс beta после этого не обязателен: откат указателя уже убрал
-содержимое. Сброс остаётся уборкой истории до prod, не способом
-выкинуть фичу.
+Фаза 1 отката Production beta не трогает. Убрать фичу из beta можно
+только отдельной командой, откатом указателя, блок beta_after_rollback
+в skills/sma-deploy-prod/references/rollback.md. Сброс beta этим
+откатом не заменяется. Сброс остаётся уборкой истории до prod.
 </when>
 <why>
 По протоколу код, которого нет в prod, не лежит в beta без stage-busy.
@@ -784,15 +836,24 @@ git push --force-with-lease origin beta
 <f>Снимать stage-busy после stage-ok, не влив задачу в prod и не откатив из beta.</f>
 <f>Сливать ту же ветку в beta повторно поверх живого слияния без своего
 stage-busy.</f>
+<f>Спрашивать, применять ли миграцию с DELETE, DROP или ALTER. При этих
+операторах снимается дамп и миграция применяется. Каталога дампов нет
+или дамп не снялся — миграцию не применять.</f>
 </forbidden>
 
 <ask_user>
-<a>Миграция содержит DELETE, DROP или ALTER.</a>
 <a>Сброс beta при наличии неиспользованных тегов stage-ok.</a>
+<a>Сброс beta, когда отличие деревьев origin/prod и origin/beta непустое.</a>
 <a>Отказ приёмки на Stage: исправить под тем же замком, откатить указатель beta либо принять и везти в Production.</a>
 <a>После stage-ok переход в Production. Отказ — откат указателя beta.</a>
-<a>Любое удаление, кроме временного worktree, созданного этим же шагом.</a>
-<a>Неизвестный путь при определении области.</a>
+<a>Удаление, которого текущий шаг не предписывает. Без вопроса делается то,
+что шаг уже предписывает. Снятие stage-ok после успешной выкатки
+в Production. Перенос stage-ok в reverted/&lt;ветка&gt; при откате указателя
+beta. Снятие своих prod-busy и stage-busy на шаге 12 sma-deploy-prod
+после пройденной сверки и кода в origin/prod. Удаление временного
+worktree, созданного этим же шагом. Удаление своего локального тега
+замка, которое делает lock-acquire.sh. Ветку задачи и тег keep не удалять
+и не спрашивать.</a>
 <a>Расхождение факта с этим документом.</a>
 </ask_user>
 
