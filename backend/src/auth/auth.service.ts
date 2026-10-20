@@ -314,9 +314,6 @@ export class AuthService {
     })
   }
 
-  // Temporary demo bootstrap: ensures one PLATFORM_ADMIN exists from env.
-  // Long-term this should move to an explicit seed/init flow, but it stays here
-  // for now to keep closed onboarding operable in demo deployments.
   private issueAuthPayload(user: {
     id: string
     email: string
