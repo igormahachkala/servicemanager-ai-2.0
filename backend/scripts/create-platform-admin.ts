@@ -39,6 +39,7 @@ import * as bcrypt from 'bcrypt'
 
 import {
   BOOTSTRAP_CONFIRM_ENV,
+  applyPlatformAdminBootstrap,
   decidePlatformAdminBootstrap,
   describeBootstrapFailure,
 } from '../src/auth/platform-admin-bootstrap'
@@ -87,39 +88,80 @@ async function main() {
 
   const passwordHash = await bcrypt.hash(password, 10)
 
-  let company = await prisma.company.findFirst({
-    where: { name: companyName },
-    select: { id: true },
-  })
-  if (!company) {
-    company = await prisma.company.create({
-      data: {
-        name: companyName,
-        type: CompanyType.PROVIDER,
-        timezone,
-        publicRequestEnabled: false,
-        publicRequestToken: null,
-        publicRequestIntro: null,
+  /*
+   * Создание целиком под консультативной блокировкой.
+   *
+   * Без неё два одновременных запуска оба не находили платформенную компанию
+   * и оба её создавали: уникальности у Company.name в схеме нет. Блокировка
+   * снимается вместе с транзакцией, поэтому не залипает при ошибке.
+   *
+   * Решение ПЕРЕПРОВЕРЯЕТСЯ под блокировкой той же чистой функцией: пока мы
+   * ждали, конкурент мог создать администратора, и тогда создавать нельзя —
+   * ни второго пользователя, ни второй компании.
+   */
+  const applied = await prisma.$transaction(async (tx) => {
+    /*
+     * Связывание настоящей транзакции с узким интерфейсом bootstrap.
+     * Вся логика порядка и перепроверки живёт в applyPlatformAdminBootstrap
+     * и проверяется тестами; здесь только адаптация.
+     */
+    return applyPlatformAdminBootstrap(
+      {
+        lockAdvisory: async (key) => {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(${key})`
+        },
+        findUserByEmail: (value) =>
+          tx.user.findUnique({ where: { email: value }, select: { id: true, role: true } }),
+        findCompanyByName: (name) =>
+          tx.company.findFirst({ where: { name }, select: { id: true } }),
+        createCompany: (name) =>
+          tx.company.create({
+            data: {
+              name,
+              type: CompanyType.PROVIDER,
+              timezone,
+              publicRequestEnabled: false,
+              publicRequestToken: null,
+              publicRequestIntro: null,
+            },
+            select: { id: true },
+          }),
+        createUser: async ({ companyId, email: userEmail }) => {
+          await tx.user.create({
+            data: {
+              companyId,
+              email: userEmail,
+              password: passwordHash,
+              firstName: firstName || 'Platform',
+              lastName: lastName || 'Admin',
+              avatarUrl: null,
+              role: UserRole.PLATFORM_ADMIN,
+              isActive: true,
+            },
+          })
+        },
       },
-      select: { id: true },
-    })
-    console.log(`[create-platform-admin] created company: ${companyName}`)
-  } else {
-    console.log(`[create-platform-admin] using company: ${companyName}`)
+      { email, password, confirm, companyName },
+    )
+  })
+
+  if (applied.action === 'refuse') {
+    console.error(`[create-platform-admin] refused: ${applied.reason}`)
+    process.exitCode = 1
+    return
   }
 
-  await prisma.user.create({
-    data: {
-      companyId: company.id,
-      email,
-      password: passwordHash,
-      firstName: firstName || 'Platform',
-      lastName: lastName || 'Admin',
-      avatarUrl: null,
-      role: UserRole.PLATFORM_ADMIN,
-      isActive: true,
-    },
-  })
+  if (applied.action === 'noop') {
+    // Конкурент успел раньше: это не ошибка, повторный запуск безопасен.
+    console.log(`[create-platform-admin] no changes: ${applied.reason}`)
+    return
+  }
+
+  console.log(
+    applied.createdCompany
+      ? `[create-platform-admin] created company: ${companyName}`
+      : `[create-platform-admin] using company: ${companyName}`,
+  )
   console.log(`[create-platform-admin] created user: ${email} (PLATFORM_ADMIN)`)
 }
 

@@ -5,11 +5,14 @@
  * исходнике: иначе «защита» могла бы существовать только в комментарии.
  */
 import {
+  BOOTSTRAP_ADVISORY_LOCK_KEY,
   BOOTSTRAP_CONFIRM_ENV,
   BOOTSTRAP_CONFIRM_VALUE,
+  applyPlatformAdminBootstrap,
   decidePlatformAdminBootstrap,
   describeBootstrapFailure,
   type BootstrapInput,
+  type BootstrapTx,
 } from './platform-admin-bootstrap'
 
 function input(overrides: Partial<BootstrapInput> = {}): BootstrapInput {
@@ -130,6 +133,152 @@ describe('multi-tenant isolation сохраняется', () => {
       decidePlatformAdminBootstrap(input({ existingUser: { id: 'u-other', role: 'PLATFORM_ADMIN' } }))
         .action,
     ).toBe('noop')
+  })
+})
+
+/**
+ * Конкурентный bootstrap.
+ *
+ * Company.name уникальности в схеме НЕ имеет, поэтому два одновременных
+ * запуска оба видели отсутствие платформенной компании и оба её создавали.
+ * Здесь закреплён порядок, который это исключает.
+ */
+describe('конкурентный bootstrap не создаёт лишних компаний', () => {
+  function makeTx(options: {
+    user?: { id: string; role: string } | null
+    company?: { id: string } | null
+  }) {
+    const calls: string[] = []
+    const tx: BootstrapTx = {
+      lockAdvisory: jest.fn(async (key: number) => {
+        calls.push(`lockAdvisory:${key}`)
+      }),
+      findUserByEmail: jest.fn(async () => {
+        calls.push('findUserByEmail')
+        return options.user ?? null
+      }),
+      findCompanyByName: jest.fn(async () => {
+        calls.push('findCompanyByName')
+        return options.company ?? null
+      }),
+      createCompany: jest.fn(async () => {
+        calls.push('createCompany')
+        return { id: 'company-new' }
+      }),
+      createUser: jest.fn(async () => {
+        calls.push('createUser')
+      }),
+    }
+    return { tx, calls }
+  }
+
+  const params = {
+    email: 'admin@example.com',
+    password: 'S3cret!',
+    confirm: BOOTSTRAP_CONFIRM_VALUE,
+    companyName: 'СМА-Тех',
+  }
+
+  it('блокировка берётся ПЕРВОЙ, до любого чтения', async () => {
+    const { tx, calls } = makeTx({})
+    await applyPlatformAdminBootstrap(tx, params)
+
+    expect(calls[0]).toBe(`lockAdvisory:${BOOTSTRAP_ADVISORY_LOCK_KEY}`)
+    // Чтение пользователя — только после блокировки.
+    expect(calls.indexOf('findUserByEmail')).toBeGreaterThan(0)
+  })
+
+  it('ключ блокировки фиксирован: все запуски сериализуются между собой', async () => {
+    const first = makeTx({})
+    const second = makeTx({})
+    await applyPlatformAdminBootstrap(first.tx, params)
+    await applyPlatformAdminBootstrap(second.tx, params)
+
+    expect(first.tx.lockAdvisory).toHaveBeenCalledWith(BOOTSTRAP_ADVISORY_LOCK_KEY)
+    expect(second.tx.lockAdvisory).toHaveBeenCalledWith(BOOTSTRAP_ADVISORY_LOCK_KEY)
+  })
+
+  it('конкурент успел создать администратора → ничего не создаётся', async () => {
+    // Пока ждали блокировку, другой запуск довёл дело до конца.
+    const { tx } = makeTx({ user: { id: 'u-1', role: 'PLATFORM_ADMIN' } })
+
+    const result = await applyPlatformAdminBootstrap(tx, params)
+
+    expect(result.action).toBe('noop')
+    expect(tx.createCompany).not.toHaveBeenCalled()
+    expect(tx.createUser).not.toHaveBeenCalled()
+    // Главное: второй компании не появилось.
+    expect(tx.findCompanyByName).not.toHaveBeenCalled()
+  })
+
+  it('конкурент создал пользователя с другой ролью → отказ, без создания', async () => {
+    const { tx } = makeTx({ user: { id: 'u-1', role: 'ADMIN' } })
+
+    const result = await applyPlatformAdminBootstrap(tx, params)
+
+    expect(result.action).toBe('refuse')
+    expect(tx.createCompany).not.toHaveBeenCalled()
+    expect(tx.createUser).not.toHaveBeenCalled()
+  })
+
+  it('компания уже есть → переиспользуется, второй не создаётся', async () => {
+    const { tx } = makeTx({ company: { id: 'company-existing' } })
+
+    const result = await applyPlatformAdminBootstrap(tx, params)
+
+    expect(result).toEqual({ action: 'created', createdCompany: false })
+    expect(tx.createCompany).not.toHaveBeenCalled()
+    expect(tx.createUser).toHaveBeenCalledWith({
+      companyId: 'company-existing',
+      email: params.email,
+    })
+  })
+
+  it('компании нет → создаётся РОВНО одна, и пользователь привязан к ней', async () => {
+    const { tx } = makeTx({})
+
+    const result = await applyPlatformAdminBootstrap(tx, params)
+
+    expect(result).toEqual({ action: 'created', createdCompany: true })
+    expect(tx.createCompany).toHaveBeenCalledTimes(1)
+    expect(tx.createUser).toHaveBeenCalledWith({ companyId: 'company-new', email: params.email })
+  })
+
+  it('перепроверка под блокировкой использует актуальное состояние, а не прежнее решение', async () => {
+    /*
+     * До блокировки пользователя не было (решение было бы «создать»), но под
+     * блокировкой он уже есть. Решение обязано пересчитаться.
+     */
+    const { tx } = makeTx({ user: { id: 'u-1', role: 'PLATFORM_ADMIN' } })
+
+    const result = await applyPlatformAdminBootstrap(tx, params)
+
+    expect(tx.findUserByEmail).toHaveBeenCalledTimes(1)
+    expect(result.action).toBe('noop')
+  })
+
+  it('без подтверждения оператора создание не произойдёт и под блокировкой', async () => {
+    const { tx } = makeTx({})
+
+    const result = await applyPlatformAdminBootstrap(tx, { ...params, confirm: undefined })
+
+    expect(result.action).toBe('refuse')
+    expect(tx.createCompany).not.toHaveBeenCalled()
+    expect(tx.createUser).not.toHaveBeenCalled()
+  })
+
+  it('повторный запуск после успеха идемпотентен', async () => {
+    const firstRun = makeTx({})
+    const created = await applyPlatformAdminBootstrap(firstRun.tx, params)
+    expect(created.action).toBe('created')
+
+    // Второй запуск видит уже созданного администратора.
+    const secondRun = makeTx({ user: { id: 'u-1', role: 'PLATFORM_ADMIN' } })
+    const repeated = await applyPlatformAdminBootstrap(secondRun.tx, params)
+
+    expect(repeated.action).toBe('noop')
+    expect(secondRun.tx.createCompany).not.toHaveBeenCalled()
+    expect(secondRun.tx.createUser).not.toHaveBeenCalled()
   })
 })
 

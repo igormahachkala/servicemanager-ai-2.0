@@ -26,6 +26,24 @@
 export const BOOTSTRAP_CONFIRM_ENV = 'PLATFORM_ADMIN_BOOTSTRAP_CONFIRM'
 export const BOOTSTRAP_CONFIRM_VALUE = 'create-platform-admin'
 
+/**
+ * Ключ консультативной блокировки PostgreSQL для bootstrap.
+ *
+ * Зачем нужна. Company.name уникальности в схеме НЕ имеет, поэтому два
+ * одновременных запуска оба видели отсутствие платформенной компании и оба её
+ * создавали — получались дубликаты организаций. User.email уникален, так что
+ * второй запуск падал уже на пользователе, но лишняя компания оставалась.
+ *
+ * Блокировка берётся через pg_advisory_xact_lock в начале транзакции и
+ * снимается самой транзакцией — ни при ошибке, ни при падении процесса она не
+ * «залипает». Схему при этом менять не требуется: миграции здесь запрещены, а
+ * добавление @unique на Company.name затронуло бы существующие данные.
+ *
+ * Значение произвольное, но фиксированное, и принадлежит только этой
+ * операции: 0x534D4150 — ASCII «SMAP», SMA Platform admin.
+ */
+export const BOOTSTRAP_ADVISORY_LOCK_KEY = 0x534d4150
+
 /** Роль, которую вправе получить только bootstrap. */
 export type ExistingUserRole = string
 
@@ -96,6 +114,65 @@ export function decidePlatformAdminBootstrap(input: BootstrapInput): BootstrapDe
   }
 
   return { action: 'create' }
+}
+
+/**
+ * Минимальный интерфейс транзакции для bootstrap.
+ *
+ * Специально узкий и без Prisma: создание со всеми его инвариантами —
+ * порядок блокировки, перепроверка решения, однократное создание компании —
+ * проверяется исполнением на подставном объекте. Скрипт лишь связывает этот
+ * интерфейс с настоящей транзакцией Prisma.
+ */
+export type BootstrapTx = {
+  /** Взять консультативную блокировку. Должно быть ПЕРВЫМ действием. */
+  lockAdvisory(key: number): Promise<void>
+  findUserByEmail(email: string): Promise<{ id: string; role: ExistingUserRole } | null>
+  findCompanyByName(name: string): Promise<{ id: string } | null>
+  createCompany(name: string): Promise<{ id: string }>
+  createUser(input: { companyId: string; email: string }): Promise<void>
+}
+
+export type BootstrapApplied =
+  | { action: 'refuse'; reason: string }
+  | { action: 'noop'; reason: string }
+  | { action: 'created'; createdCompany: boolean }
+
+/**
+ * Выполнить создание под блокировкой.
+ *
+ * Порядок важен и закреплён тестами:
+ *
+ * 1. Сначала блокировка. Иначе два запуска одновременно прочитали бы
+ *    отсутствие компании и оба её создали — уникальности у Company.name нет.
+ * 2. Затем ПЕРЕПРОВЕРКА решения той же чистой функцией. Пока ждали
+ *    блокировку, конкурент мог создать администратора; создавать второго
+ *    нельзя, и повышать права существующему тоже нельзя.
+ * 3. Компания создаётся только если её действительно нет, и ровно один раз.
+ */
+export async function applyPlatformAdminBootstrap(
+  tx: BootstrapTx,
+  params: { email: string; password: string; confirm: string | undefined; companyName: string },
+): Promise<BootstrapApplied> {
+  await tx.lockAdvisory(BOOTSTRAP_ADVISORY_LOCK_KEY)
+
+  const freshUser = await tx.findUserByEmail(params.email)
+  const recheck = decidePlatformAdminBootstrap({
+    email: params.email,
+    password: params.password,
+    confirm: params.confirm,
+    existingUser: freshUser,
+  })
+
+  if (recheck.action === 'refuse') return recheck
+  if (recheck.action === 'noop') return recheck
+
+  const existingCompany = await tx.findCompanyByName(params.companyName)
+  const company = existingCompany ?? (await tx.createCompany(params.companyName))
+
+  await tx.createUser({ companyId: company.id, email: params.email })
+
+  return { action: 'created', createdCompany: !existingCompany }
 }
 
 /**
