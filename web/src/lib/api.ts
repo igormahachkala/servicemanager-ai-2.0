@@ -1492,7 +1492,14 @@ export function resolveInspectionAttachmentUrl(
 }
 
 export function isProtectedUploadUrl(url: string): boolean {
-  return url.includes('/uploads/ticket-attachments/') || url.includes('/uploads/inspection-run-items/')
+  // Все защищённые папки раздачи должны совпадать с backend ALLOWED_FOLDERS
+  // (uploads.controller.ts): ticket-attachments, inspection-run-items, equipment.
+  // Пропуск equipment => снимок грузится как <img src> без Authorization => 401.
+  return (
+    url.includes('/uploads/ticket-attachments/') ||
+    url.includes('/uploads/inspection-run-items/') ||
+    url.includes('/uploads/equipment/')
+  )
 }
 
 /** Loads a protected upload with Authorization header when <img> cannot render it. */

@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
 import { EquipmentHistoryTab } from '../components/equipment/EquipmentHistoryTab'
 import { EquipmentPartsTab } from '../components/equipment/EquipmentPartsTab'
 import { PublicQrModalLazy } from '../components/public/PublicQrLazy'
@@ -257,8 +258,8 @@ export function EquipmentCardPage() {
       {item.mainPhoto?.url ? (
         <div className="panel" style={{ marginTop: 12 }}>
           <h3 style={{ marginBottom: 10 }}>Фото</h3>
-          <img
-            src={item.mainPhoto.url}
+          <ProtectedUploadImg
+            url={item.mainPhoto.url}
             alt={item.name}
             style={{ maxWidth: '100%', borderRadius: 8 }}
           />
