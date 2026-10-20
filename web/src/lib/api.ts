@@ -1502,19 +1502,29 @@ export function isProtectedUploadUrl(url: string): boolean {
   )
 }
 
+export function resolveProtectedUploadUrl(url: string): string {
+  if (!url || !isProtectedUploadUrl(url)) return ''
+
+  try {
+    const apiBase = new URL(getBaseUrl(), getPublicAppBaseUrl())
+    const parsed = new URL(resolveFileUrl(url), apiBase)
+    if (parsed.origin !== apiBase.origin) return ''
+
+    parsed.searchParams.delete('token')
+    parsed.searchParams.delete('access_token')
+    return parsed.toString()
+  } catch {
+    return ''
+  }
+}
+
 /** Loads a protected upload with Authorization header when <img> cannot render it. */
 export async function fetchProtectedUploadBlob(url: string): Promise<Blob | null> {
   const token = getToken()
   if (!token || !url) return null
 
-  let fetchUrl = url
-  try {
-    const parsed = new URL(url)
-    parsed.searchParams.delete('token')
-    fetchUrl = parsed.toString()
-  } catch {
-    fetchUrl = url
-  }
+  const fetchUrl = resolveProtectedUploadUrl(url)
+  if (!fetchUrl) return null
 
   try {
     const response = await fetch(fetchUrl, {

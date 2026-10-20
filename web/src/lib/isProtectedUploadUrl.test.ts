@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { isProtectedUploadUrl } from './api'
+import { isProtectedUploadUrl, resolveProtectedUploadUrl } from './api'
 
 /**
  * P2 — EQUIPMENT PREVIEW COMPATIBILITY.
@@ -29,5 +29,29 @@ describe('isProtectedUploadUrl — защищённые папки совпад�
     expect(isProtectedUploadUrl('/uploads/avatars/x.png')).toBe(false)
     expect(isProtectedUploadUrl('https://cdn.example.com/logo.svg')).toBe(false)
     expect(isProtectedUploadUrl('')).toBe(false)
+  })
+})
+
+describe('resolveProtectedUploadUrl — Authorization остаётся в API origin', () => {
+  it('разрешает относительный equipment URL относительно API origin', () => {
+    expect(resolveProtectedUploadUrl('/uploads/equipment/x.png')).toBe(
+      'http://localhost:3000/uploads/equipment/x.png',
+    )
+  })
+
+  it('принимает абсолютный URL API и удаляет legacy JWT query-параметры', () => {
+    expect(
+      resolveProtectedUploadUrl(
+        'http://localhost:3000/uploads/equipment/x.png?token=secret&access_token=legacy&size=small',
+      ),
+    ).toBe('http://localhost:3000/uploads/equipment/x.png?size=small')
+  })
+
+  it('блокирует защищённый URL чужого origin', () => {
+    expect(resolveProtectedUploadUrl('https://cdn.example.com/uploads/equipment/x.png')).toBe('')
+  })
+
+  it('не превращает незащищённый путь в authenticated request', () => {
+    expect(resolveProtectedUploadUrl('/uploads/avatars/x.png')).toBe('')
   })
 })
