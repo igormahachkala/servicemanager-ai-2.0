@@ -496,3 +496,58 @@ describe('MaterialsService', () => {
     );
   });
 });
+
+/**
+ * P2 WAREHOUSE STOCK — остатки на складе компании.
+ *
+ * Дефект был в том, что остаток COMPANY_STOCK велся (поступления наращивают,
+ * выдачи списывают), но прочитать его складскому разделу было нечем. Здесь
+ * закреплено, что чтение берёт именно складского держателя своей компании:
+ * COMPANY_STOCK + holderUserId null + свой companyId, и не отдаёт ни остатки
+ * техников, ни чужой tenant.
+ */
+describe('MaterialsService.getCompanyStockBalances', () => {
+  const CO = '10000000-0000-4000-8000-000000000001';
+  const OTHER = '10000000-0000-4000-8000-000000000002';
+
+  function makeStockService() {
+    const rows = [
+      { id: 'b1', companyId: CO, materialId: 'm1', holderType: MaterialHolderType.COMPANY_STOCK, holderUserId: null, quantity: new Prisma.Decimal(7) },
+      { id: 'b2', companyId: CO, materialId: 'm2', holderType: MaterialHolderType.TECHNICIAN, holderUserId: 'tech-1', quantity: new Prisma.Decimal(3) },
+      { id: 'b3', companyId: OTHER, materialId: 'm1', holderType: MaterialHolderType.COMPANY_STOCK, holderUserId: null, quantity: new Prisma.Decimal(99) },
+    ];
+    const findMany = jest.fn(async ({ where }: any) =>
+      rows.filter(
+        (r) =>
+          r.companyId === where.companyId &&
+          r.holderType === where.holderType &&
+          r.holderUserId === where.holderUserId,
+      ),
+    );
+    const prisma: any = { materialBalance: { findMany } };
+    return { service: new MaterialsService(prisma, {} as any), findMany };
+  }
+
+  it('reads only COMPANY_STOCK of the actor company (no technician, no foreign tenant)', async () => {
+    const { service, findMany } = makeStockService();
+    const result = await service.getCompanyStockBalances(CO);
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          companyId: CO,
+          holderType: MaterialHolderType.COMPANY_STOCK,
+          holderUserId: null,
+        }),
+      }),
+    );
+    expect(result.map((r: any) => r.id)).toEqual(['b1']);
+    expect((result[0] as any).quantity.toNumber()).toBe(7);
+  });
+
+  it('returns an empty list when the warehouse has no stock rows', async () => {
+    const { service } = makeStockService();
+    const result = await service.getCompanyStockBalances('30000000-0000-4000-8000-000000000009');
+    expect(result).toEqual([]);
+  });
+});

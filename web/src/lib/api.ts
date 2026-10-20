@@ -2435,6 +2435,7 @@ export const MATERIALS_API = {
   myMovements: '/materials/me/movements',
   purchases: '/materials/me/purchases',
   consumptions: '/materials/me/consumptions',
+  stockBalances: '/materials/stock/balances',
   technicianBalances: (id: string) => `/materials/technicians/${id}/balances`,
   technicianMovements: (id: string) => `/materials/technicians/${id}/movements`,
   issues: '/materials/issues',
@@ -2460,6 +2461,11 @@ export function setMaterialStatus(id: string, active: boolean): Promise<Material
 
 export function myMaterialBalances(): Promise<MaterialBalance[]> {
   return request<MaterialBalance[]>(MATERIALS_API.myBalances)
+}
+
+/** Остатки на складе компании (держатель COMPANY_STOCK). */
+export function companyStockBalances(): Promise<MaterialBalance[]> {
+  return request<MaterialBalance[]>(MATERIALS_API.stockBalances)
 }
 
 export function myMaterialMovements(): Promise<MaterialMovement[]> {
