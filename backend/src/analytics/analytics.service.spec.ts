@@ -132,7 +132,9 @@ describe('AnalyticsService provider linked-client scope', () => {
     expect(slaWhere).toContain('loc-forbidden')
 
     const historyCall = prisma.ticketStatusHistory.groupBy.mock.calls[0][0]
-    expect(historyCall.where.toStatus).toBe(TicketStatus.ASSIGNED)
+    expect(historyCall.where.toStatus).toEqual({
+      in: [TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS],
+    })
     const historyWhere = JSON.stringify(historyCall.where.ticket)
     expect(historyWhere).toContain('__no_access__')
     expect(historyWhere).toContain('loc-forbidden')
@@ -160,12 +162,15 @@ describe('AnalyticsService Phase 2: города, пустые точки, SLA',
     slaTickets?: Array<{
       id: string
       locationId: string
+      status?: TicketStatus
       createdAt: Date
       closedAt: Date | null
       slaDueAt: Date | null
       slaBreachedAt: Date | null
     }>
     firstAssigned?: Array<{ ticketId: string; createdAt: Date }>
+    /** История статусов: мок фильтрует её по where.toStatus, как сделала бы БД. */
+    statusHistory?: Array<{ ticketId: string; toStatus: TicketStatus; createdAt: Date }>
     summaryTotal?: number
   }) {
     const statusGroupBy = options.statusRows.map((row) => ({
@@ -198,15 +203,28 @@ describe('AnalyticsService Phase 2: города, пустые точки, SLA',
           .fn()
           .mockResolvedValueOnce(summaryTotal)
           .mockResolvedValueOnce((options.overdueRows ?? []).reduce((s, r) => s + r.count, 0)),
-        findMany: jest.fn().mockResolvedValue(options.slaTickets ?? []),
+        findMany: jest
+          .fn()
+          .mockResolvedValue(
+            (options.slaTickets ?? []).map((row) => ({ status: TicketStatus.DONE, ...row })),
+          ),
       },
       ticketStatusHistory: {
-        groupBy: jest.fn().mockResolvedValue(
-          (options.firstAssigned ?? []).map((row) => ({
-            ticketId: row.ticketId,
-            _min: { createdAt: row.createdAt },
-          })),
-        ),
+        groupBy: jest.fn(async ({ where }: any) => {
+          const history = [
+            ...(options.firstAssigned ?? []).map((row) => ({ ...row, toStatus: TicketStatus.ASSIGNED })),
+            ...(options.statusHistory ?? []),
+          ]
+          const wanted: TicketStatus[] =
+            typeof where.toStatus === 'string' ? [where.toStatus] : where.toStatus.in
+          const first = new Map<string, Date>()
+          for (const row of history) {
+            if (!wanted.includes(row.toStatus)) continue
+            const prev = first.get(row.ticketId)
+            if (!prev || row.createdAt < prev) first.set(row.ticketId, row.createdAt)
+          }
+          return [...first].map(([ticketId, createdAt]) => ({ ticketId, _min: { createdAt } }))
+        }),
       },
     }
   }
@@ -373,5 +391,104 @@ describe('AnalyticsService Phase 2: города, пустые точки, SLA',
     expect(result.items[0].sla.withoutSlaCount).toBe(1)
     expect(result.items[0].sla.slaEvaluatedCount).toBe(0)
     expect(result.items[0].sla.withinSlaRatio).toBeNull()
+  })
+  it('A3: реакция учитывает переход NEW → IN_PROGRESS без ASSIGNED', async () => {
+    const created = new Date('2026-10-01T10:00:00.000Z')
+    const prisma = buildPrisma({
+      locations: [{ id: 'm1', name: 'М1', city: 'Москва' }],
+      statusRows: [{ locationId: 'm1', status: TicketStatus.IN_PROGRESS, count: 1 }],
+      slaTickets: [
+        {
+          id: 't1',
+          locationId: 'm1',
+          status: TicketStatus.IN_PROGRESS,
+          createdAt: created,
+          closedAt: null,
+          slaDueAt: null,
+          slaBreachedAt: null,
+        },
+      ],
+      statusHistory: [
+        { ticketId: 't1', toStatus: TicketStatus.IN_PROGRESS, createdAt: new Date(created.getTime() + 15 * 60_000) },
+      ],
+    })
+    const result = await buildService(prisma).getLocationsAnalytics(CLIENT, 'admin-1', UserRole.ADMIN, {})
+
+    expect(result.items[0].sla.respondedCount).toBe(1)
+    expect(result.items[0].sla.avgResponseMinutes).toBe(15)
+    expect(result.summary.sla.avgResponseMinutes).toBe(15)
+  })
+
+  it('A3: реакция — самый ранний из переходов в ASSIGNED и IN_PROGRESS', async () => {
+    const created = new Date('2026-10-01T10:00:00.000Z')
+    const prisma = buildPrisma({
+      locations: [{ id: 'm1', name: 'М1', city: 'Москва' }],
+      statusRows: [{ locationId: 'm1', status: TicketStatus.IN_PROGRESS, count: 1 }],
+      slaTickets: [
+        {
+          id: 't1',
+          locationId: 'm1',
+          status: TicketStatus.IN_PROGRESS,
+          createdAt: created,
+          closedAt: null,
+          slaDueAt: null,
+          slaBreachedAt: null,
+        },
+      ],
+      statusHistory: [
+        { ticketId: 't1', toStatus: TicketStatus.IN_PROGRESS, createdAt: new Date(created.getTime() + 30 * 60_000) },
+        { ticketId: 't1', toStatus: TicketStatus.ASSIGNED, createdAt: new Date(created.getTime() + 5 * 60_000) },
+        // Переход в другой статус реакцией не считается.
+        { ticketId: 't1', toStatus: TicketStatus.CANCELED, createdAt: new Date(created.getTime() + 1 * 60_000) },
+      ],
+    })
+    const result = await buildService(prisma).getLocationsAnalytics(CLIENT, 'admin-1', UserRole.ADMIN, {})
+
+    expect(result.items[0].sla.avgResponseMinutes).toBe(5)
+  })
+
+  it('A3: отменённая заявка с прошедшим сроком не открыта и не просрочена сейчас', async () => {
+    const created = new Date('2020-01-01T10:00:00.000Z')
+    const prisma = buildPrisma({
+      locations: [{ id: 'm1', name: 'М1', city: 'Москва' }],
+      statusRows: [
+        { locationId: 'm1', status: TicketStatus.CANCELED, count: 1 },
+        { locationId: 'm1', status: TicketStatus.IN_PROGRESS, count: 1 },
+      ],
+      overdueRows: [{ locationId: 'm1', count: 1 }],
+      slaTickets: [
+        {
+          id: 'canceled',
+          locationId: 'm1',
+          status: TicketStatus.CANCELED,
+          createdAt: created,
+          closedAt: null, // у отменённой closedAt не ставится
+          slaDueAt: new Date(created.getTime() + 60 * 60_000),
+          slaBreachedAt: new Date(created.getTime() + 61 * 60_000),
+        },
+        {
+          id: 'open',
+          locationId: 'm1',
+          status: TicketStatus.IN_PROGRESS,
+          createdAt: created,
+          closedAt: null,
+          slaDueAt: new Date(created.getTime() + 60 * 60_000),
+          slaBreachedAt: null,
+        },
+      ],
+    })
+    const result = await buildService(prisma).getLocationsAnalytics(CLIENT, 'admin-1', UserRole.ADMIN, {})
+
+    for (const sla of [result.items[0].sla, result.cityGroups[0].sla, result.summary.sla]) {
+      expect(sla.openCount).toBe(1)
+      expect(sla.openOverdueCount).toBe(1) // только действительно открытая
+      expect(sla.canceledCount).toBe(1)
+      expect(sla.resolvedCount).toBe(0)
+      expect(sla.slaEvaluatedCount).toBe(0)
+      // Историческое нарушение остаётся и совпадает с overdueTickets остальной аналитики.
+      expect(sla.slaBreaches).toBe(1)
+    }
+    expect(result.items[0].overdueTickets).toBe(1)
+    expect(result.items[0].canceledTickets).toBe(1)
   })
 })

@@ -7,6 +7,7 @@
 import {
   NO_CITY_KEY,
   NO_CITY_LABEL,
+  SLA_RESPONSE_STATUSES,
   buildCityAggregates,
   cityLabel,
   computeSlaByLocation,
@@ -28,7 +29,8 @@ function ticket(overrides: Partial<SlaSourceTicket> = {}): SlaSourceTicket {
   return {
     locationId: 'loc-1',
     createdAt: at(0),
-    firstAssignedAt: null,
+    firstResponseAt: null,
+    canceled: false,
     closedAt: null,
     slaDueAt: null,
     slaBreachedAt: null,
@@ -71,8 +73,8 @@ describe('normalizeCityKey / cityLabel', () => {
 describe('computeSlaMetrics — реакция', () => {
   it('считает среднее только по заявкам, которые взяли в работу', () => {
     const m = computeSlaMetrics([
-      ticket({ firstAssignedAt: at(10) }), // 10 минут
-      ticket({ firstAssignedAt: at(20) }), // 20 минут
+      ticket({ firstResponseAt: at(10) }), // 10 минут
+      ticket({ firstResponseAt: at(20) }), // 20 минут
       ticket(), // не назначена — не участвует
     ])
     expect(m.respondedCount).toBe(2)
@@ -87,7 +89,7 @@ describe('computeSlaMetrics — реакция', () => {
 
   it('берёт первый перевод в работу, а не последний', () => {
     // В модуль приходит уже минимум из истории; проверяем, что он и используется.
-    const m = computeSlaMetrics([ticket({ createdAt: at(0), firstAssignedAt: at(5) })])
+    const m = computeSlaMetrics([ticket({ createdAt: at(0), firstResponseAt: at(5) })])
     expect(m.avgResponseMinutes).toBe(5)
   })
 })
@@ -267,6 +269,58 @@ describe('computeSlaMetrics — текущая просрочка против �
   it('срок ровно сейчас просрочкой ещё не считается', () => {
     const m = computeSlaMetrics([ticket({ slaDueAt: at(1000), closedAt: null })], at(1000))
     expect(m.openOverdueCount).toBe(0)
+  })
+})
+
+describe('computeSlaMetrics — отменённые заявки', () => {
+  const NOW = at(1000)
+
+  it('отменённая с прошедшим сроком не попадает в открытые и в текущую просрочку', () => {
+    const m = computeSlaMetrics([ticket({ canceled: true, slaDueAt: at(60) })], NOW)
+    expect(m.openCount).toBe(0)
+    expect(m.openOverdueCount).toBe(0)
+    expect(m.canceledCount).toBe(1)
+  })
+
+  it('отменённая не входит во время решения и в долю SLA', () => {
+    const m = computeSlaMetrics([ticket({ canceled: true, slaDueAt: at(60) })], NOW)
+    expect(m.resolvedCount).toBe(0)
+    expect(m.avgResolutionMinutes).toBeNull()
+    expect(m.slaEvaluatedCount).toBe(0)
+    expect(m.withinSlaRatio).toBeNull()
+    expect(m.withoutSlaCount).toBe(0)
+  })
+
+  it('историческое нарушение и реакция у отменённой сохраняются', () => {
+    const m = computeSlaMetrics(
+      [ticket({ canceled: true, firstResponseAt: at(10), slaDueAt: at(60), slaBreachedAt: at(61) })],
+      NOW,
+    )
+    expect(m.slaBreaches).toBe(1)
+    expect(m.respondedCount).toBe(1)
+    expect(m.avgResponseMinutes).toBe(10)
+  })
+
+  it('в смешанном наборе считаются только действительно открытые', () => {
+    const m = computeSlaMetrics(
+      [
+        ticket({ slaDueAt: at(60) }), // открыта, просрочена
+        ticket({ canceled: true, slaDueAt: at(60) }), // отменена, срок прошёл
+        ticket({ closedAt: at(30), slaDueAt: at(60) }), // закрыта в срок
+      ],
+      NOW,
+    )
+    expect(m.openCount).toBe(1)
+    expect(m.openOverdueCount).toBe(1)
+    expect(m.canceledCount).toBe(1)
+    expect(m.resolvedCount).toBe(1)
+    expect(m.openCount + m.resolvedCount + m.canceledCount).toBe(3)
+  })
+})
+
+describe('SLA_RESPONSE_STATUSES', () => {
+  it('реакцией считается и ASSIGNED, и прямой переход в IN_PROGRESS', () => {
+    expect([...SLA_RESPONSE_STATUSES].sort()).toEqual(['ASSIGNED', 'IN_PROGRESS'])
   })
 })
 

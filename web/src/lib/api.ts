@@ -1163,6 +1163,8 @@ export type SlaMetricsDto = {
   openCount?: number
   /** Текущая просрочка: открытые заявки, у которых срок уже прошёл. */
   openOverdueCount?: number
+  /** Отменённые: не открыты и не завершены, в просрочку и долю SLA не входят. */
+  canceledCount?: number
   respondedCount: number
   resolvedCount: number
   withoutSlaCount: number

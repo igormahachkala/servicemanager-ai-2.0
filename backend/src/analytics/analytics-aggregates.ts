@@ -50,10 +50,13 @@ export function cityLabel(city?: string | null): string {
  * Источники времени (зафиксированы по коду, а не по догадке):
  *
  * - createdAt       — Ticket.createdAt, момент появления заявки;
- * - firstAssignedAt — МИНИМАЛЬНЫЙ TicketStatusHistory.createdAt с
- *                     toStatus = ASSIGNED. Именно первый перевод в работу, а не
- *                     последний: statusUpdatedAt на заявке — это последнее
+ * - firstResponseAt — МИНИМАЛЬНЫЙ TicketStatusHistory.createdAt с toStatus
+ *                     из SLA_RESPONSE_STATUSES. Именно первый перевод в работу,
+ *                     а не последний: statusUpdatedAt на заявке — это последнее
  *                     изменение, для реакции он не годится;
+ * - canceled        — заявка отменена. closedAt у отменённой не ставится
+ *                     (ticket-close-tree), поэтому по одному closedAt она
+ *                     неотличима от открытой;
  * - closedAt        — Ticket.closedAt. Ставится при переходе в DONE
  *                     (tickets.status.service, tickets.acceptance.service,
  *                     ticket-close-tree). Канонический момент завершения;
@@ -61,10 +64,20 @@ export function cityLabel(city?: string | null): string {
  * - slaBreachedAt   — канонический признак нарушения; им же считается
  *                     overdueTickets в остальной аналитике.
  */
+/**
+ * Статусы, переход в которые считается реакцией на заявку.
+ *
+ * Workflow разрешает NEW → IN_PROGRESS напрямую, минуя ASSIGNED
+ * (workflow/ticket.workflow.ts). Если считать реакцию только по ASSIGNED,
+ * такие заявки выпадают из среднего, хотя их взяли в работу.
+ */
+export const SLA_RESPONSE_STATUSES = ['ASSIGNED', 'IN_PROGRESS'] as const
+
 export type SlaSourceTicket = {
   locationId: string | null
   createdAt: Date
-  firstAssignedAt: Date | null
+  firstResponseAt: Date | null
+  canceled: boolean
   closedAt: Date | null
   slaDueAt: Date | null
   slaBreachedAt: Date | null
@@ -90,7 +103,7 @@ export type SlaMetrics = {
    * величины и два разных поля.
    */
   slaBreaches: number
-  /** Открытые заявки (closedAt не заполнен). Знаменатель для текущей просрочки. */
+  /** Открытые заявки: не завершены и не отменены. Знаменатель для текущей просрочки. */
   openCount: number
   /**
    * ТЕКУЩАЯ просрочка: открытые заявки, у которых срок уже прошёл.
@@ -100,6 +113,12 @@ export type SlaMetrics = {
    * заявка без срока сюда не попадает — просрочить нечего.
    */
   openOverdueCount: number
+  /**
+   * Отменённые заявки. Не открыты и не завершены: в текущую просрочку, время
+   * решения и долю SLA не входят. Исторические нарушения (slaBreaches) и
+   * реакция у них остаются — это факты, которые уже случились.
+   */
+  canceledCount: number
   /** Сколько заявок получили реакцию (участвуют в avgResponseMinutes). */
   respondedCount: number
   /** Сколько заявок завершено (участвуют в avgResolutionMinutes). */
@@ -141,6 +160,7 @@ export function emptySlaMetrics(): SlaMetrics {
     slaBreaches: 0,
     openCount: 0,
     openOverdueCount: 0,
+    canceledCount: 0,
     respondedCount: 0,
     resolvedCount: 0,
     withoutSlaCount: 0,
@@ -152,8 +172,9 @@ export function emptySlaMetrics(): SlaMetrics {
  *
  * Правила, которые здесь закреплены:
  *
- * 1. Реакция считается только по заявкам, которые реально взяли в работу.
- *    Неназначенная заявка не даёт нулевой реакции — она не участвует вовсе.
+ * 1. Реакция считается только по заявкам, которые реально взяли в работу:
+ *    первый переход в ASSIGNED или сразу в IN_PROGRESS. Неназначенная заявка
+ *    не даёт нулевой реакции — она не участвует вовсе.
  * 2. Решение считается только по завершённым. Открытые заявки не смешиваются
  *    с завершёнными: иначе среднее росло бы само по себе с каждым днём, пока
  *    заявка висит.
@@ -165,6 +186,9 @@ export function emptySlaMetrics(): SlaMetrics {
  * 5. Текущая просрочка открытых заявок считается ОТДЕЛЬНО, от срока и «сейчас»,
  *    и с историческим признаком не смешивается. Закрытая заявка в текущую
  *    просрочку не попадает никогда, даже если была просрочена.
+ * 6. Отменённая заявка не открыта и не завершена. closedAt у неё нет, поэтому
+ *    без отдельной проверки она считалась бы открытой и, при прошедшем сроке,
+ *    просроченной сейчас. Она уходит в canceledCount.
  *
  * `now` передаётся параметром, а не берётся внутри: иначе разрезы по
  * организации, городу и точке могли бы посчитаться по разным моментам, и
@@ -183,9 +207,14 @@ export function computeSlaMetrics(
   for (const ticket of tickets) {
     if (ticket.slaBreachedAt) result.slaBreaches += 1
 
-    if (ticket.firstAssignedAt) {
+    if (ticket.firstResponseAt) {
       result.respondedCount += 1
-      responseSum += durationMinutes(ticket.createdAt, ticket.firstAssignedAt)
+      responseSum += durationMinutes(ticket.createdAt, ticket.firstResponseAt)
+    }
+
+    if (ticket.canceled) {
+      result.canceledCount += 1
+      continue
     }
 
     if (!ticket.closedAt) {

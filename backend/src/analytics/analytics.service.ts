@@ -18,6 +18,7 @@ import {
   computeSlaByLocation,
   computeSlaMetrics,
   emptySlaMetrics,
+  SLA_RESPONSE_STATUSES,
   type SlaSourceTicket,
 } from './analytics-aggregates'
 
@@ -693,7 +694,7 @@ export class AnalyticsService {
       summaryTotal,
       summaryOverdue,
       slaTicketRows,
-      firstAssignedRows,
+      firstResponseRows,
     ] = await Promise.all([
       this.prisma.location.findMany({
         where: this.applyLocationScopeToLocationWhere({
@@ -733,7 +734,7 @@ export class AnalyticsService {
       /*
        * A3: источник времён для SLA.
        *
-       * Проекция минимальная — шесть скалярных полей. Средние по разнице дат
+       * Проекция минимальная — семь скалярных полей. Средние по разнице дат
        * не выражаются ни через groupBy, ни через _avg, поэтому разницы
        * считаются в чистом модуле; тот же where, что и у остальных агрегатов,
        * поэтому ни одной лишней заявки сюда не попадёт.
@@ -743,6 +744,7 @@ export class AnalyticsService {
         select: {
           id: true,
           locationId: true,
+          status: true,
           createdAt: true,
           closedAt: true,
           slaDueAt: true,
@@ -750,13 +752,14 @@ export class AnalyticsService {
         },
       }),
       /*
-       * Первый перевод в ASSIGNED по каждой заявке — это и есть реакция.
+       * Первый перевод в работу по каждой заявке — это и есть реакция:
+       * ASSIGNED либо сразу IN_PROGRESS (NEW → IN_PROGRESS разрешён workflow).
        * Ticket.statusUpdatedAt тут не годится: он хранит ПОСЛЕДНЕЕ изменение.
        * Область берётся тем же ticketWhere через связь ticket.
        */
       this.prisma.ticketStatusHistory.groupBy({
         by: ['ticketId'],
-        where: { toStatus: TicketStatus.ASSIGNED, ticket: ticketWhere },
+        where: { toStatus: { in: [...SLA_RESPONSE_STATUSES] }, ticket: ticketWhere },
         _min: { createdAt: true },
       }),
     ])
@@ -799,17 +802,18 @@ export class AnalyticsService {
      */
     const minTickets = params.minTickets ?? (params.includeEmptyLocations ? 0 : 1)
 
-    // A3: сопоставление заявка → первый ASSIGNED.
-    const firstAssignedByTicket = new Map<string, Date>()
-    for (const row of firstAssignedRows) {
+    // A3: сопоставление заявка → первый перевод в работу.
+    const firstResponseByTicket = new Map<string, Date>()
+    for (const row of firstResponseRows) {
       const at = row._min.createdAt
-      if (at) firstAssignedByTicket.set(row.ticketId, at)
+      if (at) firstResponseByTicket.set(row.ticketId, at)
     }
 
     const slaTickets: SlaSourceTicket[] = slaTicketRows.map((row) => ({
       locationId: row.locationId ?? null,
       createdAt: row.createdAt,
-      firstAssignedAt: firstAssignedByTicket.get(row.id) ?? null,
+      firstResponseAt: firstResponseByTicket.get(row.id) ?? null,
+      canceled: row.status === TicketStatus.CANCELED,
       closedAt: row.closedAt ?? null,
       slaDueAt: row.slaDueAt ?? null,
       slaBreachedAt: row.slaBreachedAt ?? null,
