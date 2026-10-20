@@ -139,6 +139,8 @@ git switch -   # вернуться в ветку задачи
 
 Результат тот же: в beta появляется коммит слияния с prod. Отличие в том,
 что локальная ветка beta не создаётся и не занимается.
+
+Отказ push с GH006, protected branch или Changes must be made through a pull request пропускает восстановление. PR в beta ради инварианта не открывать. Так же пропускают шаг 0 sma-deploy-stage и шаг 11 sma-deploy-prod.
 </beta_without_switch>
 <naming>fix/ | feat/ | docs/ | chore/ | skills/</naming>
 <naming_scope>
@@ -322,7 +324,7 @@ unrevert/&lt;тема&gt; от origin/prod. Только если такой р�
 <b name="beta">
 Расходная. Код задач попадает только слиянием PR, но три служебные операции
 выполняются напрямую:
-  1. слияние prod в beta — восстановление инварианта beta ⊇ prod после релиза;
+  1. слияние prod в beta — восстановление инварианта beta ⊇ prod после релиза. Отказ push защитой ветки пропускает этот пункт.
   2. сброс beta = prod — очистка контура, git push --force-with-lease;
   3. откат указателя beta на предка — убрать слияние целиком,
      git push --force-with-lease.
@@ -333,6 +335,7 @@ unrevert/&lt;тема&gt; от origin/prod. Только если такой р�
 не делается. Защищать beta наравне с prod означает отказаться от очистки
 контура, и beta накопит отброшенные задачи. Поэтому граница beta проведена
 правилом в этом документе, а не настройкой GitHub.
+Прямой push инварианта при отказе защиты ветки пропускается. Это шаг 0 sma-deploy-stage и шаг 11 sma-deploy-prod.
 </rationale>
 </branch_status>
 
