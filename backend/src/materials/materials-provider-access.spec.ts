@@ -81,6 +81,7 @@ describe('Materials provider access', () => {
     'getTechnicianMovements',
     'issue',
     'receiptToCompanyStock',
+    'getCompanyStockBalances',
   ] as const)('enforces the provider contour on %s', (method) => {
     const guards = Reflect.getMetadata(
       GUARDS_METADATA,
@@ -111,6 +112,35 @@ describe('Materials provider access', () => {
     expect(managementRoles).not.toContain(UserRole.TECHNICIAN);
     expect(managementRoles).not.toContain(UserRole.CLIENT_ADMIN);
     expect(managementRoles).not.toContain(UserRole.CLIENT);
+  });
+
+  it('keeps company stock balances management-only', () => {
+    const stockRoles = Reflect.getMetadata(
+      'roles',
+      MaterialsController.prototype.getCompanyStockBalances,
+    );
+
+    expect(stockRoles).toEqual([
+      UserRole.ADMIN,
+      UserRole.MASTER,
+      UserRole.DISPATCHER,
+    ]);
+  });
+
+  it('reads company stock of the actor company, not of a requested one', async () => {
+    const materials = {
+      getCompanyStockBalances: jest.fn().mockResolvedValue([]),
+    } as any;
+    const controller = new MaterialsController(materials);
+
+    await controller.getCompanyStockBalances({
+      user: { id: 'actor', role: UserRole.ADMIN, companyId: 'actor-company' },
+      query: { companyId: 'foreign-company' },
+    });
+
+    expect(materials.getCompanyStockBalances).toHaveBeenCalledWith(
+      'actor-company',
+    );
   });
 
   it('leaves ticket material history on the canonical ticket access path', () => {

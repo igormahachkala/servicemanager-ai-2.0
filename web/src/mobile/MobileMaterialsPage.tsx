@@ -67,6 +67,11 @@ export function MobileMaterialsPage() {
     queryFn: api.myMaterialMovements,
     enabled: isTechnician,
   })
+  const stockBalancesQ = useQuery({
+    queryKey: ['company-stock-balances'],
+    queryFn: api.companyStockBalances,
+    enabled: canManage && section === 'stock',
+  })
   const usersQ = useQuery({
     queryKey: ['materials-technician-users'],
     queryFn: () => api.users(undefined, { includeDeleted: false }),
@@ -117,8 +122,9 @@ export function MobileMaterialsPage() {
   })
   const receiptM = useMutation({
     mutationFn: api.recordCompanyStockReceipt,
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       setNotice(`Поступление сохранено. Остаток склада: ${formatMaterialQuantity(result.balance.quantity, result.balance.material?.unit)}`)
+      await qc.invalidateQueries({ queryKey: ['company-stock-balances'] })
     },
   })
   const issueM = useMutation({
@@ -130,6 +136,7 @@ export function MobileMaterialsPage() {
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['mobile-technician-material-balances', selectedTechnicianId] }),
         qc.invalidateQueries({ queryKey: ['mobile-technician-material-movements', selectedTechnicianId] }),
+        qc.invalidateQueries({ queryKey: ['company-stock-balances'] }),
       ])
     },
   })
@@ -187,16 +194,25 @@ export function MobileMaterialsPage() {
       ) : null}
 
       {section === 'stock' && canManage ? (
-        <div className="mobileCard">
-          <h2 className="mobileSectionTitle">Поступление на склад</h2>
-          <p className="mobileHint">V0 показывает новый остаток из ответа операции. Отдельного чтения склада нет.</p>
-          <QuantityForm
-            materials={materialsQ.data || []}
-            submitLabel="Принять на склад"
-            pending={receiptM.isPending}
-            onSubmit={(input) => receiptM.mutate(input)}
-          />
-        </div>
+        <>
+          <div className="mobileCard">
+            <h2 className="mobileSectionTitle">Остатки на складе</h2>
+            {stockBalancesQ.isLoading ? <div className="mobileMeta">Загружаем остатки…</div> : null}
+            {stockBalancesQ.isError ? <div className="mobileNotice mobileNoticeError">{(stockBalancesQ.error as Error).message}</div> : null}
+            {!stockBalancesQ.isLoading && !stockBalancesQ.isError ? (
+              <MaterialsBalanceList balances={stockBalancesQ.data || []} emptyText="На складе пока нет остатков" />
+            ) : null}
+          </div>
+          <div className="mobileCard" style={{ marginTop: 8 }}>
+            <h2 className="mobileSectionTitle">Поступление на склад</h2>
+            <QuantityForm
+              materials={materialsQ.data || []}
+              submitLabel="Принять на склад"
+              pending={receiptM.isPending}
+              onSubmit={(input) => receiptM.mutate(input)}
+            />
+          </div>
+        </>
       ) : null}
 
       {section === 'technicians' && canManage ? (
