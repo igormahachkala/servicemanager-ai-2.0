@@ -8,6 +8,7 @@ import {
   parseCityFromSuggestFullName,
   shouldRequestAddressSuggest,
 } from './LocationForm'
+import { isAcceptedSuggestQcGeo, suggestCoordsFromItem } from '../../lib/locationGeocodeApi'
 
 function renderForm(error?: string | null) {
   return renderToStaticMarkup(
@@ -51,7 +52,7 @@ describe('shouldRequestAddressSuggest', () => {
 })
 
 describe('parseCityFromSuggestFullName', () => {
-  it('takes city from a 2GIS fullName and leaves street/house out', () => {
+  it('takes city from a Dadata fullName and leaves street/house out', () => {
     expect(
       parseCityFromSuggestFullName('Россия, Свердловская область, Екатеринбург, улица Ленина, 1'),
     ).toBe('Екатеринбург')
@@ -66,7 +67,33 @@ describe('parseCityFromSuggestFullName', () => {
 })
 
 describe('address suggest debounce', () => {
-  it('waits at least 300ms', () => {
-    expect(ADDRESS_SUGGEST_DEBOUNCE_MS).toBeGreaterThanOrEqual(300)
+  it('waits 600ms to save the Dadata daily suggest limit', () => {
+    expect(ADDRESS_SUGGEST_DEBOUNCE_MS).toBe(600)
+  })
+})
+
+describe('suggest coords from Dadata pick', () => {
+  it('accepts qc_geo 0 and 1 with lat/lon', () => {
+    expect(isAcceptedSuggestQcGeo(0)).toBe(true)
+    expect(isAcceptedSuggestQcGeo(1)).toBe(true)
+    expect(isAcceptedSuggestQcGeo(2)).toBe(false)
+    expect(
+      suggestCoordsFromItem({
+        text: 'ул Ленина, 1',
+        fullName: 'г Екатеринбург, ул Ленина, д 1',
+        latitude: 56.8,
+        longitude: 60.6,
+        qcGeo: 0,
+      }),
+    ).toEqual({ latitude: 56.8, longitude: 60.6 })
+    expect(
+      suggestCoordsFromItem({
+        text: 'ул Ленина, 1',
+        fullName: 'г Екатеринбург, ул Ленина, д 1',
+        latitude: 56.8,
+        longitude: 60.6,
+        qcGeo: 2,
+      }),
+    ).toBeNull()
   })
 })
