@@ -1,6 +1,5 @@
-# CI definitions and their trust-boundary tests require repository-owner review.
+# Release automation scripts and their trust-boundary tests require repository-owner review.
 /.github/CODEOWNERS @igormahachkala
-/.github/workflows/release-automation-ci.yml @igormahachkala
 /skills/_shared/scripts/run-release-automation-selftests.sh @igormahachkala
 /skills/_shared/scripts/run-release-automation-selftests.selftest.sh @igormahachkala
 /skills/_shared/scripts/release-automation-protocol.selftest.sh @igormahachkala
