@@ -34,8 +34,8 @@ export function locationRouteLabels(
   if (!routes) return labels
   for (const [locationId, ticketId] of ticketByLocation) {
     const route = routes[ticketId]
-    if (!route?.available || route.distanceMeters == null || route.durationSeconds == null) continue
-    labels.set(locationId, formatTicketRouteLabel(route.distanceMeters, route.durationSeconds))
+    if (!route?.available || route.distanceMeters == null) continue
+    labels.set(locationId, formatTicketRouteLabel(route.distanceMeters))
   }
   return labels
 }
