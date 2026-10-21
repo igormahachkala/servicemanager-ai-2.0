@@ -5931,6 +5931,7 @@ a.mobileBtn.mobileCreateTicketLink {
 }
 .mobileAnalyticsViewSelect {
   width: 100%;
+  height: auto;
   appearance: none;
   -webkit-appearance: none;
   border: 1px solid #e2e8f0;
@@ -6111,6 +6112,43 @@ a.mobileBtn.mobileCreateTicketLink {
 .mobileAnalyticsBarFill--assigned  { background: #d97706; }
 .mobileAnalyticsBarFill--inprogress { background: #7c3aed; }
 .mobileAnalyticsBarFill--done      { background: #16a34a; }
+.mobileAnalyticsBarFill--awaiting  { background: #0d9488; }
+.mobileAnalyticsBarFill--canceled  { background: #94a3b8; }
+
+/* Analytics V2: выбор города и точек на экране */
+.mobileAnalyticsScopePicker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.mobileAnalyticsScopePicker .mobileAnalyticsFilterChip {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Analytics V2: строка «SLA по городам» — кнопка выбора города */
+.mobileAnalyticsCityRow {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  white-space: normal;
+  line-height: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: 0;
+  padding: 10px 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.mobileAnalyticsCityRow--active .mobileAnalyticsEquipName {
+  color: #1d4ed8;
+}
 
 /* Mobile ticket actions: ⋯ trigger + bottom sheet */
 .mobileTicketDetailsToolbar {
