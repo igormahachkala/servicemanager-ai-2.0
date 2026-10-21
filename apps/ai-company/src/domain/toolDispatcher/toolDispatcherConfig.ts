@@ -34,6 +34,20 @@ const RAW_IP_PATTERNS = [
   /^https?:\/\/172\.(1[6-9]|2\d|3[01])\.\d+\.\d+/i,
 ] as const
 
+/**
+ * Autonomy switch: when ON, a tool whose capability says
+ * `requiresOwnerApproval: false` (today only the read-only ollama analysis)
+ * is approved at creation instead of waiting for the Owner. OFF by default so
+ * the demo approval path and existing scripts keep their lifecycle.
+ * Vite: VITE_AI_COMPANY_AUTO_APPROVE_SAFE_TOOLS; headless: AI_COMPANY_AUTO_APPROVE_SAFE_TOOLS.
+ */
+export function isSafeToolAutoApproveEnabled(): boolean {
+  const raw =
+    readEnv('VITE_AI_COMPANY_AUTO_APPROVE_SAFE_TOOLS') ??
+    readProcessEnv('AI_COMPANY_AUTO_APPROVE_SAFE_TOOLS')
+  return raw === '1' || raw?.toLowerCase() === 'true'
+}
+
 export function assertToolEndpointHasNoRawIp(url: string | null): void {
   if (!url) return
   for (const pattern of RAW_IP_PATTERNS) {

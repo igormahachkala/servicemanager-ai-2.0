@@ -21,6 +21,7 @@ export {
   assertToolEndpointHasNoRawIp,
   buildToolDispatcherEndpointUrl,
   getToolDispatcherEndpointConfig,
+  isSafeToolAutoApproveEnabled,
 } from './toolDispatcherConfig'
 
 export {

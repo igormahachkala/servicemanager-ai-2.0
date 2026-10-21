@@ -115,4 +115,35 @@ describe('requestToolExecution', () => {
 
     assert.equal(run.toolId, 'cursor')
   })
+
+  describe('capability.requiresOwnerApproval + autonomy switch', () => {
+    const KEY = 'AI_COMPANY_AUTO_APPROVE_SAFE_TOOLS'
+
+    it('switch OFF: ollama still waits for the Owner (default lifecycle)', () => {
+      delete process.env[KEY]
+      const { run } = requestToolExecution({ ...baseInput(), toolId: 'ollama' })
+      assert.equal(run.status, 'awaiting_owner')
+    })
+
+    it('switch ON: ollama (requiresOwnerApproval:false) is approved at creation', () => {
+      process.env[KEY] = '1'
+      try {
+        const { run } = requestToolExecution({ ...baseInput(), toolId: 'ollama' })
+        assert.equal(run.status, 'approved')
+        assert.ok(run.history.some((h) => /Auto-approved/.test(h.message ?? '')))
+      } finally {
+        delete process.env[KEY]
+      }
+    })
+
+    it('switch ON: cursor (requiresOwnerApproval:true) still waits for the Owner', () => {
+      process.env[KEY] = '1'
+      try {
+        const { run } = requestBuilderCursorToolExecution(baseInput())
+        assert.equal(run.status, 'awaiting_owner')
+      } finally {
+        delete process.env[KEY]
+      }
+    })
+  })
 })

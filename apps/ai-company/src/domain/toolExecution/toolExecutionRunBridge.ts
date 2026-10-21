@@ -11,12 +11,14 @@ import { EMPLOYEE_ROUTE_IDS, resolveCanonicalEmployeeId } from '../../mission-co
 import {
   dispatchToolRequest,
   dispatchToolRequestPlannedOnly,
+  getToolCapability,
+  isSafeToolAutoApproveEnabled,
   type DispatchToolRequestInput,
   type DispatchToolRequestOutcome,
   type ToolDispatcherToolId,
   type ToolRequest as ToolDispatcherRequest,
 } from '../toolDispatcher'
-import { createToolExecutionRun } from './toolExecutionRunStorage'
+import { approveToolExecutionRun, createToolExecutionRun } from './toolExecutionRunStorage'
 import type { ToolExecutionRun } from './toolExecutionRunTypes'
 
 export type CreateToolExecutionFromDispatcherRequestInput = {
@@ -105,7 +107,7 @@ export function createToolExecutionFromDispatcherRequest(
     delegationPlanId: input.delegationPlanId,
   })
 
-  return createToolExecutionRun({
+  const run = createToolExecutionRun({
     companyId,
     employeeId,
     toolId: input.request.toolId,
@@ -121,6 +123,22 @@ export function createToolExecutionFromDispatcherRequest(
     checks: input.checks,
     initialStatus: 'awaiting_owner',
   })
+
+  // Honour capability.requiresOwnerApproval when autonomy is switched on.
+  // The run still passes through awaiting_owner → approved, so history shows
+  // who let it through and approveToolExecutionRun fires the executor exactly
+  // as an Owner click would.
+  const capability = getToolCapability(input.request.toolId)
+  if (capability && !capability.requiresOwnerApproval && isSafeToolAutoApproveEnabled()) {
+    return (
+      approveToolExecutionRun(
+        run.id,
+        `Auto-approved: ${input.request.toolId} capability does not require Owner approval.`,
+      ) ?? run
+    )
+  }
+
+  return run
 }
 
 export function requestToolExecution(

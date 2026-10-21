@@ -248,6 +248,15 @@ capability переводится в `true` — тогда флаг честно
 Владельца, и demo-путь придётся заводить иначе. **Второй вариант меняет жизненный цикл прогона, поэтому
 не делать заодно с другой задачей.**
 
+**ЗАКРЫТО (2026-10-21):** выбран второй вариант, но за переключателем. При
+`AI_COMPANY_AUTO_APPROVE_SAFE_TOOLS=1` (в Vite — `VITE_AI_COMPANY_AUTO_APPROVE_SAFE_TOOLS`)
+`createToolExecutionFromDispatcherRequest` учитывает `capability.requiresOwnerApproval`: run создаётся
+в `awaiting_owner` и сразу проходит `approveToolExecutionRun` с пометкой «Auto-approved» в истории — тот же
+путь, что клик Владельца, исполнитель запускается так же. Без переменной жизненный цикл прежний (демо и
+`scripts/ollama-e2e-*.ts` не затронуты). Cursor (`requiresOwnerApproval: true`) ждёт Владельца всегда.
+Ловушка: при включённом переключателе e2e-скрипт, который сам вызывает approve + queue, гоняется с
+отсоединённым queue из approve — запускать скрипты с выключенной переменной.
+
 Дальше, вне сквозного пути: перенос слоя контекста из `agent-runner` (`contextLoader`/`fileSelector`
 требуют моста к `fs` — сейчас промпт честно пишет, что контекста нет; живой прогон это подтвердил:
 модель угадывала пути к файлам неточно); персистентность `executionRoute` колонкой на `ToolExecutionRun`.
