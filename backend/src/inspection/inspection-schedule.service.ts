@@ -16,6 +16,7 @@ import {
   resolveInspectionLocationAccess,
   type InspectionLocationRef,
 } from './inspection-location-scope'
+import { isScheduleOverdue, scheduleOverdueAt } from './inspection-recurrence'
 
 /**
  * SMA-ROUNDS-V1-SCHEDULE-CRUD-098 — the plan, not the execution.
@@ -23,9 +24,9 @@ import {
  * A manager picks a template, a client site, a technician and a date; this service stores that
  * as an InspectionSchedule. It deliberately does NOT create InspectionRun rows: turning due
  * schedules into runs idempotently is a separate task, and building half of it here would make
- * that task harder, not easier. `nextDueAt` is therefore seeded from `startDate` and left alone
- * — there is no recurrence arithmetic in 098, and pretending otherwise would put wrong dates in
- * the database that a future generator would have to distrust.
+ * that task harder, not easier. `nextDueAt` is seeded from `startDate` here; moving it forward is
+ * the job of run completion (SMA-ROUNDS-RECURRENCE-FIX, inspection-schedule-advance.ts), which
+ * closes the current visit and puts the plan on its next due moment.
  *
  * Access is not re-decided here. Provider→client authorisation comes from 097's composition of
  * the canonical contract primitives, template ownership from the same actor-company filter the
@@ -76,7 +77,8 @@ export class InspectionScheduleService {
     // Same reasoning as 097's run list: the company filter cannot notice a contract that
     // lapsed after the plan was made, so out-of-scope sites are dropped here.
     const visible = await this.filterByLocationScope(user, schedules)
-    return visible.map(withLastRun)
+    const now = new Date()
+    return visible.map((schedule) => withLastRun(schedule, now))
   }
 
   async listAssignableTechnicians(user: InspectionUserCtx, locationId: string) {
@@ -477,7 +479,8 @@ function scheduleSelect() {
     runs: {
       orderBy: [{ createdAt: 'desc' }],
       take: 1,
-      select: { id: true, status: true, completedAt: true },
+      /** Срок визита обхода: по нему видно, закрывает ли обход текущий визит плана. */
+      select: { id: true, status: true, completedAt: true, dueAt: true },
     },
   } satisfies Prisma.InspectionScheduleSelect
 }
@@ -487,10 +490,24 @@ function scheduleSelect() {
  *
  * Наружу отдаётся lastRun, а не массив из одного обхода: потребителю нужно
  * состояние визита, а не деталь того, как оно добыто.
+ *
+ * SMA-ROUNDS-RECURRENCE-FIX: просрочка считается здесь, одним правилом
+ * (inspection-recurrence), а не каждым потребителем по-своему: overdueAt —
+ * срок плюс льготные дни, isOverdue — прошёл ли он у активного плана.
  */
-function withLastRun<T extends { runs?: Array<{ id: string; status: unknown; completedAt: Date | null }> }>(
-  schedule: T,
-) {
+function withLastRun<
+  T extends {
+    isActive: boolean
+    nextDueAt: Date
+    graceDays: number
+    runs?: Array<{ id: string; status: unknown; completedAt: Date | null; dueAt: Date | null }>
+  },
+>(schedule: T, now: Date = new Date()) {
   const { runs, ...rest } = schedule
-  return { ...rest, lastRun: runs?.[0] ?? null }
+  return {
+    ...rest,
+    overdueAt: scheduleOverdueAt(schedule.nextDueAt, schedule.graceDays),
+    isOverdue: isScheduleOverdue(schedule, now),
+    lastRun: runs?.[0] ?? null,
+  }
 }

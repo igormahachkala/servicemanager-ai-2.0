@@ -80,6 +80,7 @@ type ScheduleRow = {
   name?: string | null
   nextDueAt?: Date | null
   leadTimeDays?: number | null
+  graceDays?: number | null
   intervalDays?: number | null
   frequency?: string | null
   isActive?: boolean
@@ -231,6 +232,7 @@ export class PlannerService {
         summary: null,
         intervalDays: schedule.intervalDays ?? null,
         leadTimeDays: schedule.leadTimeDays ?? null,
+        graceDays: schedule.graceDays ?? null,
         frequency: schedule.frequency ?? null,
       })
     }

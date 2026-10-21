@@ -110,12 +110,23 @@ export const VISIT_STATE_ACTION_LABELS: Record<VisitState, string> = {
  * Состояние определяет последнее исполнение плана, а не сам план: незакрытый
  * обход — это визит в работе, завершённый — визит выполнен. Плана без обходов
  * ещё не касались.
+ *
+ * SMA-ROUNDS-RECURRENCE-FIX: завершение обхода переводит периодический план
+ * на следующий срок. Завершённый обход прошлого визита поэтому не делает
+ * выполненным новый: визит выполнен, только если обход закрывал именно
+ * текущий срок плана.
  */
-export function deriveVisitState(schedule: Pick<InspectionSchedule, 'lastRun'>): VisitState {
-  const status = schedule?.lastRun?.status
-  if (status === 'IN_PROGRESS') return 'IN_PROGRESS'
-  if (status === 'COMPLETED') return 'COMPLETED'
+export function deriveVisitState(schedule: Pick<InspectionSchedule, 'lastRun' | 'nextDueAt'>): VisitState {
+  const lastRun = schedule?.lastRun
+  if (lastRun?.status === 'IN_PROGRESS') return 'IN_PROGRESS'
+  if (lastRun?.status === 'COMPLETED' && sameInstant(lastRun.dueAt, schedule.nextDueAt)) return 'COMPLETED'
   return 'NOT_STARTED'
+}
+
+function sameInstant(a?: string | null, b?: string | null): boolean {
+  if (!a || !b) return false
+  const at = Date.parse(a)
+  return Number.isFinite(at) && at === Date.parse(b)
 }
 
 // ── карточка визита ─────────────────────────────────────────────────────────

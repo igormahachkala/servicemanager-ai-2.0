@@ -6,6 +6,7 @@ import type {
   ScoredLocation,
   ScoredWork,
 } from './planner.types'
+import { scheduleOverdueAt } from '../inspection/inspection-recurrence'
 
 /** All planner weight constants in one place. */
 export const PLANNER_WEIGHTS = {
@@ -143,14 +144,24 @@ function scoreOne(item: PlannerPoolItem, ctx: PlannerContext): Omit<ScoredWork, 
   if (item.dueAt) {
     const msUntil = item.dueAt.getTime() - ctx.now.getTime()
 
-    if (item.kind === 'INSPECTION' && msUntil < 0) {
-      const daysOverdue = Math.max(0, Math.floor(-msUntil / MS_DAY))
+    /**
+     * SMA-ROUNDS-RECURRENCE-FIX: просрочка визита наступает по исходу льготных
+     * дней плана, тем же правилом, что в выдаче расписания (scheduleOverdueAt).
+     * Внутри льготы визит ещё в окне, а не просрочен.
+     */
+    const msUntilOverdue =
+      item.kind === 'INSPECTION'
+        ? scheduleOverdueAt(item.dueAt, item.graceDays).getTime() - ctx.now.getTime()
+        : msUntil
+
+    if (item.kind === 'INSPECTION' && msUntilOverdue < 0) {
+      const daysOverdue = Math.max(0, Math.floor(-msUntilOverdue / MS_DAY))
       const weight =
         PLANNER_WEIGHTS.INSPECTION_OVERDUE_BASE +
         PLANNER_WEIGHTS.INSPECTION_OVERDUE_PER_DAY * daysOverdue
       total += weight
       pushReason(reasons, REASON_LABELS.inspectionOverdue(daysOverdue), weight)
-    } else if (item.kind === 'INSPECTION' && msUntil >= 0) {
+    } else if (item.kind === 'INSPECTION') {
       // In maturity window, not yet overdue.
       total += PLANNER_WEIGHTS.INSPECTION_IN_WINDOW
       pushReason(reasons, REASON_LABELS.INSPECTION_IN_WINDOW, PLANNER_WEIGHTS.INSPECTION_IN_WINDOW)

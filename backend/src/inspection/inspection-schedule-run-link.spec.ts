@@ -483,15 +483,22 @@ describe('119K startRun по расписанию', () => {
     })
   })
 
-  it('признаком занятости считается только незакрытый обход', async () => {
+  it('занят визит незакрытым обходом либо завершённым обходом того же срока', async () => {
     const { svc, prisma } = makeSuite()
 
     await svc.startRun(technician, { ...base, scheduleId: 'sch-1' } as any)
 
-    // Завершённые обходы того же плана следующий визит не блокируют.
+    // Завершённые обходы прошлых визитов следующий визит не блокируют:
+    // завершённый обход учитывается, только если его срок — текущий срок плана.
     expect(prisma.inspectionRun.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { scheduleId: 'sch-1', status: InspectionRunStatus.IN_PROGRESS },
+        where: {
+          scheduleId: 'sch-1',
+          OR: [
+            { status: InspectionRunStatus.IN_PROGRESS },
+            { status: InspectionRunStatus.COMPLETED, dueAt: DUE_AT },
+          ],
+        },
       }),
     )
   })
@@ -557,18 +564,21 @@ describe('119K смежное поведение обходов', () => {
     expect(prisma.inspectionSchedule.findFirst).toHaveBeenCalledTimes(1)
   })
 
-  it('17. завершение обхода плана не переписывает', async () => {
+  it('17. завершение обхода «от руки» план не трогает', async () => {
     const { svc, prisma } = makeSuite()
+    prisma.inspectionSchedule.updateMany = jest.fn()
 
-    await svc.startRun(technician, { ...base, scheduleId: 'sch-1' } as any)
-    prisma.inspectionSchedule.update.mockClear()
-
+    // runRow без scheduleId — обход начат не по плану.
     await svc.completeRun(technician, 'run-1')
 
     expect(prisma.inspectionRun.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: InspectionRunStatus.COMPLETED }) }),
     )
+    // SMA-ROUNDS-RECURRENCE-FIX: сдвиг срока — только для обхода по плану,
+    // см. inspection-schedule-recurrence.spec.ts.
     expect(prisma.inspectionSchedule.update).not.toHaveBeenCalled()
+    expect(prisma.inspectionSchedule.updateMany).not.toHaveBeenCalled()
+    expect(prisma.$transaction).not.toHaveBeenCalled()
   })
 
   it('18. исторический срез: чтение обхода не смотрит ни в шаблон, ни в план', async () => {
