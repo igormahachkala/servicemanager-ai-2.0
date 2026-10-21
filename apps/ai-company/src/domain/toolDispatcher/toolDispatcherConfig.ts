@@ -81,8 +81,11 @@ export function getToolDispatcherEndpointConfig(
   toolId: ToolDispatcherToolId,
 ): ToolDispatcherEndpointRef {
   if (toolId === 'cursor') {
+    // readCursorBaseUrl already guards an explicit env value. The same-origin
+    // fallback is NOT guarded: on the office server the panel is opened by LAN
+    // IP, so the origin legitimately is one — asserting it here threw while
+    // building REGISTRY and broke every importer of toolDispatcher (STATE §7.9).
     const baseUrl = readCursorBaseUrl()
-    if (baseUrl) assertToolEndpointHasNoRawIp(baseUrl)
 
     return {
       configKey: 'VITE_TOOL_DISPATCHER_CURSOR_BASE_URL',

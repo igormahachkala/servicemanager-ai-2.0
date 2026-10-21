@@ -324,6 +324,9 @@ capability переводится в `true` — тогда флаг честно
    что тянет `toolDispatcher`. Guard задуман против захардкоженного IP в конфиге, а бьёт по
    собственному origin. Ветка `ollama` капкан обошла — там `assertToolEndpointHasNoRawIp` стоит только
    на значении из env, не на same-origin фолбэке (`bd6a018`); у Cursor по-прежнему на обоих.
+   **ЗАКРЫТО (2026-10-21):** guard снят с same-origin фолбэка у Cursor, как у ollama. Без этого панель на
+   офисном сервере по `http://192.168.1.157:8080` давала белый экран (проверено в браузере до/после).
+   Регрессия: `toolDispatcherLanOrigin.test.ts`.
 10. **Cursor-ветка в `approveToolExecutionRun:268` не тест-безопасна.** Под моканым `window`
     (а его мокает весь харнесс тестов, см. `manualCursorTaskFlow.test.ts`) условие
     `typeof window !== 'undefined'` истинно, ветка динамически импортирует `cursorLocalBridgeSync`
