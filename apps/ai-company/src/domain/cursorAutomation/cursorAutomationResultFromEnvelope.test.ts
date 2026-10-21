@@ -109,3 +109,18 @@ test('resolve returns null when there is no envelope or no result', () => {
   assert.equal(resolveActualResultFromToolResult(toolResult(null) as never), null)
   assert.equal(resolveActualResultFromToolResult(null), null)
 })
+
+test('accepts a stored ToolExecutionRun result (only output is read)', async () => {
+  const { resolveActualResultFromToolResult } = await import('./cursorAutomationResultFromEnvelope')
+  const storedRunResult = {
+    plannedOnly: false,
+    output: { cursorResultEnvelopeV110: envelope() },
+    deliveryMode: 'cursor_v1' as const,
+    cursorAutomationTaskId: null,
+    registryInvokePlanId: null,
+    receivedAt: null,
+  }
+  const r = resolveActualResultFromToolResult(storedRunResult, { baseBranch: 'main' })
+  assert.ok(r)
+  assert.equal(r.pullRequest.url, 'https://github.com/acme/repo/pull/42')
+})

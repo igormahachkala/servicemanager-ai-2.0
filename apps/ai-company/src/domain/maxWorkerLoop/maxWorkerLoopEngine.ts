@@ -11,6 +11,8 @@ import type { RuntimeRun } from '../runtime/runtimeRun'
 import { startTaskRunner } from '../taskRunner/taskRunner'
 import { defaultExpectedOutput } from '../taskRunner/taskRunnerTemplates'
 import type { CursorAutomationWorkflowSnapshot } from '../cursorAutomation/cursorAutomationTypes'
+import { resolveActualResultFromToolResult } from '../cursorAutomation/cursorAutomationResultFromEnvelope'
+import { getToolExecutionRunByWorkerLoopId } from '../toolExecution/toolExecutionRunStorage'
 import { buildAutonomousDemoSnapshot, type AutonomousDemoSnapshot } from './autonomousDemoSnapshot'
 import {
   DEFAULT_AUTONOMOUS_DEMO_SCENARIO_ID,
@@ -103,6 +105,13 @@ function enrichCursorAutomationSnapshot(input: {
     status: submitStatus ?? input.base.status,
   }
 
+  // The real Cursor result (if the tool run has terminated) replaces the
+  // pre-declared expectedResult — the integration marks it adapter_v1.
+  const actualResult = resolveActualResultFromToolResult(
+    getToolExecutionRunByWorkerLoopId(input.loop.id)?.result ?? null,
+    { baseBranch: submitRun?.handoffPayload.plan.baseBranch },
+  )
+
   const resultIntegration = buildCursorResultIntegrationIfReady({
     loop: input.loop,
     run: input.run,
@@ -116,6 +125,7 @@ function enrichCursorAutomationSnapshot(input: {
     memoryEvolutionDraft: input.memoryEvolutionDraft,
     baseKnowledgeCandidates: input.knowledgeCandidates,
     externalExecutorRequired: input.base.externalExecutorRequired,
+    actualResult,
   })
 
   if (!resultIntegration) {

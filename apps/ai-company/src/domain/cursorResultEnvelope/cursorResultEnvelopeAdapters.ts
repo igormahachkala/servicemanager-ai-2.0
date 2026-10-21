@@ -28,7 +28,9 @@ export function mapEnvelopeToToolResultOutput(
 }
 
 /** Read unified envelope from ToolResult.output if present. */
-export function readEnvelopeFromToolResult(result: ToolResult): CursorResultEnvelope | null {
+export function readEnvelopeFromToolResult(
+  result: Pick<ToolResult, 'output'>,
+): CursorResultEnvelope | null {
   const output = result.output
   if (!output || typeof output !== 'object') return null
   const candidate = (output as Record<string, unknown>).cursorResultEnvelopeV110

@@ -74,7 +74,7 @@ const TERMINAL_STATUSES: ReadonlyArray<CursorResultEnvelope['executionStatus']> 
  * there is no result, so the caller keeps the mock/expected path until a real result exists.
  */
 export function resolveActualResultFromToolResult(
-  result: ToolResult | null,
+  result: Pick<ToolResult, 'output'> | null,
   options: BuildResultFromEnvelopeOptions = {},
 ): CursorAutomationExpectedResult | null {
   if (!result) return null
