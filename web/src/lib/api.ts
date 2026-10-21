@@ -1492,7 +1492,30 @@ export function resolveInspectionAttachmentUrl(
 }
 
 export function isProtectedUploadUrl(url: string): boolean {
-  return url.includes('/uploads/ticket-attachments/') || url.includes('/uploads/inspection-run-items/')
+  // Все защищённые папки раздачи должны совпадать с backend ALLOWED_FOLDERS
+  // (uploads.controller.ts): ticket-attachments, inspection-run-items, equipment.
+  // Пропуск equipment => снимок грузится как <img src> без Authorization => 401.
+  return (
+    url.includes('/uploads/ticket-attachments/') ||
+    url.includes('/uploads/inspection-run-items/') ||
+    url.includes('/uploads/equipment/')
+  )
+}
+
+export function resolveProtectedUploadUrl(url: string): string {
+  if (!url || !isProtectedUploadUrl(url)) return ''
+
+  try {
+    const apiBase = new URL(getBaseUrl(), getPublicAppBaseUrl())
+    const parsed = new URL(resolveFileUrl(url), apiBase)
+    if (parsed.origin !== apiBase.origin) return ''
+
+    parsed.searchParams.delete('token')
+    parsed.searchParams.delete('access_token')
+    return parsed.toString()
+  } catch {
+    return ''
+  }
 }
 
 /** Loads a protected upload with Authorization header when <img> cannot render it. */
@@ -1500,14 +1523,8 @@ export async function fetchProtectedUploadBlob(url: string): Promise<Blob | null
   const token = getToken()
   if (!token || !url) return null
 
-  let fetchUrl = url
-  try {
-    const parsed = new URL(url)
-    parsed.searchParams.delete('token')
-    fetchUrl = parsed.toString()
-  } catch {
-    fetchUrl = url
-  }
+  const fetchUrl = resolveProtectedUploadUrl(url)
+  if (!fetchUrl) return null
 
   try {
     const response = await fetch(fetchUrl, {

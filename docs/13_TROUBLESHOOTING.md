@@ -549,3 +549,6 @@ size limits without checking the reverse proxy limit as well.
 - [08 Permissions Matrix](08_PERMISSIONS_MATRIX.md) — whether a refusal is by design
 - [14 Glossary](14_GLOSSARY.md) — terminology used above
 - [04 Development Workflow](04_DEVELOPMENT_WORKFLOW.md) — Stage and production behavior
+- [Database Readiness Runbook](DATABASE_READINESS_RUNBOOK.md) — `/health` отвечает ok, но пользователи видят ошибки базы
+- [Database Backup Requirements](DATABASE_BACKUP_REQUIREMENTS.md) — требования к копиям, восстановлению и оповещениям (issue #378)
+- [PLATFORM_ADMIN Recovery](PLATFORM_ADMIN_RECOVERY.md) — потерян доступ администратора платформы, или разворачивается новый контур

@@ -5,7 +5,6 @@ import {
   Headers,
   NotFoundException,
   Param,
-  Query,
   Res,
   StreamableFile,
   UnauthorizedException,
@@ -56,7 +55,6 @@ export class UploadsController {
   async serve(
     @Param('folder') folder: string,
     @Param('filename') filename: string,
-    @Query('token') queryToken: string | undefined,
     @Headers('authorization') authHeader: string | undefined,
     @Headers('range') rangeHeader: string | undefined,
     @Headers('if-none-match') ifNoneMatch: string | undefined,
@@ -71,7 +69,7 @@ export class UploadsController {
       throw new NotFoundException('File not found')
     }
 
-    const user = await this.resolveUser(authHeader, queryToken)
+    const user = await this.resolveUser(authHeader)
     if (!user) {
       throw new UnauthorizedException('Authentication required')
     }
@@ -140,16 +138,18 @@ export class UploadsController {
     return Math.floor(stat.mtimeMs / 1000) <= Math.floor(since / 1000)
   }
 
+  /**
+   * SECURITY P1: the access JWT is accepted ONLY from the Authorization header.
+   * It must never travel in the URL query string (?token=) — URLs leak into access
+   * logs, proxies, browser history and Referer headers, and this is a full 7-day
+   * access token. Browser viewing/download uses authenticated fetch + Blob URL
+   * (web/src/lib/api.ts fetchProtectedUploadBlob / ui/ProtectedUploadMedia), so no
+   * query token is needed. A ?token= in the URL is ignored here.
+   */
   private async resolveUser(
     authHeader: string | undefined,
-    queryToken: string | undefined,
   ): Promise<JwtPayload | null> {
-    const raw =
-      typeof queryToken === 'string' && queryToken.trim()
-        ? queryToken.trim()
-        : authHeader?.startsWith('Bearer ')
-          ? authHeader.slice(7)
-          : null
+    const raw = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null
 
     if (!raw) return null
 

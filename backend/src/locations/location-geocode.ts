@@ -1,9 +1,7 @@
-export type GeocodePrecision = 'exact' | 'number' | 'near' | 'street' | 'other' | null
-
 export type GeocodeHit = {
   lat: number
   lon: number
-  precision: GeocodePrecision
+  qcGeo: number | null
   fullName: string
 } | null
 
@@ -16,13 +14,14 @@ function normalizeLocationText(value?: string | null): string | null {
   return trimmed ? trimmed : null
 }
 
-export function isAcceptedGeocodePrecision(precision: GeocodePrecision): boolean {
-  return precision === 'exact' || precision === 'number'
+/** Dadata qc_geo 0 (exact house) and 1 (nearest house) are writable. */
+export function isAcceptedQcGeo(qcGeo: number | null | undefined): boolean {
+  return qcGeo === 0 || qcGeo === 1
 }
 
 export function coordsFromGeocodeHit(hit: GeocodeHit): { latitude: number; longitude: number } | null {
   if (!hit) return null
-  if (!isAcceptedGeocodePrecision(hit.precision)) return null
+  if (!isAcceptedQcGeo(hit.qcGeo)) return null
   if (typeof hit.lat !== 'number' || typeof hit.lon !== 'number') return null
   return { latitude: hit.lat, longitude: hit.lon }
 }
