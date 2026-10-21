@@ -197,7 +197,7 @@ export function InspectionQuickPage() {
           <div className="panel" style={{ marginBottom: 12 }}>
             <div style={{ fontWeight: 700 }}>{run.title}</div>
             <div className="muted small" style={{ marginTop: 6 }}>
-              Локация: {run.location.name}
+              Объект: {run.location.name}
               {run.location.city ? ` · ${run.location.city}` : ''}
               {' · '}Единиц в обходе: {run.items.length}
             </div>

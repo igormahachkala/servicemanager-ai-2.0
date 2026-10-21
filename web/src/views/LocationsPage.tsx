@@ -67,17 +67,17 @@ function toFormValue(location: api.LocationListItem): LocationFormValue {
 
 function locationSaveMessage(
   location: Pick<api.LocationListItem, 'name' | 'address' | 'latitude' | 'longitude'>,
-  verb: 'создана' | 'обновлена',
+  verb: 'создан' | 'обновлён',
 ) {
   const hasCoords =
     typeof location.latitude === 'number' && typeof location.longitude === 'number'
   if (hasCoords) {
-    return `Локация «${location.name}» ${verb}. Координаты: ${location.latitude}, ${location.longitude}`
+    return `Объект «${location.name}» ${verb}. Координаты: ${location.latitude}, ${location.longitude}`
   }
   if (location.address) {
-    return `Локация «${location.name}» ${verb}. Координаты не определены`
+    return `Объект «${location.name}» ${verb}. Координаты не определены`
   }
-  return `Локация «${location.name}» ${verb}`
+  return `Объект «${location.name}» ${verb}`
 }
 
 export function LocationsPage() {
@@ -151,7 +151,7 @@ export function LocationsPage() {
     mutationFn: (value: LocationFormValue) => api.createLocation(toCreateInput(value), scopeCompanyId || undefined),
     onSuccess: async (created) => {
       setCreateErr(null)
-      setSuccess(locationSaveMessage(created, 'создана'))
+      setSuccess(locationSaveMessage(created, 'создан'))
       setCreateValue(emptyForm)
       await invalidateLocationQueries()
     },
@@ -171,7 +171,7 @@ export function LocationsPage() {
     },
     onSuccess: async (updated) => {
       setEditErr(null)
-      setSuccess(locationSaveMessage(updated, 'обновлена'))
+      setSuccess(locationSaveMessage(updated, 'обновлён'))
       setEditingLocationId(null)
       setEditingLocationActive(true)
       setEditValue(emptyForm)
@@ -209,7 +209,7 @@ export function LocationsPage() {
     event.preventDefault()
     clearMessages()
     if (isProviderScope && !scopeCompanyId) {
-      setCreateErr('Выберите клиента, для которого создаётся локация.')
+      setCreateErr('Выберите клиента, для которого создаётся объект.')
       return
     }
     const validationError = validate(createValue)
@@ -281,9 +281,9 @@ export function LocationsPage() {
       <div className="managementPageContext">
       <div className="row">
         <div>
-          <h2 style={{ marginBottom: 4 }}>Локации</h2>
+          <h2 style={{ marginBottom: 4 }}>Объекты</h2>
           <div className="muted small">
-            {locationsQ.isFetching ? 'Загрузка…' : `Всего локаций: ${sortedLocations.length}`}
+            {locationsQ.isFetching ? 'Загрузка…' : `Всего объектов: ${sortedLocations.length}`}
           </div>
         </div>
 
@@ -332,8 +332,8 @@ export function LocationsPage() {
         <div className="panel">
           {canCreate ? (
             <LocationForm
-              title="Создать локацию"
-              submitLabel="Создать локацию"
+              title="Создать объект"
+              submitLabel="Создать объект"
               value={createValue}
               submitting={createM.isPending}
               error={createErr}
@@ -349,7 +349,7 @@ export function LocationsPage() {
 
         <div className="panel">
           <div className="row" style={{ marginBottom: 10, gap: 8 }}>
-            <h3 style={{ margin: 0 }}>Список локаций</h3>
+            <h3 style={{ margin: 0 }}>Список объектов</h3>
           </div>
           {listErr ? (
             <div className="alert" role="alert" style={{ marginTop: 0, marginBottom: 10 }}>
@@ -357,9 +357,9 @@ export function LocationsPage() {
             </div>
           ) : null}
           {isProviderScope && !scopeCompanyId ? (
-            <div className="muted">Выберите клиента, чтобы увидеть его локации.</div>
+            <div className="muted">Выберите клиента, чтобы увидеть его объекты.</div>
           ) : locationsQ.isLoading ? (
-            <div className="muted">Загружаем локации…</div>
+            <div className="muted">Загружаем объекты…</div>
           ) : (
             <LocationList
               locations={sortedLocations}

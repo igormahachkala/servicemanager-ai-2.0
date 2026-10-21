@@ -110,7 +110,7 @@ describe('122B-5. пустая категория не даёт отправит
     const source = mobileCreate()
     const create = source.slice(source.indexOf('function onCreate'))
     expect(create).toMatch(/if \(!locationId \|\| !categoryId\)/)
-    expect(create).toMatch(/setError\('Выберите локацию и категорию'\)/)
+    expect(create).toMatch(/setError\('Выберите объект и категорию'\)/)
     expect(create.indexOf('!categoryId')).toBeLessThan(create.indexOf('createM.mutate'))
     // Готовность выбора тоже требует категории — кнопка не включается раньше.
     const selectionReady = source.slice(source.indexOf('const selectionReady ='))

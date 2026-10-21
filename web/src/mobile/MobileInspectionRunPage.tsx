@@ -555,7 +555,7 @@ export function MobileInspectionRunPage() {
               </div>
               <div className="mobilePatrolMeta">
                 <div className="mobilePatrolMetaRow">
-                  <span className="mobilePatrolMetaLabel">Локация</span>
+                  <span className="mobilePatrolMetaLabel">Объект</span>
                   <span style={{ fontSize: '0.88rem' }}>
                     {run.location.name}
                     {run.location.city ? ` · ${run.location.city}` : ''}

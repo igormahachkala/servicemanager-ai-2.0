@@ -1104,7 +1104,7 @@ export function TicketPage() {
           </div>
           <div className="muted small">
             {boardNavContext.selectedStatus ? `Статус: ${statusLabel(boardNavContext.selectedStatus)} · ` : ''}
-            {boardNavContext.selectedLocationId ? `Локация: ${boardNavContext.selectedLocationId} · ` : ''}
+            {boardNavContext.selectedLocationId ? `Объект: ${boardNavContext.selectedLocationId} · ` : ''}
             {boardNavContext.selectedEquipmentId ? `Оборудование: ${boardNavContext.selectedEquipmentId} · ` : ''}
             {boardNavContext.includeArchived ? 'Архив: включён' : 'Архив: выключен'}
           </div>
@@ -1406,9 +1406,9 @@ export function TicketPage() {
               </select>
             </label>
             <label>
-              Локация
+              Объект
               <select value={editLocationId} onChange={(e) => setEditLocationId(e.target.value)} disabled={updateTicketM.isPending || locationsQ.isFetching}>
-                <option value="">Выберите локацию</option>
+                <option value="">Выберите объект</option>
                 {(locationsQ.data || []).filter((row) => row.isActive !== false).map((row) => (
                   <option key={row.id} value={row.id}>{[row.name, row.city, row.address].filter(Boolean).join(' · ')}</option>
                 ))}
@@ -1430,10 +1430,10 @@ export function TicketPage() {
               </select>
               <div className="muted small" style={{ marginTop: 6 }}>
                 {equipmentQ.isFetching
-                  ? 'Загружаем оборудование для текущей локации...'
+                  ? 'Загружаем оборудование для текущего объекта...'
                   : (equipmentQ.data || []).length === 0
-                    ? 'Для текущей локации оборудование не найдено. Можно сохранить без оборудования.'
-                    : 'Оборудование доступно только из текущей локации заявки.'}
+                    ? 'Для текущего объекта оборудование не найдено. Можно сохранить без оборудования.'
+                    : 'Оборудование доступно только из текущего объекта заявки.'}
               </div>
             </label>
             <label>

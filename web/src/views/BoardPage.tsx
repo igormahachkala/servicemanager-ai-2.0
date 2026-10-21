@@ -783,7 +783,7 @@ export function BoardPage() {
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 700 }}>{selectedLinkedClient.clientCompany.name}</div>
                     <div className="muted small" style={{ marginTop: 4 }}>
-                      {providerScopeLabel(selectedLinkedClient.role)} · открытые заявки: {selectedLinkedClient.summary.openTickets} · локации: {selectedLinkedClient.summary.locations}
+                      {providerScopeLabel(selectedLinkedClient.role)} · открытые заявки: {selectedLinkedClient.summary.openTickets} · объектов: {selectedLinkedClient.summary.locations}
                     </div>
                     <div className="muted small" style={{ marginTop: 4 }}>
                       Public intake: {selectedLinkedClient.summary.publicRequestEnabled ? 'включён' : 'выключен'}
@@ -819,7 +819,7 @@ export function BoardPage() {
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontWeight: 600 }}>{item.clientCompany.name}</div>
                       <div className="muted small">
-                        {item.role} · открытые заявки: {item.summary.openTickets} · локации: {item.summary.locations}
+                        {item.role} · открытые заявки: {item.summary.openTickets} · объектов: {item.summary.locations}
                       </div>
                       <div className="muted small">Public intake: {item.summary.publicRequestEnabled ? 'включён' : 'выключен'}</div>
                     </div>
@@ -878,7 +878,7 @@ export function BoardPage() {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
           <div>
-            <div className="muted small" style={{ marginBottom: 6 }}>По локациям</div>
+            <div className="muted small" style={{ marginBottom: 6 }}>По объектам</div>
             <div style={{ display: 'grid', gap: 6 }}>
               {(contextAnalyticsQ.data?.byLocation || []).slice(0, 5).map((row) => (
                 <div key={row.locationId} className="muted small" style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -978,7 +978,7 @@ export function BoardPage() {
           <div className="muted small">Фильтры по договору обслуживания</div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <label className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-              Локация
+              Объект
               <select
                 value={selectedLocationId}
                 onChange={(e) => {

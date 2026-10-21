@@ -31,7 +31,7 @@ describe('mobile round self-start source contract', () => {
     expect(start()).toMatch(/clientOptions\.length > 1/)
     expect(start()).toMatch(/clientOptions\.length === 1/)
     expect(start()).toMatch(/Нет доступных типов обхода/)
-    expect(start()).toMatch(/Нет доступных локаций/)
+    expect(start()).toMatch(/Нет доступных объектов/)
     expect(start()).toMatch(/Что будет проверено/)
     expect(start()).toMatch(/mobilePath\(location\.pathname, `\/inspection\/\$\{run\.id\}`\)/)
     expect(start()).not.toMatch(/ServiceContract|SELECTED_LOCATIONS|ALL_LOCATIONS|locationMode/)

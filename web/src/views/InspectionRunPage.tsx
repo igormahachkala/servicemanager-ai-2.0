@@ -314,7 +314,7 @@ export function InspectionRunPage() {
               <div>
                 <h3 style={{ margin: 0 }}>{run.title}</h3>
                 <div className="muted small" style={{ marginTop: 6 }}>
-                  Обход: {run.title} · Локация:{' '}
+                  Обход: {run.title} · Объект:{' '}
                   {/* Phase 3: из обхода — обратно в карточку точки, область сохраняется. */}
                   <Link to={locationCardPath(run.location.id, outboundScope)}>{run.location.name}</Link>
                   {run.location.city ? ` · ${run.location.city}` : ''}

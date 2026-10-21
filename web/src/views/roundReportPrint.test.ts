@@ -93,7 +93,7 @@ describe('round report print source contract', () => {
     expect(section).toMatch(/Итоговый статус акта/)
     expect(section).toMatch(/Обход завершен/)
 
-    for (const marker of ['Сервис Менеджер', 'Локация', 'Исполнитель обхода', 'Шаблон', 'Пункты обхода', 'Связанные заявки', 'Подписи']) {
+    for (const marker of ['Сервис Менеджер', 'Объект', 'Исполнитель обхода', 'Шаблон', 'Пункты обхода', 'Связанные заявки', 'Подписи']) {
       expect(page()).toContain(marker)
     }
     expect(page()).toMatch(/window\.print\(\)/)
