@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
+import { isSwaggerEnabled } from './config/swagger';
 import { AppModule } from './app.module';
 import { RealtimeService } from './realtime/realtime.service';
 import { createCorsOriginDelegate, parseCorsAllowedOrigins } from './config/cors';
@@ -61,14 +62,16 @@ async function bootstrap() {
     )
     .build();
 
-  const document = SwaggerModule.createDocument(app, config);
-  (document as any).security = [{ jwt: [] }];
+  if (isSwaggerEnabled()) {
+    const document = SwaggerModule.createDocument(app, config);
+    (document as any).security = [{ jwt: [] }];
 
-  SwaggerModule.setup('api', app, document, {
-    swaggerOptions: {
-      persistAuthorization: true,
-    },
-  });
+    SwaggerModule.setup('api', app, document, {
+      swaggerOptions: {
+        persistAuthorization: true,
+      },
+    });
+  }
 
   const port = Number(process.env.PORT) || 3000;
   const realtime = app.get(RealtimeService, { strict: false });
