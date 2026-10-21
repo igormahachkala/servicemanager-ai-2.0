@@ -51,7 +51,7 @@ export function LocationList({
   if (locations.length === 0) {
     return (
       <div className="muted">
-        Локаций пока нет.
+        Объектов пока нет.
         <div className="emptyStateNote">Создайте точку слева — она станет доступна в заявках и привязках сотрудников.</div>
       </div>
     )

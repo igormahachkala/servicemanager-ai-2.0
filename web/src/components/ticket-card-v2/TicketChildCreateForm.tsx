@@ -38,7 +38,7 @@ export function TicketChildCreateForm({
     <div className="panel uiCard" style={{ marginBottom: 12 }}>
       <h3 style={{ marginBottom: 10 }}>Новая дополнительная работа</h3>
       <div className="muted small" style={{ marginBottom: 10 }}>
-        Локация и контакт наследуются от текущей заявки. Для MVP фото в child-ticket не прикрепляется на этапе создания.
+        Объект и контакт наследуются от текущей заявки. Для MVP фото в child-ticket не прикрепляется на этапе создания.
       </div>
       <div className="form">
         <label>

@@ -371,7 +371,7 @@ export function CompanyPage() {
           <div className="row" style={{ marginBottom: 8, alignItems: 'flex-start' }}>
             <div>
               <div style={{ fontWeight: 700 }}>Режим подрядчика</div>
-              <div className="muted small">Сводка клиента открывается в том же linked-client контексте, что и доска с аналитикой.</div>
+              <div className="muted small">Сводка клиента открывается в контексте того же связанного клиента, что и доска заявок с аналитикой.</div>
             </div>
             <div style={{ minWidth: 260 }}>
               <select
@@ -403,7 +403,7 @@ export function CompanyPage() {
             <div className="card" style={{ padding: 12, marginTop: 8, borderRadius: 12, border: '1px solid #c7d2fe', background: '#eef2ff' }}>
               <div style={{ fontWeight: 700 }}>{selectedLinkedClient.clientCompany.name}</div>
               <div className="muted small" style={{ marginTop: 4 }}>
-                {contractRoleLabel(selectedLinkedClient.role)} · открытых заявок: {selectedLinkedClient.summary.openTickets} · локаций: {selectedLinkedClient.summary.locations}
+                {contractRoleLabel(selectedLinkedClient.role)} · открытых заявок: {selectedLinkedClient.summary.openTickets} · объектов: {selectedLinkedClient.summary.locations}
               </div>
               <div className="muted small" style={{ marginTop: 4 }}>
                 Публичные заявки: {selectedLinkedClient.summary.publicRequestEnabled ? 'включён' : 'выключен'}
@@ -421,14 +421,14 @@ export function CompanyPage() {
       {providerHasNoLinkedClients ? (
         <div className="panel" style={{ marginBottom: 12 }}>
           <h3 style={{ marginBottom: 6 }}>Нет связанных клиентов</h3>
-          <div className="muted small">Когда у компании-подрядчика появится ACTIVE PRIMARY ServiceContract, здесь откроется сводка клиента.</div>
+          <div className="muted small">Когда у компании-подрядчика появится действующий договор с основным подрядчиком, здесь откроется сводка клиента.</div>
         </div>
       ) : null}
 
       {providerRestrictedSelection && selectedLinkedClient ? (
         <div className="panel" style={{ marginBottom: 12 }}>
           <h3 style={{ marginBottom: 6 }}>Ограниченный доступ</h3>
-          <div className="muted small">SECONDARY provider пока не получает полный сводка клиента.</div>
+          <div className="muted small">Субподрядчик пока не получает полную сводку клиента.</div>
         </div>
       ) : null}
 
@@ -525,9 +525,9 @@ export function CompanyPage() {
                   </select>
                 </label>
                 <label>
-                  Режим preset-локации
+                  Режим preset-объекта
                   <select value={publicRequestLocationPresetMode} onChange={(e) => setPublicRequestLocationPresetMode(e.target.value as api.PublicRequestLocationPresetMode)} disabled={readOnly}>
-                    <option value="HIDE_WHEN_VALID">Скрывать выбор точки, если preset валиден</option>
+                    <option value="HIDE_WHEN_VALID">Скрывать выбор точки, если она уже задана ссылкой</option>
                     <option value="ALWAYS_OPTIONAL">Разрешать сменить точку даже при предустановке</option>
                   </select>
                 </label>
@@ -611,7 +611,7 @@ export function CompanyPage() {
                       <div style={{ fontWeight: 600 }}>{contract.clientCompany.name}</div>
                       <div className="muted small">Статус: {contract.status}</div>
                       <div className="muted small">Роль связи: {contractRoleLabel(contract.role)}</div>
-                      <div className="muted small">Открытых заявок: {contract.summary.openTickets} · Локаций: {contract.summary.locations}</div>
+                      <div className="muted small">Открытых заявок: {contract.summary.openTickets} · Объектов: {contract.summary.locations}</div>
                       <div className="muted small">Публичные заявки: {contract.summary.publicRequestEnabled ? 'включён' : 'выключен'}</div>
                       <div className="muted small">Действует: {formatDate(contract.startsAt)} — {formatDate(contract.endsAt)}</div>
                       {contract.notes ? <div className="muted small">{contract.notes}</div> : null}

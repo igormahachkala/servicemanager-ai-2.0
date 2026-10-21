@@ -10,8 +10,8 @@ import {
   resolveActorLocationScope,
   type LocationScope,
 } from '../tickets/ticket-access.utils'
-import { TwogisGeocoderService } from '../twogis/twogis-geocoder.service'
-import { TwogisSuggestService } from '../twogis/twogis-suggest.service'
+import { DadataGeocoderService } from '../dadata/dadata-geocoder.service'
+import { DadataSuggestService } from '../dadata/dadata-suggest.service'
 import { coordsFromGeocodeHit, decideGeocodeIntent } from './location-geocode'
 
 type ListInput = {
@@ -31,8 +31,8 @@ export class LocationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly serviceContractsService: ServiceContractsService,
-    private readonly twogisGeocoder?: TwogisGeocoderService,
-    private readonly twogisSuggest?: TwogisSuggestService,
+    private readonly dadataGeocoder?: DadataGeocoderService,
+    private readonly dadataSuggest?: DadataSuggestService,
   ) {}
 
   async list(actorCompanyId: string, actorRole: UserRole, actorUserId: string, input: ListInput & { includeDeleted?: boolean }, requestedCompanyId?: string) {
@@ -321,16 +321,36 @@ export class LocationsService {
 
   async suggestAddress(q: string, city?: string) {
     const query = (q || '').trim()
-    if (query.length < 2) return { items: [] as Array<{ text: string; fullName: string }> }
+    if (query.length < 2) {
+      return {
+        items: [] as Array<{
+          text: string
+          fullName: string
+          city: string | null
+          latitude: number | null
+          longitude: number | null
+          qcGeo: number | null
+        }>,
+      }
+    }
     try {
       const items =
-        (await this.twogisSuggest?.suggestAddress({
+        (await this.dadataSuggest?.suggestAddress({
           q: query,
           city: (city || '').trim() || undefined,
         })) ?? []
       return { items }
     } catch {
-      return { items: [] as Array<{ text: string; fullName: string }> }
+      return {
+        items: [] as Array<{
+          text: string
+          fullName: string
+          city: string | null
+          latitude: number | null
+          longitude: number | null
+          qcGeo: number | null
+        }>,
+      }
     }
   }
 
@@ -358,14 +378,14 @@ export class LocationsService {
     }
 
     try {
-      const hit = await this.twogisGeocoder?.geocodeAddress({
+      const hit = await this.dadataGeocoder?.geocodeAddress({
         city: intent.city,
         address: intent.address,
       })
       const accepted = coordsFromGeocodeHit(hit ?? null)
       if (accepted) return accepted
     } catch {
-      // Save must succeed if 2GIS fails or returns a weak precision.
+      // Save must succeed if Dadata fails or returns a weak qc_geo.
     }
 
     if (input.mode === 'create') {

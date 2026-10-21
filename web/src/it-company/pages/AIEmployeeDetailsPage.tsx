@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../../lib/api'
 import { canViewITCompany } from '../access'
-import { getProfileBySlug, type AIEmployeeStatus } from '../employees'
+import { AI_EMPLOYEE_STATUS_LABELS_RU, getProfileBySlug, type AIEmployeeStatus } from '../employees'
 
 function statusStyle(status: AIEmployeeStatus): React.CSSProperties {
   return status === 'Active'
@@ -57,7 +57,7 @@ export function AIEmployeeDetailsPage() {
     return (
       <div className="panel" style={{ padding: 16 }}>
         <div style={{ fontWeight: 700, marginBottom: 6 }}>Раздел недоступен</div>
-        <div className="muted small">Раздел IT Company доступен только администратору платформы.</div>
+        <div className="muted small">Раздел «ИТ-компания» доступен только администратору платформы.</div>
       </div>
     )
   }
@@ -69,7 +69,7 @@ export function AIEmployeeDetailsPage() {
         <div style={{ fontWeight: 700, marginBottom: 6 }}>Сотрудник не найден</div>
         <div className="muted small" style={{ marginBottom: 10 }}>Профиль «{slug}» не существует.</div>
         <Link to="/it/employees" style={{ textDecoration: 'none' }}>
-          <button type="button" className="ghost">← AI Employees</button>
+          <button type="button" className="ghost">← Цифровые сотрудники</button>
         </Link>
       </div>
     )
@@ -84,33 +84,33 @@ export function AIEmployeeDetailsPage() {
             {profile.name}
             {profile.codename ? <span className="muted" style={{ fontWeight: 400 }}> · {profile.codename}</span> : null}
           </h2>
-          <div className="muted small">Цифровой сотрудник IT Company</div>
+          <div className="muted small">Цифровой сотрудник ИТ-компании</div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span className="tag" style={statusStyle(profile.status)}>{profile.status}</span>
+          <span className="tag" style={statusStyle(profile.status)}>{AI_EMPLOYEE_STATUS_LABELS_RU[profile.status]}</span>
           <Link to="/it/employees" style={{ textDecoration: 'none' }}>
-            <button type="button" className="ghost">← AI Employees</button>
+            <button type="button" className="ghost">← Цифровые сотрудники</button>
           </Link>
         </div>
       </div>
 
-      <Section title="Mission">
+      <Section title="Задача роли">
         <div className="small">{profile.mission}</div>
       </Section>
 
-      <Section title="Workspace">
+      <Section title="Рабочее место">
         <div className="small">{profile.workspace} · модель: {profile.model}</div>
       </Section>
 
-      <Section title="MCP Access">
+      <Section title="Доступы MCP">
         <Chips items={profile.mcpAccess} empty="Доступ не назначен." />
       </Section>
 
-      <Section title="Capabilities">
+      <Section title="Возможности">
         <Bullets items={profile.capabilities} empty="Пока нет — роль запланирована." />
       </Section>
 
-      <Section title="Planned Features">
+      <Section title="Запланированные возможности">
         <Bullets items={profile.plannedFeatures} empty="—" />
       </Section>
     </div>

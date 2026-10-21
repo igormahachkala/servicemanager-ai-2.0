@@ -146,7 +146,7 @@ function ticketObjectPreview(ticket: api.TicketCard): string {
 }
 
 function ticketLocationLabel(ticket: api.TicketCard): string {
-  return (ticket.location?.name || ticket.pointName || 'Без локации').trim()
+  return (ticket.location?.name || ticket.pointName || 'Без объекта').trim()
 }
 
 function ticketStatusTone(status: api.TicketStatus): string {
@@ -169,7 +169,7 @@ function ticketDetailLocation(ticket: api.TicketGetOne): string {
   if (name) parts.push(name)
   const addr = (loc?.address || ticket.address || '').trim()
   if (addr) parts.push(addr)
-  return parts.length ? parts.join(' · ') : 'Без локации'
+  return parts.length ? parts.join(' · ') : 'Без объекта'
 }
 
 function isNotFoundGetTicketError(err: unknown): boolean {
@@ -447,7 +447,7 @@ export function MobileChatsPage() {
   const ticketQ = useQuery({
     queryKey: ['mobile-chats-ticket', ticketId, boardParams.companyId || '', boardParams.linkedClientCompanyId || ''],
     queryFn: async () => {
-      if (!ticketId) throw new Error('ticketId is empty')
+      if (!ticketId) throw new Error('Не указан идентификатор заявки')
       let lastErr: unknown = null
       for (const scope of ticketReadScopes) {
         try {
@@ -457,7 +457,7 @@ export function MobileChatsPage() {
           if (!isNotFoundGetTicketError(err)) throw err
         }
       }
-      throw lastErr || new Error('Ticket not found')
+      throw lastErr || new Error('Заявка не найдена')
     },
     enabled: !!ticketId && isMeReady,
   })
@@ -542,7 +542,7 @@ export function MobileChatsPage() {
   const sendCommentM = useMutation({
     networkMode: 'always',
     mutationFn: async (comment: string) => {
-      if (!ticketQ.data) throw new Error('Ticket not loaded')
+      if (!ticketQ.data) throw new Error('Заявка не загружена')
       const scope = ticketResourceScope || {}
       const delivery = await deliverTicketComment({
         reportedOnline: offline.liveApiAllowed,
@@ -833,7 +833,7 @@ export function MobileChatsPage() {
             <div className="mobileChatsSectionTitle" style={{ padding: 0, marginBottom: 8 }}>Информация</div>
             <div style={{ display: 'grid', gap: 6, fontSize: '0.88rem', lineHeight: 1.4 }}>
               <div><strong>Статус:</strong> {currentTicketStatus}</div>
-              <div><strong>Локация:</strong> {ticketDetailLocation(currentTicket)}</div>
+              <div><strong>Объект:</strong> {ticketDetailLocation(currentTicket)}</div>
               <div><strong>Заявка:</strong> {currentTicketTitle}</div>
               <div><strong>Комментарий:</strong> {currentTicket.problemText || currentTicket.description || '—'}</div>
             </div>
@@ -921,7 +921,7 @@ export function MobileChatsPage() {
         <div className="mobileChatsSearchRow">
           <input
             className="mobileChatsSearchInput"
-            placeholder="Поиск по заявкам, локациям и статусам"
+            placeholder="Поиск по заявкам, объектам и статусам"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />

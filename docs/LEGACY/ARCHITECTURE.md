@@ -12,10 +12,14 @@ Official onboarding flow:
 Public intake is separate from tenant auth.
 The public support/request-access route does not create companies and does not mint tenant access.
 
-Temporary demo note:
+Platform admin bootstrap (updated by SMA-SECURITY-P1):
 
-- `ensurePlatformAdmin()` is still used as an env-driven bootstrap for demo deployments
-- later it should move to a dedicated seed/init command
+- `ensurePlatformAdmin()` **removed**. It ran inside `AuthService.login()` before the
+  password check, so any unauthenticated `POST /auth/login` could create a
+  `PLATFORM_ADMIN` user and the platform company whenever `PLATFORM_ADMIN_*` were set.
+- bootstrap now lives in the dedicated operator command
+  `scripts/create-platform-admin.ts`, gated by an explicit confirmation variable.
+- procedure: `docs/PLATFORM_ADMIN_RECOVERY.md`
 
 ---
 

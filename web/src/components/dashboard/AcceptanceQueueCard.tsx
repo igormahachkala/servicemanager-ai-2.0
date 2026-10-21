@@ -10,16 +10,16 @@ const BADGE_STYLE: Record<AcceptanceStatus, string> = {
 }
 
 const STATUS_LABEL: Record<AcceptanceStatus, string> = {
-  awaiting_acceptance: 'Awaiting acceptance',
-  blocked: 'Blocked',
-  needs_review: 'Needs review',
+  awaiting_acceptance: 'Ожидает приёмки',
+  blocked: 'Заблокировано',
+  needs_review: 'Нужна проверка',
 }
 
 export function AcceptanceQueueCard() {
   const summaryItems: Array<{ status: AcceptanceStatus; label: string }> = [
-    { status: 'blocked', label: 'Blocked' },
-    { status: 'needs_review', label: 'Needs review' },
-    { status: 'awaiting_acceptance', label: 'Waiting client' },
+    { status: 'blocked', label: 'Заблокировано' },
+    { status: 'needs_review', label: 'Нужна проверка' },
+    { status: 'awaiting_acceptance', label: 'Ждёт клиента' },
   ]
 
   const counts = DASHBOARD_ACCEPTANCE_QUEUE.reduce<Record<AcceptanceStatus, number>>(
@@ -37,8 +37,8 @@ export function AcceptanceQueueCard() {
 
   return (
     <DashboardSection
-      title="Acceptance Queue"
-      eyebrow="Operations queue"
+      title="Очередь приёмки"
+      eyebrow="Операционная очередь"
       action={
         <span className="tag" style={{ background: '#fff7ed', borderColor: '#fed7aa', color: '#c2410c' }}>
           {DASHBOARD_ACCEPTANCE_QUEUE.length} open
@@ -59,7 +59,7 @@ export function AcceptanceQueueCard() {
         >
           <div style={{ display: 'grid', gap: 4 }}>
             <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#64748b' }}>
-              Queue summary
+              Сводка по очереди
             </div>
             <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
               Приёмка требует ручного контроля по блокерам, доказательствам и клиентским решениям.
@@ -97,7 +97,7 @@ export function AcceptanceQueueCard() {
 
         <div style={{ display: 'grid', gap: 10 }}>
           <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#64748b' }}>
-            Active items
+            Активные задачи
           </div>
         {DASHBOARD_ACCEPTANCE_QUEUE.map((item) => {
           const status = item.status as AcceptanceStatus
@@ -144,7 +144,7 @@ export function AcceptanceQueueCard() {
                   }}
                 >
                   <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#64748b' }}>
-                    Next signal
+                    Следующий сигнал
                   </div>
                   <div className="muted small" style={{ lineHeight: 1.5 }}>
                     {item.hint}

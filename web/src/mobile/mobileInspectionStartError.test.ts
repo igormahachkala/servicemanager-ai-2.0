@@ -29,10 +29,10 @@ describe('mobile inspection start error resolution', () => {
 
   it('preserves access and not-found messages', () => {
     expect(mobileInspectionStartErrorMessage(new ApiRequestError('Forbidden', 403))).toBe(
-      'Начать обход в выбранном контуре нельзя. Проверьте доступ к локации.',
+      'Начать обход в выбранном контуре нельзя. Проверьте доступ к объекту.',
     )
     expect(mobileInspectionStartErrorMessage(new ApiRequestError('Not found', 404))).toBe(
-      'Шаблон или локация больше недоступны. Обновите выбор и повторите.',
+      'Шаблон или объект больше недоступны. Обновите выбор и повторите.',
     )
   })
 

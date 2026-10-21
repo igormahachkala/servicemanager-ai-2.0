@@ -54,16 +54,16 @@ export function TicketContextPanel({ ticket }: TicketContextPanelProps) {
         </details>
 
         <details>
-          <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Оборудование / локация</summary>
+          <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Оборудование / объект</summary>
           <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
             <div>
-              <b>Локация:</b>{' '}
+              <b>Объект:</b>{' '}
               {ticket.location
                 ? [ticket.location.name, ticket.location.city, ticket.location.address].filter(Boolean).join(' · ')
                 : '—'}
             </div>
             <div>
-              <b>Оборудование / Asset:</b>{' '}
+              <b>Оборудование:</b>{' '}
               {ticket.equipment
                 ? [ticket.equipment.name, ticket.equipment.type, ticket.equipment.status].filter(Boolean).join(' · ')
                 : '—'}
@@ -72,7 +72,7 @@ export function TicketContextPanel({ ticket }: TicketContextPanelProps) {
         </details>
 
         <details>
-          <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Extra info</summary>
+          <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Дополнительно</summary>
           <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
             {ticket.location?.platformCode || ticket.location?.externalCode ? (
               <div className="muted small">
@@ -81,7 +81,7 @@ export function TicketContextPanel({ ticket }: TicketContextPanelProps) {
                 {ticket.location?.externalCode ? `externalCode: ${ticket.location.externalCode}` : ''}
               </div>
             ) : (
-              <div className="muted small">Коды локации не заданы</div>
+              <div className="muted small">Коды объекта не заданы</div>
             )}
             <div><b>Назначено:</b> {identityLines(assignee).join(' · ')}</div>
             <div><b>Создал заявку:</b> {identityLines(creator).join(' · ')}</div>

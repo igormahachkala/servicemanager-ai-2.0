@@ -82,7 +82,7 @@ function detachedFromParentSystemText(payload?: { parentTicketNumber?: unknown }
 }
 
 const FIELD_LABELS_RU: Record<string, string> = {
-  locationId: 'Локация',
+  locationId: 'Объект',
   problemCategoryId: 'Категория',
   equipmentId: 'Оборудование',
   problemText: 'Описание',

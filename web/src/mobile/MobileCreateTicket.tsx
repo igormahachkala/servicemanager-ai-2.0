@@ -10,6 +10,7 @@ import { mobileTicketNavState } from './mobileTicketDisplay'
 import { MobilePhotoLightbox } from './MobilePhotoLightbox'
 import { mobilePath } from './mobileRoute'
 import { dateTimeLocalToIso } from '../lib/plannedDueAt'
+import { PlannedDueAtInput } from '../components/tickets/PlannedDueAtInput'
 import { orderProblemCategories, reconcileCategorySelection } from '../lib/problemCategoryOrdering'
 import {
   TICKET_MEDIA_ACCEPT,
@@ -428,7 +429,7 @@ export function MobileCreateTicket() {
   function onCreate(shouldClaim: boolean) {
     setError('')
     if (!locationId || !categoryId) {
-      setError('Выберите локацию и категорию')
+      setError('Выберите объект и категорию')
       return
     }
     if (isTechnician && !clientCompanyId) {
@@ -552,7 +553,7 @@ export function MobileCreateTicket() {
           ) : null}
 
           <label>
-            Локация *
+            Объект *
             <select value={locationId} onChange={(e) => setLocationId(e.target.value)} disabled={isBootstrapping || !activeLocations.length || !!presetParentId}>
               {activeLocations.length === 0 && !presetParentId ? <option value="">—</option> : null}
               {presetParentId && locationId && !activeLocations.some((row) => row.id === locationId) ? (
@@ -636,17 +637,7 @@ export function MobileCreateTicket() {
 
           <label>
             Срок выполнения
-            <input
-              type="datetime-local"
-              value={plannedDueAtLocal}
-              onChange={(e) => setPlannedDueAtLocal(e.target.value)}
-              disabled={createM.isPending}
-            />
-            {plannedDueAtLocal ? (
-              <button type="button" className="ghost" onClick={() => setPlannedDueAtLocal('')} disabled={createM.isPending}>
-                Очистить срок
-              </button>
-            ) : null}
+            <PlannedDueAtInput value={plannedDueAtLocal} onChange={setPlannedDueAtLocal} disabled={createM.isPending} />
             <div className="mobileFieldHint">Договорённый срок выполнения, отдельно от SLA.</div>
           </label>
 
@@ -777,7 +768,7 @@ export function MobileCreateTicket() {
             </div>
             <div className="successDialogMeta">
               <div>{createdTicket.categoryName || 'Без категории'}</div>
-              <div>{createdTicket.locationName || 'Без локации'}</div>
+              <div>{createdTicket.locationName || 'Без объекта'}</div>
             </div>
             <p className="successDialogText">
               {createdTicket.claimFailed

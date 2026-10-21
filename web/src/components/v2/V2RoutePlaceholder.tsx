@@ -21,7 +21,7 @@ export function V2RoutePlaceholder(props: Props) {
   return (
     <div className="v2Placeholder">
       <div className="v2PlaceholderHero panel">
-        <div className="v2PlaceholderEyebrow">Management Console V2</div>
+        <div className="v2PlaceholderEyebrow">Консоль управления</div>
         <h1 className="v2PlaceholderTitle">{props.title}</h1>
         <p className="v2PlaceholderDescription">{props.description}</p>
 
@@ -47,17 +47,17 @@ export function V2RoutePlaceholder(props: Props) {
           ) : null}
           {showDashboardLink ? (
             <Link to="/dashboard" className="v2PlaceholderLink">
-              Вернуться на Dashboard
+              Вернуться в операционный центр
             </Link>
           ) : null}
         </div>
       </div>
 
       <div className="v2PlaceholderNote panel">
-        <div className="v2PlaceholderNoteTitle">Navigation V2</div>
+        <div className="v2PlaceholderNoteTitle">Навигация</div>
         <div className="muted small">
           Маршрут зарегистрирован — 404 не возникнет. Полная реализация экрана будет добавлена в рамках
-          Operations Center без изменения backend-контрактов на этом этапе.
+          операционный центр без изменения серверных контрактов на этом этапе.
         </div>
       </div>
     </div>

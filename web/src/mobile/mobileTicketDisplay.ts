@@ -234,7 +234,7 @@ export function mobileTicketCategoryLocationFromCard(
   card: Pick<TicketCard, 'category' | 'title' | 'location' | 'pointName'>,
 ): string {
   const cat = card.category?.name || card.title || 'Без категории'
-  const loc = card.location?.name || card.pointName || 'Без локации'
+  const loc = card.location?.name || card.pointName || 'Без объекта'
   return `${cat} · ${loc}`
 }
 
@@ -242,7 +242,7 @@ export function mobileTicketCategoryLocationFromDetail(
   ticket: Pick<TicketGetOne, 'problemCategory' | 'title' | 'location' | 'pointName'>,
 ): string {
   const cat = ticket.problemCategory?.name || ticket.title || 'Без категории'
-  const loc = ticket.location?.name || ticket.pointName || 'Без локации'
+  const loc = ticket.location?.name || ticket.pointName || 'Без объекта'
   return `${cat} · ${loc}`
 }
 

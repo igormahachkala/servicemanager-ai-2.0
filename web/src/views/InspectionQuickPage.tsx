@@ -197,7 +197,7 @@ export function InspectionQuickPage() {
           <div className="panel" style={{ marginBottom: 12 }}>
             <div style={{ fontWeight: 700 }}>{run.title}</div>
             <div className="muted small" style={{ marginTop: 6 }}>
-              Локация: {run.location.name}
+              Объект: {run.location.name}
               {run.location.city ? ` · ${run.location.city}` : ''}
               {' · '}Единиц в обходе: {run.items.length}
             </div>
@@ -234,7 +234,7 @@ export function InspectionQuickPage() {
                     <div>
                       <div style={{ fontWeight: 700 }}>{item.checkpointSortOrder + 1}. {item.title}</div>
                       <div className="muted small">
-                        {run.equipment?.name || 'Equipment'}{run.equipment?.type ? ` · ${run.equipment.type}` : ''}
+                        {run.equipment?.name || 'Оборудование'}{run.equipment?.type ? ` · ${run.equipment.type}` : ''}
                       </div>
                       <div className="muted small">
                         {responseTypeLabel(item.responseType)}

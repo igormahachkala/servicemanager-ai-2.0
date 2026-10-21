@@ -124,6 +124,27 @@ export class MaterialsService {
     });
   }
 
+  /**
+   * Остатки на складе компании (holderType COMPANY_STOCK, holderUserId null).
+   *
+   * Читает уже ведущийся остаток: поступления (receiptToCompanyStock) его
+   * наращивают, выдачи (issue) списывают. Это зеркало getTechnicianBalances
+   * для складского держателя — та же выборка, та же область по companyId.
+   * Формулы учёта тут не меняются: только чтение существующего остатка,
+   * которого складскому разделу раньше неоткуда было взять.
+   */
+  async getCompanyStockBalances(companyId: string) {
+    return this.prisma.materialBalance.findMany({
+      where: {
+        companyId,
+        holderType: MaterialHolderType.COMPANY_STOCK,
+        holderUserId: null,
+      },
+      include: { material: { select: MATERIAL_SELECT } },
+      orderBy: [{ material: { name: 'asc' } }, { materialId: 'asc' }],
+    });
+  }
+
   getMyMovements(actor: Actor) {
     return this.getTechnicianMovements(actor.companyId, actor.id);
   }

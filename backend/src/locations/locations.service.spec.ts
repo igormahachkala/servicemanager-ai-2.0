@@ -378,3 +378,141 @@ describe('LocationsService location scope', () => {
     expect(prisma.location.update).toHaveBeenCalledTimes(3)
   })
 })
+
+describe('LocationsService Dadata geocode path', () => {
+  function makePrismaMock() {
+    return {
+      company: {
+        findUnique: jest.fn().mockResolvedValue({ type: CompanyType.CLIENT }),
+      },
+      location: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 'new-loc' }),
+        update: jest.fn().mockResolvedValue({ id: 'loc-1' }),
+      },
+      user: { findFirst: jest.fn().mockResolvedValue({ id: 'user-1' }) },
+      userAccessScope: { findUnique: jest.fn().mockResolvedValue(null) },
+      userLocationBinding: { findMany: jest.fn() },
+    }
+  }
+
+  it('create writes coords from Dadata when qc_geo is 0 and skips cleaner when suggest coords are sent', async () => {
+    const prisma = makePrismaMock()
+    const geocoder = { geocodeAddress: jest.fn() }
+    const suggest = { suggestAddress: jest.fn() }
+    const svc = new LocationsService(
+      prisma as any,
+      { assertPrimaryLinkedClientAccess: jest.fn() } as any,
+      geocoder as any,
+      suggest as any,
+    )
+
+    await svc.create('client-company', UserRole.ADMIN, {
+      name: 'Точка',
+      platformCode: 'P1',
+      city: 'Екатеринбург',
+      address: 'ул Ленина, 1',
+      latitude: 56.8,
+      longitude: 60.6,
+    })
+
+    expect(geocoder.geocodeAddress).not.toHaveBeenCalled()
+    expect(prisma.location.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ latitude: 56.8, longitude: 60.6 }),
+      }),
+    )
+  })
+
+  it('create calls cleaner when address has no suggest coords and accepts qc_geo 1', async () => {
+    const prisma = makePrismaMock()
+    const geocoder = {
+      geocodeAddress: jest.fn().mockResolvedValue({
+        lat: 55.75,
+        lon: 37.61,
+        qcGeo: 1,
+        fullName: 'г Москва, ул Тверская, д 1',
+      }),
+    }
+    const svc = new LocationsService(
+      prisma as any,
+      { assertPrimaryLinkedClientAccess: jest.fn() } as any,
+      geocoder as any,
+      { suggestAddress: jest.fn() } as any,
+    )
+
+    await svc.create('client-company', UserRole.ADMIN, {
+      name: 'Точка',
+      platformCode: 'P2',
+      city: 'Москва',
+      address: 'ул Тверская, 1',
+    })
+
+    expect(geocoder.geocodeAddress).toHaveBeenCalledWith({
+      city: 'Москва',
+      address: 'ул Тверская, 1',
+    })
+    expect(prisma.location.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ latitude: 55.75, longitude: 37.61 }),
+      }),
+    )
+  })
+
+  it('create keeps null coords when qc_geo is ≥ 2', async () => {
+    const prisma = makePrismaMock()
+    const geocoder = {
+      geocodeAddress: jest.fn().mockResolvedValue({
+        lat: 55.75,
+        lon: 37.61,
+        qcGeo: 2,
+        fullName: 'г Москва',
+      }),
+    }
+    const svc = new LocationsService(
+      prisma as any,
+      { assertPrimaryLinkedClientAccess: jest.fn() } as any,
+      geocoder as any,
+      { suggestAddress: jest.fn() } as any,
+    )
+
+    await svc.create('client-company', UserRole.ADMIN, {
+      name: 'Точка',
+      platformCode: 'P3',
+      city: 'Москва',
+      address: 'где-то',
+    })
+
+    expect(prisma.location.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ latitude: null, longitude: null }),
+      }),
+    )
+  })
+
+  it('update without address or city change does not call cleaner', async () => {
+    const prisma = makePrismaMock()
+    prisma.location.findFirst.mockResolvedValue({
+      id: 'loc-1',
+      platformCode: 'P1',
+      city: 'Екатеринбург',
+      address: 'ул Ленина, 1',
+    })
+    const geocoder = { geocodeAddress: jest.fn() }
+    const svc = new LocationsService(
+      prisma as any,
+      { assertPrimaryLinkedClientAccess: jest.fn() } as any,
+      geocoder as any,
+      { suggestAddress: jest.fn() } as any,
+    )
+
+    await svc.update(
+      { companyId: 'client-company', role: UserRole.ADMIN, userId: 'admin-1' },
+      'loc-1',
+      { name: 'Новое имя' },
+    )
+
+    expect(geocoder.geocodeAddress).not.toHaveBeenCalled()
+    expect(prisma.location.update).toHaveBeenCalled()
+  })
+})

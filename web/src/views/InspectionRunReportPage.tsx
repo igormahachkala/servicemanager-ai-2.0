@@ -147,7 +147,7 @@ export function InspectionRunReportPage() {
       <div className="row no-print">
         <div>
           <h2 style={{ marginBottom: 4 }}>Акт выполненных работ</h2>
-          <div className="muted small">Печатная версия клиентского документа по completed inspection run.</div>
+          <div className="muted small">Печатная версия клиентского документа по завершённому обходу.</div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {/* Возврат тоже несёт контур — цепочка не теряет клиента ни в одну сторону. */}
@@ -195,7 +195,7 @@ export function InspectionRunReportPage() {
               <div className="muted small">{report.document.executorCompany.legalName || '—'}</div>
               <div className="muted small">{report.document.executorCompany.address || '—'}</div>
               <div className="muted small">Тел.: {report.document.executorCompany.phone || '—'}</div>
-              <div className="muted small">Email: {report.document.executorCompany.email || '—'}</div>
+              <div className="muted small">Эл. почта: {report.document.executorCompany.email || '—'}</div>
               <div className="muted small">ИНН: {report.document.executorCompany.taxId || '—'}</div>
               <div className="muted small">Рег. номер: {report.document.executorCompany.registrationNumber || '—'}</div>
             </div>
@@ -205,13 +205,13 @@ export function InspectionRunReportPage() {
               <div className="muted small">{report.document.clientCompany.legalName || '—'}</div>
               <div className="muted small">{report.document.clientCompany.address || '—'}</div>
               <div className="muted small">Тел.: {report.document.clientCompany.phone || '—'}</div>
-              <div className="muted small">Email: {report.document.clientCompany.email || '—'}</div>
+              <div className="muted small">Эл. почта: {report.document.clientCompany.email || '—'}</div>
             </div>
           </section>
 
           <section className="workActMetaGrid">
             <div className="workActMetaCard">
-              <div className="muted small">Локация</div>
+              <div className="muted small">Объект</div>
               <div className="workActStrong">
                 {/* Phase 3: из отчёта — обратно в карточку точки. */}
                 <Link to={locationCardPath(report.run.location.id, outboundScope)}>

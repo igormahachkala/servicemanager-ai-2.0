@@ -4,7 +4,7 @@
      Здесь остаётся то, где решение принимает агент или разработчик. -->
 
 <contents>
-  constraint     обязательность прогона в Production
+  constraint     один прогон в Production, на Stage набора нет
   run            вызов скрипта и разбор кодов возврата
   env_file       чего делать нельзя без backend/.env
   what_runs      что именно прогоняет скрипт, по областям
@@ -14,8 +14,8 @@
 <merge_checks>
 
 <constraint contour="production">
-Прогон обязателен, даже если те же проверки прошли в sma-deploy-stage.
-Состояние другое.
+Набор выполняется один раз, на результате слияния PR в prod.
+Вопроса перед прогоном нет. На Stage этот набор не выполняется.
 </constraint>
 
 <precondition>
@@ -28,7 +28,7 @@
 skills/_shared/scripts/merge-checks.sh &lt;контур&gt; &lt;номер PR&gt; &lt;ветка задачи&gt; &lt;область&gt;...
 </run>
 <example>
-skills/_shared/scripts/merge-checks.sh stage 42 fix/tema-001 backend frontend
+skills/_shared/scripts/merge-checks.sh production 42 fix/tema-001 backend frontend
 </example>
 <expect>Код возврата 0 и строка «Все наборы прошли».</expect>
 
@@ -49,11 +49,11 @@ skills/_shared/scripts/merge-checks.sh stage 42 fix/tema-001 backend frontend
 
   backend        prisma:generate, build, test
   frontend       test, build
-  agent-runner   typecheck, build
   scripts        bash -n по каждому изменённому файлу из scripts/
   infra          на сервере: результат слияния во временный worktree,
                  разбор конфигурации compose, удаление worktree
   none, skills   автоматических проверок нет
+  agent-runner   проверок нет, область игнорируется, вопрос не задаётся
 
 Значения области fullstack не существует: карта шага 1 его не порождает.
 Задеты backend и frontend — это две области, выполняются оба набора.
@@ -108,12 +108,15 @@ ssh sma 'docker compose -p sma-service -f /opt/sma-prod/docker-compose.yml -f /e
 </remote_note>
 
 <on_failure contour="stage">
-Не сливать. Исправить в ветке задачи, повторить с шага «получить результат
-слияния».
+sma-deploy-stage этот набор не вызывает.
 </on_failure>
 <on_failure contour="production">
-Не сливать. Закрыть PR, исправлять в ветке задачи, начинать с sma-deploy-stage
-заново.
+Не сливать. PR не закрывать из-за этого отказа и не начинать
+sma-deploy-stage заново как обязательный путь.
+Агент называет в отчёте, что гоняет заново и что пропускает.
+Пропущенное вопросом человеку не становится.
+Агент решает, нужен ли повторный круг Stage.
+Выбранные проверки упали — в prod не сливать.
 </on_failure>
 
 <excluded tool="npm run lint" contour="stage">

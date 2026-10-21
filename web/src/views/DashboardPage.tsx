@@ -51,10 +51,10 @@ export function DashboardPage() {
                 textTransform: 'uppercase',
               }}
             >
-              Management Console V2
+              Консоль управления
             </div>
             <h1 style={{ margin: '12px 0 0', fontSize: 'clamp(2rem, 3.5vw, 3rem)', lineHeight: 1.02, letterSpacing: '-0.04em' }}>
-              Operations Center
+              Операционный центр
             </h1>
             <div style={{ marginTop: 10, color: 'rgba(226, 232, 240, 0.92)', maxWidth: 760, lineHeight: 1.6 }}>
               Сводка по рабочему дню: входящий поток, очередь приёмки, нагрузка команды и последние операционные события в одном контуре.
@@ -74,7 +74,7 @@ export function DashboardPage() {
             }}
           >
             <div style={{ color: '#cbd5e1', fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              Focus for today
+              Фокус на сегодня
             </div>
             <div style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.4 }}>
               Привести к решению срочные заявки, снять блокеры по приёмке и выровнять загрузку исполнителей.
@@ -84,19 +84,19 @@ export function DashboardPage() {
                 className="tag"
                 style={{ background: 'rgba(251, 191, 36, 0.16)', borderColor: 'rgba(251, 191, 36, 0.32)', color: '#fde68a' }}
               >
-                Acceptance queue
+                Очередь приёмки
               </span>
               <span
                 className="tag"
                 style={{ background: 'rgba(96, 165, 250, 0.14)', borderColor: 'rgba(96, 165, 250, 0.3)', color: '#bfdbfe' }}
               >
-                Team load
+                Загрузка команды
               </span>
               <span
                 className="tag"
                 style={{ background: 'rgba(74, 222, 128, 0.14)', borderColor: 'rgba(74, 222, 128, 0.3)', color: '#bbf7d0' }}
               >
-                Recent events
+                Последние события
               </span>
             </div>
           </div>

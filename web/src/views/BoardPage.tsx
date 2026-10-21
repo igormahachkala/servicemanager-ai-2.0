@@ -59,8 +59,8 @@ function compactServiceContext(ticket: api.TicketCard) {
 }
 
 function providerScopeLabel(role?: api.ServiceContractRole) {
-  if (role === 'PRIMARY') return 'PRIMARY provider'
-  if (role === 'SECONDARY') return 'SECONDARY provider'
+  if (role === 'PRIMARY') return 'Основной подрядчик'
+  if (role === 'SECONDARY') return 'Субподрядчик'
   return ''
 }
 
@@ -698,7 +698,7 @@ export function BoardPage() {
           {isObserverMode ? (
             <div>
               <div style={{ fontWeight: 700 }}>Режим просмотра компании: {observerLabel}</div>
-              <div className="muted small">PLATFORM_ADMIN видит operational board компании как наблюдатель, без tenant impersonation.</div>
+              <div className="muted small">Администратор платформы видит рабочую доску заявок компании как наблюдатель, не входя от имени пользователя.</div>
             </div>
           ) : isResolvingProviderContext ? (
             <div style={{ display: 'grid', gap: 8 }}>
@@ -707,7 +707,7 @@ export function BoardPage() {
             </div>
           ) : canShowLinkedClients ? (
             <div>
-              <div style={{ fontWeight: 700 }}>Provider mode</div>
+              <div style={{ fontWeight: 700 }}>Режим обслуживающей компании</div>
               <div className="muted small">
                 {providerHeaderLabel
                   ? `Сейчас открыт клиент: ${providerHeaderLabel}`
@@ -716,13 +716,13 @@ export function BoardPage() {
             </div>
           ) : isProviderTechnician ? (
             <div>
-              <div style={{ fontWeight: 700 }}>Provider operational mode</div>
-              <div className="muted small">Техник видит назначенные ему заявки и, если это разрешено настройками компании, доступные заявки для claim.</div>
+              <div style={{ fontWeight: 700 }}>Рабочий контур обслуживающей компании</div>
+              <div className="muted small">Техник видит назначенные ему заявки и, если это разрешено настройками компании, заявки, доступные чтобы взять в работу.</div>
             </div>
           ) : isTechnician ? (
             <div>
               <div style={{ fontWeight: 700 }}>Режим техника</div>
-              <div className="muted small">Вы видите только заявки из вашего operational scope: назначенные вам и доступные для claim.</div>
+              <div className="muted small">Вы видите только заявки из вашей области доступа: назначенные вам и доступные чтобы взять в работу.</div>
             </div>
           ) : ownCompanyQ.isLoading ? (
             <div style={{ display: 'grid', gap: 8 }}>
@@ -739,7 +739,7 @@ export function BoardPage() {
             <div className="row" style={{ marginBottom: 10, alignItems: 'flex-start' }}>
               <div>
                 <div style={{ fontWeight: 600 }}>Мои клиенты</div>
-                <div className="muted small">PRIMARY клиенты доступны для полного board visibility. SECONDARY показываются как ограниченный контур.</div>
+                <div className="muted small">Клиенты основного подрядчика доступны на доске заявок полностью. Клиенты субподрядчика показываются как ограниченный контур.</div>
               </div>
               <div style={{ width: '100%', maxWidth: 320, minWidth: 0 }}>
                 <select
@@ -764,7 +764,7 @@ export function BoardPage() {
                 <SkeletonBox w="100%" h={52} />
               </div>
             ) : providerHasNoLinkedClients ? (
-              <div className="muted small">У этой provider company пока нет активных связанных клиентов.</div>
+              <div className="muted small">У этой сервисной компании пока нет активных связанных клиентов.</div>
             ) : providerRestrictedSelection && selectedLinkedClient ? (
               <div className="card" style={{ padding: 12, borderRadius: 12 }}>
                 <div style={{ fontWeight: 600 }}>{selectedLinkedClient.clientCompany.name}</div>
@@ -783,7 +783,7 @@ export function BoardPage() {
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 700 }}>{selectedLinkedClient.clientCompany.name}</div>
                     <div className="muted small" style={{ marginTop: 4 }}>
-                      {providerScopeLabel(selectedLinkedClient.role)} · открытые заявки: {selectedLinkedClient.summary.openTickets} · локации: {selectedLinkedClient.summary.locations}
+                      {providerScopeLabel(selectedLinkedClient.role)} · открытые заявки: {selectedLinkedClient.summary.openTickets} · объектов: {selectedLinkedClient.summary.locations}
                     </div>
                     <div className="muted small" style={{ marginTop: 4 }}>
                       Public intake: {selectedLinkedClient.summary.publicRequestEnabled ? 'включён' : 'выключен'}
@@ -819,7 +819,7 @@ export function BoardPage() {
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontWeight: 600 }}>{item.clientCompany.name}</div>
                       <div className="muted small">
-                        {item.role} · открытые заявки: {item.summary.openTickets} · локации: {item.summary.locations}
+                        {item.role} · открытые заявки: {item.summary.openTickets} · объектов: {item.summary.locations}
                       </div>
                       <div className="muted small">Public intake: {item.summary.publicRequestEnabled ? 'включён' : 'выключен'}</div>
                     </div>
@@ -871,14 +871,14 @@ export function BoardPage() {
       {analyticsVisible ? (
       <div className="panel uiCard managementStickyPanel" style={{ marginBottom: 12 }}>
         <div className="row" style={{ marginBottom: 10 }}>
-          <div style={{ fontWeight: 700 }}>Service context аналитика</div>
+          <div style={{ fontWeight: 700 }}>Аналитика по договору обслуживания</div>
           <div className="muted small">
             {contextAnalyticsQ.isFetching ? 'Обновляем…' : `Тикетов в срезе: ${contextAnalyticsQ.data?.meta.totalTickets ?? '—'}`}
           </div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
           <div>
-            <div className="muted small" style={{ marginBottom: 6 }}>По локациям</div>
+            <div className="muted small" style={{ marginBottom: 6 }}>По объектам</div>
             <div style={{ display: 'grid', gap: 6 }}>
               {(contextAnalyticsQ.data?.byLocation || []).slice(0, 5).map((row) => (
                 <div key={row.locationId} className="muted small" style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
@@ -971,14 +971,14 @@ export function BoardPage() {
               take
               <input style={{ width: '100%', maxWidth: 110, minWidth: 0 }} value={String(take)} onChange={(e) => setTake(Math.max(20, Math.min(1000, Number(e.target.value) || 0)))} />
             </label>
-            <div className="muted small">Для демо можно увеличить take, например до 300.</div>
+            <div className="muted small">Для демонстрации можно увеличить размер выборки, например до 300.</div>
           </div>
         </div>
         <div className="row" style={{ marginTop: 10, marginBottom: 0, alignItems: 'center' }}>
-          <div className="muted small">Service context фильтры</div>
+          <div className="muted small">Фильтры по договору обслуживания</div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <label className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-              Локация
+              Объект
               <select
                 value={selectedLocationId}
                 onChange={(e) => {
@@ -1024,7 +1024,7 @@ export function BoardPage() {
       {canBulkOperate ? (
         <div className="panel uiCard" style={{ marginBottom: 12 }}>
         <div className="row" style={{ marginBottom: 0, alignItems: 'center' }}>
-          <div className="muted small">Bulk actions</div>
+          <div className="muted small">Массовые действия</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <label className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input
@@ -1077,7 +1077,7 @@ export function BoardPage() {
       {providerHasNoLinkedClients ? (
         <div className="panel" style={{ marginBottom: 12 }}>
           <h3 style={{ marginBottom: 6 }}>Нет связанных клиентов</h3>
-          <div className="muted small">Когда у provider company появится ACTIVE PRIMARY ServiceContract, здесь откроется клиентская operational board.</div>
+          <div className="muted small">Когда у сервисной компании появится действующий договор с основным подрядчиком, здесь откроется рабочая доска заявок клиента.</div>
         </div>
       ) : null}
 

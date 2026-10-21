@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../../lib/api'
 import { canViewITCompany } from '../access'
-import { AI_EMPLOYEES, countByStatus, type AIEmployeeStatus } from '../employees'
+import { AI_EMPLOYEES, AI_EMPLOYEE_STATUS_LABELS_RU, countByStatus, type AIEmployeeStatus } from '../employees'
 
 function statusStyle(status: AIEmployeeStatus): React.CSSProperties {
   return status === 'Active'
@@ -23,7 +23,7 @@ export function AIEmployeesPage() {
     return (
       <div className="panel" style={{ padding: 16 }}>
         <div style={{ fontWeight: 700, marginBottom: 6 }}>Раздел недоступен</div>
-        <div className="muted small">Раздел IT Company доступен только администратору платформы.</div>
+        <div className="muted small">Раздел «ИТ-компания» доступен только администратору платформы.</div>
       </div>
     )
   }
@@ -32,16 +32,16 @@ export function AIEmployeesPage() {
     <div>
       <div className="row">
         <div>
-          <h2 style={{ marginBottom: 4 }}>AI Employees</h2>
+          <h2 style={{ marginBottom: 4 }}>Цифровые сотрудники</h2>
           <div className="muted small">
-            Реестр цифровых сотрудников IT Company: {countByStatus('Active')} активны,{' '}
+            Реестр цифровых сотрудников ИТ-компании: {countByStatus('Active')} активны,{' '}
             {countByStatus('Planned')} запланированы.
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span className="tag">демо-данные</span>
           <Link to="/it" style={{ textDecoration: 'none' }}>
-            <button type="button" className="ghost">← IT Company</button>
+            <button type="button" className="ghost">← ИТ-компания</button>
           </Link>
         </div>
       </div>
@@ -62,7 +62,7 @@ export function AIEmployeesPage() {
                   {e.role}
                   {e.codename ? <span className="muted" style={{ fontWeight: 400 }}> · {e.codename}</span> : null}
                 </div>
-                <span className="tag" style={statusStyle(e.status)}>{e.status}</span>
+                <span className="tag" style={statusStyle(e.status)}>{AI_EMPLOYEE_STATUS_LABELS_RU[e.status]}</span>
               </div>
               <div className="muted small">{e.mission}</div>
             </div>

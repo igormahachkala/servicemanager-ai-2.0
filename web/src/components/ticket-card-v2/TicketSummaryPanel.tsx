@@ -47,7 +47,7 @@ export function TicketSummaryPanel({ ticket, shortProblemText, showLifecycleHint
           <IdentitySummaryBlock title="Назначено" identity={assignee} />
         </div>
         <div>
-          <b>Локация:</b>{' '}
+          <b>Объект:</b>{' '}
           {ticket.location
             ? [ticket.location.name, ticket.location.city, ticket.location.address].filter(Boolean).join(' · ')
             : '—'}

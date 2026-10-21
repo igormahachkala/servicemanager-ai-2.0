@@ -7,6 +7,7 @@ import { locationCardPath } from '../lib/equipmentCard'
 import { readOutboundScopeFromSearch } from '../lib/locationCardSections'
 import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 import { ProtectedUploadThumbLink } from '../ui/ProtectedUploadMedia'
+import { INSPECTION_ITEM_STATUS_LABELS_RU } from '../lib/enumLabelsRu'
 
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024
 
@@ -23,12 +24,13 @@ type ItemDraft = {
 }
 
 function statusLabel(status: api.InspectionRunItemStatus) {
-  if (status === 'PENDING') return 'Не заполнено'
-  if (status === 'OK') return 'OK'
-  if (status === 'ISSUE') return 'Проблема'
-  if (status === 'CRITICAL') return 'Критично'
-  if (status === 'SKIPPED') return 'Пропущено'
-  return status
+  /*
+   * Подпись берётся из общей карты. Прежде этот файл держал ТРЕТИЙ словарь
+   * для того же перечисления (рядом с мобильным CHECKPOINT_STATE_LABELS),
+   * и формулировки расходились: «Проблема» здесь против согласованного
+   * «Выявлена проблема».
+   */
+  return INSPECTION_ITEM_STATUS_LABELS_RU[status]
 }
 
 /**
@@ -312,7 +314,7 @@ export function InspectionRunPage() {
               <div>
                 <h3 style={{ margin: 0 }}>{run.title}</h3>
                 <div className="muted small" style={{ marginTop: 6 }}>
-                  Обход: {run.title} · Локация:{' '}
+                  Обход: {run.title} · Объект:{' '}
                   {/* Phase 3: из обхода — обратно в карточку точки, область сохраняется. */}
                   <Link to={locationCardPath(run.location.id, outboundScope)}>{run.location.name}</Link>
                   {run.location.city ? ` · ${run.location.city}` : ''}
@@ -402,9 +404,9 @@ export function InspectionRunPage() {
                   </div>
 
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-                    <button type="button" disabled={itemReadOnly} style={statusButtonStyle(draft.status === 'OK', 'good')} onClick={() => patchDraft(item.id, { status: 'OK', requiresRepair: false })}>OK</button>
-                    <button type="button" disabled={itemReadOnly} style={statusButtonStyle(draft.status === 'ISSUE', 'warn')} onClick={() => patchDraft(item.id, { status: 'ISSUE' })}>ISSUE</button>
-                    <button type="button" disabled={itemReadOnly} style={statusButtonStyle(draft.status === 'CRITICAL', 'danger')} onClick={() => patchDraft(item.id, { status: 'CRITICAL', requiresRepair: true })}>CRITICAL</button>
+                    <button type="button" disabled={itemReadOnly} style={statusButtonStyle(draft.status === 'OK', 'good')} onClick={() => patchDraft(item.id, { status: 'OK', requiresRepair: false })}>{INSPECTION_ITEM_STATUS_LABELS_RU.OK}</button>
+                    <button type="button" disabled={itemReadOnly} style={statusButtonStyle(draft.status === 'ISSUE', 'warn')} onClick={() => patchDraft(item.id, { status: 'ISSUE' })}>{INSPECTION_ITEM_STATUS_LABELS_RU.ISSUE}</button>
+                    <button type="button" disabled={itemReadOnly} style={statusButtonStyle(draft.status === 'CRITICAL', 'danger')} onClick={() => patchDraft(item.id, { status: 'CRITICAL', requiresRepair: true })}>{INSPECTION_ITEM_STATUS_LABELS_RU.CRITICAL}</button>
                     <button type="button" disabled={itemReadOnly} style={statusButtonStyle(draft.status === 'SKIPPED', 'neutral')} onClick={() => patchDraft(item.id, { status: 'SKIPPED', requiresRepair: false })}>Пропустить</button>
                   </div>
 

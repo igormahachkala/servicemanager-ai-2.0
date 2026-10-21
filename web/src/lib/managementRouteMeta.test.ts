@@ -50,12 +50,12 @@ describe('121A разделы и страницы', () => {
     ['/settings', ['Настройки']],
     ['/failure-causes', ['Настройки', 'Причины неисправности']],
     ['/analytics/locations', ['Аналитика', 'По объектам']],
-    // 121E: модуль IT Company описан целиком.
-    ['/it', ['Платформа', 'IT Company']],
-    ['/it/employees', ['Платформа', 'IT Company', 'Сотрудники']],
-    ['/it/employees/ai-dev', ['Платформа', 'IT Company', 'Сотрудники', 'Сотрудник']],
-    ['/it/mission-control', ['Платформа', 'IT Company', 'Mission Control']],
-    ['/it/ai-developer', ['Платформа', 'IT Company', 'AI-разработчик']],
+    // 121E: модуль «ИТ-компания» описан целиком.
+    ['/it', ['Платформа', 'ИТ-компания']],
+    ['/it/employees', ['Платформа', 'ИТ-компания', 'Сотрудники']],
+    ['/it/employees/ai-dev', ['Платформа', 'ИТ-компания', 'Сотрудники', 'Сотрудник']],
+    ['/it/mission-control', ['Платформа', 'ИТ-компания', 'Центр управления']],
+    ['/it/ai-developer', ['Платформа', 'ИТ-компания', 'ИИ-разработчик']],
   ])('%s → %s', (pathname, expected) => {
     expect(labels(pathname)).toEqual(expected)
   })
@@ -300,7 +300,7 @@ function actualShellRoutes(): string[] {
   const router = readSrc('router.tsx')
   const block = router.slice(router.indexOf('path="/"', router.indexOf('path="/m"')), router.indexOf('path="/max"'))
   const declared = [...block.matchAll(/<Route path="([^"]+)"/g)].map((m) => `/${m[1]}`)
-  // Модуль IT Company монтируется списком в том же блоке.
+  // Модуль «ИТ-компания» монтируется списком в том же блоке.
   const itRoutes = [...readSrc('it-company/routes.ts').matchAll(/path:\s*'([^']+)'/g)].map((m) => `/${m[1]}`)
   return [...new Set([...declared, ...itRoutes])]
 }
@@ -319,7 +319,7 @@ describe('121E полнота карты', () => {
     }
   })
 
-  it('маршруты IT Company лежат в разделе «Платформа» и не попадают в основную навигацию', () => {
+  it('маршруты «ИТ-компании» лежат в разделе «Платформа» и не попадают в основную навигацию', () => {
     for (const route of MANAGEMENT_ROUTES.filter((item) => item.path.startsWith('/it'))) {
       expect(route.section).toBe('platform')
       // Видимость раздела решает isNavItemVisible, а не эта карта.

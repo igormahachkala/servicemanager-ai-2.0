@@ -82,6 +82,7 @@ import { MobileTicketWorkTimer } from './MobileTicketWorkTimer'
 import { MobileTicketRouteDuration } from './MobileTicketRouteDuration'
 import { canOfferTicketClaimAction, readBackendCanClaim } from '../lib/ticketActionCapabilities'
 import { dateTimeLocalToIso, formatPlannedDueAt, isoToDateTimeLocalValue } from '../lib/plannedDueAt'
+import { PlannedDueAtInput } from '../components/tickets/PlannedDueAtInput'
 import { orderProblemCategories } from '../lib/problemCategoryOrdering'
 import {
   TICKET_MEDIA_ACCEPT,
@@ -3052,7 +3053,7 @@ export function MobileTicketPage() {
                 </select>
               </label>
               <label className="mobileFormField">
-                Локация
+                Объект
                 <select
                   value={editLocationId}
                   disabled={updateTicketM.isPending || editLocationsQ.isFetching}
@@ -3062,7 +3063,7 @@ export function MobileTicketPage() {
                     setEditEquipmentId('')
                   }}
                 >
-                  <option value="">Выберите локацию</option>
+                  <option value="">Выберите объект</option>
                   {(editLocationsQ.data || []).filter((row) => row.isActive !== false).map((row) => (
                     <option key={row.id} value={row.id}>{[row.name, row.city, row.address].filter(Boolean).join(' · ')}</option>
                   ))}
@@ -3084,10 +3085,10 @@ export function MobileTicketPage() {
                 </select>
                 <div className="mobileMeta" style={{ marginTop: 6 }}>
                   {editEquipmentQ.isFetching
-                    ? 'Загружаем оборудование для текущей локации…'
+                    ? 'Загружаем оборудование для текущего объекта…'
                     : (editEquipmentQ.data || []).length === 0
-                      ? 'Для текущей локации оборудование не найдено. Можно сохранить без оборудования.'
-                      : 'Оборудование доступно только из текущей локации заявки.'}
+                      ? 'Для текущего объекта оборудование не найдено. Можно сохранить без оборудования.'
+                      : 'Оборудование доступно только из текущего объекта заявки.'}
                 </div>
               </label>
               <label className="mobileFormField">
@@ -3128,22 +3129,7 @@ export function MobileTicketPage() {
               </label>
               <label className="mobileFormField">
                 Срок выполнения
-                <input
-                  type="datetime-local"
-                  value={editPlannedDueAtLocal}
-                  disabled={updateTicketM.isPending}
-                  onChange={(e) => setEditPlannedDueAtLocal(e.target.value)}
-                />
-                {editPlannedDueAtLocal ? (
-                  <button
-                    type="button"
-                    className="mobileBtn mobileBtnSecondary"
-                    disabled={updateTicketM.isPending}
-                    onClick={() => setEditPlannedDueAtLocal('')}
-                  >
-                    Очистить срок
-                  </button>
-                ) : null}
+                <PlannedDueAtInput value={editPlannedDueAtLocal} onChange={setEditPlannedDueAtLocal} disabled={updateTicketM.isPending} clearButtonClassName="mobileBtn mobileBtnSecondary" />
                 <div className="mobileMeta">Не меняет SLA и сроки реакции.</div>
               </label>
               <label className="mobileFormField">
