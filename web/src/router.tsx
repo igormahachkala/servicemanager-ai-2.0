@@ -78,6 +78,7 @@ const AnalyticsPage = lazyExport(() => import('./views/AnalyticsPage'), 'Analyti
 const LocationAnalyticsPage = lazyExport(() => import('./views/LocationAnalyticsPage'), 'LocationAnalyticsPage')
 const SettingsPage = lazyExport(() => import('./views/SettingsPage'), 'SettingsPage')
 const MaterialsPage = lazyExport(() => import('./views/MaterialsPage'), 'MaterialsPage')
+const UpdatesCenterPage = lazyExport(() => import('./views/UpdatesCenterPage'), 'UpdatesCenterPage')
 const FailureCausesPage = lazyExport(() => import('./views/FailureCausesPage'), 'FailureCausesPage')
 const ProblemCategoriesPage = lazyExport(() => import('./views/ProblemCategoriesPage'), 'ProblemCategoriesPage')
 const SpecializationsPage = lazyExport(() => import('./views/SpecializationsPage'), 'SpecializationsPage')
@@ -109,6 +110,7 @@ const MobileNotificationsPage = lazyExport(() => import('./mobile/MobileNotifica
 const MobilePushSettingsPage = lazyExport(() => import('./mobile/MobilePushSettingsPage'), 'MobilePushSettingsPage')
 const MobileSettingsPage = lazyExport(() => import('./mobile/MobileSettingsPage'), 'MobileSettingsPage')
 const MobileMaterialsPage = lazyExport(() => import('./mobile/MobileMaterialsPage'), 'MobileMaterialsPage')
+const MobileUpdatesPage = lazyExport(() => import('./mobile/MobileUpdatesPage'), 'MobileUpdatesPage')
 const MobileAnalytics = lazyExport(() => import('./mobile/MobileAnalytics'), 'MobileAnalytics')
 const MobileChatsPage = lazyExport(() => import('./mobile/MobileChatsPage'), 'MobileChatsPage')
 const MobileOfflineQueue = lazyExport(() => import('./mobile/MobileOfflineQueue'), 'MobileOfflineQueue')
@@ -322,6 +324,7 @@ export function AppRoutes() {
         <Route path="more" element={<MobileMoreRedirect />} />
         <Route path="materials" element={<LazyRoute component={MobileMaterialsPage} />} />
         <Route path="analytics" element={<LazyRoute component={MobileAnalytics} />} />
+        <Route path="updates" element={<LazyRoute component={MobileUpdatesPage} />} />
         <Route path="shift" element={<LazyRoute component={MobileShiftPage} />} />
         <Route path="workforce" element={<LazyRoute component={MobileWorkforcePage} />} />
         <Route path="chats" element={<LazyRoute component={MobileChatsPage} />} />
@@ -375,6 +378,7 @@ export function AppRoutes() {
         <Route path="workforce" element={<LazyRoute component={WorkforcePage} />} />
         <Route path="analytics/locations" element={<LazyRoute component={LocationAnalyticsPage} />} />
         <Route path="settings" element={<LazyRoute component={SettingsPage} />} />
+        <Route path="updates" element={<LazyRoute component={UpdatesCenterPage} />} />
         <Route path="company" element={<LazyRoute component={CompanyPage} />} />
         <Route path="platform/permissions" element={<LazyRoute component={PermissionsPage} />} />
         <Route path="platform/access-constructor" element={<LazyRoute component={AccessConstructorPage} />} />
@@ -404,6 +408,7 @@ export function AppRoutes() {
           <Route path="settings" element={<LazyRoute component={MobileSettingsPage} />} />
         <Route path="more" element={<MobileMoreRedirect />} />
           <Route path="analytics" element={<LazyRoute component={MobileAnalytics} />} />
+        <Route path="updates" element={<LazyRoute component={MobileUpdatesPage} />} />
           <Route path="shift" element={<LazyRoute component={MobileShiftPage} />} />
           <Route path="workforce" element={<LazyRoute component={MobileWorkforcePage} />} />
           <Route path="chats" element={<LazyRoute component={MobileChatsPage} />} />

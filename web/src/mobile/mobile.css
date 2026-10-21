@@ -7131,3 +7131,16 @@ button.mobileNavItem {
 .mobileParentCloseFooter .mobileBtn {
   flex: 1;
 }
+
+/* Центр обновлений: строка истории — кнопка на всю ширину */
+.mobileUpdatesRow {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  white-space: normal;
+  cursor: pointer;
+}
