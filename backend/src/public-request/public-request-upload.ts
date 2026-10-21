@@ -39,8 +39,11 @@ export function mapPublicUploadError(error: unknown): HttpException | null {
   if (error instanceof PublicUploadTypeError) {
     return new HttpException('Unsupported photo format', HttpStatus.BAD_REQUEST)
   }
-  if (error instanceof MulterError && (error.code === 'LIMIT_FILE_SIZE' || error.code === 'LIMIT_FIELD_VALUE')) {
-    return new HttpException('Upload is too large', HttpStatus.PAYLOAD_TOO_LARGE)
+  if (error instanceof MulterError) {
+    const code = (error as MulterError).code
+    if (code === 'LIMIT_FILE_SIZE' || code === 'LIMIT_FIELD_VALUE') {
+      return new HttpException('Upload is too large', HttpStatus.PAYLOAD_TOO_LARGE)
+    }
   }
   return null
 }
