@@ -36,3 +36,12 @@ export function formatPlannedDueAt(value?: string | null): string {
     minute: '2-digit',
   })
 }
+
+/**
+ * Есть ли в поле срока что-то, что пользователь видит и может захотеть убрать.
+ * Частично стёртый datetime-local отдаёт value === '', но продолжает показывать
+ * оставшиеся части даты; браузер помечает такое состояние validity.badInput.
+ */
+export function plannedDueFieldHasContent(value: string, badInput: boolean): boolean {
+  return value.trim() !== '' || badInput
+}
