@@ -475,11 +475,11 @@ export function CreateTicketPage() {
   }
 
   function validatePayload(payload: api.CreateTicketInput) {
-    if (!payload.locationId) return 'Выберите локацию'
+    if (!payload.locationId) return 'Выберите объект'
     if (!payload.categoryId) return 'Выберите категорию'
     if (isTechnician && !payload.clientCompanyId) return 'Не выбран клиентский контур'
     if (!activeLocations.some((row) => row.id === payload.locationId)) {
-      return 'Локация не входит в текущий scope. Обновите выбор локации.'
+      return 'Объект не входит в текущий scope. Обновите выбор объекта.'
     }
     if (!activeCategories.some((row) => row.id === payload.categoryId)) {
       return 'Категория не входит в текущий scope. Обновите выбор категории.'
@@ -649,15 +649,15 @@ export function CreateTicketPage() {
       {noTechnicianContexts ? (
         <div className="panel">
           <h3 style={{ marginBottom: 6 }}>Нет привязанного клиентского контура</h3>
-          <div className="muted small">Для техника не настроены доступные клиентские компании/локации.</div>
+          <div className="muted small">Для техника не настроены доступные клиентские компании/объекты.</div>
         </div>
       ) : null}
       {canCreateByRole && !isBootstrapping && noLocations ? (
         <div className="panel">
-          <h3 style={{ marginBottom: 6 }}>Создание заявки заблокировано: нет доступных локаций</h3>
+          <h3 style={{ marginBottom: 6 }}>Создание заявки заблокировано: нет доступных объектов</h3>
           <div className="muted small">
             {createContextMode === 'provider'
-              ? 'Для выбранного linked-client контекста нет доступных точек. Проверьте связи с клиентом и права доступа к локациям.'
+              ? 'Для выбранного linked-client контекста нет доступных точек. Проверьте связи с клиентом и права доступа к объектам.'
               : createContextMode === 'observer'
                 ? 'Для выбранной компании в режиме наблюдения нет доступных точек.'
                 : createContextMode === 'technician'
@@ -703,7 +703,7 @@ export function CreateTicketPage() {
           </div>
 
           {mode === 'quick' ? (
-            <div className="muted small">Шаги: 1) Локация 2) Категория 3) Контакт 4) Фото + отправка</div>
+            <div className="muted small">Шаги: 1) Объект 2) Категория 3) Контакт 4) Фото + отправка</div>
           ) : null}
 
           {isTechnician ? (
@@ -733,9 +733,9 @@ export function CreateTicketPage() {
           ) : null}
 
           <label>
-            {mode === 'quick' ? 'Шаг 1. Локация *' : 'Локация *'}
+            {mode === 'quick' ? 'Шаг 1. Объект *' : 'Объект *'}
             <select value={locationId} onChange={(e) => setLocationId(e.target.value)} disabled={isBootstrapping || noLocations || !!presetParentId}>
-              {noLocations && !presetParentId ? <option value="">Локации недоступны для текущего контекста</option> : null}
+              {noLocations && !presetParentId ? <option value="">Объекты недоступны для текущего контекста</option> : null}
               {presetParentId && locationId && !activeLocations.some((row) => row.id === locationId) ? (
                 <option value={locationId}>Точка родительской заявки</option>
               ) : null}
@@ -937,7 +937,7 @@ export function CreateTicketPage() {
               ) : null}
               {successPayload.locationName ? (
                 <div className="successDialogMetaRow">
-                  <span className="successDialogMetaLabel">Локация</span>
+                  <span className="successDialogMetaLabel">Объект</span>
                   <span className="successDialogMetaValue">{successPayload.locationName}</span>
                 </div>
               ) : null}

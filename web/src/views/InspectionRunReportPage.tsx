@@ -211,7 +211,7 @@ export function InspectionRunReportPage() {
 
           <section className="workActMetaGrid">
             <div className="workActMetaCard">
-              <div className="muted small">Локация</div>
+              <div className="muted small">Объект</div>
               <div className="workActStrong">
                 {/* Phase 3: из отчёта — обратно в карточку точки. */}
                 <Link to={locationCardPath(report.run.location.id, outboundScope)}>

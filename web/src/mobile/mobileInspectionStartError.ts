@@ -9,10 +9,10 @@ export function mobileInspectionStartErrorMessage(error: unknown): string {
     return ACTIVE_SHIFT_REQUIRED_FRIENDLY_MESSAGE
   }
   if (error instanceof ApiRequestError && error.status === 403) {
-    return 'Начать обход в выбранном контуре нельзя. Проверьте доступ к локации.'
+    return 'Начать обход в выбранном контуре нельзя. Проверьте доступ к объекту.'
   }
   if (error instanceof ApiRequestError && error.status === 404) {
-    return 'Шаблон или локация больше недоступны. Обновите выбор и повторите.'
+    return 'Шаблон или объект больше недоступны. Обновите выбор и повторите.'
   }
   return 'Не удалось начать обход. Проверьте соединение и повторите.'
 }

@@ -28,7 +28,7 @@ export function TicketChildTicketsPanel({ childTickets, fmt, getChildHref, rende
                 {renderStatusPill(child.status)}
               </div>
               <div className="muted small" style={{ marginBottom: 8 }}>
-                {[child.location?.name, child.location?.city, child.location?.address].filter(Boolean).join(' · ') || 'Локация не указана'}
+                {[child.location?.name, child.location?.city, child.location?.address].filter(Boolean).join(' · ') || 'Объект не указан'}
               </div>
               <a href={getChildHref(child.id)} style={{ textDecoration: 'none' }}>
                 <button className="ghost">Открыть подзадачу</button>

@@ -3053,7 +3053,7 @@ export function MobileTicketPage() {
                 </select>
               </label>
               <label className="mobileFormField">
-                Локация
+                Объект
                 <select
                   value={editLocationId}
                   disabled={updateTicketM.isPending || editLocationsQ.isFetching}
@@ -3063,7 +3063,7 @@ export function MobileTicketPage() {
                     setEditEquipmentId('')
                   }}
                 >
-                  <option value="">Выберите локацию</option>
+                  <option value="">Выберите объект</option>
                   {(editLocationsQ.data || []).filter((row) => row.isActive !== false).map((row) => (
                     <option key={row.id} value={row.id}>{[row.name, row.city, row.address].filter(Boolean).join(' · ')}</option>
                   ))}
@@ -3085,10 +3085,10 @@ export function MobileTicketPage() {
                 </select>
                 <div className="mobileMeta" style={{ marginTop: 6 }}>
                   {editEquipmentQ.isFetching
-                    ? 'Загружаем оборудование для текущей локации…'
+                    ? 'Загружаем оборудование для текущего объекта…'
                     : (editEquipmentQ.data || []).length === 0
-                      ? 'Для текущей локации оборудование не найдено. Можно сохранить без оборудования.'
-                      : 'Оборудование доступно только из текущей локации заявки.'}
+                      ? 'Для текущего объекта оборудование не найдено. Можно сохранить без оборудования.'
+                      : 'Оборудование доступно только из текущего объекта заявки.'}
                 </div>
               </label>
               <label className="mobileFormField">

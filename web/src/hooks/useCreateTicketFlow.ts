@@ -92,7 +92,7 @@ export function useCreateTicketFlow(p: UseCreateTicketFlowParams) {
       if (rawMessage.includes('Location not found')) {
         const fallbackLocationId = p.activeLocations[0]?.id || ''
         p.setLocationId(fallbackLocationId)
-        p.setErr('Выбранная локация больше недоступна. Выберите точку снова.')
+        p.setErr('Выбранный объект больше недоступен. Выберите точку снова.')
         return
       }
       p.setErr(mapTicketActionError(rawMessage))
