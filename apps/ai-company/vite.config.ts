@@ -59,6 +59,16 @@ function createDevProxy(): Record<string, ProxyOptions> {
   }
 }
 
+/**
+ * Office server: the panel is opened by LAN IP (always allowed) or by a host name.
+ * Vite blocks unknown host names (DNS-rebinding guard), so list them here, e.g.
+ * AI_COMPANY_ALLOWED_HOSTS=ai-server,ai-server.local
+ */
+const previewAllowedHosts = (process.env.AI_COMPANY_ALLOWED_HOSTS ?? '')
+  .split(',')
+  .map((h) => h.trim())
+  .filter(Boolean)
+
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -69,6 +79,7 @@ export default defineConfig({
   preview: {
     port: 4174,
     host: true,
+    allowedHosts: previewAllowedHosts,
     proxy: createDevProxy(),
   },
 })
