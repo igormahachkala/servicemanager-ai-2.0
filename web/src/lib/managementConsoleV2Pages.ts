@@ -20,9 +20,9 @@ export const V2_DEV_STATUS_LABEL: Record<V2DevStatus, string> = {
 export const V2_STUB_PAGES: V2PageMeta[] = [
   {
     path: '/dashboard',
-    title: 'Dashboard',
+    title: 'Операционный центр',
     description:
-      'Операционный центр Management Console V2: KPI, Action Center, SLA radar и очереди назначения. Первый экран после входа в новый контур.',
+      'Операционный центр: показатели, центр действий, радар SLA и очереди назначения. Первый экран после входа в новый контур.',
     status: 'in_progress',
     taskRef: 'SMA-MGMT-T02',
   },
@@ -36,9 +36,9 @@ export const V2_STUB_PAGES: V2PageMeta[] = [
   },
   {
     path: '/assistant',
-    title: 'MAX Assistant',
+    title: 'Ассистент MAX',
     description:
-      'Operations Copilot в desktop-контуре: сводка рисков, предложения действий и контекст заявки.',
+      'Операционный помощник в десктоп-контуре: сводка рисков, предложения действий и контекст заявки.',
     status: 'in_progress',
     taskRef: 'SMA-MGMT-T02',
   },
@@ -46,11 +46,11 @@ export const V2_STUB_PAGES: V2PageMeta[] = [
     path: '/contractors',
     title: 'Подрядчики',
     description:
-      'Управление связями клиент–провайдер, договоры обслуживания и контур подрядчиков для tenant.',
+      'Управление связями клиент–провайдер, договоры обслуживания и контур подрядчиков арендатора.',
     status: 'partial',
     taskRef: 'SMA-MGMT-T02',
     legacyPath: '/service-contracts',
-    legacyLabel: 'Договоры обслуживания (platform)',
+    legacyLabel: 'Договоры обслуживания (платформа)',
   },
 ]
 

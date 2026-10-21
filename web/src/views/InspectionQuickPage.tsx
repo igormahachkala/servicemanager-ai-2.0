@@ -234,7 +234,7 @@ export function InspectionQuickPage() {
                     <div>
                       <div style={{ fontWeight: 700 }}>{item.checkpointSortOrder + 1}. {item.title}</div>
                       <div className="muted small">
-                        {run.equipment?.name || 'Equipment'}{run.equipment?.type ? ` · ${run.equipment.type}` : ''}
+                        {run.equipment?.name || 'Оборудование'}{run.equipment?.type ? ` · ${run.equipment.type}` : ''}
                       </div>
                       <div className="muted small">
                         {responseTypeLabel(item.responseType)}

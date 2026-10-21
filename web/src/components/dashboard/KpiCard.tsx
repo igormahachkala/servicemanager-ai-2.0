@@ -53,7 +53,7 @@ export function KpiCard(props: {
             fontWeight: 700,
           }}
         >
-          Live
+          Сейчас
         </span>
       </div>
       <div style={{ fontSize: '2.35rem', lineHeight: 0.95, fontWeight: 900, color: tone.color, letterSpacing: '-0.05em' }}>

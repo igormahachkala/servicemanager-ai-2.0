@@ -381,7 +381,7 @@ export function MobileSettingsPage() {
       })}
 
       <div className="mobileCard" style={{ marginTop: 8, textAlign: 'center' }}>
-        <div className="mobileMeta">Сервис Менеджер · Mobile Workspace V1</div>
+        <div className="mobileMeta">Сервис Менеджер · мобильная версия</div>
       </div>
     </div>
   )
