@@ -1,6 +1,8 @@
 import {
   filterMaturedCandidates,
   planNext,
+  PLANNER_WEIGHTS,
+  REASON_LABELS,
   score,
 } from './planner.scoring'
 import type { PlannerContext, PlannerPoolItem } from './planner.types'
@@ -157,4 +159,45 @@ describe('planner.scoring', () => {
     expect(result[0].works[0].reasons.some((r) => r.label === 'Назначил диспетчер')).toBe(true)
     expect(result[0].works[0].total).toBeGreaterThan(result[1].works[0].total)
   })
+
+  /**
+   * SMA-ROUNDS-RECURRENCE-FIX: просрочка визита наступает по исходу льготных
+   * дней плана — тем же правилом, что isOverdue в выдаче расписания.
+   */
+  it('внутри льготных дней обход в окне, а не просрочен', () => {
+    const [location] = score(
+      [
+        inspection({
+          id: 'i-grace',
+          locationId: 'loc',
+          dueAt: new Date('2026-06-14T12:00:00'),
+          graceDays: 2,
+        }),
+      ],
+      ctx(),
+    );
+    const work = location.works[0];
+    expect(work.reasons.map((r) => r.label)).toContain(
+      REASON_LABELS.INSPECTION_IN_WINDOW,
+    );
+    expect(work.total).toBe(PLANNER_WEIGHTS.INSPECTION_IN_WINDOW);
+  });
+
+  it('после льготы просрочка считается от её исхода', () => {
+    const [location] = score(
+      [
+        inspection({
+          id: 'i-late',
+          locationId: 'loc',
+          dueAt: new Date('2026-06-10T12:00:00'),
+          graceDays: 2,
+        }),
+      ],
+      ctx(),
+    );
+    // Срок 10-го + 2 дня льготы = 12-е; на 15-е просрочено на 3 дня.
+    expect(location.works[0].reasons.map((r) => r.label)).toContain(
+      REASON_LABELS.inspectionOverdue(3),
+    );
+  });
 })

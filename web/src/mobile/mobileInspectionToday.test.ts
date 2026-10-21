@@ -209,8 +209,25 @@ describe('120G состояние визита', () => {
     expect(deriveVisitState({ lastRun: { id: 'r', status: 'IN_PROGRESS' } } as any)).toBe('IN_PROGRESS')
   })
 
-  it('завершённый обход — визит выполнен', () => {
-    expect(deriveVisitState({ lastRun: { id: 'r', status: 'COMPLETED' } } as any)).toBe('COMPLETED')
+  it('завершённый обход текущего срока — визит выполнен', () => {
+    const due = '2026-09-17T09:00:00.000Z'
+    expect(deriveVisitState({ nextDueAt: due, lastRun: { id: 'r', status: 'COMPLETED', dueAt: due } })).toBe(
+      'COMPLETED',
+    )
+  })
+
+  it('завершённый обход прошлого срока не закрывает следующий визит', () => {
+    // Ежедневный план после завершения встал на следующий день: новый визит не начат.
+    expect(
+      deriveVisitState({
+        nextDueAt: '2026-09-18T09:00:00.000Z',
+        lastRun: { id: 'r', status: 'COMPLETED', dueAt: '2026-09-17T09:00:00.000Z' },
+      }),
+    ).toBe('NOT_STARTED')
+    // Обход без срока (не по плану) визит не закрывает.
+    expect(
+      deriveVisitState({ nextDueAt: '2026-09-18T09:00:00.000Z', lastRun: { id: 'r', status: 'COMPLETED' } }),
+    ).toBe('NOT_STARTED')
   })
 
   it('карточка несёт подпись действия и номер обхода для продолжения', () => {
@@ -223,7 +240,10 @@ describe('120G состояние визита', () => {
     expect(inProgress.runId).toBe('run-7')
     expect(inProgress.counts).toEqual({ urgent: 1, nonUrgent: 0 })
 
-    const [completed] = toTodayVisitCards([schedule({ lastRun: { id: 'r', status: 'COMPLETED' } })], null)
+    const [completed] = toTodayVisitCards(
+      [schedule({ lastRun: { id: 'r', status: 'COMPLETED', dueAt: '2026-09-17T09:00:00.000Z' } })],
+      null,
+    )
     expect(completed.actionLabel).toBe('Обход выполнен')
 
     const [fresh] = toTodayVisitCards([schedule()], null)

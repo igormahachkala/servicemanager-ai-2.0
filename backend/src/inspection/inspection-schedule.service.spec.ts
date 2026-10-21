@@ -105,7 +105,17 @@ function makeSuite(options: { contracts?: any[]; schedules?: any[] } = {}) {
     },
     inspectionSchedule: {
       create: jest.fn(async ({ data }: any) => ({ id: 'sched-new', ...data })),
-      update: jest.fn(async ({ where, data }: any) => ({ id: where.id, ...data })),
+      // Prisma возвращает строку целиком, а не только изменённые поля.
+      update: jest.fn(
+        ({ where, data }: { where: { id: string }; data: object }) =>
+          Promise.resolve({
+            ...(scheduleRows as Array<{ id: string }>).find(
+              (s) => s.id === where.id,
+            ),
+            id: where.id,
+            ...data,
+          }),
+      ),
       delete: jest.fn(async ({ where }: any) => ({ id: where.id })),
       findMany: jest.fn(async () => scheduleRows),
       findFirst: jest.fn(async ({ where }: any) =>
@@ -141,6 +151,8 @@ function scheduleRow(overrides: any = {}) {
     intervalDays: null,
     lastGeneratedAt: null,
     isActive: true,
+    nextDueAt: new Date('2026-10-01T09:00:00.000Z'),
+    graceDays: 0,
     location: { id: LOC_A.id, clientCompanyId: CLIENT_A },
     assignedTo: { id: technician.id, email: 't@x', firstName: null, lastName: null },
     _count: { runs: 0 },
