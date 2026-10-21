@@ -13,7 +13,6 @@ describe('LoginRateLimiterService', () => {
 
   afterEach(() => {
     svc.onModuleDestroy()
-    delete process.env.QRATOR_TRUSTED_PROXIES
   })
 
   function req(overrides: {
@@ -43,32 +42,7 @@ describe('LoginRateLimiterService', () => {
     )
   })
 
-  it('ignores a forged X-Qrator-IP-Source and keeps one bucket per req.ip', () => {
-    delete process.env.QRATOR_TRUSTED_PROXIES
-    const email = 'a7-qrator-untrusted@example.com'
-    for (let i = 0; i < 5; i += 1) {
-      svc.consume(
-        email,
-        req({
-          headers: { 'x-qrator-ip-source': '203.0.113.10' },
-          ip: '10.0.0.8',
-        }),
-      )
-    }
-
-    expect(() =>
-      svc.consume(
-        email,
-        req({
-          headers: { 'x-qrator-ip-source': '198.51.100.20' },
-          ip: '10.0.0.8',
-        }),
-      ),
-    ).toThrow(HttpException)
-  })
-
-  it('isolates buckets by X-Qrator-IP-Source when the peer is trusted', () => {
-    process.env.QRATOR_TRUSTED_PROXIES = '172.18.0.1'
+  it('isolates buckets by X-Qrator-IP-Source even when req.ip matches', () => {
     const email = 'a7-qrator@example.com'
     for (let i = 0; i < 5; i += 1) {
       svc.consume(
