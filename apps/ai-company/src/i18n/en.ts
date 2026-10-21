@@ -1,5 +1,6 @@
 import { platformGlossaryTermsEn } from './platformGlossaryTerms.en'
 import { ownerNavEn } from './ownerNav/en'
+import { analysisTasksEn } from './analysis/en'
 import { mobileEn } from './mobile/en'
 
 export const en = {
@@ -200,6 +201,7 @@ export const en = {
     canvas: 'Company Canvas',
   },
   ownerNav: ownerNavEn,
+  analysisTasks: analysisTasksEn,
   mobile: mobileEn,
   labels: {
     active: 'Active',

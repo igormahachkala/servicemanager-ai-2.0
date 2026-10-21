@@ -30,6 +30,7 @@ export type OwnerNavItemId =
   | 'presence'
   | 'chats'
   | 'runTask'
+  | 'analysisTasks'
   | 'tasks'
   | 'execution'
   | 'taskResults'
@@ -84,6 +85,7 @@ export const OWNER_NAV_ITEMS: OwnerNavItemConfig[] = [
 
   // Tasks
   { id: 'runTask', group: 'tasks', to: '/ops/run-task', icon: '▶' },
+  { id: 'analysisTasks', group: 'tasks', to: '/ops/analysis', icon: '🔎' },
   { id: 'tasks', group: 'tasks', to: '/ops/tasks', icon: '▤' },
   { id: 'execution', group: 'tasks', to: '/ops/execution', icon: '⚡' },
   { id: 'taskResults', group: 'tasks', to: '/ops/task-results', icon: '✎' },

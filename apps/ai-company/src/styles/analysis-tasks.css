@@ -1,0 +1,122 @@
+/* Analysis tasks page (/ops/analysis) */
+.acAnalysisLayout {
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 960px) {
+  .acAnalysisLayout { grid-template-columns: 1fr; }
+}
+.acAnalysisSide,
+.acAnalysisMain { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+.acAnalysisForm { display: flex; flex-direction: column; gap: 12px; }
+.acAnalysisForm .mcField { display: flex; flex-direction: column; gap: 6px; }
+.acAnalysisForm .mcInput,
+.acAnalysisForm .mcTextarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--mc-border);
+  background: var(--mc-bg);
+  color: var(--mc-text);
+  font: inherit;
+}
+.acAnalysisForm .mcTextarea { resize: vertical; min-height: 120px; }
+.acAnalysisForm .mcBtn { align-self: flex-start; }
+.acAnalysisForm .mcBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.acAnalysisNote { margin: 0; font-size: 12px; }
+.acAnalysisError { margin: 0; color: var(--mc-red); font-size: 13px; }
+
+.acAnalysisList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.acAnalysisItem {
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--mc-text);
+  cursor: pointer;
+  font: inherit;
+}
+.acAnalysisItem:hover { background: var(--mc-surface-2); }
+.acAnalysisItemActive { border-color: var(--mc-accent); background: var(--mc-accent-dim); }
+.acAnalysisItem .mcDot { margin-top: 6px; flex: none; }
+.acAnalysisItemBody { display: flex; flex-direction: column; min-width: 0; }
+.acAnalysisItemTitle { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acAnalysisItemMeta { font-size: 12px; }
+
+.acAnalysisStatus { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.acAnalysisTaskText { white-space: pre-wrap; color: var(--mc-muted); font-size: 14px; line-height: 1.5; }
+.acAnalysisActions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.acAnalysisActions:empty { display: none; }
+
+.acAnalysisOk { color: var(--mc-green); font-size: 13px; }
+.acAnalysisWarn { color: var(--mc-amber); font-size: 13px; }
+.acAnalysisErrorBox {
+  border: 1px solid var(--mc-red);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.acAnalysisErrorTitle { font-weight: 600; color: var(--mc-red); margin-bottom: 4px; }
+.acAnalysisPreamble { white-space: pre-wrap; margin: 0 0 12px; }
+
+.acAnalysisBlocks { display: flex; flex-direction: column; gap: 10px; }
+.acAnalysisBlock {
+  border: 1px solid var(--mc-border);
+  border-left: 3px solid var(--mc-accent);
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--mc-surface);
+}
+.acAnalysisBlockProblem { border-left-color: var(--mc-red); }
+.acAnalysisBlockRisk { border-left-color: var(--mc-amber); }
+.acAnalysisBlockRecommendation { border-left-color: var(--mc-green); }
+.acAnalysisBlockLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--mc-muted);
+  margin-bottom: 4px;
+}
+.acAnalysisBlockBody { white-space: pre-wrap; line-height: 1.55; overflow-wrap: anywhere; }
+
+.acAnalysisRaw { margin-top: 12px; font-size: 13px; }
+.acAnalysisRaw summary { cursor: pointer; color: var(--mc-muted); }
+.acAnalysisRaw pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--mc-mono, ui-monospace, monospace);
+  font-size: 12px;
+  background: var(--mc-bg);
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.acAnalysisMetrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin: 16px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--mc-border);
+}
+.acAnalysisMetrics dt { font-size: 11px; color: var(--mc-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+.acAnalysisMetrics dd { margin: 2px 0 0; }
+
+@keyframes acAnalysisPulse { 50% { opacity: 0.35; } }
+.acAnalysisPulse { animation: acAnalysisPulse 1.2s ease-in-out infinite; }
+
+/* Panel bodies here are unpadded by default (mcPanelBody: 0) — pad to the header's 20px. */
+.acAnalysisLayout .mcPanelBody { padding: 4px 20px 20px; }
+.acAnalysisLayout .acAnalysisList { margin: 0 -10px; }

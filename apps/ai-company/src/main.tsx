@@ -33,6 +33,7 @@ import './styles/employee-operating-day.css'
 import './styles/owner-home.css'
 import './styles/mobile.css'
 import './styles/decision-plan.css'
+import './styles/analysis-tasks.css'
 import './styles.css'
 
 bootstrapTheme()

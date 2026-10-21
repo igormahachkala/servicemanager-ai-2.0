@@ -30,6 +30,8 @@ export const OLLAMA_ANALYSIS_SYSTEM = [
   'Risk: <impact + severity>',
   'Recommendation: <how to fix>',
   'Effort: <Low | Medium | High>',
+  'Keep the four labels (Problem, Risk, Recommendation, Effort) in English exactly as written,',
+  'but write their content in the language of the task.',
 ].join('\n')
 
 export function buildOllamaAnalysisPrompt(input: {

@@ -29,7 +29,8 @@ export type AnalysisSectionValidation = {
 /** `Label: rest-of-line`. Bounded length so a prose line with a colon is not a header. */
 const LABEL_LINE = /^\s*([A-Za-z][A-Za-z0-9 _-]{0,40})\s*:(.*)$/
 
-type Block = { label: string; content: string }
+export type AnalysisBlock = { label: string; content: string }
+type Block = AnalysisBlock
 
 function splitIntoBlocks(text: string): Block[] {
   const blocks: Block[] = []
@@ -84,4 +85,28 @@ export function describeSectionFailure(validation: AnalysisSectionValidation): s
   ]
     .filter(Boolean)
     .join('; ')
+}
+
+/**
+ * Ordered blocks for display: every `Label:` block in answer order, labels in
+ * their original case, content trimmed. Text before the first label is
+ * returned as a leading `preamble` so the UI never hides part of the answer.
+ */
+export function parseAnalysisBlocks(text: string): { preamble: string; blocks: AnalysisBlock[] } {
+  const lines = text.split('\n')
+  const firstLabel = lines.findIndex((line) => LABEL_LINE.test(line))
+  const preamble = (firstLabel === -1 ? text : lines.slice(0, firstLabel).join('\n')).trim()
+  if (firstLabel === -1) return { preamble, blocks: [] }
+  const blocks: AnalysisBlock[] = []
+  let current: AnalysisBlock | null = null
+  for (const line of lines.slice(firstLabel)) {
+    const match = LABEL_LINE.exec(line)
+    if (match) {
+      current = { label: match[1].trim(), content: match[2] }
+      blocks.push(current)
+    } else if (current) {
+      current.content += `\n${line}`
+    }
+  }
+  return { preamble, blocks: blocks.map((b) => ({ label: b.label, content: b.content.trim() })) }
 }

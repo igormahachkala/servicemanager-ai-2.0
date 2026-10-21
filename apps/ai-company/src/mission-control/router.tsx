@@ -48,6 +48,7 @@ import { CollaborationPage } from '../pages/CollaborationPage'
 import { AiPhotoLabControlRoomPage } from '../pages/AiPhotoLabControlRoomPage'
 import { AiPhotoLabKickoffPage } from '../pages/AiPhotoLabKickoffPage'
 import { ExecutionPage } from '../pages/ExecutionPage'
+import { AnalysisTasksPage } from '../pages/AnalysisTasksPage'
 import { CompanyCanvasPage } from '../pages/CompanyCanvasPage'
 import { ToolExecutionsPage } from '../pages/ToolExecutionsPage'
 import { HandoffsPage } from '../pages/HandoffsPage'
@@ -101,6 +102,7 @@ export function MissionControlRoutes() {
         <Route path="tasks" element={<TasksPage />} />
         <Route path="execution" element={<ExecutionPage />} />
         <Route path="run-task" element={<RunTaskPage />} />
+        <Route path="analysis" element={<AnalysisTasksPage />} />
         <Route path="visual-lab" element={<VisualLabPage />} />
         <Route path="feed" element={<Navigate to="/ops/timeline" replace />} />
         <Route path="timeline" element={<CompanyTimelinePage />} />

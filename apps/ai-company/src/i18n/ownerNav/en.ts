@@ -102,6 +102,12 @@ export const ownerNavEn = {
       why: 'Discuss decisions outside task execution',
       action: 'Open a chat or start a new thread',
     },
+    analysisTasks: {
+      label: 'Analysis tasks',
+      what: 'Read-only analysis by a local model',
+      why: 'Give a task and read the answer',
+      action: 'Describe the task, start, read Problem / Risk / Recommendation',
+    },
     runTask: {
       label: 'Run Task',
       what: 'Assign a task to an employee',

@@ -1,6 +1,7 @@
 import type { Messages } from './en'
 import { platformGlossaryTermsRu } from './platformGlossaryTerms.ru'
 import { ownerNavRu } from './ownerNav/ru'
+import { analysisTasksRu } from './analysis/ru'
 import { mobileRu } from './mobile/ru'
 
 export const ru: Messages = {
@@ -201,6 +202,7 @@ export const ru: Messages = {
     canvas: "Canvas компании"
   },
   ownerNav: ownerNavRu,
+  analysisTasks: analysisTasksRu,
   mobile: mobileRu,
   labels: {
     active: "Активные",

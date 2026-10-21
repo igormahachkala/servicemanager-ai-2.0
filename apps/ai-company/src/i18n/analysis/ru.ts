@@ -1,0 +1,58 @@
+import type { analysisTasksEn } from './en'
+
+export const analysisTasksRu: typeof analysisTasksEn = {
+  pageTitle: 'Задачи на анализ',
+  pageDescription:
+    'Поручите цифровому сотруднику анализ только на чтение. Локальная модель (Ollama) отвечает по схеме Проблема / Риск / Рекомендация / Трудоёмкость.',
+  form: {
+    title: 'Новая задача на анализ',
+    titleLabel: 'Название',
+    titlePlaceholder: 'например, Аудит диспетчера инструментов',
+    instructionsLabel: 'Что проанализировать',
+    instructionsPlaceholder:
+      'Опишите задачу. Модель видит только этот текст — вставьте код или опишите модуль.',
+    submit: 'Запустить анализ',
+    created: 'Задача создана',
+    autoApproveNote: 'Задачи только на чтение стартуют сразу (автономия включена).',
+    manualApproveNote: 'Задача будет ждать вашего одобрения.',
+  },
+  list: {
+    title: 'Задачи',
+    empty: 'Задач на анализ пока нет. Создайте первую слева.',
+  },
+  phase: {
+    waiting_owner: 'Ждёт одобрения',
+    in_progress: 'Модель работает',
+    accepted: 'Принято',
+    done: 'Ответ готов',
+    failed: 'Ошибка',
+    closed: 'Закрыта',
+  },
+  detail: {
+    empty: 'Выберите задачу, чтобы увидеть ответ.',
+    task: 'Задача',
+    answer: 'Ответ модели',
+    noAnswerYet: 'Ответа пока нет.',
+    working: 'Модель готовит ответ. Первый вызов может занять минуту, пока модель загружается.',
+    sectionsOk: 'Все четыре раздела на месте',
+    sectionsBad: 'Ответ не по схеме',
+    missing: 'нет',
+    emptySections: 'пустые',
+    errors: 'Ошибки',
+    model: 'Модель',
+    speed: 'Скорость',
+    tokens: 'Токены (запрос / ответ)',
+    duration: 'Время',
+    approve: 'Одобрить и запустить',
+    reject: 'Отклонить',
+    accept: 'Принять результат',
+    rework: 'Запустить заново',
+    status: 'Статус',
+    rawAnswer: 'Показать ответ целиком',
+  },
+  sectionLabels: { Problem: 'Проблема', Risk: 'Риск', Recommendation: 'Рекомендация', Effort: 'Трудоёмкость' } as Record<string, string>,
+  units: {
+    tokPerSec: 'ток/с',
+    sec: 'с',
+  },
+}
