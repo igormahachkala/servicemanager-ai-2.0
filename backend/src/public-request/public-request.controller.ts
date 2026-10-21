@@ -1,10 +1,12 @@
-﻿import { Body, Controller, Get, Param, Post, Query, Req, UploadedFiles, UseInterceptors } from '@nestjs/common'
+﻿import { Body, Controller, Get, Param, Post, Query, Req, UploadedFiles, UseFilters, UseGuards, UseInterceptors } from '@nestjs/common'
 import { FilesInterceptor } from '@nestjs/platform-express'
 
 import { PublicRequestService } from './public-request.service'
 import { PublicTokenQueryDto } from './dto/public-token-query.dto'
 import { CreatePublicRequestDto } from './dto/create-public-request.dto'
 import { PublicRequestContextQueryDto } from './dto/public-request-context-query.dto'
+import { PublicRequestIpThrottleGuard } from './public-request-ip-throttle'
+import { PublicUploadExceptionFilter, publicPhotoUploadOptions } from './public-request-upload'
 
 @Controller('public/request')
 export class PublicRequestController {
@@ -26,7 +28,9 @@ export class PublicRequestController {
   }
 
   @Post(':token')
-  @UseInterceptors(FilesInterceptor('photos', 3))
+  @UseGuards(PublicRequestIpThrottleGuard)
+  @UseFilters(PublicUploadExceptionFilter)
+  @UseInterceptors(FilesInterceptor('photos', 3, publicPhotoUploadOptions))
   create(
     @Param('token') token: string,
     @Body() dto: CreatePublicRequestDto,
