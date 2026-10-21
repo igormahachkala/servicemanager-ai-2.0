@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { DebugController } from './common/debug.controller'; // TODO_REMOVE_AFTER_STABILIZATION
+import { appControllers } from './app.controllers';
 
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -14,8 +13,6 @@ import { CompanyModule } from './company/company.module';
 import { LocationsModule } from './locations/locations.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { AnalyticsModule } from './analytics/analytics.module';
-import { HealthController } from './health.controller';
-import { VersionController } from './version.controller';
 
 import { SlaModule } from './sla/sla.module';
 import { AssignmentModule } from './assignment/assignment.module';
@@ -68,7 +65,7 @@ import { PlannerModule } from './planner/planner.module';
     MaterialsModule,
     PlannerModule,
   ],
-  controllers: [AppController, HealthController, VersionController, DebugController], // DebugController: TODO_REMOVE_AFTER_STABILIZATION
+  controllers: appControllers(),
   providers: [AppService],
 })
 export class AppModule {}
