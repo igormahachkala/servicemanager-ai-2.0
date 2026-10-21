@@ -73,23 +73,34 @@ export class AnalyticsController {
    * и параметры области, что у остальной Analytics V2.
    */
   @Get('contractors')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.PLATFORM_ADMIN)
+  @Roles(
+    UserRole.ADMIN,
+    UserRole.MASTER,
+    UserRole.DISPATCHER,
+    UserRole.NETWORK_DIRECTOR,
+    UserRole.PLATFORM_ADMIN,
+  )
   @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
   contractors(
-    @Req() req: any,
+    @Req() req: { user: { companyId: string; id: string; role: UserRole } },
     @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
     @Query('companyId') companyId?: string,
     @Query('contractorCompanyId') contractorCompanyId?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
   ) {
-    return this.svc.getContractorsAnalytics(req.user.companyId, req.user.id, req.user.role as UserRole, {
-      companyId,
-      linkedClientCompanyId,
-      contractorCompanyId,
-      from,
-      to,
-    })
+    return this.svc.getContractorsAnalytics(
+      req.user.companyId,
+      req.user.id,
+      req.user.role,
+      {
+        companyId,
+        linkedClientCompanyId,
+        contractorCompanyId,
+        from,
+        to,
+      },
+    );
   }
 
   @Get('overview')

@@ -27,8 +27,8 @@ import {
   selectVisibleContractors,
   type ContractorRef,
   type ContractorTicketRow,
-} from './analytics-contractors'
-import { activeServiceContractWhere } from '../service-contracts/service-contract-window'
+} from './analytics-contractors';
+import { activeServiceContractWhere } from '../service-contracts/service-contract-window';
 
 @Injectable()
 export class AnalyticsService {
@@ -941,46 +941,71 @@ export class AnalyticsService {
     actorUserId: string,
     actorRole: UserRole,
     params: {
-      companyId?: string
-      linkedClientCompanyId?: string
-      contractorCompanyId?: string
-      from?: string
-      to?: string
+      companyId?: string;
+      linkedClientCompanyId?: string;
+      contractorCompanyId?: string;
+      from?: string;
+      to?: string;
     },
   ) {
-    const scope = await this.resolveScope(actorCompanyId, actorRole, params.companyId, params.linkedClientCompanyId)
-    const scopeCompanyId = scope.scopeCompanyId
-    const now = new Date()
+    const scope = await this.resolveScope(
+      actorCompanyId,
+      actorRole,
+      params.companyId,
+      params.linkedClientCompanyId,
+    );
+    const scopeCompanyId = scope.scopeCompanyId;
+    const now = new Date();
 
     const contracts = await this.prisma.serviceContract.findMany({
-      where: { clientCompanyId: scopeCompanyId, ...activeServiceContractWhere(now) },
-      select: { providerCompanyId: true, role: true, providerCompany: { select: { name: true } } },
-    })
+      where: {
+        clientCompanyId: scopeCompanyId,
+        ...activeServiceContractWhere(now),
+      },
+      select: {
+        providerCompanyId: true,
+        role: true,
+        providerCompany: { select: { name: true } },
+      },
+    });
     const contracted: ContractorRef[] = contracts.map((contract) => ({
       companyId: contract.providerCompanyId,
       name: contract.providerCompany?.name ?? contract.providerCompanyId,
       role: contract.role,
-    }))
+    }));
 
-    const visible = selectVisibleContractors(scope.visibilityMode, actorCompanyId, contracted)
-    let contractors = visible.contractors
+    const visible = selectVisibleContractors(
+      scope.visibilityMode,
+      actorCompanyId,
+      contracted,
+    );
+    let contractors = visible.contractors;
     if (params.contractorCompanyId) {
       // Чужой или несуществующий подрядчик — одинаковый ответ: существование
       // организации вне области не является информацией для актора.
-      contractors = contractors.filter((c) => c.companyId === params.contractorCompanyId)
-      if (contractors.length === 0) throw new NotFoundException('Contractor not found')
+      contractors = contractors.filter(
+        (c) => c.companyId === params.contractorCompanyId,
+      );
+      if (contractors.length === 0)
+        throw new NotFoundException('Contractor not found');
     }
-    const includeUnattributed = visible.includeUnattributed && !params.contractorCompanyId
+    const includeUnattributed =
+      visible.includeUnattributed && !params.contractorCompanyId;
 
-    const dateFilter = parseAnalyticsDateRange(params.from, params.to)
-    const period = { from: dateFilter.gte ?? null, to: dateFilter.lte ?? null }
-    const meta = { scopeCompanyId, visibilityMode: scope.visibilityMode }
+    const dateFilter = parseAnalyticsDateRange(params.from, params.to);
+    const period = { from: dateFilter.gte ?? null, to: dateFilter.lte ?? null };
+    const meta = { scopeCompanyId, visibilityMode: scope.visibilityMode };
 
     if (contractors.length === 0 && !includeUnattributed) {
-      return { contractors: [], unattributed: null, period, meta }
+      return { contractors: [], unattributed: null, period, meta };
     }
 
-    const baseWhere = await this.resolveScopedTicketWhere(actorCompanyId, actorUserId, actorRole, scope)
+    const baseWhere = await this.resolveScopedTicketWhere(
+      actorCompanyId,
+      actorUserId,
+      actorRole,
+      scope,
+    );
     /*
      * Без сводки «не отнесено» заявки чужих исполнителей не нужны вовсе —
      * атрибуция повторяется в самом запросе, и строки других организаций не
@@ -990,8 +1015,12 @@ export class AnalyticsService {
       ...(Object.keys(dateFilter).length ? { createdAt: dateFilter } : {}),
       ...(includeUnattributed
         ? {}
-        : { assignedTechnician: { companyId: { in: contractors.map((c) => c.companyId) } } }),
-    })
+        : {
+            assignedTechnician: {
+              companyId: { in: contractors.map((c) => c.companyId) },
+            },
+          }),
+    });
 
     const [ticketRows, firstResponseRows] = await Promise.all([
       this.prisma.ticket.findMany({
@@ -1010,14 +1039,18 @@ export class AnalyticsService {
       }),
       this.prisma.ticketStatusHistory.groupBy({
         by: ['ticketId'],
-        where: { toStatus: { in: [...SLA_RESPONSE_STATUSES] }, ticket: ticketWhere },
+        where: {
+          toStatus: { in: [...SLA_RESPONSE_STATUSES] },
+          ticket: ticketWhere,
+        },
         _min: { createdAt: true },
       }),
-    ])
+    ]);
 
-    const firstResponseByTicket = new Map<string, Date>()
+    const firstResponseByTicket = new Map<string, Date>();
     for (const row of firstResponseRows) {
-      if (row._min.createdAt) firstResponseByTicket.set(row.ticketId, row._min.createdAt)
+      if (row._min.createdAt)
+        firstResponseByTicket.set(row.ticketId, row._min.createdAt);
     }
 
     const rows: ContractorTicketRow[] = ticketRows.map((row) => ({
@@ -1032,13 +1065,18 @@ export class AnalyticsService {
       slaDueAt: row.slaDueAt ?? null,
       slaBreachedAt: row.slaBreachedAt ?? null,
       firstResponseAt: firstResponseByTicket.get(row.id) ?? null,
-    }))
+    }));
 
     return {
-      ...buildContractorAnalytics({ rows, contractors, includeUnattributed, now }),
+      ...buildContractorAnalytics({
+        rows,
+        contractors,
+        includeUnattributed,
+        now,
+      }),
       period,
       meta,
-    }
+    };
   }
 
   private hasStatus(status: string) {

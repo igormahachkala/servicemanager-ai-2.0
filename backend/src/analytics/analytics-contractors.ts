@@ -228,7 +228,9 @@ function buildItem(
         city: location.city,
         totalTickets: location.totalTickets,
         newTickets: bucket.filter((row) => row.status === 'NEW').length,
-        inProgressTickets: location.activeTickets - bucket.filter((row) => row.status === 'NEW').length,
+        inProgressTickets:
+          location.activeTickets -
+          bucket.filter((row) => row.status === 'NEW').length,
         awaitingAcceptanceTickets: location.awaitingClosureTickets,
         doneTickets: location.completedTickets,
         canceledTickets: location.canceledTickets,

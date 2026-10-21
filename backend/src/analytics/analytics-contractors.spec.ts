@@ -29,7 +29,9 @@ const SUB_B: ContractorRef = {
 };
 
 let seq = 0;
-function row(overrides: Partial<ContractorTicketRow> = {}): ContractorTicketRow {
+function row(
+  overrides: Partial<ContractorTicketRow> = {},
+): ContractorTicketRow {
   seq += 1;
   return {
     id: `t-${seq}`,
@@ -56,17 +58,35 @@ describe('attributeTicket', () => {
 
   it('без исполнителя и с исполнителем без договора — не подрядчик', () => {
     expect(attributeTicket({ executorCompanyId: null }, ids)).toBeNull();
-    expect(attributeTicket({ executorCompanyId: 'client-staff' }, ids)).toBeNull();
+    expect(
+      attributeTicket({ executorCompanyId: 'client-staff' }, ids),
+    ).toBeNull();
   });
 });
 
 describe('buildContractorAnalytics — показатели', () => {
   it('выполненные, активные, просроченные, ожидают закрытия, отменённые', () => {
     const rows = [
-      row({ executorCompanyId: 'sub-a', status: 'DONE', closedAt: new Date('2026-10-01T11:00:00.000Z') }),
-      row({ executorCompanyId: 'sub-a', status: 'IN_PROGRESS', slaDueAt: new Date('2026-10-19T00:00:00.000Z') }),
-      row({ executorCompanyId: 'sub-a', status: 'ASSIGNED', slaDueAt: new Date('2026-10-21T00:00:00.000Z') }),
-      row({ executorCompanyId: 'sub-a', status: 'AWAITING_ACCEPTANCE', slaDueAt: new Date('2026-10-19T00:00:00.000Z') }),
+      row({
+        executorCompanyId: 'sub-a',
+        status: 'DONE',
+        closedAt: new Date('2026-10-01T11:00:00.000Z'),
+      }),
+      row({
+        executorCompanyId: 'sub-a',
+        status: 'IN_PROGRESS',
+        slaDueAt: new Date('2026-10-19T00:00:00.000Z'),
+      }),
+      row({
+        executorCompanyId: 'sub-a',
+        status: 'ASSIGNED',
+        slaDueAt: new Date('2026-10-21T00:00:00.000Z'),
+      }),
+      row({
+        executorCompanyId: 'sub-a',
+        status: 'AWAITING_ACCEPTANCE',
+        slaDueAt: new Date('2026-10-19T00:00:00.000Z'),
+      }),
       row({ executorCompanyId: 'sub-a', status: 'FIELD_COMPLETE' }),
       row({ executorCompanyId: 'sub-a', status: 'CANCELED' }),
     ];
@@ -126,10 +146,30 @@ describe('buildContractorAnalytics — показатели', () => {
 
   it('города и объекты: разбиение без потерь, «Город не указан» последним', () => {
     const rows = [
-      row({ executorCompanyId: 'sub-a', locationId: 'msk-1', locationName: 'Тверская', city: 'Москва' }),
-      row({ executorCompanyId: 'sub-a', locationId: 'msk-2', locationName: 'Арбат', city: ' москва ' }),
-      row({ executorCompanyId: 'sub-a', locationId: 'msk-2', locationName: 'Арбат', city: ' москва ' }),
-      row({ executorCompanyId: 'sub-a', locationId: 'x', locationName: 'Без города', city: null }),
+      row({
+        executorCompanyId: 'sub-a',
+        locationId: 'msk-1',
+        locationName: 'Тверская',
+        city: 'Москва',
+      }),
+      row({
+        executorCompanyId: 'sub-a',
+        locationId: 'msk-2',
+        locationName: 'Арбат',
+        city: ' москва ',
+      }),
+      row({
+        executorCompanyId: 'sub-a',
+        locationId: 'msk-2',
+        locationName: 'Арбат',
+        city: ' москва ',
+      }),
+      row({
+        executorCompanyId: 'sub-a',
+        locationId: 'x',
+        locationName: 'Без города',
+        city: null,
+      }),
     ];
 
     const [item] = buildContractorAnalytics({
@@ -145,12 +185,16 @@ describe('buildContractorAnalytics — показатели', () => {
       ['msk-1', 1],
     ]);
     // «Москва» и « москва » — одна группа по ключу нормализации V2.
-    expect(item.cities.map((c) => [c.cityKey, c.totalTickets, c.locationsCount])).toEqual([
+    expect(
+      item.cities.map((c) => [c.cityKey, c.totalTickets, c.locationsCount]),
+    ).toEqual([
       ['москва', 3, 2],
       ['__no_city__', 1, 1],
     ]);
     expect(item.cities[1].cityLabel).toBe('Город не указан');
-    expect(item.cities.reduce((s, c) => s + c.totalTickets, 0)).toBe(item.counters.totalTickets);
+    expect(item.cities.reduce((s, c) => s + c.totalTickets, 0)).toBe(
+      item.counters.totalTickets,
+    );
   });
 
   it('работа не приписывается подрядчику без связи с исполнителем', () => {
@@ -182,7 +226,9 @@ describe('buildContractorAnalytics — показатели', () => {
       now: NOW,
     });
 
-    expect(result.contractors.map((c) => [c.companyId, c.counters.totalTickets])).toEqual([
+    expect(
+      result.contractors.map((c) => [c.companyId, c.counters.totalTickets]),
+    ).toEqual([
       ['sub-b', 1],
       ['sub-a', 0],
     ]);
@@ -203,19 +249,41 @@ describe('selectVisibleContractors', () => {
   });
 
   it('PRIMARY видит себя и SECONDARY, но не другой PRIMARY', () => {
-    const otherPrimary: ContractorRef = { companyId: 'other-primary', name: 'Другой', role: 'PRIMARY' };
-    const visible = selectVisibleContractors('provider_primary', 'prov-primary', [...contracted, otherPrimary]);
-    expect(visible.contractors.map((c) => c.companyId).sort()).toEqual(['prov-primary', 'sub-a', 'sub-b']);
+    const otherPrimary: ContractorRef = {
+      companyId: 'other-primary',
+      name: 'Другой',
+      role: 'PRIMARY',
+    };
+    const visible = selectVisibleContractors(
+      'provider_primary',
+      'prov-primary',
+      [...contracted, otherPrimary],
+    );
+    expect(visible.contractors.map((c) => c.companyId).sort()).toEqual([
+      'prov-primary',
+      'sub-a',
+      'sub-b',
+    ]);
   });
 
   it('SECONDARY видит только себя и без сводки по чужим заявкам', () => {
-    const visible = selectVisibleContractors('provider_secondary', 'sub-a', contracted);
+    const visible = selectVisibleContractors(
+      'provider_secondary',
+      'sub-a',
+      contracted,
+    );
     expect(visible.contractors.map((c) => c.companyId)).toEqual(['sub-a']);
     expect(visible.includeUnattributed).toBe(false);
   });
 
   it('SECONDARY без собственного SECONDARY-договора не видит никого', () => {
-    expect(selectVisibleContractors('provider_secondary', 'prov-primary', contracted).contractors).toEqual([]);
-    expect(selectVisibleContractors('provider_secondary', 'stranger', contracted).contractors).toEqual([]);
+    expect(
+      selectVisibleContractors('provider_secondary', 'prov-primary', contracted)
+        .contractors,
+    ).toEqual([]);
+    expect(
+      selectVisibleContractors('provider_secondary', 'stranger', contracted)
+        .contractors,
+    ).toEqual([]);
   });
 });

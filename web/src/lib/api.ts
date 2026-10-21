@@ -3783,6 +3783,63 @@ export async function analyticsOverview(params?: { linkedClientCompanyId?: strin
   return request<AnalyticsOverviewResponse>('/analytics/overview' + suffix)
 }
 
+/** SMA-ANALYTICS-CONTRACTORS: счётчики подрядчика, строки объекта и сводка «не отнесено». */
+export type ContractorCountersDto = {
+  totalTickets: number
+  /** DONE. */
+  completedTickets: number
+  /** Работа сделана, ждёт приёмки или закрытия родителя. */
+  awaitingClosureTickets: number
+  /** NEW, ASSIGNED, IN_PROGRESS. */
+  activeTickets: number
+  /** Активные с прошедшим сроком SLA. */
+  overdueTickets: number
+  canceledTickets: number
+}
+
+export type ContractorAnalyticsItem = {
+  companyId: string
+  name: string
+  role: ServiceContractRole
+  counters: ContractorCountersDto
+  sla: SlaMetricsDto
+  cities: CityAnalyticsGroup[]
+  locations: Array<
+    ContractorCountersDto & { locationId: string; locationName: string | null; city: string | null; sla: SlaMetricsDto }
+  >
+}
+
+export type ContractorAnalyticsResponse = {
+  contractors: ContractorAnalyticsItem[]
+  /** null — сводка актору не положена (SECONDARY видит только свою работу). */
+  unattributed: ContractorCountersDto | null
+  period: { from: string | null; to: string | null }
+  meta: { scopeCompanyId: string; visibilityMode: string }
+}
+
+export type AnalyticsContractorsParams = {
+  linkedClientCompanyId?: string
+  companyId?: string
+  contractorCompanyId?: string
+  from?: string
+  to?: string
+}
+
+/** Строка запроса для /analytics/contractors: пустые параметры не уходят. */
+export function buildAnalyticsContractorsQuery(params?: AnalyticsContractorsParams): string {
+  const search = new URLSearchParams()
+  for (const key of ['linkedClientCompanyId', 'companyId', 'contractorCompanyId', 'from', 'to'] as const) {
+    const value = params?.[key]?.trim()
+    if (value) search.set(key, value)
+  }
+  const query = search.toString()
+  return query ? '?' + query : ''
+}
+
+export async function analyticsContractors(params?: AnalyticsContractorsParams): Promise<ContractorAnalyticsResponse> {
+  return request<ContractorAnalyticsResponse>('/analytics/contractors' + buildAnalyticsContractorsQuery(params))
+}
+
 export async function analyticsLocations(params?: {
   linkedClientCompanyId?: string
   companyId?: string
