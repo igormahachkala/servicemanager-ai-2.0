@@ -74,7 +74,10 @@ function makeLocationsService(rows: any[], scope?: { scopeCompanyId: string; vis
         return []
       }),
       count: jest.fn().mockResolvedValue(0),
+      // Phase 2: источник времён для SLA. Пустой — раскладка по статусам от него не зависит.
+      findMany: jest.fn().mockResolvedValue([]),
     },
+    ticketStatusHistory: { groupBy: jest.fn().mockResolvedValue([]) },
     company: { findUnique: jest.fn() },
   }
   const service = new AnalyticsService(prisma as any, {} as any, {} as any)

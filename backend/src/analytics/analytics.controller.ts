@@ -50,6 +50,7 @@ export class AnalyticsController {
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('minTickets') minTickets?: string,
+    @Query('includeEmptyLocations') includeEmptyLocations?: string,
   ) {
     return this.svc.getLocationsAnalytics(req.user.companyId, req.user.id, req.user.role as UserRole, {
       companyId,
@@ -59,6 +60,11 @@ export class AnalyticsController {
       from,
       to,
       minTickets: minTickets ? Math.max(1, parseInt(minTickets, 10) || 1) : undefined,
+      /*
+       * A2: только строка "true" включает показ точек без заявок. Любое другое
+       * значение и отсутствие параметра оставляют прежнее поведение с порогом 1.
+       */
+      includeEmptyLocations: includeEmptyLocations === 'true',
     })
   }
 
