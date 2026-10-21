@@ -1,0 +1,142 @@
+import { useEffect, useMemo } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import * as api from '../lib/api'
+import { getAvailableWorkspaces, type WorkspaceCard } from '../lib/navigation'
+import { SmaBrandLogo } from '../components/SmaBrandLogo'
+import '../assets/css/import/login-page.css'
+import './WorkspaceSelectorPage.css'
+
+/**
+ * Экран выбора контура после логина (/workspaces).
+ *
+ * Показывает доступные пользователю контуры (управленческая часть, мобильная
+ * версия, IT Company). Видимость карточек считается в `getAvailableWorkspaces`
+ * (IT Company — строго PLATFORM_ADMIN). Если контур ровно один — сразу
+ * переходим в него, не показывая выбор. То же, если в query задан
+ * workspace=management|mobile|it и этот контур пользователю доступен.
+ */
+export function WorkspaceSelectorPage() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const queryClient = useQueryClient()
+  const returnTo = useMemo(() => api.getReturnToFromSearch(location.search), [location.search])
+  const preferredWorkspace = useMemo(
+    () => api.getWorkspaceFromSearch(location.search),
+    [location.search],
+  )
+  const isMaxReturnTo = returnTo.startsWith('/max')
+
+  const meQ = useQuery({
+    queryKey: ['me'],
+    queryFn: () => isMaxReturnTo ? api.meWithTimeout(12_000) : api.me(),
+    retry: isMaxReturnTo ? false : undefined,
+  })
+  const user = meQ.data
+
+  const scope = useMemo(() => (user ? api.restoreScopeForUser(user) : {}), [user])
+  const workspaces = useMemo(() => getAvailableWorkspaces(user), [user])
+
+  function resolvePath(ws: WorkspaceCard): string {
+    /*
+     * SMA-MOBILE-MANAGEMENT-NAVIGATION-116E.
+     *
+     * `returnTo` применяется только если он принадлежит выбранному контуру.
+     * Прежде он применялся к любой карточке: техник уходил из мобильной версии
+     * в управленческую часть, в адресе оставался `returnTo=/m/...`, и выбор
+     * «Управленческая часть» возвращал его в мобильную. Петля, из которой
+     * в управленческую часть не попасть вовсе.
+     *
+     * Чужой `returnTo` не ошибка и не повод ругаться: человек просто выбрал
+     * другой контур, и его домашний путь — правильный ответ.
+     */
+    const ownReturnTo = api.returnToForWorkspace(returnTo, ws.id)
+    if (ownReturnTo) return ownReturnTo
+    // IT Company не использует scope-параметры заявок.
+    if (ws.id === 'it') return ws.to
+    return api.appendScopeToPath(ws.to, scope, user)
+  }
+
+  // Невалидный токен — назад на логин.
+  useEffect(() => {
+    if (!meQ.isError) return
+    api.clearToken()
+    queryClient.clear()
+    navigate(api.loginPathWithReturnTo(returnTo), { replace: true })
+  }, [meQ.isError, navigate, queryClient, returnTo])
+
+  const autoWorkspace = useMemo(() => {
+    if (!user) return null
+    if (workspaces.length === 1) return workspaces[0]
+    return workspaces.find((ws) => ws.id === preferredWorkspace) ?? null
+  }, [user, workspaces, preferredWorkspace])
+
+  useEffect(() => {
+    if (!autoWorkspace) return
+    navigate(resolvePath(autoWorkspace), { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoWorkspace])
+
+  async function logout() {
+    await api.logoutSmaSession()
+    queryClient.clear()
+    navigate(api.loginPathWithReturnTo(returnTo), { replace: true })
+  }
+
+  function enter(ws: WorkspaceCard) {
+    navigate(resolvePath(ws), { replace: true })
+  }
+
+  return (
+    <div className="page loginPageRoot">
+      <div className="card loginPageCard">
+        <div className="loginPageHeader">
+          <h1 style={{ marginBottom: 6 }}>Сервис Менеджер</h1>
+          <div className="muted">Платформа управления сервисом</div>
+        </div>
+
+        <div className="loginModePicker">
+          <div>
+            <h2 style={{ marginBottom: 6 }}>Выберите контур</h2>
+            <div className="muted small">{user?.email || '—'}</div>
+          </div>
+
+          {meQ.isLoading || autoWorkspace ? (
+            <div className="muted small">Загрузка…</div>
+          ) : workspaces.length === 0 ? (
+            <div className="alert">Нет доступных контуров. Обратитесь в поддержку.</div>
+          ) : (
+            <div className="loginModeGrid">
+              {workspaces.map((ws) => (
+                <button key={ws.id} type="button" className="loginModeBtn" onClick={() => enter(ws)}>
+                  <span className="loginModeTitle">{ws.title}</span>
+                  <span className="loginModeHint">{ws.description}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          <button type="button" className="ghost loginModeReset" onClick={() => { void logout() }}>
+            Войти другим аккаунтом
+          </button>
+        </div>
+
+        <div
+          style={{
+            marginTop: 40,
+            paddingTop: 20,
+            borderTop: '1px solid rgba(255,255,255,0.06)',
+            textAlign: 'center',
+            fontSize: 12,
+            opacity: 0.8,
+          }}
+        >
+          <SmaBrandLogo variant="footer" style={{ marginBottom: 10, opacity: 0.9 }} />
+          <div className="muted small">Разработано компанией СМА-Тех</div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default WorkspaceSelectorPage

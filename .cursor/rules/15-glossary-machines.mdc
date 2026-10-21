@@ -1,0 +1,17 @@
+---
+description: Машины и окружения SMA — не путать IP с веткой Docker
+alwaysApply: true
+---
+
+Машина — VPS. Окружение — код ветки в Docker на какой-то машине.
+
+- **Stage-машина** — VPS `194.67.92.186` (hostname `cv7954879`). SSH: `sma-spare`, пользователь `deploy`.
+- **Production-машина** — VPS `194.67.101.37` (hostname `cv6225249`). SSH: `sma`, пользователь `deploy`.
+- **Production-окружение** — код ветки `prod` в Docker. Контейнеры `sma_web`, `sma_backend`, `sma_postgres`. Каталог `/opt/sma-prod`.
+- **Stage-окружение** — код ветки `beta` в Docker. Контейнеры `sma_stage_web`, `sma_stage_backend`, `sma_stage_postgres`. Каталог `/opt/sma-beta`.
+
+На Stage-машине может стоять и Production-окружение (клон). Это не делает `194.67.92.186` Production-машиной.
+
+`ssh sma` всегда Production-машина. Команды Stage-окружения после переноса — `ssh sma-spare`.
+
+Два Production-окружения с одним `MAX_BOT_API_TOKEN` (polling) нельзя держать running одновременно. На Stage-машине Production-окружение останавливать сразу после включения, до любых работ со Stage-окружением.
