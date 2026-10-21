@@ -63,7 +63,7 @@ export function TicketContextPanel({ ticket }: TicketContextPanelProps) {
                 : '—'}
             </div>
             <div>
-              <b>Оборудование / Asset:</b>{' '}
+              <b>Оборудование:</b>{' '}
               {ticket.equipment
                 ? [ticket.equipment.name, ticket.equipment.type, ticket.equipment.status].filter(Boolean).join(' · ')
                 : '—'}
@@ -72,7 +72,7 @@ export function TicketContextPanel({ ticket }: TicketContextPanelProps) {
         </details>
 
         <details>
-          <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Extra info</summary>
+          <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Дополнительно</summary>
           <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
             {ticket.location?.platformCode || ticket.location?.externalCode ? (
               <div className="muted small">

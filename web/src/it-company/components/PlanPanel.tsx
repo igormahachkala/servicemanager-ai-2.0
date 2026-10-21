@@ -50,7 +50,7 @@ export function PlanPanel({ steps, collapsed, onToggle }: Props) {
       >
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ color: '#6b7280', fontFamily: 'monospace' }}>②</span>
-          <span>Plan</span>
+          <span>План</span>
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 12, color: '#6b7280' }}>

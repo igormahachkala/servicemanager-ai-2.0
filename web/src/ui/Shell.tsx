@@ -556,7 +556,7 @@ export function Shell() {
           <div className="panel" style={{ margin: '12px 24px 0', border: '1px solid #f59e0b', background: '#fff7ed', color: '#7c2d12' }}>
             <div className="row" style={{ alignItems: 'center' }}>
               <div>
-                <div style={{ fontWeight: 700 }}>Режим impersonation</div>
+                <div style={{ fontWeight: 700 }}>Режим входа под администратором</div>
                 <div className="small">Вы вошли как {roleDisplayLabel} компании {impersonationMeta.companyName}</div>
               </div>
               <button type="button" className="ghost" onClick={exitImpersonation}>Вернуться в PLATFORM_ADMIN</button>

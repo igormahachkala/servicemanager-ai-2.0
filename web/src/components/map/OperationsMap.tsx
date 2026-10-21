@@ -54,7 +54,7 @@ export function OperationsMap({ locations, selectedLocationId, onSelect }: Props
             <Tooltip>
               <div style={{ minWidth: 180 }}>
                 <div style={{ fontWeight: 700 }}>{location.name}</div>
-                <div>{location.address || 'Address not specified'}</div>
+                <div>{location.address || 'Адрес не указан'}</div>
                 <div style={{ marginTop: 6 }}>Tickets today: {location.ticketsToday}</div>
               </div>
             </Tooltip>

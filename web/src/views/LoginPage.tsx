@@ -84,7 +84,7 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
 
         <form onSubmit={handleLogin} className="form">
           <label>
-            Email
+            Эл. почта
             <input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
