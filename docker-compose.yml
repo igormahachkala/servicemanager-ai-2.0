@@ -11,6 +11,26 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  migrate:
+    build:
+      context: ./backend
+      args:
+        SMA_RELEASE_ENFORCE: ${SMA_RELEASE_ENFORCE:-false}
+        SMA_RELEASE_COMMIT_SHA: ${SMA_RELEASE_COMMIT_SHA:-local}
+        SMA_RELEASE_ENVIRONMENT: ${SMA_RELEASE_ENVIRONMENT:-local}
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: npx prisma migrate deploy
+    restart: "no"
 
   backend:
     build:
@@ -26,13 +46,28 @@ services:
     env_file:
       - .env
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     volumes:
       - ./uploads:/app/uploads
       - /opt/maxbot_reports:/opt/maxbot_reports
     environment:
       MAX_BOT_REPORTS_DIR: /opt/maxbot_reports
-    command: sh -lc "npx prisma migrate deploy && npm run start:prod"
+    command: npm run start:prod
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health/ready').then((r)=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
 
   web:
     build:
@@ -44,7 +79,8 @@ services:
     ports:
       - "4173:4173"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   postgres_data:
