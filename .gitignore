@@ -51,3 +51,7 @@ graphify-out/
 backup_before_*.sql
 *.sql
 !backend/prisma/migrations/**/migration.sql
+
+# local tooling / benchmark output
+.claude/
+scripts/output/

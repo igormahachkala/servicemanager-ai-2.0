@@ -1,0 +1,26 @@
+{
+  "description": "Curated Ollama models for coding benchmark (AI-COMPANY local toolchain)",
+  "groups": {
+    "coders": [
+      "deepseek-coder-v2:16b",
+      "qwen2.5-coder:7b",
+      "qwen2.5-coder:14b",
+      "qwen3-coder:30b",
+      "codestral:22b",
+      "devstral:24b"
+    ],
+    "general": [
+      "qwen3.6:27b",
+      "qwen3.6:latest"
+    ],
+    "vision": [
+      "qwen2.5vl:7b"
+    ]
+  },
+  "pull_targets": [
+    "qwen2.5-coder:14b",
+    "qwen3-coder:30b",
+    "codestral:22b",
+    "devstral:24b"
+  ]
+}
