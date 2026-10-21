@@ -66,15 +66,15 @@ function validateUrl(value: string) {
 }
 
 function validateCreateForm(value: EmployeeFormValue) {
-  if (!normalizeEmail(value.email)) return 'Email обязателен'
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value.email))) return 'Некорректный формат email'
+  if (!normalizeEmail(value.email)) return 'Эл. почта обязательна'
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value.email))) return 'Некорректный формат эл. почты'
   if (value.password.trim().length < 8) return 'Пароль должен содержать минимум 8 символов'
   return validateUrl(value.avatarUrl)
 }
 
 function validateEditForm(value: EmployeeFormValue) {
-  if (!normalizeEmail(value.email)) return 'Email обязателен'
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value.email))) return 'Некорректный формат email'
+  if (!normalizeEmail(value.email)) return 'Эл. почта обязательна'
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value.email))) return 'Некорректный формат эл. почты'
   if (value.password.trim() && value.password.trim().length < 8) return 'Пароль должен содержать минимум 8 символов'
   return validateUrl(value.avatarUrl)
 }
