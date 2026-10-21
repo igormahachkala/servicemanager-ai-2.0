@@ -235,6 +235,26 @@ describe('AnalyticsService Phase 2: города, пустые точки, SLA',
     } as any)
   }
 
+  it('период ISO-моментом и категория только сужают выборку: область компании остаётся в where', async () => {
+    const prisma = buildPrisma({
+      locations: [{ id: 'busy', name: 'С заявками', city: 'Москва' }],
+      statusRows: [{ locationId: 'busy', status: TicketStatus.NEW, count: 1 }],
+    })
+    await buildService(prisma).getLocationsAnalytics(CLIENT, 'admin-1', UserRole.ADMIN, {
+      from: '2026-10-15T00:00:00.000+03:00',
+      to: '2026-10-21T23:59:59.999+03:00',
+      categoryId: 'cat-1',
+    })
+
+    const where = prisma.ticket.count.mock.calls[0][0].where
+    expect(where.AND[0]).toEqual({ companyId: CLIENT })
+    expect(where.AND[1].createdAt.gte.toISOString()).toBe('2026-10-14T21:00:00.000Z')
+    expect(where.AND[1].createdAt.lte.toISOString()).toBe('2026-10-21T20:59:59.999Z')
+    expect(where.AND[1].problemCategoryId).toBe('cat-1')
+    // Те же where у SLA-выборки: заявки другой компании сюда не попадут.
+    expect(prisma.ticket.findMany.mock.calls[0][0].where).toEqual(where)
+  })
+
   it('A2: по умолчанию точка без заявок не показывается', async () => {
     const prisma = buildPrisma({
       locations: [

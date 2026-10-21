@@ -1,26 +1,30 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import {
+  ALL_CITIES_KEY,
+  NO_CITY_KEY,
+  groupLocationsByCity,
+  retainSelectableLocations,
+  selectVisibleLocations,
+  toggleLocationSelection,
+} from '../lib/locationAnalyticsGrouping'
+import {
+  analyticsPeriodRange,
+  buildStatusRows,
+  canUseManagementAnalytics,
+  citySlaRows,
+  describePeriod,
+  formatCount,
+  selectScopeMetrics,
+  type AnalyticsPeriod,
+} from '../lib/mobileAnalyticsMetrics'
+import { describeOpenOverdue, describeSlaBasis, formatMinutes, formatOpenOverdue, formatSlaRatio } from '../lib/slaFormat'
 import { mobilePath } from './mobileRoute'
 import { MobileSectionBackLink } from './MobileSectionBackLink'
 import { mobileTicketNumberTitle, mobileTicketStatusLabelRu } from './mobileTicketDisplay'
-
-/**
- * Роли с доступом к /analytics/overview и /analytics/locations (backend RolesGuard).
- * Прочие роли (TECHNICIAN, CLIENT, ADMIN_PROVIDER, …) получают 403 → для них только
- * контекст по локациям (/tickets/analytics/context, доступен всем ролям).
- */
-const ANALYTICS_ADMIN_ROLES = new Set<string>([
-  'ADMIN',
-  'MASTER',
-  'DISPATCHER',
-  'NETWORK_DIRECTOR',
-  'PLATFORM_ADMIN',
-])
-
-type AnalyticsPeriod = '7d' | '30d' | '90d' | '365d' | 'custom'
 
 const PERIOD_CHIPS: Array<[AnalyticsPeriod, string]> = [
   ['7d', '7д'],
@@ -39,14 +43,6 @@ const STATUS_FILTER: Array<[api.TicketStatus, string]> = [
   ['CANCELED', 'Отменённые'],
 ]
 
-/** Соответствие строки распределения статусу заявки (для фильтра статусов). */
-const STATUS_ROW_CODE: Record<string, api.TicketStatus> = {
-  new: 'NEW',
-  assigned: 'ASSIGNED',
-  inprogress: 'IN_PROGRESS',
-  done: 'DONE',
-}
-
 function toggleInSet<T>(prev: Set<T>, value: T): Set<T> {
   const next = new Set(prev)
   if (next.has(value)) next.delete(value)
@@ -54,10 +50,11 @@ function toggleInSet<T>(prev: Set<T>, value: T): Set<T> {
   return next
 }
 
-type AnalyticsView = 'overview' | 'top-objects' | 'top-cats' | 'overdue' | 'contractors' | 'equipment'
+type AnalyticsView = 'overview' | 'city-sla' | 'top-objects' | 'top-cats' | 'overdue' | 'contractors' | 'equipment'
 
 const ANALYTICS_VIEWS: Array<[AnalyticsView, string]> = [
   ['overview', 'Обзор'],
+  ['city-sla', 'SLA по городам'],
   ['top-objects', 'ТОП объектов'],
   ['top-cats', 'ТОП категорий'],
   ['overdue', 'Просрочки'],
@@ -65,37 +62,10 @@ const ANALYTICS_VIEWS: Array<[AnalyticsView, string]> = [
   ['equipment', 'Оборудование'],
 ]
 
-/** Минуты → человекочитаемое «Ч ч» / «М мин». */
-function fmtMinutes(min?: number | null): string {
-  if (min == null || !Number.isFinite(min)) return '—'
-  if (min < 60) return `${Math.round(min)} мин`
-  return `${(min / 60).toFixed(1)} ч`
-}
-
-/** Диапазон дат для /analytics/locations (from/to = YYYY-MM-DD). Overview периода не поддерживает. */
-function periodRange(period: AnalyticsPeriod, from: string, to: string): { from?: string; to?: string } {
-  if (period === 'custom') return { from: from || undefined, to: to || undefined }
-  const days = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 365
-  const now = new Date()
-  const start = new Date(now)
-  start.setDate(start.getDate() - days)
-  const iso = (d: Date) => d.toISOString().slice(0, 10)
-  return { from: iso(start), to: iso(now) }
-}
-
-function periodLabelOf(period: AnalyticsPeriod, from: string, to: string): string {
-  switch (period) {
-    case '7d':
-      return 'За 7 дней'
-    case '30d':
-      return 'За 30 дней'
-    case '90d':
-      return 'За 90 дней'
-    case '365d':
-      return 'За 365 дней'
-    default:
-      return from && to ? `${from} — ${to}` : 'Произвольный период'
-  }
+/** 403 — показать понятную причину, а не сырой текст ответа. */
+function queryErrorText(error: unknown): string {
+  if (error instanceof api.ApiRequestError && error.status === 403) return 'Нет доступа к управленческой аналитике для вашей роли.'
+  return error instanceof Error ? error.message : ''
 }
 
 function TablerIcon({ children }: { children: ReactNode }) {
@@ -170,26 +140,32 @@ export function MobileAnalytics() {
   const location = useLocation()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
-  const role = meQ.data?.role
-  const isAnalyticsAdmin = !!role && ANALYTICS_ADMIN_ROLES.has(role)
+  // Роль из @Roles И серверный флаг ManagementSurface — иначе экран упирается в 403.
+  const isAnalyticsAdmin = canUseManagementAnalytics(meQ.data)
 
-  // Период применяется к /analytics/locations (ADMIN). Overview/context дат не поддерживают.
+  // Период — локальные сутки пользователя; уходит в /analytics/locations ISO-моментами.
   const [period, setPeriod] = useState<AnalyticsPeriod>('30d')
   const [customFrom, setCustomFrom] = useState('')
   const [customTo, setCustomTo] = useState('')
-  const range = useMemo(() => periodRange(period, customFrom, customTo), [period, customFrom, customTo])
-  const periodLabel = periodLabelOf(period, customFrom, customTo)
+  const range = useMemo(() => analyticsPeriodRange(period, customFrom, customTo), [period, customFrom, customTo])
+  const periodLabel = describePeriod(period, range)
 
-  // Bottom-sheet «Параметры»: клиентские фильтры по уже загруженным locations-данным.
+  /*
+   * «Город → Точки» — представление уже разрешённых строк, как на десктопе
+   * (LocationAnalyticsPage): ни город, ни точки в запрос не уходят, область
+   * доступа не меняется. Категория уходит в запрос (categoryId) — тогда итоги,
+   * города и SLA считает бэкенд, а не клиент.
+   */
   const [filterOpen, setFilterOpen] = useState(false)
-  const [selObjects, setSelObjects] = useState<Set<string>>(new Set())
-  const [selCats, setSelCats] = useState<Set<string>>(new Set())
+  const [selectedCityKey, setSelectedCityKey] = useState(ALL_CITIES_KEY)
+  const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>([])
+  const [categoryId, setCategoryId] = useState('')
   const [selStatuses, setSelStatuses] = useState<Set<api.TicketStatus>>(new Set())
-  const activeFilterCount = selObjects.size + selCats.size + selStatuses.size
 
   const resetFilters = () => {
-    setSelObjects(new Set())
-    setSelCats(new Set())
+    setSelectedCityKey(ALL_CITIES_KEY)
+    setSelectedLocationIds([])
+    setCategoryId('')
     setSelStatuses(new Set())
     setPeriod('30d')
     setCustomFrom('')
@@ -210,17 +186,28 @@ export function MobileAnalytics() {
     companyId: companyId || undefined,
   }
 
-  // ── Overview (ADMIN-only) — SLA %, счётчики open-by-status, backlog ──
+  // ── Overview — только динамика публичных заявок (периода не поддерживает) ──
   const overviewQ = useQuery({
     queryKey: ['mobile-analytics-overview', linkedClientCompanyId, companyId],
     queryFn: () => api.analyticsOverview(scopeParams),
     enabled: !!meQ.data && isAnalyticsAdmin,
   })
 
-  // ── Locations (ADMIN-only) — per-location + разбивка по категориям + done/overdue, за период ──
+  /*
+   * Locations за период — источник всех цифр управленческого экрана.
+   * includeEmptyLocations: точки без заявок нужны в выборе города и точек,
+   * а в цифрах дают честный ноль.
+   */
+  const baseLocationsParams = { ...scopeParams, from: range.from, to: range.to, includeEmptyLocations: true }
+  const baseLocationsQ = useQuery({
+    queryKey: ['mobile-analytics-locations', linkedClientCompanyId, companyId, range.from, range.to, ''],
+    queryFn: () => api.analyticsLocations(baseLocationsParams),
+    enabled: !!meQ.data && isAnalyticsAdmin,
+  })
+  // С выбранной категорией — отдельный запрос; без неё ключ тот же и запрос один.
   const locationsQ = useQuery({
-    queryKey: ['mobile-analytics-locations', linkedClientCompanyId, companyId, range.from, range.to],
-    queryFn: () => api.analyticsLocations({ ...scopeParams, from: range.from, to: range.to }),
+    queryKey: ['mobile-analytics-locations', linkedClientCompanyId, companyId, range.from, range.to, categoryId],
+    queryFn: () => api.analyticsLocations({ ...baseLocationsParams, categoryId: categoryId || undefined }),
     enabled: !!meQ.data && isAnalyticsAdmin,
   })
 
@@ -231,7 +218,6 @@ export function MobileAnalytics() {
     enabled: !!meQ.data,
   })
 
-  // Готовые представления (селектор). Board тянем лениво — только для «Просрочки».
   const [analyticsView, setAnalyticsView] = useState<AnalyticsView>('overview')
   const boardQ = useQuery({
     queryKey: ['mobile-analytics-overdue-board', linkedClientCompanyId, companyId],
@@ -239,57 +225,53 @@ export function MobileAnalytics() {
     enabled: !!meQ.data && isAnalyticsAdmin && analyticsView === 'overdue',
   })
 
-  // Опции фильтров — из полного набора locations (не фильтрованного).
-  const objectOptions = useMemo<Array<[string, string]>>(() => {
-    const items = locationsQ.data?.items
-    if (!items) return []
-    return items.map((i) => [i.locationId, i.locationName] as [string, string])
-  }, [locationsQ.data])
+  // Состав городов, точек и категорий — из ответа без категории: выбор категории их не прячет.
+  const baseItems = useMemo(() => baseLocationsQ.data?.items ?? [], [baseLocationsQ.data])
+  const cityGroups = useMemo(() => groupLocationsByCity(baseItems), [baseItems])
+  const activeCityGroup = cityGroups.find((group) => group.cityKey === selectedCityKey) ?? null
+  const effectiveCityKey = activeCityGroup ? selectedCityKey : ALL_CITIES_KEY
+  const effectiveLocationIds = useMemo(
+    () => retainSelectableLocations(baseItems, effectiveCityKey, selectedLocationIds),
+    [baseItems, effectiveCityKey, selectedLocationIds],
+  )
 
-  const categoryOptions = useMemo<string[]>(() => {
-    const items = locationsQ.data?.items
-    if (!items) return []
-    const set = new Set<string>()
-    for (const loc of items) for (const c of loc.categories) set.add(c.categoryName)
-    return [...set].sort((a, b) => a.localeCompare(b, 'ru'))
-  }, [locationsQ.data])
+  const categoryOptions = useMemo<Array<[string, string]>>(() => {
+    const byId = new Map<string, string>()
+    for (const loc of baseItems) for (const c of loc.categories) byId.set(c.categoryId, c.categoryName)
+    return [...byId.entries()].sort((a, b) => a[1].localeCompare(b[1], 'ru'))
+  }, [baseItems])
+  const activeCategoryName = categoryOptions.find(([id]) => id === categoryId)?.[1] ?? null
 
-  // Locations, отфильтрованные по выбранным объектам (клиентски).
-  const filteredItems = useMemo(() => {
-    const items = locationsQ.data?.items ?? []
-    return selObjects.size ? items.filter((i) => selObjects.has(i.locationId)) : items
-  }, [locationsQ.data, selObjects])
+  const activeFilterCount =
+    (effectiveCityKey !== ALL_CITIES_KEY ? 1 : 0) + effectiveLocationIds.length + (categoryId ? 1 : 0) + selStatuses.size
 
-  // Кол-во заявок точки в разрезе выбранных категорий (или всех, если категории не выбраны).
-  const catScopedCount = (loc: api.LocationAnalyticsItem): number => {
-    if (!selCats.size) return loc.totalTickets
-    return loc.categories.filter((c) => selCats.has(c.categoryName)).reduce((s, c) => s + c.ticketsCount, 0)
-  }
-  const catScopedOverdue = (loc: api.LocationAnalyticsItem): number => {
-    if (!selCats.size) return loc.overdueTickets
-    return loc.categories.filter((c) => selCats.has(c.categoryName)).reduce((s, c) => s + c.overdueCount, 0)
+  function selectCity(cityKey: string) {
+    setSelectedCityKey(cityKey)
+    setSelectedLocationIds([]) // точки другого города в выборе не остаются
   }
 
-  // KPI: админ — счётчики из объекто/категорийно-фильтрованных locations + SLA% из overview
-  // (без периода/фильтров); прочие — из context (фильтров нет).
-  const kpi = useMemo(() => {
-    if (isAnalyticsAdmin) {
-      if (!locationsQ.data) return { total: null, overdue: null, done: null, slaPercent: overviewQ.data?.sla?.okPercent ?? null }
-      let total = 0
-      let overdue = 0
-      let done = 0
-      for (const i of filteredItems) {
-        total += catScopedCount(i)
-        overdue += catScopedOverdue(i)
-        done += selCats.size ? 0 : i.doneTickets // «Выполнено» в разрезе категорий недоступно (нет split)
-      }
-      return {
-        total,
-        overdue,
-        done: selCats.size ? null : done,
-        slaPercent: overviewQ.data?.sla?.okPercent ?? null,
-      }
-    }
+  // Строки выбранной области (порядок бэкенда — по убыванию заявок).
+  const visibleItems = useMemo(
+    () => selectVisibleLocations(locationsQ.data?.items ?? [], effectiveCityKey, effectiveLocationIds),
+    [locationsQ.data, effectiveCityKey, effectiveLocationIds],
+  )
+  const visibleLocationIds = useMemo(() => new Set(visibleItems.map((i) => i.locationId)), [visibleItems])
+
+  // KPI: организация — summary, город — cityGroups бэкенда, точки — их строки.
+  const scopeMetrics = useMemo(
+    () => selectScopeMetrics(locationsQ.data, effectiveCityKey, effectiveLocationIds),
+    [locationsQ.data, effectiveCityKey, effectiveLocationIds],
+  )
+  const scopeSla = scopeMetrics?.sla ?? null
+  const scopeLabel = !scopeMetrics
+    ? ''
+    : scopeMetrics.scope === 'locations'
+      ? `${scopeMetrics.locationsCount} ${scopeMetrics.locationsCount === 1 ? 'точка' : scopeMetrics.locationsCount < 5 ? 'точки' : 'точек'}`
+      : scopeMetrics.scope === 'city'
+        ? activeCityGroup?.cityLabel ?? ''
+        : 'вся организация'
+
+  const contextKpi = useMemo(() => {
     const ctx = contextQ.data
     if (!ctx) return { active: null, done: null, total: null }
     let active = 0
@@ -299,32 +281,17 @@ export function MobileAnalytics() {
       done += l.DONE
     }
     return { active, done, total: ctx.meta.totalTickets }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAnalyticsAdmin, overviewQ.data, locationsQ.data, contextQ.data, filteredItems, selCats])
+  }, [contextQ.data])
 
-  // Топ категорий (ADMIN) — агрегат по объекто-фильтрованным локациям, с учётом фильтра категорий.
   const topCategories = useMemo<Array<[string, number]>>(() => {
-    if (!locationsQ.data) return []
     const map = new Map<string, number>()
-    for (const loc of filteredItems) {
-      for (const c of loc.categories) {
-        if (selCats.size && !selCats.has(c.categoryName)) continue
-        map.set(c.categoryName, (map.get(c.categoryName) || 0) + c.ticketsCount)
-      }
+    for (const loc of visibleItems) {
+      for (const c of loc.categories) map.set(c.categoryName, (map.get(c.categoryName) || 0) + c.ticketsCount)
     }
-    return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
-  }, [locationsQ.data, filteredItems, selCats])
+    return [...map.entries()].filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1]).slice(0, 5)
+  }, [visibleItems])
 
-  // Точки с наибольшим числом заявок (ADMIN → locations с учётом фильтров, прочие → context).
   const topLocations = useMemo<Array<[string, number]>>(() => {
-    if (isAnalyticsAdmin) {
-      if (!locationsQ.data) return []
-      return filteredItems
-        .map((l) => [l.locationName, selCats.size ? catScopedCount(l) : l.newTickets + l.inProgressTickets] as [string, number])
-        .filter(([, n]) => n > 0)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-    }
     const byLoc = contextQ.data?.byLocation
     if (!byLoc) return []
     return byLoc
@@ -332,56 +299,44 @@ export function MobileAnalytics() {
       .filter(([, n]) => n > 0)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAnalyticsAdmin, locationsQ.data, contextQ.data, filteredItems, selCats])
+  }, [contextQ.data])
 
-  // ТОП объектов (представление): все отфильтрованные локации, сортировка по числу заявок.
-  const topObjects = useMemo(() => {
-    return [...filteredItems]
-      .map((l) => ({ id: l.locationId, name: l.locationName, total: catScopedCount(l), overdue: catScopedOverdue(l) }))
-      .filter((o) => o.total > 0)
-      .sort((a, b) => b.total - a.total)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredItems, selCats])
+  const topObjects = useMemo(
+    () =>
+      visibleItems
+        .map((l) => ({ id: l.locationId, name: l.locationName, city: l.city, total: l.totalTickets, overdue: l.overdueTickets }))
+        .filter((o) => o.total > 0),
+    [visibleItems],
+  )
 
-  // Просрочки (представление): board-карточки со slaBreached, ПОЛНОСТЬЮ фильтр-aware.
+  // Просрочки: текущие карточки доски (без периода), с учётом города/точек, категории и статусов.
   const overdueTickets = useMemo(() => {
     const cols = boardQ.data?.columns ?? []
+    const narrowLocations = effectiveCityKey !== ALL_CITIES_KEY || effectiveLocationIds.length > 0
     const out: api.TicketCard[] = []
     for (const col of cols) {
       for (const c of col.cards) {
         if (!c.slaBreached) continue
-        if (selObjects.size && !(c.location?.id && selObjects.has(c.location.id))) continue
-        if (selCats.size && !(c.category?.name && selCats.has(c.category.name))) continue
+        if (narrowLocations && !(c.location?.id && visibleLocationIds.has(c.location.id))) continue
+        if (activeCategoryName && c.category?.name !== activeCategoryName) continue
         if (selStatuses.size && !selStatuses.has(c.status)) continue
         out.push(c)
       }
     }
     return out
-  }, [boardQ.data, selObjects, selCats, selStatuses])
+  }, [boardQ.data, effectiveCityKey, effectiveLocationIds, visibleLocationIds, activeCategoryName, selStatuses])
 
-  // График динамики: ТОЛЬКО публичные заявки (overview.publicIntake.byDay), последние 14 дней.
   const dynamicsByDay = useMemo(() => (overviewQ.data?.publicIntake?.byDay ?? []).slice(-14), [overviewQ.data])
   const dynamicsMax = Math.max(1, ...dynamicsByDay.map((d) => d.total))
 
-  // Оборудование (представление): счётчики заявок из context.byEquipment (реальные).
   const equipmentRows = useMemo(() => {
     const eq = contextQ.data?.byEquipment ?? []
     return [...eq].sort((a, b) => b.total - a.total)
   }, [contextQ.data])
 
-  // Распределение по статусам (ADMIN — 4 строки incl. Назначенные; прочие — 3 из context).
-  const statusRows = useMemo(() => {
-    if (isAnalyticsAdmin) {
-      const open = overviewQ.data?.openByStatus
-      const done = locationsQ.data?.summary?.doneTotal
-      return [
-        { label: 'Новые', value: open?.NEW ?? null, mod: 'new' },
-        { label: 'Назначенные', value: open?.ASSIGNED ?? null, mod: 'assigned' },
-        { label: 'В работе', value: open?.IN_PROGRESS ?? null, mod: 'inprogress' },
-        { label: 'Выполненные', value: done ?? null, mod: 'done' },
-      ] as const
-    }
+  // Распределение: у управленца — за период по выбранной области; у прочих — context.
+  const adminStatusRows = useMemo(() => buildStatusRows(scopeMetrics, selStatuses), [scopeMetrics, selStatuses])
+  const contextStatusRows = useMemo(() => {
     const ctx = contextQ.data
     let n = 0
     let ip = 0
@@ -394,38 +349,106 @@ export function MobileAnalytics() {
       }
     }
     return [
-      { label: 'Новые', value: ctx ? n : null, mod: 'new' },
-      { label: 'В работе', value: ctx ? ip : null, mod: 'inprogress' },
-      { label: 'Выполненные', value: ctx ? d : null, mod: 'done' },
-    ] as const
-  }, [isAnalyticsAdmin, overviewQ.data, locationsQ.data, contextQ.data])
+      { key: 'new', label: 'Новые', value: ctx ? n : null },
+      { key: 'inprogress', label: 'В работе', value: ctx ? ip : null },
+      { key: 'done', label: 'Выполненные', value: ctx ? d : null },
+    ]
+  }, [contextQ.data])
 
-  // Фильтр статусов применяется к строкам распределения (ADMIN).
-  const visibleStatusRows = useMemo(() => {
-    if (!isAnalyticsAdmin || !selStatuses.size) return statusRows
-    return statusRows.filter((r) => {
-      const code = STATUS_ROW_CODE[r.mod]
-      return code ? selStatuses.has(code) : false
-    })
-  }, [isAnalyticsAdmin, statusRows, selStatuses])
+  const cityRows = useMemo(() => citySlaRows(locationsQ.data?.cityGroups), [locationsQ.data])
+  const hasServerCities = Array.isArray(locationsQ.data?.cityGroups)
 
   const scope = scopeParams
   const homeHref = api.appendScopeToPath(mobilePath(location.pathname, ''), scope, meQ.data)
 
-  const fmt = (n: number | null | undefined) => (n == null ? '—' : String(n))
   const maxCat = topCategories[0]?.[1] || 1
   const maxLoc = topLocations[0]?.[1] || 1
-  const statusMax = Math.max(1, ...visibleStatusRows.map((r) => r.value ?? 0))
+  const adminStatusMax = Math.max(1, ...adminStatusRows.map((r) => r.value ?? 0))
+  const contextStatusMax = Math.max(1, ...contextStatusRows.map((r) => r.value ?? 0))
   const pct = (n: number, max: number) => Math.round((n / max) * 100)
 
-  // Загрузка KPI: у админа счётчики из locations, SLA — из overview.
+  // Пока данных нет: загрузка — «…», ошибка — прочерк, но не ноль.
   const kpiLoading = isAnalyticsAdmin ? locationsQ.isLoading : contextQ.isLoading
+  const kpiValue = (value: number | null | undefined) => (kpiLoading ? '…' : formatCount(value))
 
   const subtitle = isAnalyticsAdmin
     ? activeFilterCount > 0
       ? `${periodLabel} · ${activeFilterCount} фильтр${activeFilterCount === 1 ? '' : activeFilterCount < 5 ? 'а' : 'ов'}`
       : periodLabel
     : 'Сводка по текущему контуру заявок'
+
+  const periodChips = (inSheet: boolean) => (
+    <div className="mobileAnalyticsPeriodRow">
+      {PERIOD_CHIPS.map(([key, label]) => (
+        <button
+          key={key}
+          type="button"
+          className={`mobileAnalyticsPeriodChip${period === key ? ' mobileAnalyticsPeriodChip--active' : ''}`}
+          onClick={() => setPeriod(key)}
+          aria-pressed={period === key}
+        >
+          {inSheet && key === 'custom' ? 'Произвольный' : label}
+        </button>
+      ))}
+    </div>
+  )
+
+  const customRange = (style?: CSSProperties) =>
+    period === 'custom' ? (
+      <div className="mobileAnalyticsCustomRow" style={style}>
+        <input type="date" className="mobileAnalyticsDateInput" value={customFrom} max={customTo || undefined} onChange={(e) => setCustomFrom(e.target.value)} aria-label="Дата с" />
+        <input type="date" className="mobileAnalyticsDateInput" value={customTo} min={customFrom || undefined} onChange={(e) => setCustomTo(e.target.value)} aria-label="Дата по" />
+      </div>
+    ) : null
+
+  const cityPicker = (
+    <div className="mobileAnalyticsFilterChips">
+      <button
+        type="button"
+        className={`mobileAnalyticsFilterChip${effectiveCityKey === ALL_CITIES_KEY ? ' mobileAnalyticsFilterChip--active' : ''}`}
+        onClick={() => selectCity(ALL_CITIES_KEY)}
+        aria-pressed={effectiveCityKey === ALL_CITIES_KEY}
+      >
+        Все города
+      </button>
+      {cityGroups.map((group) => (
+        <button
+          key={group.cityKey}
+          type="button"
+          className={`mobileAnalyticsFilterChip${effectiveCityKey === group.cityKey ? ' mobileAnalyticsFilterChip--active' : ''}`}
+          onClick={() => selectCity(group.cityKey)}
+          aria-pressed={effectiveCityKey === group.cityKey}
+          style={group.cityKey === NO_CITY_KEY ? { fontStyle: 'italic' } : undefined}
+        >
+          {group.cityLabel} · {group.locationsCount}
+        </button>
+      ))}
+    </div>
+  )
+
+  const pointPicker = activeCityGroup ? (
+    <div className="mobileAnalyticsFilterChips">
+      <button
+        type="button"
+        className={`mobileAnalyticsFilterChip${effectiveLocationIds.length === 0 ? ' mobileAnalyticsFilterChip--active' : ''}`}
+        onClick={() => setSelectedLocationIds([])}
+        aria-pressed={effectiveLocationIds.length === 0}
+      >
+        Все точки
+      </button>
+      {activeCityGroup.locations.map((loc) => (
+        <button
+          key={loc.locationId}
+          type="button"
+          className={`mobileAnalyticsFilterChip${effectiveLocationIds.includes(loc.locationId) ? ' mobileAnalyticsFilterChip--active' : ''}`}
+          onClick={() => setSelectedLocationIds((prev) => toggleLocationSelection(prev, loc.locationId))}
+          aria-pressed={effectiveLocationIds.includes(loc.locationId)}
+        >
+          {loc.locationName}
+        </button>
+      ))}
+    </div>
+  ) : null
 
   return (
     <div className="mobileSection">
@@ -447,39 +470,15 @@ export function MobileAnalytics() {
         ) : null}
       </div>
 
-      {/* Период (только ADMIN — /analytics/locations поддерживает from/to) */}
       {isAnalyticsAdmin ? (
         <>
-          <div className="mobileAnalyticsPeriodRow">
-            {PERIOD_CHIPS.map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                className={`mobileAnalyticsPeriodChip${period === key ? ' mobileAnalyticsPeriodChip--active' : ''}`}
-                onClick={() => setPeriod(key)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          {period === 'custom' ? (
-            <div className="mobileAnalyticsCustomRow">
-              <input
-                type="date"
-                className="mobileAnalyticsDateInput"
-                value={customFrom}
-                max={customTo || undefined}
-                onChange={(e) => setCustomFrom(e.target.value)}
-                aria-label="Дата с"
-              />
-              <input
-                type="date"
-                className="mobileAnalyticsDateInput"
-                value={customTo}
-                min={customFrom || undefined}
-                onChange={(e) => setCustomTo(e.target.value)}
-                aria-label="Дата по"
-              />
+          {periodChips(false)}
+          {customRange()}
+          {/* Город и точки — на экране, а не только в «Параметрах»: это главный разрез. */}
+          {cityGroups.length > 0 ? (
+            <div className="mobileAnalyticsScopePicker">
+              {cityPicker}
+              {pointPicker}
             </div>
           ) : null}
         </>
@@ -491,24 +490,22 @@ export function MobileAnalytics() {
           <>
             <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--active">
               <div className="mobileAnalyticsCardIcon">{KpiIconTickets}</div>
-              <div className="mobileAnalyticsValue">{kpiLoading ? '…' : fmt(kpi.total)}</div>
+              <div className="mobileAnalyticsValue">{kpiValue(scopeMetrics?.totalTickets)}</div>
               <div className="mobileAnalyticsLabel">Заявок за период</div>
             </div>
             <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--overdue">
               <div className="mobileAnalyticsCardIcon">{KpiIconOverdue}</div>
-              <div className="mobileAnalyticsValue">{kpiLoading ? '…' : fmt(kpi.overdue)}</div>
+              <div className="mobileAnalyticsValue">{kpiValue(scopeMetrics?.overdueTickets)}</div>
               <div className="mobileAnalyticsLabel">Просрочено</div>
             </div>
             <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--done">
               <div className="mobileAnalyticsCardIcon">{KpiIconDone}</div>
-              <div className="mobileAnalyticsValue">{kpiLoading ? '…' : fmt(kpi.done)}</div>
+              <div className="mobileAnalyticsValue">{kpiValue(scopeMetrics?.doneTickets)}</div>
               <div className="mobileAnalyticsLabel">Выполнено</div>
             </div>
             <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--sla">
               <div className="mobileAnalyticsCardIcon">{KpiIconSla}</div>
-              <div className="mobileAnalyticsValue">
-                {overviewQ.isLoading ? '…' : kpi.slaPercent == null ? '—' : `${kpi.slaPercent}%`}
-              </div>
+              <div className="mobileAnalyticsValue">{kpiLoading ? '…' : formatSlaRatio(scopeSla?.withinSlaRatio)}</div>
               <div className="mobileAnalyticsLabel">SLA соблюдён</div>
             </div>
           </>
@@ -516,53 +513,48 @@ export function MobileAnalytics() {
           <>
             <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--active">
               <div className="mobileAnalyticsCardIcon">{KpiIconActive}</div>
-              <div className="mobileAnalyticsValue">{kpiLoading ? '…' : fmt(kpi.active)}</div>
+              <div className="mobileAnalyticsValue">{kpiValue(contextKpi.active)}</div>
               <div className="mobileAnalyticsLabel">Активные заявки</div>
             </div>
             <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--done">
               <div className="mobileAnalyticsCardIcon">{KpiIconDone}</div>
-              <div className="mobileAnalyticsValue">{kpiLoading ? '…' : fmt(kpi.done)}</div>
+              <div className="mobileAnalyticsValue">{kpiValue(contextKpi.done)}</div>
               <div className="mobileAnalyticsLabel">Выполнено</div>
             </div>
             <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--total">
               <div className="mobileAnalyticsCardIcon">{KpiIconTickets}</div>
-              <div className="mobileAnalyticsValue">{kpiLoading ? '…' : fmt(kpi.total)}</div>
+              <div className="mobileAnalyticsValue">{kpiValue(contextKpi.total)}</div>
               <div className="mobileAnalyticsLabel">Всего заявок</div>
             </div>
           </>
         )}
       </div>
 
-      {/* SLA/сроки период не учитывают — честная пометка */}
-      {isAnalyticsAdmin ? (
-        <div className="mobileAnalyticsSlaNote">SLA соблюдён — за всё окно, период не применяется.</div>
+      {isAnalyticsAdmin && scopeMetrics ? (
+        <div className="mobileAnalyticsSlaNote">
+          {scopeLabel}
+          {activeCategoryName ? ` · ${activeCategoryName}` : ''}
+          {' · SLA: '}
+          {scopeSla ? describeSlaBasis(scopeSla) : 'нет данных'}
+        </div>
       ) : null}
 
-      {/* Ошибки запросов — не ломают экран, показываем баннером */}
       {isAnalyticsAdmin && overviewQ.isError ? (
-        <div className="mobileNotice mobileNoticeError">
-          Не удалось загрузить обзор. {String((overviewQ.error as any)?.message || '')}
-        </div>
+        <div className="mobileNotice mobileNoticeError">Не удалось загрузить обзор. {queryErrorText(overviewQ.error)}</div>
       ) : null}
       {isAnalyticsAdmin && locationsQ.isError ? (
-        <div className="mobileNotice mobileNoticeError">
-          Не удалось загрузить данные по точкам. {String((locationsQ.error as any)?.message || '')}
-        </div>
+        <div className="mobileNotice mobileNoticeError">Не удалось загрузить данные по точкам. {queryErrorText(locationsQ.error)}</div>
       ) : null}
       {!isAnalyticsAdmin && contextQ.isError ? (
-        <div className="mobileNotice mobileNoticeError">
-          Не удалось загрузить аналитику. {String((contextQ.error as any)?.message || '')}
-        </div>
+        <div className="mobileNotice mobileNoticeError">Не удалось загрузить аналитику. {queryErrorText(contextQ.error)}</div>
       ) : null}
 
-      {/* Для не-админа: обзор (SLA, сроки, нагрузка) недоступен */}
       {!isAnalyticsAdmin && meQ.data ? (
         <div className="mobileCard">
-          <div className="mobileMeta">Обзор (SLA, сроки, нагрузка) доступен администратору.</div>
+          <div className="mobileMeta">Обзор (SLA, сроки, нагрузка) доступен управленческим ролям.</div>
         </div>
       ) : null}
 
-      {/* ADMIN: селектор готовых представлений + переключаемое тело */}
       {isAnalyticsAdmin ? (
         <>
           <div className="mobileAnalyticsViewSelectWrap">
@@ -580,16 +572,73 @@ export function MobileAnalytics() {
             </select>
           </div>
 
-          {/* Обзор — динамика + сроки + распределение по статусам */}
           {analyticsView === 'overview' ? (
             <>
+              <div className="mobileCard">
+                <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>SLA · {scopeLabel || '—'}</div>
+                {locationsQ.isLoading ? (
+                  <div className="mobileMeta">Загрузка…</div>
+                ) : scopeSla ? (
+                  <>
+                    <div className="mobileAnalyticsTiming">
+                      <div>
+                        <div className="mobileAnalyticsTimingVal">{formatMinutes(scopeSla.avgResponseMinutes)}</div>
+                        <div className="mobileAnalyticsTimingLabel">Ср. время реакции · по {formatCount(scopeSla.respondedCount)}</div>
+                      </div>
+                      <div>
+                        <div className="mobileAnalyticsTimingVal">{formatMinutes(scopeSla.avgResolutionMinutes)}</div>
+                        <div className="mobileAnalyticsTimingLabel">Ср. время решения · по {formatCount(scopeSla.resolvedCount)}</div>
+                      </div>
+                      <div>
+                        <div className="mobileAnalyticsTimingVal">{formatOpenOverdue(scopeSla)}</div>
+                        <div className="mobileAnalyticsTimingLabel">Просрочено сейчас · {describeOpenOverdue(scopeSla)}</div>
+                      </div>
+                      <div>
+                        <div className="mobileAnalyticsTimingVal">{formatCount(scopeSla.slaBreaches)}</div>
+                        <div className="mobileAnalyticsTimingLabel">Нарушения SLA за период</div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="mobileMeta">Нет данных SLA для выбранной области.</div>
+                )}
+              </div>
+
+              <div className="mobileCard">
+                <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Распределение по статусам</div>
+                {locationsQ.isLoading ? (
+                  <div className="mobileMeta">Загрузка…</div>
+                ) : adminStatusRows.length > 0 ? (
+                  <div className="mobileAnalyticsBarRows">
+                    {adminStatusRows.map(({ key, label, value }) => (
+                      <div key={key} className="mobileAnalyticsBarRow">
+                        <span className="mobileAnalyticsBarName">{label}</span>
+                        <span className="mobileAnalyticsBarCount">{formatCount(value)}</span>
+                        <div className="mobileAnalyticsBarTrack">
+                          <div className={`mobileAnalyticsBarFill mobileAnalyticsBarFill--${key}`} style={{ width: `${value == null ? 0 : pct(value, adminStatusMax)}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mobileMeta">Нет строк для выбранных статусов.</div>
+                )}
+                {scopeMetrics && scopeMetrics.ticketsOutsideRows > 0 ? (
+                  <div className="mobileMeta" style={{ marginTop: 8 }}>
+                    Ещё {formatCount(scopeMetrics.ticketsOutsideRows)} заявок — на деактивированных точках: в итоге учтены, в разбивке нет.
+                  </div>
+                ) : null}
+              </div>
+
               <div className="mobileCard">
                 <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Динамика</div>
                 {overviewQ.isLoading ? (
                   <div className="mobileMeta">Загрузка…</div>
+                ) : overviewQ.isError ? (
+                  <div className="mobileMeta">Нет данных.</div>
                 ) : dynamicsByDay.length > 0 ? (
                   <>
-                    <div className="mobileMeta" style={{ marginBottom: 8 }}>Публичные заявки по дням</div>
+                    <div className="mobileMeta" style={{ marginBottom: 8 }}>Публичные заявки по дням (14 дней, без учёта фильтров)</div>
                     <div className="mobileAnalyticsChart">
                       {dynamicsByDay.map((d, i) => (
                         <div
@@ -602,50 +651,52 @@ export function MobileAnalytics() {
                     </div>
                   </>
                 ) : (
-                  <div className="mobileMeta">Нет публичных заявок за период.</div>
-                )}
-                <div className="mobileAnalyticsFilterStub" style={{ marginTop: 10 }}>
-                  Полный тренд по всем источникам — в разработке.
-                </div>
-              </div>
-
-              <div className="mobileCard">
-                <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Сроки</div>
-                <div className="mobileAnalyticsTiming">
-                  <div>
-                    <div className="mobileAnalyticsTimingVal">{fmtMinutes(overviewQ.data?.timing?.meanTimeToAssignMinutes)}</div>
-                    <div className="mobileAnalyticsTimingLabel">Ср. время назначения</div>
-                  </div>
-                  <div>
-                    <div className="mobileAnalyticsTimingVal">{fmtMinutes(overviewQ.data?.timing?.meanTimeToResolveMinutes)}</div>
-                    <div className="mobileAnalyticsTimingLabel">Ср. время решения</div>
-                  </div>
-                </div>
-                <div className="mobileMeta" style={{ marginTop: 8 }}>Сроки — за всё окно (период/фильтры не применяются).</div>
-              </div>
-
-              <div className="mobileCard">
-                <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Распределение по статусам</div>
-                {visibleStatusRows.length > 0 ? (
-                  <div className="mobileAnalyticsBarRows">
-                    {visibleStatusRows.map(({ label, value, mod }) => (
-                      <div key={mod} className="mobileAnalyticsBarRow">
-                        <span className="mobileAnalyticsBarName">{label}</span>
-                        <span className="mobileAnalyticsBarCount">{fmt(value)}</span>
-                        <div className="mobileAnalyticsBarTrack">
-                          <div className={`mobileAnalyticsBarFill mobileAnalyticsBarFill--${mod}`} style={{ width: `${value == null ? 0 : pct(value, statusMax)}%` }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="mobileMeta">Нет строк для выбранных статусов.</div>
+                  <div className="mobileMeta">Публичных заявок нет.</div>
                 )}
               </div>
             </>
           ) : null}
 
-          {/* ТОП объектов */}
+          {/* SLA по городам — агрегаты бэкенда (cityGroups), без пересчёта на клиенте */}
+          {analyticsView === 'city-sla' ? (
+            <div className="mobileCard">
+              <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>SLA по городам</div>
+              {locationsQ.isLoading ? (
+                <div className="mobileMeta">Загрузка…</div>
+              ) : !hasServerCities ? (
+                <div className="mobileMeta">Нет данных: сервер не отдаёт агрегаты по городам.</div>
+              ) : cityRows.length > 0 ? (
+                <div className="mobileAnalyticsOverdueList">
+                  {cityRows.map((city) => (
+                    <button
+                      key={city.cityKey}
+                      type="button"
+                      className={`mobileAnalyticsOverdueRow mobileAnalyticsCityRow${effectiveCityKey === city.cityKey ? ' mobileAnalyticsCityRow--active' : ''}`}
+                      onClick={() => selectCity(effectiveCityKey === city.cityKey ? ALL_CITIES_KEY : city.cityKey)}
+                      aria-pressed={effectiveCityKey === city.cityKey}
+                    >
+                      <div className="mobileAnalyticsOverdueTop">
+                        <span className="mobileAnalyticsEquipName" style={city.cityKey === NO_CITY_KEY ? { fontStyle: 'italic' } : undefined}>
+                          {city.cityLabel}
+                        </span>
+                        <span className="mobileAnalyticsBarCount">{formatSlaRatio(city.sla?.withinSlaRatio)}</span>
+                      </div>
+                      <div className="mobileAnalyticsOverdueSub">
+                        {formatCount(city.locationsCount)} точ. · {formatCount(city.totalTickets)} заявок · {city.sla ? describeSlaBasis(city.sla) : 'нет данных SLA'}
+                      </div>
+                      <div className="mobileAnalyticsOverdueSub">
+                        Реакция {formatMinutes(city.sla?.avgResponseMinutes)} · Решение {formatMinutes(city.sla?.avgResolutionMinutes)} · Просрочено сейчас{' '}
+                        {city.sla ? formatOpenOverdue(city.sla) : '—'}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="mobileMeta">Нет заявок за период.</div>
+              )}
+            </div>
+          ) : null}
+
           {analyticsView === 'top-objects' ? (
             <div className="mobileCard">
               <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>ТОП объектов</div>
@@ -665,12 +716,11 @@ export function MobileAnalytics() {
                   ))}
                 </div>
               ) : (
-                <div className="mobileMeta">{locationsQ.isLoading ? 'Загрузка…' : 'Нет данных'}</div>
+                <div className="mobileMeta">{locationsQ.isLoading ? 'Загрузка…' : locationsQ.isError ? 'Нет данных' : 'Нет заявок за период.'}</div>
               )}
             </div>
           ) : null}
 
-          {/* ТОП категорий */}
           {analyticsView === 'top-cats' ? (
             <div className="mobileCard">
               <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>ТОП категорий</div>
@@ -687,19 +737,19 @@ export function MobileAnalytics() {
                   ))}
                 </div>
               ) : (
-                <div className="mobileMeta">{locationsQ.isLoading ? 'Загрузка…' : 'Нет данных'}</div>
+                <div className="mobileMeta">{locationsQ.isLoading ? 'Загрузка…' : locationsQ.isError ? 'Нет данных' : 'Нет заявок за период.'}</div>
               )}
             </div>
           ) : null}
 
-          {/* Просрочки — board-карточки slaBreached, фильтр-aware */}
           {analyticsView === 'overdue' ? (
             <div className="mobileCard">
-              <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Просрочки</div>
+              <div className="mobileSectionTitle" style={{ marginBottom: 4 }}>Просрочки</div>
+              <div className="mobileMeta" style={{ marginBottom: 10 }}>Текущие заявки с нарушенным SLA, без учёта периода.</div>
               {boardQ.isLoading ? (
                 <div className="mobileMeta">Загрузка…</div>
               ) : boardQ.isError ? (
-                <div className="mobileMeta">Не удалось загрузить список просрочек.</div>
+                <div className="mobileMeta">Не удалось загрузить список просрочек. {queryErrorText(boardQ.error)}</div>
               ) : overdueTickets.length > 0 ? (
                 <div className="mobileAnalyticsOverdueList">
                   {overdueTickets.map((t) => (
@@ -710,7 +760,7 @@ export function MobileAnalytics() {
                       </div>
                       <div className="mobileAnalyticsOverdueTitle">{t.title || t.category?.name || 'Без описания'}</div>
                       <div className="mobileAnalyticsOverdueSub">
-                        {(t.location?.name || t.pointName || 'Без точки')}
+                        {t.location?.name || t.pointName || 'Без точки'}
                         <span className="mobileAnalyticsOverdueSla"> · SLA просрочен</span>
                       </div>
                     </div>
@@ -722,7 +772,6 @@ export function MobileAnalytics() {
             </div>
           ) : null}
 
-          {/* Подрядчики — заглушка (нет данных в API) */}
           {analyticsView === 'contractors' ? (
             <div className="mobileCard">
               <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Подрядчики</div>
@@ -735,7 +784,6 @@ export function MobileAnalytics() {
             </div>
           ) : null}
 
-          {/* Оборудование — реальные счётчики заявок (context.byEquipment) + health TODO */}
           {analyticsView === 'equipment' ? (
             <div className="mobileCard">
               <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Оборудование</div>
@@ -754,7 +802,6 @@ export function MobileAnalytics() {
                       <div className="mobileAnalyticsOverdueSub">
                         {eq.locationName || 'Без точки'} · В работе {eq.NEW + eq.IN_PROGRESS} · Выполнено {eq.DONE}
                       </div>
-                      <div className="mobileAnalyticsOverdueSub">Статус ТО: — (нет данных)</div>
                     </div>
                   ))}
                 </div>
@@ -762,14 +809,13 @@ export function MobileAnalytics() {
                 <div className="mobileMeta">Нет данных по оборудованию.</div>
               )}
               <div className="mobileAnalyticsFilterStub" style={{ marginTop: 10 }}>
-                Статус ТО (Исправно / ТО / Неисправно) — после Equipment-модуля.
+                Счётчики — за всё время, без учёта периода и фильтров. Статус ТО — после Equipment-модуля.
               </div>
             </div>
           ) : null}
         </>
       ) : (
         <>
-          {/* Техник: контекст по точкам + распределение (context) */}
           <div className="mobileCard">
             <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Точки с наибольшим числом активных заявок</div>
             {contextQ.isSuccess && topLocations.length > 0 ? (
@@ -785,19 +831,19 @@ export function MobileAnalytics() {
                 ))}
               </div>
             ) : (
-              <div className="mobileMeta">{contextQ.isLoading ? 'Загрузка…' : 'Нет данных'}</div>
+              <div className="mobileMeta">{contextQ.isLoading ? 'Загрузка…' : contextQ.isError ? 'Нет данных' : 'Активных заявок нет.'}</div>
             )}
           </div>
 
           <div className="mobileCard">
             <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Распределение по статусам</div>
             <div className="mobileAnalyticsBarRows">
-              {statusRows.map(({ label, value, mod }) => (
-                <div key={mod} className="mobileAnalyticsBarRow">
+              {contextStatusRows.map(({ key, label, value }) => (
+                <div key={key} className="mobileAnalyticsBarRow">
                   <span className="mobileAnalyticsBarName">{label}</span>
-                  <span className="mobileAnalyticsBarCount">{fmt(value)}</span>
+                  <span className="mobileAnalyticsBarCount">{formatCount(value)}</span>
                   <div className="mobileAnalyticsBarTrack">
-                    <div className={`mobileAnalyticsBarFill mobileAnalyticsBarFill--${mod}`} style={{ width: `${value == null ? 0 : pct(value, statusMax)}%` }} />
+                    <div className={`mobileAnalyticsBarFill mobileAnalyticsBarFill--${key}`} style={{ width: `${value == null ? 0 : pct(value, contextStatusMax)}%` }} />
                   </div>
                 </div>
               ))}
@@ -816,7 +862,6 @@ export function MobileAnalytics() {
         </Link>
       </div>
 
-      {/* Bottom-sheet «Параметры» (модалка 42) — клиентские фильтры */}
       {filterOpen ? (
         <div className="mobileSheetBackdrop" onClick={() => setFilterOpen(false)}>
           <div className="mobileSheet" onClick={(e) => e.stopPropagation()}>
@@ -829,80 +874,49 @@ export function MobileAnalytics() {
             </div>
 
             <div className="mobileAnalyticsFilterBody">
-              {/* Период (синхронизирован с чипами на экране) */}
               <section>
                 <div className="mobileAnalyticsFilterLabel">Период</div>
-                <div className="mobileAnalyticsPeriodRow">
-                  {PERIOD_CHIPS.map(([key, label]) => (
-                    <button
-                      key={key}
-                      type="button"
-                      className={`mobileAnalyticsPeriodChip${period === key ? ' mobileAnalyticsPeriodChip--active' : ''}`}
-                      onClick={() => setPeriod(key)}
-                    >
-                      {key === 'custom' ? 'Произвольный' : label}
-                    </button>
-                  ))}
-                </div>
-                {period === 'custom' ? (
-                  <div className="mobileAnalyticsCustomRow" style={{ marginTop: 8 }}>
-                    <input type="date" className="mobileAnalyticsDateInput" value={customFrom} max={customTo || undefined} onChange={(e) => setCustomFrom(e.target.value)} aria-label="Дата с" />
-                    <input type="date" className="mobileAnalyticsDateInput" value={customTo} min={customFrom || undefined} onChange={(e) => setCustomTo(e.target.value)} aria-label="Дата по" />
-                  </div>
-                ) : null}
+                {periodChips(true)}
+                {customRange({ marginTop: 8 })}
               </section>
 
-              {/* Объекты */}
               <section>
-                <div className="mobileAnalyticsFilterLabel">
-                  Объекты {selObjects.size > 0 ? `(${selObjects.size})` : '(все)'}
-                </div>
-                {objectOptions.length > 0 ? (
+                <div className="mobileAnalyticsFilterLabel">Город</div>
+                {cityGroups.length > 0 ? cityPicker : <div className="mobileMeta">Нет данных по точкам.</div>}
+              </section>
+
+              {activeCityGroup ? (
+                <section>
+                  <div className="mobileAnalyticsFilterLabel">
+                    Точки города {effectiveLocationIds.length > 0 ? `(${effectiveLocationIds.length} из ${activeCityGroup.locationsCount})` : '(все)'}
+                  </div>
+                  {pointPicker}
+                </section>
+              ) : null}
+
+              <section>
+                <div className="mobileAnalyticsFilterLabel">Категория {activeCategoryName ? '' : '(все)'}</div>
+                {categoryOptions.length > 0 ? (
                   <div className="mobileAnalyticsFilterChips">
-                    {objectOptions.map(([id, name]) => (
+                    {categoryOptions.map(([id, name]) => (
                       <button
                         key={id}
                         type="button"
-                        className={`mobileAnalyticsFilterChip${selObjects.has(id) ? ' mobileAnalyticsFilterChip--active' : ''}`}
-                        onClick={() => setSelObjects((p) => toggleInSet(p, id))}
+                        className={`mobileAnalyticsFilterChip${categoryId === id ? ' mobileAnalyticsFilterChip--active' : ''}`}
+                        onClick={() => setCategoryId((prev) => (prev === id ? '' : id))}
+                        aria-pressed={categoryId === id}
                       >
                         {name}
                       </button>
                     ))}
                   </div>
                 ) : (
-                  <div className="mobileMeta">Нет данных по объектам.</div>
+                  <div className="mobileMeta">Нет заявок с категориями за период.</div>
                 )}
               </section>
 
-              {/* Категории */}
               <section>
-                <div className="mobileAnalyticsFilterLabel">
-                  Категории {selCats.size > 0 ? `(${selCats.size})` : '(все)'}
-                </div>
-                {categoryOptions.length > 0 ? (
-                  <div className="mobileAnalyticsFilterChips">
-                    {categoryOptions.map((name) => (
-                      <button
-                        key={name}
-                        type="button"
-                        className={`mobileAnalyticsFilterChip${selCats.has(name) ? ' mobileAnalyticsFilterChip--active' : ''}`}
-                        onClick={() => setSelCats((p) => toggleInSet(p, name))}
-                      >
-                        {name}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="mobileMeta">Нет данных по категориям.</div>
-                )}
-              </section>
-
-              {/* Статусы */}
-              <section>
-                <div className="mobileAnalyticsFilterLabel">
-                  Статусы {selStatuses.size > 0 ? `(${selStatuses.size})` : '(все)'}
-                </div>
+                <div className="mobileAnalyticsFilterLabel">Статусы {selStatuses.size > 0 ? `(${selStatuses.size})` : '(все)'}</div>
                 <div className="mobileAnalyticsFilterChips">
                   {STATUS_FILTER.map(([code, label]) => (
                     <button
@@ -910,6 +924,7 @@ export function MobileAnalytics() {
                       type="button"
                       className={`mobileAnalyticsFilterChip${selStatuses.has(code) ? ' mobileAnalyticsFilterChip--active' : ''}`}
                       onClick={() => setSelStatuses((p) => toggleInSet(p, code))}
+                      aria-pressed={selStatuses.has(code)}
                     >
                       {label}
                     </button>
@@ -917,12 +932,9 @@ export function MobileAnalytics() {
                 </div>
               </section>
 
-              {/* Подрядчики — заглушка (нет данных в API) */}
               <section>
                 <div className="mobileAnalyticsFilterLabel">Подрядчики</div>
-                <div className="mobileAnalyticsFilterStub">
-                  Аналитика по подрядчикам — после доработки API.
-                </div>
+                <div className="mobileAnalyticsFilterStub">Аналитика по подрядчикам — после доработки API.</div>
               </section>
 
               <div className="mobileAnalyticsFilterActions">
