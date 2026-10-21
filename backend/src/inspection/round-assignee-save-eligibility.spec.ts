@@ -43,7 +43,14 @@ function makeSuite(options: {
         _count: { runs: 0 },
       })),
       create: jest.fn(async ({ data }: any) => ({ id: 'schedule-1', ...data, runs: [] })),
-      update: jest.fn(async ({ data }: any) => ({ id: 'schedule-1', ...data, runs: [] })),
+      update: jest.fn(async ({ data }: any) => ({
+        id: 'schedule-1',
+        isActive: true,
+        nextDueAt: new Date('2026-10-01T09:00:00.000Z'),
+        graceDays: 0,
+        ...data,
+        runs: [],
+      })),
     },
   } as any;
   const contracts = {

@@ -4799,7 +4799,16 @@ export type InspectionSchedule = {
   assignedTo?: { id: string; email: string; firstName?: string | null; lastName?: string | null } | null
   _count?: { runs: number }
   /** Последнее исполнение плана: по нему определяется состояние визита. */
-  lastRun?: { id: string; status: InspectionRunStatus; completedAt?: string | null } | null
+  lastRun?: {
+    id: string
+    status: InspectionRunStatus
+    completedAt?: string | null
+    /** Срок визита, который закрывал обход. */
+    dueAt?: string | null
+  } | null
+  /** Срок плюс льготные дни: с этого момента текущий визит просрочен. */
+  overdueAt?: string
+  isOverdue?: boolean
 }
 
 export type CreateInspectionScheduleInput = {
