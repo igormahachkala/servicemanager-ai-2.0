@@ -1,14 +1,20 @@
-import { Body, Controller, Headers, HttpCode, Logger, Post } from '@nestjs/common';
+import { Body, Controller, Headers, HttpCode, Logger, OnModuleInit, Post, UnauthorizedException } from '@nestjs/common';
 
 import { MaxBotService } from './max-bot.service';
 import { MaxBotUpdate } from './max-bot.types';
 
 @Controller('max-bot')
-export class MaxBotWebhookController {
+export class MaxBotWebhookController implements OnModuleInit {
   private readonly logger = new Logger(MaxBotWebhookController.name);
   private readonly secret = (process.env.MAX_BOT_WEBHOOK_SECRET || '').trim();
 
   constructor(private readonly maxBotService: MaxBotService) {}
+
+  onModuleInit() {
+    if (!this.secret) {
+      this.logger.error('MAX_BOT_WEBHOOK_SECRET is empty');
+    }
+  }
 
   @Post('webhook')
   @HttpCode(200)
@@ -16,9 +22,9 @@ export class MaxBotWebhookController {
     @Body() body: unknown,
     @Headers('x-max-bot-api-secret') incomingSecret?: string,
   ) {
-    if (this.secret && incomingSecret !== this.secret) {
-      this.logger.warn({ hint: (incomingSecret || '').slice(0, 8) }, 'max_bot_webhook_secret_mismatch');
-      return { ok: false };
+    if (!this.secret || incomingSecret !== this.secret) {
+      this.logger.warn('max_bot_webhook_secret_rejected');
+      throw new UnauthorizedException();
     }
 
     const update = body as MaxBotUpdate;

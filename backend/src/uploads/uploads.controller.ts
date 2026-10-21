@@ -309,18 +309,38 @@ export class UploadsController {
   ): Promise<{ mimeType: string; originalName: string }> {
     const attachment = await this.prisma.inspectionRunItemAttachment.findFirst({
       where: { storageKey },
-      select: { companyId: true, mimeType: true, originalName: true },
+      select: {
+        companyId: true,
+        mimeType: true,
+        originalName: true,
+        runItem: { select: { run: { select: { locationId: true } } } },
+      },
     })
 
     if (!attachment) {
       throw new NotFoundException('File not found')
     }
 
-    if (user.role === 'PLATFORM_ADMIN' || attachment.companyId === user.companyId) {
-      return { mimeType: attachment.mimeType, originalName: attachment.originalName }
+    const meta = { mimeType: attachment.mimeType, originalName: attachment.originalName }
+
+    if (user.role === 'PLATFORM_ADMIN') {
+      return meta
     }
 
-    throw new ForbiddenException('Access denied')
+    if (attachment.companyId !== user.companyId) {
+      throw new ForbiddenException('Access denied')
+    }
+
+    const locationScope = await resolveActorLocationScope({
+      prisma: this.prisma,
+      actor: { id: user.sub, role: user.role, companyId: user.companyId },
+      scopeCompanyId: attachment.companyId,
+    })
+    if (!isLocationAllowedByLocationScope(locationScope, attachment.runItem?.run?.locationId)) {
+      throw new NotFoundException('File not found')
+    }
+
+    return meta
   }
 
   private safeFilenameHeader(name: string): string {
