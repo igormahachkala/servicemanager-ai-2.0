@@ -82,6 +82,7 @@ import { MobileTicketWorkTimer } from './MobileTicketWorkTimer'
 import { MobileTicketRouteDuration } from './MobileTicketRouteDuration'
 import { canOfferTicketClaimAction, readBackendCanClaim } from '../lib/ticketActionCapabilities'
 import { dateTimeLocalToIso, formatPlannedDueAt, isoToDateTimeLocalValue } from '../lib/plannedDueAt'
+import { PlannedDueAtInput } from '../components/tickets/PlannedDueAtInput'
 import { orderProblemCategories } from '../lib/problemCategoryOrdering'
 import {
   TICKET_MEDIA_ACCEPT,
@@ -3128,22 +3129,7 @@ export function MobileTicketPage() {
               </label>
               <label className="mobileFormField">
                 Срок выполнения
-                <input
-                  type="datetime-local"
-                  value={editPlannedDueAtLocal}
-                  disabled={updateTicketM.isPending}
-                  onChange={(e) => setEditPlannedDueAtLocal(e.target.value)}
-                />
-                {editPlannedDueAtLocal ? (
-                  <button
-                    type="button"
-                    className="mobileBtn mobileBtnSecondary"
-                    disabled={updateTicketM.isPending}
-                    onClick={() => setEditPlannedDueAtLocal('')}
-                  >
-                    Очистить срок
-                  </button>
-                ) : null}
+                <PlannedDueAtInput value={editPlannedDueAtLocal} onChange={setEditPlannedDueAtLocal} disabled={updateTicketM.isPending} clearButtonClassName="mobileBtn mobileBtnSecondary" />
                 <div className="mobileMeta">Не меняет SLA и сроки реакции.</div>
               </label>
               <label className="mobileFormField">
