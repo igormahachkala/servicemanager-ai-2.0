@@ -28,6 +28,7 @@ import { computePrimaryTicketAction } from '../lib/ticketOperationalModel'
 import { readBackendCanClaim } from '../lib/ticketActionCapabilities'
 import { toChatMessages, ticketChatParentFromGet } from '../lib/ticketChat'
 import { dateTimeLocalToIso, formatPlannedDueAt, isoToDateTimeLocalValue } from '../lib/plannedDueAt'
+import { PlannedDueAtInput } from '../components/tickets/PlannedDueAtInput'
 import { orderProblemCategories } from '../lib/problemCategoryOrdering'
 import { resolveAdminProfile } from '../lib/resolveAdminProfile'
 import {
@@ -1465,17 +1466,7 @@ export function TicketPage() {
             </label>
             <label>
               Срок выполнения
-              <input
-                type="datetime-local"
-                value={editPlannedDueAtLocal}
-                onChange={(e) => setEditPlannedDueAtLocal(e.target.value)}
-                disabled={updateTicketM.isPending}
-              />
-              {editPlannedDueAtLocal ? (
-                <button type="button" className="ghost" onClick={() => setEditPlannedDueAtLocal('')} disabled={updateTicketM.isPending}>
-                  Очистить срок
-                </button>
-              ) : null}
+              <PlannedDueAtInput value={editPlannedDueAtLocal} onChange={setEditPlannedDueAtLocal} disabled={updateTicketM.isPending} />
               <div className="fieldHint">Не меняет SLA и сроки реакции.</div>
             </label>
             <label>

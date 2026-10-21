@@ -1,6 +1,7 @@
 ﻿import { useEffect, useRef, useState } from 'react'
 
 import {
+  suggestCoordsFromItem,
   suggestLocationAddress,
   type LocationAddressSuggestItem,
 } from '../../lib/locationGeocodeApi'
@@ -11,6 +12,9 @@ export type LocationFormValue = {
   city: string
   address: string
   isActive: boolean
+  /** Coords from an accepted Dadata suggest pick. Not shown as fields. */
+  latitude?: number
+  longitude?: number
 }
 
 type Props = {
@@ -24,7 +28,7 @@ type Props = {
   onCancel?: () => void
 }
 
-export const ADDRESS_SUGGEST_DEBOUNCE_MS = 300
+export const ADDRESS_SUGGEST_DEBOUNCE_MS = 600
 
 const STREET_HINT =
   /(улица|^ул\.|проспект|пр-кт|переулок|^пер\.|шоссе|бульвар|набережная|площадь|проезд|тупик|микрорайон|^мкр)/i
@@ -78,32 +82,40 @@ export function LocationForm({
     }
 
     const seq = ++requestSeq.current
+    const controller = new AbortController()
     const timer = window.setTimeout(() => {
-      void suggestLocationAddress(addressQuery!, value.city)
+      void suggestLocationAddress(addressQuery!, value.city, controller.signal)
         .then((items) => {
           if (seq !== requestSeq.current) return
           setSuggestions(items)
           setSuggestOpen(items.length > 0)
         })
-        .catch(() => {
+        .catch((err: unknown) => {
+          if (controller.signal.aborted) return
           if (seq !== requestSeq.current) return
           setSuggestions([])
           setSuggestOpen(false)
+          void err
         })
     }, ADDRESS_SUGGEST_DEBOUNCE_MS)
 
     return () => {
       window.clearTimeout(timer)
+      controller.abort()
     }
   }, [addressQuery, value.city, submitting])
 
   function pickSuggestion(item: LocationAddressSuggestItem) {
-    const city = parseCityFromSuggestFullName(item.fullName)
+    const cityFromItem = (item.city || '').trim() || parseCityFromSuggestFullName(item.fullName)
+    const coords = suggestCoordsFromItem(item)
     setTypedAddress(null)
     requestSeq.current += 1
     onChange({
       address: item.text,
-      ...(city ? { city } : {}),
+      ...(cityFromItem ? { city: cityFromItem } : {}),
+      ...(coords
+        ? { latitude: coords.latitude, longitude: coords.longitude }
+        : { latitude: undefined, longitude: undefined }),
     })
     setSuggestions([])
     setSuggestOpen(false)
@@ -150,7 +162,11 @@ export function LocationForm({
             value={value.address}
             onChange={(e) => {
               setTypedAddress(e.target.value)
-              onChange({ address: e.target.value })
+              onChange({
+                address: e.target.value,
+                latitude: undefined,
+                longitude: undefined,
+              })
             }}
             placeholder="ул. Ленина, 1"
             disabled={submitting}

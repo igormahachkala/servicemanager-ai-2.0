@@ -32,6 +32,7 @@ git -C "$repo" switch -qc approved
 mkdir -p "$repo/.github/workflows"
 printf '* @owner\n' >"$repo/.github/CODEOWNERS"
 printf 'name: release automation\n' >"$repo/.github/workflows/release-automation-ci.yml"
+printf 'name: trusted release lane gate\n' >"$repo/.github/workflows/release-lane-gate.yml"
 git -C "$repo" add .github
 git -C "$repo" commit -qm approved
 
@@ -55,10 +56,32 @@ set +e
 (cd "$repo" && "$AREA_MAP" unapproved) >"$TMP/unapproved.out" 2>&1
 unapproved_rc=$?
 set -e
-if ((unapproved_rc == 1)); then pass "unapproved .github paths fail closed"; else fail "unapproved .github paths fail closed"; fi
-expect_contains "unknown workflow reported" ".github/workflows/unapproved.yml" "$TMP/unapproved.out"
-expect_contains "unknown .github file reported" ".github/dependabot.yml" "$TMP/unapproved.out"
-expect_contains "unknown path guidance preserved" "Остановиться и спросить пользователя" "$TMP/unapproved.out"
+if ((unapproved_rc == 0)); then pass "unknown paths do not stop"; else fail "unknown paths do not stop (rc=$unapproved_rc)"; fi
+if grep -Fq "Остановиться и спросить пользователя" "$TMP/unapproved.out"; then
+  fail "unknown path does not ask"
+else
+  pass "unknown path does not ask"
+fi
+if grep -Fq ".github/workflows/unapproved.yml" "$TMP/unapproved.out" || grep -Fq ".github/dependabot.yml" "$TMP/unapproved.out"; then
+  fail "unknown path is not printed"
+else
+  pass "unknown path is not printed"
+fi
+expect_contains "unknown path still prints areas" "areas:" "$TMP/unapproved.out"
+
+git -C "$repo" switch -q --detach "$base"
+git -C "$repo" switch -qc runner
+mkdir -p "$repo/agent-runner"
+printf 'x\n' >"$repo/agent-runner/x.js"
+git -C "$repo" add agent-runner
+git -C "$repo" commit -qm runner
+
+set +e
+(cd "$repo" && "$AREA_MAP" runner) >"$TMP/runner.out" 2>&1
+runner_rc=$?
+set -e
+if ((runner_rc == 0)); then pass "agent-runner path accepted"; else fail "agent-runner path accepted (rc=$runner_rc)"; fi
+expect_contains "agent-runner area kept" "areas: agent-runner" "$TMP/runner.out"
 
 echo
 echo "== results: $passed passed, $failed failed =="

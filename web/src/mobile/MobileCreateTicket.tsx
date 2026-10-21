@@ -10,6 +10,7 @@ import { mobileTicketNavState } from './mobileTicketDisplay'
 import { MobilePhotoLightbox } from './MobilePhotoLightbox'
 import { mobilePath } from './mobileRoute'
 import { dateTimeLocalToIso } from '../lib/plannedDueAt'
+import { PlannedDueAtInput } from '../components/tickets/PlannedDueAtInput'
 import { orderProblemCategories, reconcileCategorySelection } from '../lib/problemCategoryOrdering'
 import {
   TICKET_MEDIA_ACCEPT,
@@ -636,17 +637,7 @@ export function MobileCreateTicket() {
 
           <label>
             Срок выполнения
-            <input
-              type="datetime-local"
-              value={plannedDueAtLocal}
-              onChange={(e) => setPlannedDueAtLocal(e.target.value)}
-              disabled={createM.isPending}
-            />
-            {plannedDueAtLocal ? (
-              <button type="button" className="ghost" onClick={() => setPlannedDueAtLocal('')} disabled={createM.isPending}>
-                Очистить срок
-              </button>
-            ) : null}
+            <PlannedDueAtInput value={plannedDueAtLocal} onChange={setPlannedDueAtLocal} disabled={createM.isPending} />
             <div className="mobileFieldHint">Договорённый срок выполнения, отдельно от SLA.</div>
           </label>
 

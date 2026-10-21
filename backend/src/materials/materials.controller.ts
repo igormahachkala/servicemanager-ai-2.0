@@ -117,6 +117,14 @@ export class MaterialsController {
     return this.materials.consume(req.user, dto);
   }
 
+  @Get('stock/balances')
+  @MaterialsProviderAccess()
+  @Roles(...MANAGEMENT_ROLES)
+  @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
+  getCompanyStockBalances(@Req() req: any) {
+    return this.materials.getCompanyStockBalances(req.user.companyId);
+  }
+
   @Get('technicians/:technicianId/balances')
   @MaterialsProviderAccess()
   @Roles(...MANAGEMENT_ROLES)

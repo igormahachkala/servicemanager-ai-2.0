@@ -34,7 +34,6 @@ import { MaxBotModule } from './max-bot/max-bot.module';
 import { PushModule } from './push/push.module';
 import { WorkforceModule } from './workforce/workforce.module';
 import { MaterialsModule } from './materials/materials.module';
-import { TwogisModule } from './twogis/twogis.module';
 import { PlannerModule } from './planner/planner.module';
 
 @Module({
@@ -67,7 +66,6 @@ import { PlannerModule } from './planner/planner.module';
     PushModule,
     WorkforceModule,
     MaterialsModule,
-    TwogisModule,
     PlannerModule,
   ],
   controllers: [AppController, HealthController, VersionController, DebugController], // DebugController: TODO_REMOVE_AFTER_STABILIZATION
