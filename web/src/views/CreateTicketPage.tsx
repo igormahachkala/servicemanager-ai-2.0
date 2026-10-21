@@ -6,6 +6,7 @@ import { ProtectedUploadImg, ProtectedUploadVideo } from '../ui/ProtectedUploadM
 import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { useCreateTicketFlow, type CreateSuccessResult } from '../hooks/useCreateTicketFlow'
 import { dateTimeLocalToIso } from '../lib/plannedDueAt'
+import { PlannedDueAtInput } from '../components/tickets/PlannedDueAtInput'
 import { orderProblemCategories, reconcileCategorySelection } from '../lib/problemCategoryOrdering'
 import {
   TICKET_MEDIA_ACCEPT,
@@ -757,17 +758,7 @@ export function CreateTicketPage() {
 
           <label>
             Срок выполнения
-            <input
-              type="datetime-local"
-              value={plannedDueAtLocal}
-              onChange={(e) => setPlannedDueAtLocal(e.target.value)}
-              disabled={isBusy}
-            />
-            {plannedDueAtLocal ? (
-              <button type="button" className="ghost" onClick={() => setPlannedDueAtLocal('')} disabled={isBusy}>
-                Очистить срок
-              </button>
-            ) : null}
+            <PlannedDueAtInput value={plannedDueAtLocal} onChange={setPlannedDueAtLocal} disabled={isBusy} />
             <div className="muted small">Договорённый срок выполнения, отдельно от SLA.</div>
           </label>
 

@@ -3,7 +3,6 @@ import { ServiceContractRole, WorkShiftStatus } from '@prisma/client'
 
 import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
-import { TwogisRoutingService } from '../twogis/twogis-routing.service'
 import {
   resolveReadableTicketAccess,
   type TicketAccessActor,
@@ -12,32 +11,19 @@ import {
 export type TicketRouteResult = {
   available: boolean
   distanceMeters: number | null
+  /** Always null. Straight-line distance has no travel time. Kept for API stability. */
   durationSeconds: number | null
 }
 
 type LatLon = { lat: number; lon: number }
 
-type RouteSummary = { distanceMeters: number; durationSeconds: number }
+type RouteSummary = { distanceMeters: number }
 
-type RouteCacheEntry = {
-  expiresAt: number
-  value: RouteSummary | null
-}
-
-const UNAVAILABLE: TicketRouteResult = {
-  available: false,
-  distanceMeters: null,
-  durationSeconds: null,
-}
-
-/** Cache route summaries long enough that standing still does not re-hit 2GIS. */
-export const ROUTE_CACHE_TTL_MS = 20 * 60 * 1000
-/** ~111 m cells — GPS jitter must not create a new cache key. */
-const ORIGIN_CACHE_DECIMALS = 3
-/** Keep destinations finer so nearby buildings stay distinct. */
+/** Keep destinations finer so nearby buildings stay distinct when batching. */
 const DESTINATION_CACHE_DECIMALS = 4
 export const TICKET_ROUTES_BATCH_MAX = 50
 const ROUTING_CONCURRENCY = 4
+const EARTH_RADIUS_M = 6_371_000
 
 function readFiniteCoord(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
@@ -59,8 +45,30 @@ function pointKey(point: LatLon, decimals: number): string {
   return `${roundCoord(point.lat, decimals)}:${roundCoord(point.lon, decimals)}`
 }
 
-function routeCacheKey(from: LatLon, to: LatLon): string {
-  return `${pointKey(from, ORIGIN_CACHE_DECIMALS)}:${pointKey(to, DESTINATION_CACHE_DECIMALS)}`
+function toRadians(degrees: number): number {
+  return (degrees * Math.PI) / 180
+}
+
+/** Great-circle distance in meters between two WGS84 points. */
+export function haversineMeters(from: LatLon, to: LatLon): number {
+  const dLat = toRadians(to.lat - from.lat)
+  const dLon = toRadians(to.lon - from.lon)
+  const lat1 = toRadians(from.lat)
+  const lat2 = toRadians(to.lat)
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2
+  return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)))
+}
+
+function straightDistance(from: LatLon, to: LatLon): RouteSummary {
+  return { distanceMeters: haversineMeters(from, to) }
+}
+
+const UNAVAILABLE: TicketRouteResult = {
+  available: false,
+  distanceMeters: null,
+  durationSeconds: null,
 }
 
 function toResult(summary: RouteSummary | null): TicketRouteResult {
@@ -68,7 +76,7 @@ function toResult(summary: RouteSummary | null): TicketRouteResult {
   return {
     available: true,
     distanceMeters: summary.distanceMeters,
-    durationSeconds: summary.durationSeconds,
+    durationSeconds: null,
   }
 }
 
@@ -91,12 +99,9 @@ async function mapWithConcurrency<T, R>(
 
 @Injectable()
 export class TicketRouteService {
-  private readonly routeCache = new Map<string, RouteCacheEntry>()
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly serviceContractsService: ServiceContractsService,
-    private readonly routing: TwogisRoutingService,
   ) {}
 
   async getForTicket(
@@ -129,7 +134,7 @@ export class TicketRouteService {
     const origin = readLatLon(shift?.lastLatitude, shift?.lastLongitude)
     if (!destination || !origin) return UNAVAILABLE
 
-    return toResult(await this.routeSummaryCached(origin, destination))
+    return toResult(straightDistance(origin, destination))
   }
 
   async getForTickets(
@@ -177,14 +182,10 @@ export class TicketRouteService {
       else ticketsByDestination.set(key, { destination, ticketIds: [row.id] })
     }
 
-    const destinations = [...ticketsByDestination.values()]
-    const summaries = await mapWithConcurrency(destinations, ROUTING_CONCURRENCY, (entry) =>
-      this.routeSummaryCached(origin, entry.destination),
-    )
-    destinations.forEach((entry, index) => {
-      const result = toResult(summaries[index])
+    for (const entry of ticketsByDestination.values()) {
+      const result = toResult(straightDistance(origin, entry.destination))
       for (const id of entry.ticketIds) results[id] = result
-    })
+    }
     return results
   }
 
@@ -220,16 +221,5 @@ export class TicketRouteService {
         lastLongitude: true,
       },
     })
-  }
-
-  private async routeSummaryCached(from: LatLon, to: LatLon): Promise<RouteSummary | null> {
-    const key = routeCacheKey(from, to)
-    const now = Date.now()
-    const hit = this.routeCache.get(key)
-    if (hit && hit.expiresAt > now) return hit.value
-
-    const value = await this.routing.routeSummary(from, to)
-    this.routeCache.set(key, { expiresAt: now + ROUTE_CACHE_TTL_MS, value })
-    return value
   }
 }

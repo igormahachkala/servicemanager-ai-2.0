@@ -5,8 +5,19 @@ import {
   locationRouteLabels,
   pickLocationRouteTickets,
 } from './useLocationRouteLabels'
+import { formatTicketRouteLabel } from './MobileTicketRouteDuration'
 
 const loc = (id: string) => ({ id, name: id })
+
+describe('formatTicketRouteLabel', () => {
+  it('formats kilometres without minutes', () => {
+    expect(formatTicketRouteLabel(9800)).toBe('До объекта · 9,8 км')
+  })
+
+  it('formats short distances in meters without minutes', () => {
+    expect(formatTicketRouteLabel(45)).toBe('До объекта · 45 м')
+  })
+})
 
 describe('pickLocationRouteTickets', () => {
   it('takes the first ticket of each location and skips tickets without a location', () => {
@@ -44,13 +55,13 @@ describe('locationRouteLabels', () => {
     ['loc-c', 't-9'],
   ])
 
-  it('labels locations whose ticket has a route', () => {
+  it('labels locations whose ticket has a distance, ignoring durationSeconds', () => {
     const labels = locationRouteLabels(picked, {
-      't-1': { available: true, distanceMeters: 9800, durationSeconds: 1140 },
+      't-1': { available: true, distanceMeters: 9800, durationSeconds: null },
       't-4': { available: false, distanceMeters: null, durationSeconds: null },
     })
 
-    expect([...labels.entries()]).toEqual([['loc-a', 'До объекта · 9,8 км · 19 мин']])
+    expect([...labels.entries()]).toEqual([['loc-a', 'До объекта · 9,8 км']])
   })
 
   it('returns no labels before routes are loaded', () => {

@@ -3,7 +3,13 @@ import { ApiRequestError, getBaseUrl, getToken } from './api'
 export type LocationAddressSuggestItem = {
   text: string
   fullName: string
+  city?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  qcGeo?: number | null
 }
+
+const suggestCache = new Map<string, LocationAddressSuggestItem[]>()
 
 function authHeaders(): Record<string, string> {
   const headers: Record<string, string> = {}
@@ -12,12 +18,33 @@ function authHeaders(): Record<string, string> {
   return headers
 }
 
+function cacheKey(q: string, city?: string): string {
+  return `${(city || '').trim()}|${q.trim()}`
+}
+
+export function isAcceptedSuggestQcGeo(qcGeo: number | null | undefined): boolean {
+  return qcGeo === 0 || qcGeo === 1
+}
+
+export function suggestCoordsFromItem(
+  item: LocationAddressSuggestItem,
+): { latitude: number; longitude: number } | null {
+  if (!isAcceptedSuggestQcGeo(item.qcGeo)) return null
+  if (typeof item.latitude !== 'number' || typeof item.longitude !== 'number') return null
+  return { latitude: item.latitude, longitude: item.longitude }
+}
+
 export async function suggestLocationAddress(
   q: string,
   city?: string,
+  signal?: AbortSignal,
 ): Promise<LocationAddressSuggestItem[]> {
   const query = q.trim()
   if (query.length < 2) return []
+
+  const key = cacheKey(query, city)
+  const cached = suggestCache.get(key)
+  if (cached) return cached
 
   const params = new URLSearchParams()
   params.set('q', query)
@@ -26,6 +53,7 @@ export async function suggestLocationAddress(
 
   const res = await fetch(`${getBaseUrl()}/locations/address-suggest?${params.toString()}`, {
     headers: authHeaders(),
+    signal,
   })
   const text = await res.text()
   let data: unknown = null
@@ -47,9 +75,12 @@ export async function suggestLocationAddress(
     throw new ApiRequestError(message, res.status, data)
   }
 
-  if (Array.isArray(data)) return data as LocationAddressSuggestItem[]
-  if (data && typeof data === 'object' && Array.isArray((data as { items?: unknown }).items)) {
-    return (data as { items: LocationAddressSuggestItem[] }).items
+  let items: LocationAddressSuggestItem[] = []
+  if (Array.isArray(data)) items = data as LocationAddressSuggestItem[]
+  else if (data && typeof data === 'object' && Array.isArray((data as { items?: unknown }).items)) {
+    items = (data as { items: LocationAddressSuggestItem[] }).items
   }
-  return []
+
+  suggestCache.set(key, items)
+  return items
 }
