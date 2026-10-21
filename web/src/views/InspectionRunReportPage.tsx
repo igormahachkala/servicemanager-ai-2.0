@@ -195,7 +195,7 @@ export function InspectionRunReportPage() {
               <div className="muted small">{report.document.executorCompany.legalName || '—'}</div>
               <div className="muted small">{report.document.executorCompany.address || '—'}</div>
               <div className="muted small">Тел.: {report.document.executorCompany.phone || '—'}</div>
-              <div className="muted small">Email: {report.document.executorCompany.email || '—'}</div>
+              <div className="muted small">Эл. почта: {report.document.executorCompany.email || '—'}</div>
               <div className="muted small">ИНН: {report.document.executorCompany.taxId || '—'}</div>
               <div className="muted small">Рег. номер: {report.document.executorCompany.registrationNumber || '—'}</div>
             </div>
@@ -205,7 +205,7 @@ export function InspectionRunReportPage() {
               <div className="muted small">{report.document.clientCompany.legalName || '—'}</div>
               <div className="muted small">{report.document.clientCompany.address || '—'}</div>
               <div className="muted small">Тел.: {report.document.clientCompany.phone || '—'}</div>
-              <div className="muted small">Email: {report.document.clientCompany.email || '—'}</div>
+              <div className="muted small">Эл. почта: {report.document.clientCompany.email || '—'}</div>
             </div>
           </section>
 
