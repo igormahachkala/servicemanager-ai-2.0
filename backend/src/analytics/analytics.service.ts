@@ -21,6 +21,7 @@ import {
   SLA_RESPONSE_STATUSES,
   type SlaSourceTicket,
 } from './analytics-aggregates'
+import { parseAnalyticsDateRange } from './analytics-date-range'
 
 @Injectable()
 export class AnalyticsService {
@@ -667,15 +668,8 @@ export class AnalyticsService {
       locationScope,
     )
 
-    const dateFilter: { gte?: Date; lte?: Date } = {}
-    if (params.from) {
-      const d = new Date(params.from)
-      if (!isNaN(d.getTime())) dateFilter.gte = d
-    }
-    if (params.to) {
-      const d = new Date(params.to)
-      if (!isNaN(d.getTime())) { d.setHours(23, 59, 59, 999); dateFilter.lte = d }
-    }
+    // Дата без времени — прежние сутки; ISO-момент — локальные сутки клиента как есть.
+    const dateFilter = parseAnalyticsDateRange(params.from, params.to)
 
     const ticketWhere = this.andTicketWhere(baseWhere, {
       ...(Object.keys(dateFilter).length ? { createdAt: dateFilter } : {}),

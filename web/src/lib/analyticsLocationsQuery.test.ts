@@ -64,3 +64,16 @@ describe('buildAnalyticsLocationsQuery — область не теряется'
     expect(query).toContain('to=2026-10-31')
   })
 })
+
+describe('buildAnalyticsLocationsQuery — границы периода ISO-моментом', () => {
+  it('плюс в смещении кодируется, а не превращается в пробел на сервере', () => {
+    const query = buildAnalyticsLocationsQuery({
+      from: '2026-10-15T00:00:00.000+03:00',
+      to: '2026-10-21T23:59:59.999+03:00',
+    })
+    expect(query).toContain('from=2026-10-15T00%3A00%3A00.000%2B03%3A00')
+    const parsed = new URLSearchParams(query.slice(1))
+    expect(parsed.get('from')).toBe('2026-10-15T00:00:00.000+03:00')
+    expect(parsed.get('to')).toBe('2026-10-21T23:59:59.999+03:00')
+  })
+})
