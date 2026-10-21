@@ -211,7 +211,7 @@ describe('120G состояние визита', () => {
 
   it('завершённый обход текущего срока — визит выполнен', () => {
     const due = '2026-09-17T09:00:00.000Z'
-    expect(deriveVisitState({ nextDueAt: due, lastRun: { id: 'r', status: 'COMPLETED', dueAt: due } } as any)).toBe(
+    expect(deriveVisitState({ nextDueAt: due, lastRun: { id: 'r', status: 'COMPLETED', dueAt: due } })).toBe(
       'COMPLETED',
     )
   })
@@ -222,11 +222,11 @@ describe('120G состояние визита', () => {
       deriveVisitState({
         nextDueAt: '2026-09-18T09:00:00.000Z',
         lastRun: { id: 'r', status: 'COMPLETED', dueAt: '2026-09-17T09:00:00.000Z' },
-      } as any),
+      }),
     ).toBe('NOT_STARTED')
     // Обход без срока (не по плану) визит не закрывает.
     expect(
-      deriveVisitState({ nextDueAt: '2026-09-18T09:00:00.000Z', lastRun: { id: 'r', status: 'COMPLETED' } } as any),
+      deriveVisitState({ nextDueAt: '2026-09-18T09:00:00.000Z', lastRun: { id: 'r', status: 'COMPLETED' } }),
     ).toBe('NOT_STARTED')
   })
 

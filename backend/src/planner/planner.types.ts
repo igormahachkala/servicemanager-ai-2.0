@@ -35,7 +35,7 @@ export interface PlannerPoolItem {
   intervalDays?: number | null
   leadTimeDays?: number | null
   /** Inspection: льготные дни плана — до их исхода визит ещё не просрочен. */
-  graceDays?: number | null
+  graceDays?: number | null;
   frequency?: PlannerFrequency | null
 }
 

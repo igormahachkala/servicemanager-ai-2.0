@@ -6,7 +6,7 @@ import type {
   ScoredLocation,
   ScoredWork,
 } from './planner.types'
-import { scheduleOverdueAt } from '../inspection/inspection-recurrence'
+import { scheduleOverdueAt } from '../inspection/inspection-recurrence';
 
 /** All planner weight constants in one place. */
 export const PLANNER_WEIGHTS = {
@@ -151,11 +151,12 @@ function scoreOne(item: PlannerPoolItem, ctx: PlannerContext): Omit<ScoredWork, 
      */
     const msUntilOverdue =
       item.kind === 'INSPECTION'
-        ? scheduleOverdueAt(item.dueAt, item.graceDays).getTime() - ctx.now.getTime()
-        : msUntil
+        ? scheduleOverdueAt(item.dueAt, item.graceDays).getTime() -
+          ctx.now.getTime()
+        : msUntil;
 
     if (item.kind === 'INSPECTION' && msUntilOverdue < 0) {
-      const daysOverdue = Math.max(0, Math.floor(-msUntilOverdue / MS_DAY))
+      const daysOverdue = Math.max(0, Math.floor(-msUntilOverdue / MS_DAY));
       const weight =
         PLANNER_WEIGHTS.INSPECTION_OVERDUE_BASE +
         PLANNER_WEIGHTS.INSPECTION_OVERDUE_PER_DAY * daysOverdue

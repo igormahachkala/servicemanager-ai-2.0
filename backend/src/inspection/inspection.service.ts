@@ -40,8 +40,8 @@ import {
   buildInspectionReportNumber,
   buildInspectionRunSummary,
 } from './inspection.report.mapper'
-import { scheduleOverdueAt } from './inspection-recurrence'
-import { advanceScheduleAfterRun } from './inspection-schedule-advance'
+import { scheduleOverdueAt } from './inspection-recurrence';
+import { advanceScheduleAfterRun } from './inspection-schedule-advance';
 
 /**
  * SMA-PLANNER-SCHEDULE-RUN-LINK-HARDENING-119T — ключ идемпотентности запуска по плану.
@@ -352,7 +352,9 @@ export class InspectionService {
        * при старте — срок плюс льготные дни плана. Поле в схеме было, но не
        * заполнялось ни одним путём.
        */
-      overdueAt: schedule ? scheduleOverdueAt(schedule.nextDueAt, schedule.graceDays) : null,
+      overdueAt: schedule
+        ? scheduleOverdueAt(schedule.nextDueAt, schedule.graceDays)
+        : null,
       items: {
         create: template.items.map((item) => ({
           templateItemId: item.id,
@@ -454,13 +456,16 @@ export class InspectionService {
           scheduleId: schedule.id,
           OR: [
             { status: InspectionRunStatus.IN_PROGRESS },
-            { status: InspectionRunStatus.COMPLETED, dueAt: schedule.nextDueAt },
+            {
+              status: InspectionRunStatus.COMPLETED,
+              dueAt: schedule.nextDueAt,
+            },
           ],
         },
         select: { id: true, status: true, completedAt: true },
       })
 
-      let dueAt = schedule.nextDueAt
+      let dueAt = schedule.nextDueAt;
       if (active?.status === InspectionRunStatus.COMPLETED) {
         /**
          * Визит уже закрыт, план просто не успел или не умел сдвинуться. Сдвиг
@@ -472,15 +477,15 @@ export class InspectionService {
           companyId: user.companyId,
           dueAt: schedule.nextDueAt,
           completedAt: active.completedAt ?? new Date(),
-        })
+        });
         if (healed.outcome !== 'advanced') {
           throw new ConflictException({
             code: 'INSPECTION_SCHEDULE_OCCURRENCE_COMPLETED',
             message: 'Визит по этому плану уже выполнен.',
             runId: active.id,
-          })
+          });
         }
-        dueAt = healed.nextDueAt
+        dueAt = healed.nextDueAt;
       } else if (active) {
         /**
          * Признак занятости — именно незакрытый обход. Завершённый не блокирует:
@@ -496,14 +501,18 @@ export class InspectionService {
       }
 
       const created = await tx.inspectionRun.create({
-        data: { ...data, dueAt, overdueAt: scheduleOverdueAt(dueAt, schedule.graceDays) },
+        data: {
+          ...data,
+          dueAt,
+          overdueAt: scheduleOverdueAt(dueAt, schedule.graceDays),
+        },
         select: runSelect(),
-      })
+      });
       await tx.inspectionSchedule.update({
         where: { id: schedule.id },
         data: { lastRunId: created.id, lastGeneratedAt: new Date() },
       })
-      return { run: created, dueAt }
+      return { run: created, dueAt };
     })
 
     /**
@@ -1104,7 +1113,7 @@ export class InspectionService {
     }
     await this.assertActiveShiftForRoundMutation(user)
 
-    const completedAt = new Date()
+    const completedAt = new Date();
     /**
      * SMA-ROUNDS-RECURRENCE-FIX: условие на статус в самой записи. Проверка выше
      * читает строку отдельно, и два завершения подряд проходили её оба.
@@ -1114,9 +1123,9 @@ export class InspectionService {
         where: { id: run.id, status: InspectionRunStatus.IN_PROGRESS },
         data: { status: InspectionRunStatus.COMPLETED, completedAt },
         select: runSelect(),
-      })
+      });
 
-    let updated: Awaited<ReturnType<typeof complete>>
+    let updated: Awaited<ReturnType<typeof complete>>;
     try {
       updated = run.scheduleId
         ? await this.prisma.$transaction(async (tx) => {
@@ -1126,21 +1135,24 @@ export class InspectionService {
              * оставался прежним, и периодический план навсегда застревал
              * просроченным после первого визита.
              */
-            const completed = await complete(tx)
+            const completed = await complete(tx);
             await advanceScheduleAfterRun(tx, {
               scheduleId: run.scheduleId as string,
               companyId: run.companyId,
               dueAt: run.dueAt,
               completedAt,
-            })
-            return completed
+            });
+            return completed;
           })
-        : await complete(this.prisma)
+        : await complete(this.prisma);
     } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-        throw new BadRequestException('Inspection run is already completed')
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new BadRequestException('Inspection run is already completed');
       }
-      throw error
+      throw error;
     }
 
     return {

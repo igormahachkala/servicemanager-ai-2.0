@@ -16,7 +16,7 @@ import {
   resolveInspectionLocationAccess,
   type InspectionLocationRef,
 } from './inspection-location-scope'
-import { isScheduleOverdue, scheduleOverdueAt } from './inspection-recurrence'
+import { isScheduleOverdue, scheduleOverdueAt } from './inspection-recurrence';
 
 /**
  * SMA-ROUNDS-V1-SCHEDULE-CRUD-098 — the plan, not the execution.
@@ -77,8 +77,8 @@ export class InspectionScheduleService {
     // Same reasoning as 097's run list: the company filter cannot notice a contract that
     // lapsed after the plan was made, so out-of-scope sites are dropped here.
     const visible = await this.filterByLocationScope(user, schedules)
-    const now = new Date()
-    return visible.map((schedule) => withLastRun(schedule, now))
+    const now = new Date();
+    return visible.map((schedule) => withLastRun(schedule, now));
   }
 
   async listAssignableTechnicians(user: InspectionUserCtx, locationId: string) {
@@ -497,10 +497,15 @@ function scheduleSelect() {
  */
 function withLastRun<
   T extends {
-    isActive: boolean
-    nextDueAt: Date
-    graceDays: number
-    runs?: Array<{ id: string; status: unknown; completedAt: Date | null; dueAt: Date | null }>
+    isActive: boolean;
+    nextDueAt: Date;
+    graceDays: number;
+    runs?: Array<{
+      id: string;
+      status: unknown;
+      completedAt: Date | null;
+      dueAt: Date | null;
+    }>;
   },
 >(schedule: T, now: Date = new Date()) {
   const { runs, ...rest } = schedule
@@ -509,5 +514,5 @@ function withLastRun<
     overdueAt: scheduleOverdueAt(schedule.nextDueAt, schedule.graceDays),
     isOverdue: isScheduleOverdue(schedule, now),
     lastRun: runs?.[0] ?? null,
-  }
+  };
 }

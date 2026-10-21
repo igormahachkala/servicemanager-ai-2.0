@@ -80,7 +80,7 @@ type ScheduleRow = {
   name?: string | null
   nextDueAt?: Date | null
   leadTimeDays?: number | null
-  graceDays?: number | null
+  graceDays?: number | null;
   intervalDays?: number | null
   frequency?: string | null
   isActive?: boolean

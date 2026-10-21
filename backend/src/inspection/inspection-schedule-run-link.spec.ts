@@ -201,6 +201,7 @@ function makeSuite(
         schedule && where.id === schedule.id && where.companyId === PROVIDER_ID ? { ...schedule } : null,
       ),
       update: jest.fn(async ({ data }: any) => ({ id: schedule?.id, ...data })),
+      updateMany: jest.fn(),
     },
     inspectionRun: {
       create: jest.fn(async ({ data }: any) => {
@@ -566,7 +567,10 @@ describe('119K смежное поведение обходов', () => {
 
   it('17. завершение обхода «от руки» план не трогает', async () => {
     const { svc, prisma } = makeSuite()
-    prisma.inspectionSchedule.updateMany = jest.fn()
+    const { inspectionSchedule, $transaction } = prisma as {
+      inspectionSchedule: { update: jest.Mock; updateMany: jest.Mock };
+      $transaction: jest.Mock;
+    };
 
     // runRow без scheduleId — обход начат не по плану.
     await svc.completeRun(technician, 'run-1')
@@ -576,9 +580,9 @@ describe('119K смежное поведение обходов', () => {
     )
     // SMA-ROUNDS-RECURRENCE-FIX: сдвиг срока — только для обхода по плану,
     // см. inspection-schedule-recurrence.spec.ts.
-    expect(prisma.inspectionSchedule.update).not.toHaveBeenCalled()
-    expect(prisma.inspectionSchedule.updateMany).not.toHaveBeenCalled()
-    expect(prisma.$transaction).not.toHaveBeenCalled()
+    expect(inspectionSchedule.update).not.toHaveBeenCalled();
+    expect(inspectionSchedule.updateMany).not.toHaveBeenCalled();
+    expect($transaction).not.toHaveBeenCalled();
   })
 
   it('18. исторический срез: чтение обхода не смотрит ни в шаблон, ни в план', async () => {

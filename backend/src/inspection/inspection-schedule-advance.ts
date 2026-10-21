@@ -1,11 +1,14 @@
-import type { Prisma } from '@prisma/client'
+import type { Prisma } from '@prisma/client';
 
-import { nextOccurrenceAfter } from './inspection-recurrence'
+import { nextOccurrenceAfter } from './inspection-recurrence';
 
 export type ScheduleAdvanceResult =
   | { outcome: 'advanced'; scheduleId: string; nextDueAt: Date }
   | { outcome: 'finished'; scheduleId: string }
-  | { outcome: 'skipped'; reason: 'not_found' | 'not_current_occurrence' | 'already_advanced' }
+  | {
+      outcome: 'skipped';
+      reason: 'not_found' | 'not_current_occurrence' | 'already_advanced';
+    };
 
 /**
  * SMA-ROUNDS-RECURRENCE-FIX — закрыть визит плана завершённым обходом.
@@ -30,7 +33,12 @@ export type ScheduleAdvanceResult =
  */
 export async function advanceScheduleAfterRun(
   tx: Prisma.TransactionClient,
-  run: { scheduleId: string; companyId: string; dueAt: Date | null; completedAt: Date },
+  run: {
+    scheduleId: string;
+    companyId: string;
+    dueAt: Date | null;
+    completedAt: Date;
+  },
 ): Promise<ScheduleAdvanceResult> {
   const schedule = await tx.inspectionSchedule.findFirst({
     where: { id: run.scheduleId, companyId: run.companyId },
@@ -42,22 +50,28 @@ export async function advanceScheduleAfterRun(
       nextDueAt: true,
       company: { select: { timezone: true } },
     },
-  })
-  if (!schedule) return { outcome: 'skipped', reason: 'not_found' }
+  });
+  if (!schedule) return { outcome: 'skipped', reason: 'not_found' };
   if (!run.dueAt || schedule.nextDueAt.getTime() !== run.dueAt.getTime()) {
-    return { outcome: 'skipped', reason: 'not_current_occurrence' }
+    return { outcome: 'skipped', reason: 'not_current_occurrence' };
   }
 
-  const closedUntil = new Date(Math.max(run.dueAt.getTime(), run.completedAt.getTime()))
-  const next = nextOccurrenceAfter(schedule, closedUntil, schedule.company?.timezone)
+  const closedUntil = new Date(
+    Math.max(run.dueAt.getTime(), run.completedAt.getTime()),
+  );
+  const next = nextOccurrenceAfter(
+    schedule,
+    closedUntil,
+    schedule.company?.timezone,
+  );
 
   const { count } = await tx.inspectionSchedule.updateMany({
     where: { id: schedule.id, companyId: run.companyId, nextDueAt: run.dueAt },
     data: next ? { nextDueAt: next } : { isActive: false },
-  })
-  if (count === 0) return { outcome: 'skipped', reason: 'already_advanced' }
+  });
+  if (count === 0) return { outcome: 'skipped', reason: 'already_advanced' };
 
   return next
     ? { outcome: 'advanced', scheduleId: schedule.id, nextDueAt: next }
-    : { outcome: 'finished', scheduleId: schedule.id }
+    : { outcome: 'finished', scheduleId: schedule.id };
 }
