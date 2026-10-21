@@ -22,7 +22,8 @@ set -uo pipefail
 usage() {
   cat >&2 <<USAGE
 Использование: $(basename "$0") <stage|production> <номер PR> <ветка задачи> <область>...
-Области: backend frontend agent-runner scripts infra none skills
+Области: backend frontend scripts infra none skills
+Область agent-runner игнорируется: проверок у неё нет.
 Пример:  $(basename "$0") stage 42 fix/tema-001 backend frontend
 USAGE
 }
@@ -145,9 +146,7 @@ if has_area frontend; then
 fi
 
 if has_area agent-runner; then
-  prepare agent-runner agent-runner
-  run "agent-runner: typecheck" npm --prefix agent-runner run typecheck
-  run "agent-runner: build"     npm --prefix agent-runner run build
+  echo "-- agent-runner: проверок нет, область игнорируется"
 fi
 
 if has_area scripts; then

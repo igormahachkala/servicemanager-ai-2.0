@@ -134,7 +134,7 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
     );
 
     const client = this.createClient(socket);
-    const token = this.extractHandshakeToken(request, parsed);
+    const token = this.extractHandshakeToken(request);
 
     socket.on('data', (chunk) => this.handleSocketData(client, chunk));
     socket.on('close', () => this.cleanupClient(client));
@@ -190,10 +190,16 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private extractHandshakeToken(request: IncomingMessage, parsed: URL) {
-    const queryToken = parsed.searchParams.get('token') || parsed.searchParams.get('access_token');
-    if (queryToken) return queryToken.trim();
-
+  /**
+   * SECURITY P1: the access JWT must never be read from the WebSocket URL
+   * (?token= / ?access_token=). WS URLs leak into proxy/access logs, browser
+   * history and Referer, and this is a full-lifetime access token. The handshake
+   * accepts the token only from the Authorization header, the Sec-WebSocket-Protocol
+   * subprotocol (bearer.<jwt> / jwt.<jwt>), or the post-connect {type:'auth'} message
+   * — none of which appear in the URL. The browser/mobile SPA uses the post-connect
+   * auth message (web/src/lib/realtimeSocket.ts), so no query token is needed.
+   */
+  private extractHandshakeToken(request: IncomingMessage) {
     const auth = request.headers.authorization;
     if (typeof auth === 'string' && auth.toLowerCase().startsWith('bearer ')) {
       return auth.slice(7).trim();

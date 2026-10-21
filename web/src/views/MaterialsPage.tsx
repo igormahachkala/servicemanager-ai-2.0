@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { MaterialsBalanceList } from '../components/materials/MaterialsPanels'
 import {
   activeMaterials,
   formatMaterialQuantity,
@@ -21,7 +22,14 @@ export function MaterialsPage() {
   const [receipt, setReceipt] = useState({ materialId: '', quantity: '', comment: '' })
   const [message, setMessage] = useState<string | null>(null)
   const materialsQ = useQuery({ queryKey: ['materials-directory'], queryFn: api.materials })
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['materials-directory'] })
+  // Остатки на складе компании: поступления и выдачи их меняют, поэтому
+  // список обновляется вместе со справочником.
+  const stockBalancesQ = useQuery({ queryKey: ['company-stock-balances'], queryFn: api.companyStockBalances })
+  const invalidate = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: ['materials-directory'] }),
+      qc.invalidateQueries({ queryKey: ['company-stock-balances'] }),
+    ])
 
   const createM = useMutation({
     mutationFn: api.createMaterial,
@@ -126,6 +134,17 @@ export function MaterialsPage() {
           <label>Комментарий<input value={receipt.comment} onChange={(e) => setReceipt((v) => ({ ...v, comment: e.target.value }))} /></label>
           <button type="submit" disabled={receiptM.isPending}>{receiptM.isPending ? 'Сохраняем…' : 'Принять на склад'}</button>
         </form>
+      </div>
+
+      <div className="panel" style={{ marginTop: 14 }}>
+        <h3>Остатки на складе</h3>
+        {stockBalancesQ.isError ? (
+          <div className="alert">{(stockBalancesQ.error as Error).message}</div>
+        ) : stockBalancesQ.isLoading ? (
+          <div className="muted small">Загружаем остатки…</div>
+        ) : (
+          <MaterialsBalanceList balances={stockBalancesQ.data || []} emptyText="На складе пока нет остатков" />
+        )}
       </div>
 
       {editing ? (
