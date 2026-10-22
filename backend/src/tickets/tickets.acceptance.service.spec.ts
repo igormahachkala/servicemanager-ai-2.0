@@ -46,6 +46,8 @@ function makeTicket(overrides: Record<string, any> = {}) {
     createdByUserId: null,
     assignedTechnician: null,
     ticketNumber: 101,
+    // Как в строке Prisma: у корневой заявки parentId есть и равен null.
+    parentId: null as string | null,
     ...overrides,
   }
 }

@@ -27,7 +27,7 @@ function stageGuardEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
 
 function evaluateGuard(
   env: NodeJS.ProcessEnv,
-  connectedDatabase = STAGE_QA_SEED_GUARD.expectedDatabase,
+  connectedDatabase: string = STAGE_QA_SEED_GUARD.expectedDatabase,
 ) {
   return evaluateStageQaSeedTargetGuard({
     env,
