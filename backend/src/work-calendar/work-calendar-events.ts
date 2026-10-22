@@ -1,4 +1,4 @@
-import { TicketStatus } from '@prisma/client';
+import { TicketStatus, UserRole } from '@prisma/client';
 
 import { localDateOf } from './work-calendar-range';
 
@@ -9,17 +9,22 @@ import { localDateOf } from './work-calendar-range';
  * действующими scope заявок и обходов. Файл решает только, как строка
  * становится событием, и из чего собираются resources.
  *
- * Время начала и длительности в моделях нет. Событие несёт плановый срок
+ * Форма события — согласованный контракт (аудит Агента 2 от 22.10.2026,
+ * раздел 3): kind, source, entityId, ticketId, scheduleId, locationId,
+ * employeeId, timing, recurrence.
+ *
+ * Время начала и длительности в моделях нет. timing несёт плановый срок
  * (dueAt) и местные сутки этого срока, а startAt/endAt всегда null и
  * hasWindow = false: календарь не придумывает окно, которого никто не задавал.
  */
 
-export const WORK_CALENDAR_EVENT_TYPES = ['TICKET', 'INSPECTION'] as const;
-export type WorkCalendarEventType = (typeof WORK_CALENDAR_EVENT_TYPES)[number];
+export const WORK_CALENDAR_EVENT_KINDS = ['TICKET', 'INSPECTION'] as const;
+export type WorkCalendarEventKind = (typeof WORK_CALENDAR_EVENT_KINDS)[number];
+export type WorkCalendarEventSource = 'TICKET' | 'INSPECTION_SCHEDULE';
 
 /** Состояние визита плана обходов. Свой набор: у плана нет статуса заявки. */
 export const INSPECTION_EVENT_STATUSES = [
-  'PLANNED',
+  'SCHEDULED',
   'IN_PROGRESS',
   'OVERDUE',
 ] as const;
@@ -27,13 +32,13 @@ export type InspectionEventStatus = (typeof INSPECTION_EVENT_STATUSES)[number];
 
 export type WorkCalendarEventStatus = TicketStatus | InspectionEventStatus;
 
-/** Заявка без плановой даты, которая ещё может потребовать работы. */
-export const UNSCHEDULED_TICKET_STATUSES: TicketStatus[] = [
-  TicketStatus.NEW,
-  TicketStatus.ASSIGNED,
-  TicketStatus.IN_PROGRESS,
-  TicketStatus.AWAITING_ACCEPTANCE,
-  TicketStatus.FIELD_COMPLETE,
+/**
+ * Завершённые заявки: клиент закрыл или заявку отменили. Сданная подрядчиком
+ * (AWAITING_ACCEPTANCE, FIELD_COMPLETE) ещё не завершена — её ждёт приёмка.
+ */
+export const COMPLETED_TICKET_STATUSES: TicketStatus[] = [
+  TicketStatus.DONE,
+  TicketStatus.CANCELED,
 ];
 
 export type CalendarPerson = {
@@ -41,6 +46,9 @@ export type CalendarPerson = {
   firstName: string | null;
   lastName: string | null;
   companyId: string;
+  role?: UserRole | null;
+  isActive?: boolean | null;
+  isExecutor?: boolean | null;
 };
 
 export type CalendarLocation = {
@@ -68,6 +76,7 @@ export type CalendarTicketRow = {
 
 export type CalendarScheduleRow = {
   id: string;
+  companyId: string;
   name: string;
   frequency: string;
   intervalDays: number | null;
@@ -82,54 +91,78 @@ export type CalendarScheduleRow = {
   lastRun: { id: string; status: string; dueAt: Date | null } | null;
 };
 
-export type WorkCalendarEvent = {
-  id: string;
-  type: WorkCalendarEventType;
-  sourceId: string;
-  title: string;
-  status: WorkCalendarEventStatus;
-  scheduling: 'SCHEDULED' | 'UNSCHEDULED';
+export type WorkCalendarTiming = {
+  mode: 'DUE' | 'UNSCHEDULED';
+  /** Срок: Ticket.plannedDueAt или InspectionSchedule.nextDueAt. Не время начала. */
   dueAt: string | null;
+  /** Местные сутки срока в поясе календаря, YYYY-MM-DD. */
   localDate: string | null;
   startAt: null;
   endAt: null;
   hasWindow: false;
-  employeeId: string | null;
-  locationId: string;
+};
+
+export type WorkCalendarRecurrence = {
+  frequency: string;
+  intervalDays: number | null;
+  nextDueAt: string;
+  overdueAt: string;
+  isOverdue: boolean;
+  followingDueAt: string | null;
+};
+
+export type WorkCalendarEvent = {
+  id: string;
+  kind: WorkCalendarEventKind;
+  source: WorkCalendarEventSource;
+  entityId: string;
+  ticketId: string | null;
+  scheduleId: string | null;
+  /** Владелец записи: компания заявки либо компания, составившая план. */
+  companyId: string;
   clientCompanyId: string;
-  ticket?: {
+  locationId: string;
+  employeeId: string | null;
+  title: string;
+  status: WorkCalendarEventStatus;
+  timing: WorkCalendarTiming;
+  recurrence: WorkCalendarRecurrence | null;
+  ticket: {
     ticketNumber: number;
     urgency: string;
     priority: string;
     slaDueAt: string | null;
     parentId: string | null;
-  };
-  inspection?: {
-    frequency: string;
-    intervalDays: number | null;
+  } | null;
+  inspection: {
     templateName: string | null;
-    overdueAt: string;
-    isOverdue: boolean;
-    followingDueAt: string | null;
     lastRunId: string | null;
-  };
+  } | null;
 };
 
+/**
+ * Строка сотрудника.
+ *
+ * companyId, role, isActive, isExecutor — только у сотрудников компании
+ * актора. У исполнителя другой компании (подрядчик на заявке клиента) они
+ * null: календарь показывает, кто исполняет видимую работу, но не раскрывает
+ * чужой штат, роли и внутренние признаки.
+ */
 export type WorkCalendarEmployee = {
   id: string;
-  firstName: string | null;
-  lastName: string | null;
   displayName: string;
-  /** Сотрудник компании актора. Иначе — исполнитель видимой актору заявки. */
+  companyId: string | null;
+  role: UserRole | null;
+  isActive: boolean | null;
+  isExecutor: boolean | null;
   isOwnCompany: boolean;
+  /** Событий этого сотрудника в ответе (не в полном периоде при обрезке). */
+  eventCount: number;
 };
 
-export type WorkCalendarLocationResource = {
-  id: string;
-  name: string;
-  city: string | null;
-  address: string | null;
-  clientCompanyId: string;
+export type WorkCalendarLocationResource = CalendarLocation & {
+  /** Событий на объекте в ответе (не в полном периоде при обрезке). */
+  eventCount: number;
 };
 
 const TITLE_LIMIT = 140;
@@ -140,21 +173,19 @@ export function ticketEvent(
 ): WorkCalendarEvent {
   return {
     id: `ticket:${row.id}`,
-    type: 'TICKET',
-    sourceId: row.id,
+    kind: 'TICKET',
+    source: 'TICKET',
+    entityId: row.id,
+    ticketId: row.id,
+    scheduleId: null,
+    companyId: row.companyId,
+    clientCompanyId: row.location.clientCompanyId,
+    locationId: row.location.id,
+    employeeId: row.assignedTechnician?.id ?? null,
     title: `#${row.ticketNumber} ${truncate(row.problemText)}`.trim(),
     status: row.status,
-    scheduling: row.plannedDueAt ? 'SCHEDULED' : 'UNSCHEDULED',
-    dueAt: row.plannedDueAt ? row.plannedDueAt.toISOString() : null,
-    localDate: row.plannedDueAt
-      ? localDateOf(row.plannedDueAt, timeZone)
-      : null,
-    startAt: null,
-    endAt: null,
-    hasWindow: false,
-    employeeId: row.assignedTechnician?.id ?? null,
-    locationId: row.location.id,
-    clientCompanyId: row.location.clientCompanyId,
+    timing: timing(row.plannedDueAt, timeZone),
+    recurrence: null,
     ticket: {
       ticketNumber: row.ticketNumber,
       urgency: row.urgency,
@@ -162,6 +193,7 @@ export function ticketEvent(
       slaDueAt: row.slaDueAt ? row.slaDueAt.toISOString() : null,
       parentId: row.parentId,
     },
+    inspection: null,
   };
 }
 
@@ -181,7 +213,7 @@ export function inspectionEventStatus(
   ) {
     return 'IN_PROGRESS';
   }
-  return row.isOverdue ? 'OVERDUE' : 'PLANNED';
+  return row.isOverdue ? 'OVERDUE' : 'SCHEDULED';
 }
 
 export function inspectionEvent(
@@ -190,30 +222,44 @@ export function inspectionEvent(
 ): WorkCalendarEvent {
   return {
     id: `inspection:${row.id}`,
-    type: 'INSPECTION',
-    sourceId: row.id,
+    kind: 'INSPECTION',
+    source: 'INSPECTION_SCHEDULE',
+    entityId: row.id,
+    ticketId: null,
+    scheduleId: row.id,
+    companyId: row.companyId,
+    clientCompanyId: row.location.clientCompanyId,
+    locationId: row.location.id,
+    employeeId: row.assignedTo?.id ?? null,
     title: row.name,
     status: inspectionEventStatus(row),
-    scheduling: 'SCHEDULED',
-    dueAt: row.nextDueAt.toISOString(),
-    localDate: localDateOf(row.nextDueAt, timeZone),
-    startAt: null,
-    endAt: null,
-    hasWindow: false,
-    employeeId: row.assignedTo?.id ?? null,
-    locationId: row.location.id,
-    clientCompanyId: row.location.clientCompanyId,
-    inspection: {
+    timing: timing(row.nextDueAt, timeZone),
+    recurrence: {
       frequency: row.frequency,
       intervalDays: row.intervalDays,
-      templateName: row.template?.name ?? null,
+      nextDueAt: row.nextDueAt.toISOString(),
       overdueAt: row.overdueAt.toISOString(),
       isOverdue: row.isOverdue,
       followingDueAt: row.followingDueAt
         ? row.followingDueAt.toISOString()
         : null,
+    },
+    ticket: null,
+    inspection: {
+      templateName: row.template?.name ?? null,
       lastRunId: row.lastRun?.id ?? null,
     },
+  };
+}
+
+function timing(dueAt: Date | null, timeZone: string): WorkCalendarTiming {
+  return {
+    mode: dueAt ? 'DUE' : 'UNSCHEDULED',
+    dueAt: dueAt ? dueAt.toISOString() : null,
+    localDate: dueAt ? localDateOf(dueAt, timeZone) : null,
+    startAt: null,
+    endAt: null,
+    hasWindow: false,
   };
 }
 
@@ -222,7 +268,7 @@ export function inspectionEvent(
  * пересекаются по условию, но строка может прийти дважды (повтор страницы,
  * будущая выборка по второму контуру), и календарь не должен её удвоить.
  *
- * Порядок: со сроком по сроку, затем без срока; при равенстве — по типу и id,
+ * Порядок: со сроком по сроку, затем без срока; при равенстве — по виду и id,
  * чтобы ответ был стабильным между запросами.
  */
 export function mergeEvents(events: WorkCalendarEvent[]): WorkCalendarEvent[] {
@@ -234,12 +280,14 @@ export function mergeEvents(events: WorkCalendarEvent[]): WorkCalendarEvent[] {
 }
 
 function compareEvents(a: WorkCalendarEvent, b: WorkCalendarEvent): number {
-  if (a.dueAt !== b.dueAt) {
-    if (a.dueAt === null) return 1;
-    if (b.dueAt === null) return -1;
-    return a.dueAt < b.dueAt ? -1 : 1;
+  const aDue = a.timing.dueAt;
+  const bDue = b.timing.dueAt;
+  if (aDue !== bDue) {
+    if (aDue === null) return 1;
+    if (bDue === null) return -1;
+    return aDue < bDue ? -1 : 1;
   }
-  if (a.type !== b.type) return a.type < b.type ? -1 : 1;
+  if (a.kind !== b.kind) return a.kind < b.kind ? -1 : 1;
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
@@ -259,29 +307,29 @@ export function buildEmployeeResources(params: {
   eventPeople: CalendarPerson[];
   employeeFilter: string[] | null;
 }): WorkCalendarEmployee[] {
-  const assigned = new Set(
-    params.events
-      .map((event) => event.employeeId)
-      .filter((id): id is string => !!id),
-  );
+  const counts = countBy(params.events.map((event) => event.employeeId));
   const filter = params.employeeFilter ? new Set(params.employeeFilter) : null;
 
   const byId = new Map<string, WorkCalendarEmployee>();
   const add = (person: CalendarPerson) => {
     if (byId.has(person.id)) return;
     if (filter && !filter.has(person.id)) return;
+    const own = person.companyId === params.actorCompanyId;
     byId.set(person.id, {
       id: person.id,
-      firstName: person.firstName,
-      lastName: person.lastName,
       displayName: displayName(person),
-      isOwnCompany: person.companyId === params.actorCompanyId,
+      companyId: own ? person.companyId : null,
+      role: own ? (person.role ?? null) : null,
+      isActive: own ? (person.isActive ?? null) : null,
+      isExecutor: own ? (person.isExecutor ?? null) : null,
+      isOwnCompany: own,
+      eventCount: counts.get(person.id) ?? 0,
     });
   };
 
   for (const person of params.roster) add(person);
   for (const person of params.eventPeople) {
-    if (assigned.has(person.id)) add(person);
+    if (counts.has(person.id)) add(person);
   }
 
   return [...byId.values()].sort(
@@ -291,26 +339,50 @@ export function buildEmployeeResources(params: {
   );
 }
 
-/** Объекты — только те, на которых есть видимые события. */
-export function buildLocationResources(
-  locations: CalendarLocation[],
-  events: WorkCalendarEvent[],
-): WorkCalendarLocationResource[] {
-  const used = new Set(events.map((event) => event.locationId));
+/**
+ * Объекты: справочник, который актору разрешено видеть (directory, собирает
+ * сервис тем же scope, что /locations), плюс объекты видимых событий.
+ * Справочник пуст, если доступа к нему нет: тогда строки только по событиям.
+ */
+export function buildLocationResources(params: {
+  directory: CalendarLocation[];
+  eventLocations: CalendarLocation[];
+  events: WorkCalendarEvent[];
+  locationFilter: string[] | null;
+}): WorkCalendarLocationResource[] {
+  const counts = countBy(params.events.map((event) => event.locationId));
+  const filter = params.locationFilter ? new Set(params.locationFilter) : null;
+
   const byId = new Map<string, WorkCalendarLocationResource>();
-  for (const location of locations) {
-    if (!used.has(location.id) || byId.has(location.id)) continue;
+  const add = (location: CalendarLocation) => {
+    if (byId.has(location.id)) return;
+    if (filter && !filter.has(location.id)) return;
     byId.set(location.id, {
       id: location.id,
       name: location.name,
       city: location.city,
       address: location.address,
       clientCompanyId: location.clientCompanyId,
+      eventCount: counts.get(location.id) ?? 0,
     });
+  };
+
+  for (const location of params.directory) add(location);
+  for (const location of params.eventLocations) {
+    if (counts.has(location.id)) add(location);
   }
+
   return [...byId.values()].sort(
     (a, b) => a.name.localeCompare(b.name, 'ru') || (a.id < b.id ? -1 : 1),
   );
+}
+
+function countBy(keys: Array<string | null>): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const key of keys) {
+    if (key) counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return counts;
 }
 
 function displayName(person: CalendarPerson): string {

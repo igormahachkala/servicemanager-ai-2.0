@@ -1,4 +1,4 @@
-import { TicketStatus } from '@prisma/client';
+import { TicketStatus, UserRole } from '@prisma/client';
 
 import {
   buildEmployeeResources,
@@ -26,6 +26,9 @@ const TECH: CalendarPerson = {
   firstName: 'Иван',
   lastName: 'Петров',
   companyId: OWN,
+  role: UserRole.TECHNICIAN,
+  isActive: true,
+  isExecutor: true,
 };
 
 function ticketRow(
@@ -53,6 +56,7 @@ function scheduleRow(
 ): CalendarScheduleRow {
   return {
     id: 's-1',
+    companyId: OWN,
     name: 'ТО ежемесячное',
     frequency: 'MONTHLY',
     intervalDays: null,
@@ -69,40 +73,54 @@ function scheduleRow(
 }
 
 describe('SMA-WORK-CALENDAR-V1 событие заявки', () => {
-  it('плановая заявка: срок и местные сутки есть, окна нет', () => {
-    const event = ticketEvent(ticketRow(), 'Europe/Moscow');
-    expect(event).toMatchObject({
+  it('согласованная форма: kind, source, entityId, ticketId, timing без окна', () => {
+    expect(ticketEvent(ticketRow(), 'Europe/Moscow')).toEqual({
       id: 'ticket:t-1',
-      type: 'TICKET',
-      sourceId: 't-1',
+      kind: 'TICKET',
+      source: 'TICKET',
+      entityId: 't-1',
+      ticketId: 't-1',
+      scheduleId: null,
+      companyId: 'client-a',
+      clientCompanyId: 'client-a',
+      locationId: 'loc-1',
+      employeeId: 'u-tech',
       title: '#1042 Не работает холодильник',
       status: TicketStatus.ASSIGNED,
-      scheduling: 'SCHEDULED',
-      dueAt: '2026-10-27T07:00:00.000Z',
-      localDate: '2026-10-27',
-      startAt: null,
-      endAt: null,
-      hasWindow: false,
-      employeeId: 'u-tech',
-      locationId: 'loc-1',
-      clientCompanyId: 'client-a',
+      timing: {
+        mode: 'DUE',
+        dueAt: '2026-10-27T07:00:00.000Z',
+        localDate: '2026-10-27',
+        startAt: null,
+        endAt: null,
+        hasWindow: false,
+      },
+      recurrence: null,
+      ticket: {
+        ticketNumber: 1042,
+        urgency: 'NOT_URGENT',
+        priority: 'NORMAL',
+        slaDueAt: null,
+        parentId: null,
+      },
+      inspection: null,
     });
   });
 
-  it('заявка без плановой даты — UNSCHEDULED без срока и без окна', () => {
+  it('заявка без плановой даты — timing.mode UNSCHEDULED без срока и окна', () => {
     const event = ticketEvent(
       ticketRow({ plannedDueAt: null, assignedTechnician: null }),
       'Europe/Moscow',
     );
-    expect(event).toMatchObject({
-      scheduling: 'UNSCHEDULED',
+    expect(event.timing).toEqual({
+      mode: 'UNSCHEDULED',
       dueAt: null,
       localDate: null,
       startAt: null,
       endAt: null,
       hasWindow: false,
-      employeeId: null,
     });
+    expect(event.employeeId).toBeNull();
   });
 
   it('срок SLA не подменяет плановую дату', () => {
@@ -113,30 +131,41 @@ describe('SMA-WORK-CALENDAR-V1 событие заявки', () => {
       }),
       'UTC',
     );
-    expect(event.dueAt).toBeNull();
+    expect(event.timing.dueAt).toBeNull();
     expect(event.ticket?.slaDueAt).toBe('2026-10-27T10:00:00.000Z');
   });
 });
 
 describe('SMA-WORK-CALENDAR-V1 событие плана обходов', () => {
-  it('срок визита — nextDueAt, окна нет, данные повторения переданы как есть', () => {
+  it('ссылка на план, срок — nextDueAt, recurrence из логики повторения', () => {
     const event = inspectionEvent(scheduleRow(), 'Asia/Yekaterinburg');
     expect(event).toMatchObject({
       id: 'inspection:s-1',
-      type: 'INSPECTION',
-      status: 'PLANNED',
-      scheduling: 'SCHEDULED',
-      dueAt: '2026-10-28T06:00:00.000Z',
-      localDate: '2026-10-28',
-      startAt: null,
-      endAt: null,
-      hasWindow: false,
-      inspection: {
+      kind: 'INSPECTION',
+      source: 'INSPECTION_SCHEDULE',
+      entityId: 's-1',
+      ticketId: null,
+      scheduleId: 's-1',
+      companyId: OWN,
+      status: 'SCHEDULED',
+      timing: {
+        mode: 'DUE',
+        dueAt: '2026-10-28T06:00:00.000Z',
+        localDate: '2026-10-28',
+        startAt: null,
+        endAt: null,
+        hasWindow: false,
+      },
+      recurrence: {
         frequency: 'MONTHLY',
+        intervalDays: null,
+        nextDueAt: '2026-10-28T06:00:00.000Z',
         overdueAt: '2026-10-29T06:00:00.000Z',
         isOverdue: false,
         followingDueAt: '2026-11-28T06:00:00.000Z',
       },
+      ticket: null,
+      inspection: { templateName: 'ТО', lastRunId: null },
     });
   });
 
@@ -166,7 +195,7 @@ describe('SMA-WORK-CALENDAR-V1 событие плана обходов', () => 
         isOverdue: false,
         lastRun: { id: 'r', status: 'COMPLETED', dueAt: due },
       }),
-    ).toBe('PLANNED');
+    ).toBe('SCHEDULED');
   });
 });
 
@@ -192,7 +221,7 @@ describe('SMA-WORK-CALENDAR-V1 дублирование событий', () => {
     expect(events).toHaveLength(2);
   });
 
-  it('порядок: со сроком по сроку, затем без срока, стабильно по типу и id', () => {
+  it('порядок: со сроком по сроку, затем без срока, стабильно по виду и id', () => {
     const events = mergeEvents([
       ticketEvent(ticketRow({ id: 'u-2', plannedDueAt: null }), 'UTC'),
       inspectionEvent(
@@ -211,39 +240,47 @@ describe('SMA-WORK-CALENDAR-V1 дублирование событий', () => {
   });
 });
 
-describe('SMA-WORK-CALENDAR-V1 resources', () => {
+describe('SMA-WORK-CALENDAR-V1 resources.employees', () => {
   const idle: CalendarPerson = {
     id: 'u-idle',
     firstName: 'Олег',
     lastName: 'Аксёнов',
     companyId: OWN,
+    role: UserRole.MASTER,
+    isActive: true,
+    isExecutor: true,
   };
   const foreign: CalendarPerson = {
     id: 'u-foreign',
     firstName: 'Чужой',
     lastName: 'Исполнитель',
     companyId: 'provider-2',
+    role: UserRole.TECHNICIAN,
+    isActive: true,
+    isExecutor: true,
   };
 
-  it('сотрудник без событий остаётся строкой', () => {
+  it('сотрудник без событий остаётся строкой с eventCount = 0', () => {
     const employees = buildEmployeeResources({
       actorCompanyId: OWN,
       roster: [TECH, idle],
-      events: [],
-      eventPeople: [],
+      events: [ticketEvent(ticketRow(), 'UTC')],
+      eventPeople: [TECH],
       employeeFilter: null,
     });
-    expect(employees.map((employee) => employee.id)).toEqual([
-      'u-idle',
-      'u-tech',
+    expect(employees).toEqual([
+      {
+        id: 'u-idle',
+        displayName: 'Аксёнов Олег',
+        companyId: OWN,
+        role: UserRole.MASTER,
+        isActive: true,
+        isExecutor: true,
+        isOwnCompany: true,
+        eventCount: 0,
+      },
+      expect.objectContaining({ id: 'u-tech', eventCount: 1 }),
     ]);
-    expect(employees[0]).toEqual({
-      id: 'u-idle',
-      firstName: 'Олег',
-      lastName: 'Аксёнов',
-      displayName: 'Аксёнов Олег',
-      isOwnCompany: true,
-    });
   });
 
   it('пустой штат и ни одного события — пустой список, а не ошибка', () => {
@@ -258,50 +295,52 @@ describe('SMA-WORK-CALENDAR-V1 resources', () => {
     ).toEqual([]);
   });
 
-  it('исполнитель другой компании — строкой только при видимом событии', () => {
+  it('исполнитель другой компании: без компании, роли и внутренних признаков', () => {
     const event = ticketEvent(
       ticketRow({ assignedTechnician: foreign }),
       'UTC',
     );
-    const withEvent = buildEmployeeResources({
-      actorCompanyId: OWN,
-      roster: [],
-      events: [event],
-      eventPeople: [foreign],
-      employeeFilter: null,
-    });
-    expect(withEvent).toEqual([
-      expect.objectContaining({ id: 'u-foreign', isOwnCompany: false }),
+    expect(
+      buildEmployeeResources({
+        actorCompanyId: OWN,
+        roster: [],
+        events: [event],
+        eventPeople: [foreign],
+        employeeFilter: null,
+      }),
+    ).toEqual([
+      {
+        id: 'u-foreign',
+        displayName: 'Исполнитель Чужой',
+        companyId: null,
+        role: null,
+        isActive: null,
+        isExecutor: null,
+        isOwnCompany: false,
+        eventCount: 1,
+      },
     ]);
-
-    const withoutEvent = buildEmployeeResources({
-      actorCompanyId: OWN,
-      roster: [],
-      events: [],
-      eventPeople: [foreign],
-      employeeFilter: null,
-    });
-    expect(withoutEvent).toEqual([]);
   });
 
-  it('id из фильтра сотрудников не превращается в строку', () => {
-    const employees = buildEmployeeResources({
-      actorCompanyId: OWN,
-      roster: [TECH],
-      events: [],
-      eventPeople: [],
-      employeeFilter: ['u-tech', 'u-foreign'],
-    });
-    expect(employees.map((employee) => employee.id)).toEqual(['u-tech']);
+  it('исполнитель другой компании без видимого события строкой не становится', () => {
+    expect(
+      buildEmployeeResources({
+        actorCompanyId: OWN,
+        roster: [],
+        events: [],
+        eventPeople: [foreign],
+        employeeFilter: null,
+      }),
+    ).toEqual([]);
   });
 
-  it('фильтр сотрудников сужает и штат', () => {
+  it('id из фильтра сотрудников не превращается в строку; фильтр сужает штат', () => {
     const employees = buildEmployeeResources({
       actorCompanyId: OWN,
       roster: [TECH, idle],
       events: [],
       eventPeople: [],
-      employeeFilter: ['u-idle'],
+      employeeFilter: ['u-idle', 'u-foreign'],
     });
     expect(employees.map((employee) => employee.id)).toEqual(['u-idle']);
   });
@@ -315,18 +354,56 @@ describe('SMA-WORK-CALENDAR-V1 resources', () => {
       employeeFilter: null,
     });
     expect(employee.displayName).toBe('Без имени');
+    expect(employee.role).toBeNull();
   });
+});
 
-  it('объекты — только с видимыми событиями и без повторов', () => {
-    const other: CalendarLocation = {
-      ...LOC,
-      id: 'loc-2',
-      name: 'Без событий',
-    };
+describe('SMA-WORK-CALENDAR-V1 resources.locations', () => {
+  const empty: CalendarLocation = { ...LOC, id: 'loc-2', name: 'Без событий' };
+  const offDirectory: CalendarLocation = {
+    ...LOC,
+    id: 'loc-3',
+    name: 'Вне справочника',
+  };
+
+  it('справочник даёт пустые объекты, события — счётчики', () => {
     const events = [
       ticketEvent(ticketRow(), 'UTC'),
       inspectionEvent(scheduleRow(), 'UTC'),
     ];
-    expect(buildLocationResources([LOC, LOC, other], events)).toEqual([LOC]);
+    expect(
+      buildLocationResources({
+        directory: [LOC, empty],
+        eventLocations: [LOC, LOC],
+        events,
+        locationFilter: null,
+      }),
+    ).toEqual([
+      { ...empty, eventCount: 0 },
+      { ...LOC, eventCount: 2 },
+    ]);
+  });
+
+  it('без справочника — только объекты видимых событий', () => {
+    const events = [ticketEvent(ticketRow(), 'UTC')];
+    expect(
+      buildLocationResources({
+        directory: [],
+        eventLocations: [LOC, offDirectory],
+        events,
+        locationFilter: null,
+      }).map((location) => location.id),
+    ).toEqual(['loc-1']);
+  });
+
+  it('фильтр объектов сужает и справочник', () => {
+    expect(
+      buildLocationResources({
+        directory: [LOC, empty],
+        eventLocations: [],
+        events: [],
+        locationFilter: ['loc-2', 'loc-foreign'],
+      }).map((location) => location.id),
+    ).toEqual(['loc-2']);
   });
 });

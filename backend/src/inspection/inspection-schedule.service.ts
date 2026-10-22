@@ -96,6 +96,8 @@ export class InspectionScheduleService {
       from: Date;
       to: Date;
       assignedToUserIds?: string[];
+      /** assigned — только с исполнителем, unassigned — только без него. */
+      assigned?: 'assigned' | 'unassigned';
       locationIds?: string[];
       take: number;
     },
@@ -111,13 +113,19 @@ export class InspectionScheduleService {
     if (!this.policy.canManageSchedule(user).allowed) {
       where.assignedToUserId = user.id;
       if (
-        params.assignedToUserIds &&
-        !params.assignedToUserIds.includes(user.id)
+        params.assigned === 'unassigned' ||
+        (params.assignedToUserIds &&
+          !params.assignedToUserIds.includes(user.id))
       ) {
         return { rows: [], fetched: 0 };
       }
     } else if (params.assignedToUserIds) {
+      if (params.assigned === 'unassigned') return { rows: [], fetched: 0 };
       where.assignedToUserId = { in: params.assignedToUserIds };
+    } else if (params.assigned === 'assigned') {
+      where.assignedToUserId = { not: null };
+    } else if (params.assigned === 'unassigned') {
+      where.assignedToUserId = null;
     }
 
     if (params.locationIds) where.locationId = { in: params.locationIds };
@@ -129,6 +137,17 @@ export class InspectionScheduleService {
       select: {
         ...scheduleSelect(),
         assignedToUserId: true,
+        // Календарю нужны признаки исполнителя для строки сотрудника, email — нет.
+        assignedTo: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+            isActive: true,
+            isExecutor: true,
+          },
+        },
         company: { select: { timezone: true } },
       },
     });

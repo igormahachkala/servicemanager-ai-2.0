@@ -52,9 +52,12 @@ export class WorkCalendarController {
     @Query('companyId') companyId?: string,
     @Query('employeeIds') employeeIds?: string | string[],
     @Query('locationIds') locationIds?: string | string[],
+    @Query('eventTypes') eventTypes?: string | string[],
     @Query('types') types?: string | string[],
     @Query('statuses') statuses?: string | string[],
+    @Query('assigned') assigned?: string,
     @Query('includeUnscheduled') includeUnscheduled?: string,
+    @Query('includeCompleted') includeCompleted?: string,
   ) {
     return this.calendar.getCalendar(
       {
@@ -71,9 +74,12 @@ export class WorkCalendarController {
         companyId,
         employeeIds,
         locationIds,
+        eventTypes,
         types,
         statuses,
+        assigned,
         includeUnscheduled,
+        includeCompleted,
       },
     );
   }

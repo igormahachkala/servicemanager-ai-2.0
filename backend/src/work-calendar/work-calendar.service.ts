@@ -6,6 +6,7 @@ import { hasAnyPermission } from '../common/permissions.guard';
 import { PERMISSIONS } from '../common/permissions.constants';
 import { nextOccurrenceAfter } from '../inspection/inspection-recurrence';
 import { InspectionScheduleService } from '../inspection/inspection-schedule.service';
+import { LocationsService } from '../locations/locations.service';
 import { InspectionPolicy } from '../policy/inspection.policy';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -19,12 +20,12 @@ import { scopeForClient } from '../tickets/tickets.service';
 import {
   buildEmployeeResources,
   buildLocationResources,
+  COMPLETED_TICKET_STATUSES,
   INSPECTION_EVENT_STATUSES,
   inspectionEvent,
   mergeEvents,
   ticketEvent,
-  UNSCHEDULED_TICKET_STATUSES,
-  WORK_CALENDAR_EVENT_TYPES,
+  WORK_CALENDAR_EVENT_KINDS,
   type CalendarLocation,
   type CalendarPerson,
   type CalendarScheduleRow,
@@ -32,7 +33,7 @@ import {
   type InspectionEventStatus,
   type WorkCalendarEmployee,
   type WorkCalendarEvent,
-  type WorkCalendarEventType,
+  type WorkCalendarEventKind,
   type WorkCalendarLocationResource,
 } from './work-calendar-events';
 import {
@@ -50,14 +51,26 @@ import {
  * через InspectionScheduleService с той же видимостью, что у
  * /inspection/schedules, и сверх неё сужаются контуром запроса и привязками
  * актора к объектам: календарь показывает один контур, а не всё сразу.
+ * Справочник объектов — LocationsService.list, тот же scope, что у /locations.
  */
+
+export const WORK_CALENDAR_VERSION = 1;
 
 export const WORK_CALENDAR_LIMITS = {
   scheduledTickets: 1000,
   unscheduledTickets: 200,
   inspections: 500,
   employees: 300,
+  locations: 300,
 } as const;
+
+/**
+ * Сколько планов просматривается ради точного total. Видимость планов
+ * дорешивается после выборки (договор площадки), поэтому посчитать их
+ * запросом count нельзя. За этим пределом total — нижняя граница,
+ * meta.totalIsExact = false.
+ */
+export const INSPECTION_SCAN_CAP = 5000;
 
 const MAX_FILTER_IDS = 100;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -85,38 +98,50 @@ export type WorkCalendarQuery = {
   companyId?: string;
   employeeIds?: string | string[];
   locationIds?: string | string[];
+  eventTypes?: string | string[];
+  /** Прежнее имя eventTypes, принимается для совместимости. */
   types?: string | string[];
   statuses?: string | string[];
+  assigned?: string;
   includeUnscheduled?: string;
+  includeCompleted?: string;
 };
 
 type TruncatedSource = keyof typeof WORK_CALENDAR_LIMITS;
 
 export type WorkCalendarResponse = {
+  version: typeof WORK_CALENDAR_VERSION;
   range: { from: string; to: string; timezone: string };
+  capabilities: {
+    tickets: boolean;
+    inspections: boolean;
+    /** Полные справочники: и штат, и объекты, а не только строки по событиям. */
+    resources: boolean;
+    employeeDirectory: boolean;
+    locationDirectory: boolean;
+    readOnly: true;
+    unscheduled: true;
+    timeWindows: false;
+    recurrenceProjection: false;
+    restrictedEmpty: boolean;
+  };
   resources: {
     employees: WorkCalendarEmployee[];
     locations: WorkCalendarLocationResource[];
   };
   events: WorkCalendarEvent[];
-  capabilities: {
-    readOnly: true;
-    eventTypes: Record<WorkCalendarEventType, boolean>;
-    unscheduled: boolean;
-    timeWindows: false;
-    recurrenceProjection: false;
-    employeeRoster: boolean;
-    restrictedEmpty: boolean;
-  };
   meta: {
+    /** Сколько событий подходит под запрос во всём периоде, а не в ответе. */
+    total: number;
+    scheduled: number;
+    unscheduled: number;
     truncated: boolean;
+    /** false — total нижняя граница: планов больше, чем просматривается. */
+    totalIsExact: boolean;
+    /** Сколько событий в этом ответе. */
+    returned: { total: number; scheduled: number; unscheduled: number };
     truncatedSources: TruncatedSource[];
     limits: typeof WORK_CALENDAR_LIMITS;
-    counts: {
-      scheduledTickets: number;
-      unscheduledTickets: number;
-      inspections: number;
-    };
     generatedAt: string;
   };
 };
@@ -134,6 +159,9 @@ const personSelect = {
   firstName: true,
   lastName: true,
   companyId: true,
+  role: true,
+  isActive: true,
+  isExecutor: true,
 } as const;
 
 const ticketSelect = {
@@ -151,6 +179,8 @@ const ticketSelect = {
   assignedTechnician: { select: personSelect },
 } satisfies Prisma.TicketSelect;
 
+type SourceResult<T> = { rows: T[]; total: number; truncated: boolean };
+
 @Injectable()
 export class WorkCalendarService {
   private readonly inspectionPolicy = new InspectionPolicy();
@@ -159,6 +189,7 @@ export class WorkCalendarService {
     private readonly prisma: PrismaService,
     private readonly ticketsQuery: TicketsQueryService,
     private readonly schedules: InspectionScheduleService,
+    private readonly locations: LocationsService,
   ) {}
 
   async getCalendar(
@@ -217,64 +248,61 @@ export class WorkCalendarService {
         await actorLocationScope(ticketScope.scopeCompanyId),
       );
 
-    const truncatedSources: TruncatedSource[] = [];
-    const ticketRows: CalendarTicketRow[] = [];
-    let scheduledTickets = 0;
-    let unscheduledTickets = 0;
-
-    if (filters.types.has('TICKET') && ticketScope.where) {
-      const scheduledStatuses = filters.ticketStatuses;
-      if (!scheduledStatuses || scheduledStatuses.length > 0) {
-        const rows = await this.findTickets(
-          ticketScope.where,
-          {
-            plannedDueAt: { gte: range.from, lt: range.to },
-            ...(scheduledStatuses ? { status: { in: scheduledStatuses } } : {}),
-          },
-          filters,
-          [{ plannedDueAt: 'asc' }, { id: 'asc' }],
-          WORK_CALENDAR_LIMITS.scheduledTickets,
-        );
-        if (rows.length > WORK_CALENDAR_LIMITS.scheduledTickets) {
-          truncatedSources.push('scheduledTickets');
-        }
-        const kept = rows.slice(0, WORK_CALENDAR_LIMITS.scheduledTickets);
-        scheduledTickets = kept.length;
-        ticketRows.push(...kept);
-      }
-
-      const unscheduledStatuses = UNSCHEDULED_TICKET_STATUSES.filter(
-        (status) =>
-          !filters.ticketStatuses || filters.ticketStatuses.includes(status),
-      );
-      if (filters.includeUnscheduled && unscheduledStatuses.length > 0) {
-        const rows = await this.findTickets(
-          ticketScope.where,
-          { plannedDueAt: null, status: { in: unscheduledStatuses } },
-          filters,
-          [{ createdAt: 'asc' }, { id: 'asc' }],
-          WORK_CALENDAR_LIMITS.unscheduledTickets,
-        );
-        if (rows.length > WORK_CALENDAR_LIMITS.unscheduledTickets) {
-          truncatedSources.push('unscheduledTickets');
-        }
-        const kept = rows.slice(0, WORK_CALENDAR_LIMITS.unscheduledTickets);
-        unscheduledTickets = kept.length;
-        ticketRows.push(...kept);
-      }
-    }
-
-    const inspectionsAvailable =
+    const locationsViewGranted =
       !observer &&
-      this.inspectionPolicy.canViewSchedules(actor).allowed &&
       (await hasAnyPermission(this.prisma, actor, [
         PERMISSIONS.LOCATIONS_VIEW,
       ]));
 
-    let scheduleRows: CalendarScheduleRow[] = [];
+    // ── заявки ──────────────────────────────────────────────────────────────
+    const ticketStatuses = allowedTicketStatuses(filters);
+    let scheduledTickets: SourceResult<CalendarTicketRow> = emptySource();
+    let unscheduledTickets: SourceResult<CalendarTicketRow> = emptySource();
+
+    if (
+      filters.kinds.has('TICKET') &&
+      ticketScope.where &&
+      ticketStatuses.length > 0
+    ) {
+      scheduledTickets = await this.findTickets(
+        ticketScope.where,
+        {
+          plannedDueAt: { gte: range.from, lt: range.to },
+          status: { in: ticketStatuses },
+        },
+        filters,
+        [{ plannedDueAt: 'asc' }, { id: 'asc' }],
+        WORK_CALENDAR_LIMITS.scheduledTickets,
+      );
+      // Без даты — только незавершённые и при includeCompleted=true: закрытая
+      // заявка без плановой даты к периоду не относится, а их история
+      // заполнила бы корзину целиком.
+      const openStatuses = ticketStatuses.filter(
+        (status) => !COMPLETED_TICKET_STATUSES.includes(status),
+      );
+      if (filters.includeUnscheduled && openStatuses.length > 0) {
+        unscheduledTickets = await this.findTickets(
+          ticketScope.where,
+          { plannedDueAt: null, status: { in: openStatuses } },
+          filters,
+          [{ createdAt: 'asc' }, { id: 'asc' }],
+          WORK_CALENDAR_LIMITS.unscheduledTickets,
+        );
+      }
+    }
+
+    // ── планы обходов ───────────────────────────────────────────────────────
+    const inspectionsAvailable =
+      locationsViewGranted &&
+      this.inspectionPolicy.canViewSchedules(actor).allowed;
+
+    let inspections: SourceResult<CalendarScheduleRow> & { exact: boolean } = {
+      ...emptySource<CalendarScheduleRow>(),
+      exact: true,
+    };
     if (
       inspectionsAvailable &&
-      filters.types.has('INSPECTION') &&
+      filters.kinds.has('INSPECTION') &&
       (!filters.inspectionStatuses || filters.inspectionStatuses.length > 0)
     ) {
       const contourClientIds = new Set<string>(
@@ -289,18 +317,13 @@ export class WorkCalendarService {
         from: range.from,
         to: range.to,
         assignedToUserIds: filters.employeeIds ?? undefined,
+        assigned: filters.assigned ?? undefined,
         locationIds: filters.locationIds ?? undefined,
-        take: WORK_CALENDAR_LIMITS.inspections,
+        take: INSPECTION_SCAN_CAP,
       });
-      if (result.fetched > WORK_CALENDAR_LIMITS.inspections) {
-        truncatedSources.push('inspections');
-      }
 
-      const rows: CalendarScheduleRow[] = [];
-      for (const schedule of result.rows.slice(
-        0,
-        WORK_CALENDAR_LIMITS.inspections,
-      )) {
+      const visible: CalendarScheduleRow[] = [];
+      for (const schedule of result.rows.slice(0, INSPECTION_SCAN_CAP)) {
         const location = schedule.location;
         if (!location || !contourClientIds.has(location.clientCompanyId)) {
           continue;
@@ -314,45 +337,94 @@ export class WorkCalendarService {
         ) {
           continue;
         }
-        rows.push(toScheduleRow(schedule));
-      }
-      scheduleRows = rows.filter(
-        (row) =>
-          !filters.inspectionStatuses ||
-          filters.inspectionStatuses.includes(
+        const row = toScheduleRow(schedule);
+        if (
+          filters.inspectionStatuses &&
+          !filters.inspectionStatuses.includes(
             inspectionEvent(row, timeZone).status as InspectionEventStatus,
-          ),
-      );
+          )
+        ) {
+          continue;
+        }
+        visible.push(row);
+      }
+      inspections = {
+        rows: visible.slice(0, WORK_CALENDAR_LIMITS.inspections),
+        total: visible.length,
+        truncated:
+          visible.length > WORK_CALENDAR_LIMITS.inspections ||
+          result.fetched > INSPECTION_SCAN_CAP,
+        exact: result.fetched <= INSPECTION_SCAN_CAP,
+      };
     }
 
     const events = mergeEvents([
-      ...ticketRows.map((row) => ticketEvent(row, timeZone)),
-      ...scheduleRows.map((row) => inspectionEvent(row, timeZone)),
+      ...scheduledTickets.rows.map((row) => ticketEvent(row, timeZone)),
+      ...unscheduledTickets.rows.map((row) => ticketEvent(row, timeZone)),
+      ...inspections.rows.map((row) => inspectionEvent(row, timeZone)),
     ]);
 
-    const rosterAllowed =
+    // ── resources ───────────────────────────────────────────────────────────
+    const employeeDirectory =
       !observer &&
       !restrictedEmpty &&
       (ROSTER_ROLES.includes(actor.role) || actor.role === UserRole.TECHNICIAN);
-    const roster = rosterAllowed
+    const roster = employeeDirectory
       ? await this.loadRoster(actor, filters.employeeIds)
       : { people: [], truncated: false };
-    if (roster.truncated) truncatedSources.push('employees');
 
+    const directory =
+      locationsViewGranted && !technician && !restrictedEmpty
+        ? await this.loadLocationDirectory(
+            actor,
+            ticketScope.scopeCompanyId,
+            filters.locationIds,
+          )
+        : null;
+    const locationDirectory = directory !== null;
+
+    const ticketRows = [...scheduledTickets.rows, ...unscheduledTickets.rows];
     const eventPeople: CalendarPerson[] = [
       ...ticketRows.map((row) => row.assignedTechnician),
-      ...scheduleRows.map((row) => row.assignedTo),
+      ...inspections.rows.map((row) => row.assignedTo),
     ].filter((person): person is CalendarPerson => !!person);
     const eventLocations: CalendarLocation[] = [
       ...ticketRows.map((row) => row.location),
-      ...scheduleRows.map((row) => row.location),
+      ...inspections.rows.map((row) => row.location),
     ];
 
+    const truncatedSources: TruncatedSource[] = [];
+    if (scheduledTickets.truncated) truncatedSources.push('scheduledTickets');
+    if (unscheduledTickets.truncated) {
+      truncatedSources.push('unscheduledTickets');
+    }
+    if (inspections.truncated) truncatedSources.push('inspections');
+    if (roster.truncated) truncatedSources.push('employees');
+    if (directory?.truncated) truncatedSources.push('locations');
+
+    const scheduledTotal = scheduledTickets.total + inspections.total;
+    const returnedUnscheduled = events.filter(
+      (event) => event.timing.mode === 'UNSCHEDULED',
+    ).length;
+
     return {
+      version: WORK_CALENDAR_VERSION,
       range: {
         from: range.from.toISOString(),
         to: range.to.toISOString(),
         timezone: timeZone,
+      },
+      capabilities: {
+        tickets: true,
+        inspections: inspectionsAvailable,
+        resources: employeeDirectory && locationDirectory,
+        employeeDirectory,
+        locationDirectory,
+        readOnly: true,
+        unscheduled: true,
+        timeWindows: false,
+        recurrenceProjection: false,
+        restrictedEmpty,
       },
       resources: {
         employees: buildEmployeeResources({
@@ -362,52 +434,67 @@ export class WorkCalendarService {
           eventPeople,
           employeeFilter: filters.employeeIds,
         }),
-        locations: buildLocationResources(eventLocations, events),
+        locations: buildLocationResources({
+          directory: directory?.locations ?? [],
+          eventLocations,
+          events,
+          locationFilter: filters.locationIds,
+        }),
       },
       events,
-      capabilities: {
-        readOnly: true,
-        eventTypes: { TICKET: true, INSPECTION: inspectionsAvailable },
-        unscheduled: true,
-        timeWindows: false,
-        recurrenceProjection: false,
-        employeeRoster: rosterAllowed,
-        restrictedEmpty,
-      },
       meta: {
+        total: scheduledTotal + unscheduledTickets.total,
+        scheduled: scheduledTotal,
+        unscheduled: unscheduledTickets.total,
         truncated: truncatedSources.length > 0,
+        totalIsExact: inspections.exact,
+        returned: {
+          total: events.length,
+          scheduled: events.length - returnedUnscheduled,
+          unscheduled: returnedUnscheduled,
+        },
         truncatedSources,
         limits: WORK_CALENDAR_LIMITS,
-        counts: {
-          scheduledTickets,
-          unscheduledTickets,
-          inspections: scheduleRows.length,
-        },
         generatedAt: new Date().toISOString(),
       },
     };
   }
 
+  /**
+   * Выборка заявок с лимитом. total точный: при обрезке он считается тем же
+   * WHERE запросом count, а не подменяется числом полученных строк.
+   */
   private async findTickets(
     scopeWhere: Prisma.TicketWhereInput,
     sourceWhere: Prisma.TicketWhereInput,
     filters: ParsedFilters,
     orderBy: Prisma.TicketOrderByWithRelationInput[],
     limit: number,
-  ): Promise<CalendarTicketRow[]> {
+  ): Promise<SourceResult<CalendarTicketRow>> {
     const and: Prisma.TicketWhereInput[] = [scopeWhere, sourceWhere];
     if (filters.employeeIds) {
       and.push({ assignedTechnicianId: { in: filters.employeeIds } });
     }
+    if (filters.assigned === 'assigned') {
+      and.push({ assignedTechnicianId: { not: null } });
+    } else if (filters.assigned === 'unassigned') {
+      and.push({ assignedTechnicianId: null });
+    }
     if (filters.locationIds) {
       and.push({ locationId: { in: filters.locationIds } });
     }
-    return this.prisma.ticket.findMany({
-      where: { AND: and },
+    const where: Prisma.TicketWhereInput = { AND: and };
+    const rows = await this.prisma.ticket.findMany({
+      where,
       orderBy,
       take: limit + 1,
       select: ticketSelect,
     });
+    if (rows.length <= limit) {
+      return { rows, total: rows.length, truncated: false };
+    }
+    const total = await this.prisma.ticket.count({ where });
+    return { rows: rows.slice(0, limit), total, truncated: true };
   }
 
   /**
@@ -442,6 +529,50 @@ export class WorkCalendarService {
       truncated: rows.length > WORK_CALENDAR_LIMITS.employees,
     };
   }
+
+  /**
+   * Объекты без событий — тем же списком, что отдаёт /locations: компания
+   * контура, привязки актора и область договора решает LocationsService.
+   * Отказ там — справочник недоступен, а не ошибка календаря: заявки и обходы
+   * этот же контур уже прошли.
+   */
+  private async loadLocationDirectory(
+    actor: WorkCalendarActor,
+    scopeCompanyId: string,
+    locationIds: string[] | null,
+  ): Promise<{ locations: CalendarLocation[]; truncated: boolean } | null> {
+    let rows: CalendarLocation[];
+    try {
+      rows = await this.locations.list(
+        actor.companyId,
+        actor.role,
+        actor.id,
+        { isActive: 'true' },
+        scopeCompanyId,
+      );
+    } catch {
+      return null;
+    }
+    const filtered = locationIds
+      ? rows.filter((row) => locationIds.includes(row.id))
+      : rows;
+    return {
+      locations: filtered
+        .slice(0, WORK_CALENDAR_LIMITS.locations)
+        .map((row) => ({
+          id: row.id,
+          name: row.name,
+          city: row.city,
+          address: row.address,
+          clientCompanyId: row.clientCompanyId,
+        })),
+      truncated: filtered.length > WORK_CALENDAR_LIMITS.locations,
+    };
+  }
+}
+
+function emptySource<T>(): SourceResult<T> {
+  return { rows: [], total: 0, truncated: false };
 }
 
 type ScheduleForCalendar = Awaited<
@@ -451,6 +582,7 @@ type ScheduleForCalendar = Awaited<
 function toScheduleRow(schedule: ScheduleForCalendar): CalendarScheduleRow {
   return {
     id: schedule.id,
+    companyId: schedule.companyId,
     name: schedule.name,
     frequency: schedule.frequency,
     intervalDays: schedule.intervalDays,
@@ -470,13 +602,10 @@ function toScheduleRow(schedule: ScheduleForCalendar): CalendarScheduleRow {
       address: schedule.location.address,
       clientCompanyId: schedule.location.clientCompanyId,
     },
+    // Исполнитель плана — сотрудник компании плана: так его выбирает
+    // resolveAssigneeId при создании и правке.
     assignedTo: schedule.assignedTo
-      ? {
-          id: schedule.assignedTo.id,
-          firstName: schedule.assignedTo.firstName,
-          lastName: schedule.assignedTo.lastName,
-          companyId: schedule.companyId,
-        }
+      ? { ...schedule.assignedTo, companyId: schedule.companyId }
       : null,
     lastRun: schedule.lastRun
       ? {
@@ -493,28 +622,44 @@ function toScheduleRow(schedule: ScheduleForCalendar): CalendarScheduleRow {
 type ParsedFilters = {
   employeeIds: string[] | null;
   locationIds: string[] | null;
-  types: Set<WorkCalendarEventType>;
+  kinds: Set<WorkCalendarEventKind>;
   ticketStatuses: TicketStatus[] | null;
   inspectionStatuses: InspectionEventStatus[] | null;
+  assigned: 'assigned' | 'unassigned' | null;
   includeUnscheduled: boolean;
+  includeCompleted: boolean;
 };
 
 const TICKET_STATUSES = Object.values(TicketStatus) as string[];
+
+/**
+ * Статусы заявок для выборки: фильтр запроса, из которого без
+ * includeCompleted=true убраны завершённые. Явный statuses=DONE без
+ * includeCompleted завершённых не возвращает: флаг — единственный способ их
+ * запросить, и фильтр статусов его не обходит.
+ */
+function allowedTicketStatuses(filters: ParsedFilters): TicketStatus[] {
+  const base =
+    filters.ticketStatuses ?? (Object.values(TicketStatus) as TicketStatus[]);
+  return filters.includeCompleted
+    ? base
+    : base.filter((status) => !COMPLETED_TICKET_STATUSES.includes(status));
+}
 
 export function parseFilters(query: WorkCalendarQuery): ParsedFilters {
   const employeeIds = parseIdList(query.employeeIds, 'employeeIds');
   const locationIds = parseIdList(query.locationIds, 'locationIds');
 
-  const rawTypes = splitList(query.types);
-  for (const type of rawTypes) {
-    if (!(WORK_CALENDAR_EVENT_TYPES as readonly string[]).includes(type)) {
-      throw new BadRequestException(`Unknown event type: ${type}`);
+  const rawKinds = splitList(query.eventTypes ?? query.types);
+  for (const kind of rawKinds) {
+    if (!(WORK_CALENDAR_EVENT_KINDS as readonly string[]).includes(kind)) {
+      throw new BadRequestException(`Unknown event type: ${kind}`);
     }
   }
-  const types = new Set<WorkCalendarEventType>(
-    (rawTypes.length > 0
-      ? rawTypes
-      : [...WORK_CALENDAR_EVENT_TYPES]) as WorkCalendarEventType[],
+  const kinds = new Set<WorkCalendarEventKind>(
+    (rawKinds.length > 0
+      ? rawKinds
+      : [...WORK_CALENDAR_EVENT_KINDS]) as WorkCalendarEventKind[],
   );
 
   const rawStatuses = splitList(query.statuses);
@@ -528,15 +673,17 @@ export function parseFilters(query: WorkCalendarQuery): ParsedFilters {
   }
   const hasStatuses = rawStatuses.length > 0;
 
-  const flag = (query.includeUnscheduled ?? '').trim();
-  if (flag && flag !== 'true' && flag !== 'false') {
-    throw new BadRequestException('includeUnscheduled must be true or false');
+  const assignedRaw = (query.assigned ?? '').trim();
+  if (assignedRaw && !['all', 'assigned', 'unassigned'].includes(assignedRaw)) {
+    throw new BadRequestException(
+      'assigned must be all, assigned or unassigned',
+    );
   }
 
   return {
     employeeIds,
     locationIds,
-    types,
+    kinds,
     ticketStatuses: hasStatuses
       ? (rawStatuses.filter((status) =>
           TICKET_STATUSES.includes(status),
@@ -547,8 +694,33 @@ export function parseFilters(query: WorkCalendarQuery): ParsedFilters {
           (INSPECTION_EVENT_STATUSES as readonly string[]).includes(status),
         ) as InspectionEventStatus[])
       : null,
-    includeUnscheduled: flag !== 'false',
+    assigned:
+      assignedRaw === 'assigned' || assignedRaw === 'unassigned'
+        ? assignedRaw
+        : null,
+    includeUnscheduled: parseFlag(
+      query.includeUnscheduled,
+      'includeUnscheduled',
+      true,
+    ),
+    includeCompleted: parseFlag(
+      query.includeCompleted,
+      'includeCompleted',
+      false,
+    ),
   };
+}
+
+function parseFlag(
+  value: string | undefined,
+  name: string,
+  fallback: boolean,
+): boolean {
+  const flag = (value ?? '').trim();
+  if (!flag) return fallback;
+  if (flag === 'true') return true;
+  if (flag === 'false') return false;
+  throw new BadRequestException(`${name} must be true or false`);
 }
 
 function splitList(value: string | string[] | undefined): string[] {
@@ -574,8 +746,9 @@ function parseIdList(
     throw new BadRequestException(`${name}: at most ${MAX_FILTER_IDS} ids`);
   }
   for (const item of items) {
-    if (!UUID.test(item))
+    if (!UUID.test(item)) {
       throw new BadRequestException(`Invalid id in ${name}`);
+    }
   }
   return items;
 }

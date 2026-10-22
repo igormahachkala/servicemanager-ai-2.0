@@ -1,12 +1,21 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument */
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import * as fs from 'fs';
+import * as path from 'path';
+
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InspectionFrequency, TicketStatus, UserRole } from '@prisma/client';
 
 import * as permissionsGuard from '../common/permissions.guard';
 import * as ticketAccess from '../tickets/ticket-access.utils';
 import {
+  INSPECTION_SCAN_CAP,
   WORK_CALENDAR_LIMITS,
   WorkCalendarService,
+  type WorkCalendarResponse,
 } from './work-calendar.service';
 
 /**
@@ -49,24 +58,25 @@ const UUID_TECH = '11111111-1111-4111-8111-111111111111';
 const UUID_IDLE = '22222222-2222-4222-8222-222222222222';
 const UUID_FOREIGN = '33333333-3333-4333-8333-333333333333';
 
-const TECH = {
-  id: UUID_TECH,
-  firstName: 'Иван',
-  lastName: 'Петров',
-  companyId: PROVIDER,
-};
-const IDLE = {
-  id: UUID_IDLE,
-  firstName: 'Олег',
-  lastName: 'Аксёнов',
-  companyId: PROVIDER,
-};
-const FOREIGN = {
-  id: UUID_FOREIGN,
-  firstName: 'Чужой',
-  lastName: 'Сотрудник',
-  companyId: 'provider-2',
-};
+const person = (
+  id: string,
+  firstName: string,
+  lastName: string,
+  companyId: string,
+  role: UserRole = UserRole.TECHNICIAN,
+) => ({
+  id,
+  firstName,
+  lastName,
+  companyId,
+  role,
+  isActive: true,
+  isExecutor: true,
+});
+
+const TECH = person(UUID_TECH, 'Иван', 'Петров', PROVIDER);
+const IDLE = person(UUID_IDLE, 'Олег', 'Аксёнов', PROVIDER, UserRole.MASTER);
+const FOREIGN = person(UUID_FOREIGN, 'Чужой', 'Сотрудник', 'provider-2');
 
 const dispatcher = {
   companyId: PROVIDER,
@@ -77,6 +87,11 @@ const technician = {
   companyId: PROVIDER,
   id: UUID_TECH,
   role: UserRole.TECHNICIAN,
+};
+const clientAdmin = {
+  companyId: CLIENT_A,
+  id: 'u-client-admin',
+  role: UserRole.ADMIN,
 };
 
 const WEEK = {
@@ -125,9 +140,11 @@ function schedule(overrides: Record<string, unknown> = {}) {
     location: LOC_A1,
     assignedTo: {
       id: TECH.id,
-      email: 't@x',
       firstName: TECH.firstName,
       lastName: TECH.lastName,
+      role: TECH.role,
+      isActive: true,
+      isExecutor: true,
     },
     assignedToUserId: TECH.id,
     company: { timezone: 'Europe/Moscow' },
@@ -141,26 +158,24 @@ function schedule(overrides: Record<string, unknown> = {}) {
 function matches(row: any, where: any): boolean {
   if (!where) return true;
   return Object.entries(where).every(([key, condition]: [string, any]) => {
-    if (key === 'AND')
+    if (key === 'AND') {
       return (condition as any[]).every((part) => matches(row, part));
-    if (key === 'OR')
+    }
+    if (key === 'OR') {
       return (condition as any[]).some((part) => matches(row, part));
+    }
     const value = row[key];
     if (condition === null) return value === null || value === undefined;
-    if (condition instanceof Date || typeof condition !== 'object')
+    if (condition instanceof Date || typeof condition !== 'object') {
       return value === condition;
+    }
     if ('in' in condition && !condition.in.includes(value)) return false;
+    if ('not' in condition && condition.not === null && value == null) {
+      return false;
+    }
     if ('equals' in condition && value !== condition.equals) return false;
-    if (
-      'gte' in condition &&
-      !(value && value.getTime() >= condition.gte.getTime())
-    )
-      return false;
-    if (
-      'lt' in condition &&
-      !(value && value.getTime() < condition.lt.getTime())
-    )
-      return false;
+    if ('gte' in condition && !(value && value >= condition.gte)) return false;
+    if ('lt' in condition && !(value && value < condition.lt)) return false;
     return true;
   });
 }
@@ -176,6 +191,7 @@ type SuiteOptions = {
     technicianCompanyIds: string[] | null;
   }>;
   users?: any[];
+  directory?: any[] | Error;
   locationViewGranted?: boolean;
   locationScopes?: Record<string, ticketAccess.LocationScope>;
   companyTimeZone?: string | null;
@@ -201,6 +217,9 @@ function makeSuite(options: SuiteOptions = {}) {
         Promise.resolve(
           tickets.filter((row) => matches(row, where)).slice(0, take),
         ),
+      ),
+      count: jest.fn(({ where }: any) =>
+        Promise.resolve(tickets.filter((row) => matches(row, where)).length),
       ),
     },
     user: {
@@ -242,6 +261,15 @@ function makeSuite(options: SuiteOptions = {}) {
     ),
   } as any;
 
+  const directory = options.directory ?? [LOC_A1, LOC_A2];
+  const locations = {
+    list: jest.fn(() =>
+      directory instanceof Error
+        ? Promise.reject(directory)
+        : Promise.resolve(directory),
+    ),
+  } as any;
+
   jest
     .spyOn(permissionsGuard, 'hasAnyPermission')
     .mockResolvedValue(options.locationViewGranted ?? true);
@@ -257,14 +285,43 @@ function makeSuite(options: SuiteOptions = {}) {
     );
 
   return {
-    svc: new WorkCalendarService(prisma, ticketsQuery, schedules),
+    svc: new WorkCalendarService(prisma, ticketsQuery, schedules, locations),
     prisma,
     ticketsQuery,
     schedules,
+    locations,
   };
 }
 
-afterEach(() => jest.restoreAllMocks());
+/** Каждая ссылка события находит свою строку resources и свою сущность. */
+function expectReferencesResolve(result: WorkCalendarResponse) {
+  const employees = new Set(result.resources.employees.map((row) => row.id));
+  const locations = new Set(result.resources.locations.map((row) => row.id));
+  for (const event of result.events) {
+    if (event.employeeId) expect(employees.has(event.employeeId)).toBe(true);
+    expect(locations.has(event.locationId)).toBe(true);
+    if (event.kind === 'TICKET') {
+      expect(event).toMatchObject({
+        source: 'TICKET',
+        ticketId: event.entityId,
+        scheduleId: null,
+      });
+      expect(event.id).toBe(`ticket:${event.entityId}`);
+    } else {
+      expect(event).toMatchObject({
+        source: 'INSPECTION_SCHEDULE',
+        scheduleId: event.entityId,
+        ticketId: null,
+      });
+      expect(event.id).toBe(`inspection:${event.entityId}`);
+    }
+  }
+}
+
+afterEach(() => {
+  jest.restoreAllMocks();
+  jest.useRealTimers();
+});
 
 describe('SMA-WORK-CALENDAR-V1 доступ к заявкам', () => {
   it('каждая выборка заявок идёт через действующий scope: чужие строки не попадают', async () => {
@@ -291,7 +348,7 @@ describe('SMA-WORK-CALENDAR-V1 доступ к заявкам', () => {
       linkedClientCompanyId: CLIENT_A,
     });
 
-    expect(result.events.map((event) => event.sourceId)).toEqual([
+    expect(result.events.map((event) => event.entityId)).toEqual([
       'own',
       'own-unscheduled',
     ]);
@@ -335,7 +392,7 @@ describe('SMA-WORK-CALENDAR-V1 доступ к заявкам', () => {
   });
 
   it('чужой контур — тот же отказ, что у списка заявок, и ничего не читается', async () => {
-    const { svc, prisma, ticketsQuery, schedules } = makeSuite({
+    const { svc, prisma, ticketsQuery, schedules, locations } = makeSuite({
       schedules: [schedule()],
     });
     ticketsQuery.resolveListWhere.mockRejectedValueOnce(
@@ -348,9 +405,10 @@ describe('SMA-WORK-CALENDAR-V1 доступ к заявкам', () => {
     expect(prisma.ticket.findMany).not.toHaveBeenCalled();
     expect(schedules.listForCalendar).not.toHaveBeenCalled();
     expect(prisma.user.findMany).not.toHaveBeenCalled();
+    expect(locations.list).not.toHaveBeenCalled();
   });
 
-  it('фильтры только сужают видимое', async () => {
+  it('фильтр сотрудников только сужает видимое', async () => {
     const { svc, prisma } = makeSuite({
       tickets: [
         ticket({ id: 'a1' }),
@@ -363,13 +421,103 @@ describe('SMA-WORK-CALENDAR-V1 доступ к заявкам', () => {
       employeeIds: `${UUID_TECH},${UUID_FOREIGN}`,
     });
 
-    expect(result.events.map((event) => event.sourceId)).toEqual(['a1', 'a2']);
+    expect(result.events.map((event) => event.entityId)).toEqual(['a1', 'a2']);
     const [args] = prisma.ticket.findMany.mock.calls[0];
     expect(args.where.AND).toEqual([
       { companyId: CLIENT_A },
       expect.anything(),
       { assignedTechnicianId: { in: [UUID_TECH, UUID_FOREIGN] } },
     ]);
+  });
+});
+
+describe('SMA-WORK-CALENDAR-V1 CLIENT_ADMIN', () => {
+  const clientScope = {
+    where: { companyId: CLIENT_A },
+    scopeCompanyId: CLIENT_A,
+    visibilityMode: 'tenant',
+  };
+
+  it('свой контур: заявки своего tenant, планы своей компании, свой штат и объекты', async () => {
+    const own = person(
+      UUID_IDLE,
+      'Анна',
+      'Клиентова',
+      CLIENT_A,
+      UserRole.ADMIN,
+    );
+    const { svc, ticketsQuery, schedules, locations, prisma } = makeSuite({
+      scope: clientScope,
+      tickets: [ticket()],
+      schedules: [
+        schedule({ id: 'own-plan', companyId: CLIENT_A }),
+        schedule({ id: 'other-client', location: LOC_B1, companyId: CLIENT_A }),
+      ],
+      users: [own, TECH],
+    });
+
+    const result = await svc.getCalendar(clientAdmin, WEEK);
+
+    expect(ticketsQuery.resolveListWhere.mock.calls[0].slice(5)).toEqual([
+      undefined,
+      undefined,
+    ]);
+    // Планы — та же выборка, что /inspection/schedules: компания актора.
+    expect(schedules.listForCalendar.mock.calls[0][0]).toBe(clientAdmin);
+    expect(
+      result.events
+        .filter((event) => event.kind === 'INSPECTION')
+        .map((event) => event.entityId),
+    ).toEqual(['own-plan']);
+    expect(prisma.user.findMany.mock.calls[0][0].where.companyId).toBe(
+      CLIENT_A,
+    );
+    expect(locations.list).toHaveBeenCalledWith(
+      CLIENT_A,
+      UserRole.ADMIN,
+      'u-client-admin',
+      { isActive: 'true' },
+      CLIENT_A,
+    );
+  });
+
+  it('исполнитель подрядчика на заявке клиента — без компании и роли', async () => {
+    const { svc } = makeSuite({
+      scope: clientScope,
+      tickets: [
+        ticket({ assignedTechnician: TECH, assignedTechnicianId: TECH.id }),
+      ],
+      users: [],
+    });
+
+    const result = await svc.getCalendar(clientAdmin, WEEK);
+
+    expect(result.resources.employees).toEqual([
+      {
+        id: UUID_TECH,
+        displayName: 'Петров Иван',
+        companyId: null,
+        role: null,
+        isActive: null,
+        isExecutor: null,
+        isOwnCompany: false,
+        eventCount: 1,
+      },
+    ]);
+  });
+
+  it('чужой linkedClientCompanyId — отказ контура, расширения нет', async () => {
+    const { svc, ticketsQuery } = makeSuite({ scope: clientScope });
+    ticketsQuery.resolveListWhere.mockRejectedValueOnce(
+      new ForbiddenException('No access to linked client'),
+    );
+
+    await expect(
+      svc.getCalendar(clientAdmin, {
+        ...WEEK,
+        linkedClientCompanyId: CLIENT_B,
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
 
@@ -402,8 +550,21 @@ describe('SMA-WORK-CALENDAR-V1 даты заявок', () => {
       to: '2026-11-01T21:00:00.000Z',
       timezone: 'Europe/Moscow',
     });
-    expect(result.events.map((event) => event.sourceId)).toEqual(['at-from']);
-    expect(result.events[0].localDate).toBe('2026-10-26');
+    expect(result.events.map((event) => event.entityId)).toEqual(['at-from']);
+    expect(result.events[0].timing.localDate).toBe('2026-10-26');
+  });
+
+  it('границы ISO в UTC, как их шлёт frontend, принимаются как есть', async () => {
+    const { svc } = makeSuite();
+
+    const result = await svc.getCalendar(dispatcher, {
+      from: '2026-10-25T21:00:00.000Z',
+      to: '2026-11-01T21:00:00.000Z',
+      timezone: 'Europe/Moscow',
+    });
+
+    expect(result.range.from).toBe('2026-10-25T21:00:00.000Z');
+    expect(result.range.to).toBe('2026-11-01T21:00:00.000Z');
   });
 
   it('DST: сутки 1 ноября в Нью-Йорке включают 23:30 EST, и событие в своих сутках', async () => {
@@ -424,7 +585,7 @@ describe('SMA-WORK-CALENDAR-V1 даты заявок', () => {
     });
 
     expect(result.events).toHaveLength(1);
-    expect(result.events[0].localDate).toBe('2026-11-01');
+    expect(result.events[0].timing.localDate).toBe('2026-11-01');
   });
 
   it('без пояса — пояс компании; неизвестный пояс — 400 до любых выборок', async () => {
@@ -451,7 +612,7 @@ describe('SMA-WORK-CALENDAR-V1 даты заявок', () => {
     expect(invalid.ticketsQuery.resolveListWhere).not.toHaveBeenCalled();
   });
 
-  it('без плановой даты — только незакрытые заявки, startAt/endAt пустые', async () => {
+  it('без плановой даты — только незакрытые заявки, timing без окна', async () => {
     const { svc } = makeSuite({
       tickets: [
         ticket({ id: 'open', plannedDueAt: null, status: TicketStatus.NEW }),
@@ -464,19 +625,25 @@ describe('SMA-WORK-CALENDAR-V1 даты заявок', () => {
       ],
     });
 
-    const result = await svc.getCalendar(dispatcher, WEEK);
+    const result = await svc.getCalendar(dispatcher, {
+      ...WEEK,
+      includeCompleted: 'true',
+    });
 
     expect(result.events).toEqual([
       expect.objectContaining({
-        sourceId: 'open',
-        scheduling: 'UNSCHEDULED',
-        dueAt: null,
-        startAt: null,
-        endAt: null,
-        hasWindow: false,
+        entityId: 'open',
+        timing: {
+          mode: 'UNSCHEDULED',
+          dueAt: null,
+          localDate: null,
+          startAt: null,
+          endAt: null,
+          hasWindow: false,
+        },
       }),
     ]);
-    expect(result.meta.counts.unscheduledTickets).toBe(1);
+    expect(result.meta.unscheduled).toBe(1);
   });
 
   it('includeUnscheduled=false убирает заявки без даты', async () => {
@@ -494,13 +661,44 @@ describe('SMA-WORK-CALENDAR-V1 даты заявок', () => {
   });
 });
 
-describe('SMA-WORK-CALENDAR-V1 типы и статусы', () => {
-  it('статус DONE: плановые закрытые есть, выборки без даты и планов обходов нет', async () => {
+describe('SMA-WORK-CALENDAR-V1 includeCompleted, assigned, eventTypes, statuses', () => {
+  const mixed = [
+    ticket({ id: 'open' }),
+    ticket({ id: 'accepting', status: TicketStatus.AWAITING_ACCEPTANCE }),
+    ticket({ id: 'done', status: TicketStatus.DONE }),
+    ticket({ id: 'canceled', status: TicketStatus.CANCELED }),
+  ];
+
+  it('по умолчанию завершённых нет; сданная подрядчиком заявка не завершена', async () => {
+    const { svc } = makeSuite({ tickets: mixed });
+
+    const result = await svc.getCalendar(dispatcher, WEEK);
+
+    expect(result.events.map((event) => event.entityId)).toEqual([
+      'accepting',
+      'open',
+    ]);
+  });
+
+  it('includeCompleted=true добавляет DONE и CANCELED', async () => {
+    const { svc } = makeSuite({ tickets: mixed });
+
+    const result = await svc.getCalendar(dispatcher, {
+      ...WEEK,
+      includeCompleted: 'true',
+    });
+
+    expect(result.events.map((event) => event.entityId).sort()).toEqual([
+      'accepting',
+      'canceled',
+      'done',
+      'open',
+    ]);
+  });
+
+  it('statuses=DONE без includeCompleted завершённых не возвращает', async () => {
     const { svc, prisma, schedules } = makeSuite({
-      tickets: [
-        ticket({ id: 'done', status: TicketStatus.DONE }),
-        ticket({ id: 'open' }),
-      ],
+      tickets: mixed,
       schedules: [schedule()],
     });
 
@@ -509,12 +707,65 @@ describe('SMA-WORK-CALENDAR-V1 типы и статусы', () => {
       statuses: 'DONE',
     });
 
-    expect(result.events.map((event) => event.sourceId)).toEqual(['done']);
-    expect(prisma.ticket.findMany).toHaveBeenCalledTimes(1);
+    expect(result.events).toEqual([]);
+    expect(prisma.ticket.findMany).not.toHaveBeenCalled();
     expect(schedules.listForCalendar).not.toHaveBeenCalled();
   });
 
-  it('types=INSPECTION: заявки не читаются, контур всё равно проверяется', async () => {
+  it('statuses=DONE с includeCompleted — только плановые закрытые, без корзины без даты', async () => {
+    const { svc, prisma } = makeSuite({
+      tickets: [
+        ...mixed,
+        ticket({ id: 'old', plannedDueAt: null, status: TicketStatus.DONE }),
+      ],
+    });
+
+    const result = await svc.getCalendar(dispatcher, {
+      ...WEEK,
+      statuses: 'DONE',
+      includeCompleted: 'true',
+    });
+
+    expect(result.events.map((event) => event.entityId)).toEqual(['done']);
+    expect(prisma.ticket.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('assigned=unassigned / assigned — по наличию исполнителя, и для планов тоже', async () => {
+    const rows = [
+      ticket({ id: 'mine' }),
+      ticket({
+        id: 'nobody',
+        assignedTechnicianId: null,
+        assignedTechnician: null,
+      }),
+    ];
+    const unassigned = makeSuite({ tickets: rows, schedules: [schedule()] });
+    const free = await unassigned.svc.getCalendar(dispatcher, {
+      ...WEEK,
+      assigned: 'unassigned',
+    });
+    expect(free.events.map((event) => event.entityId)).toContain('nobody');
+    expect(free.events.map((event) => event.entityId)).not.toContain('mine');
+    expect(unassigned.schedules.listForCalendar.mock.calls[0][1].assigned).toBe(
+      'unassigned',
+    );
+
+    const assigned = makeSuite({ tickets: rows });
+    const taken = await assigned.svc.getCalendar(dispatcher, {
+      ...WEEK,
+      assigned: 'assigned',
+    });
+    expect(taken.events.map((event) => event.entityId)).toEqual(['mine']);
+
+    const all = makeSuite({ tickets: rows });
+    const both = await all.svc.getCalendar(dispatcher, {
+      ...WEEK,
+      assigned: 'all',
+    });
+    expect(both.events).toHaveLength(2);
+  });
+
+  it('eventTypes=INSPECTION: заявки не читаются, контур всё равно проверяется', async () => {
     const { svc, prisma, ticketsQuery } = makeSuite({
       tickets: [ticket()],
       schedules: [schedule()],
@@ -522,12 +773,28 @@ describe('SMA-WORK-CALENDAR-V1 типы и статусы', () => {
 
     const result = await svc.getCalendar(dispatcher, {
       ...WEEK,
-      types: 'INSPECTION',
+      eventTypes: 'INSPECTION',
     });
 
     expect(prisma.ticket.findMany).not.toHaveBeenCalled();
     expect(ticketsQuery.resolveListWhere).toHaveBeenCalledTimes(1);
     expect(result.events.map((event) => event.id)).toEqual(['inspection:s-1']);
+  });
+
+  it('прежнее имя types принимается, eventTypes важнее', async () => {
+    const { svc, prisma } = makeSuite({
+      tickets: [ticket()],
+      schedules: [schedule()],
+    });
+
+    const result = await svc.getCalendar(dispatcher, {
+      ...WEEK,
+      types: 'INSPECTION',
+      eventTypes: 'TICKET',
+    });
+
+    expect(prisma.ticket.findMany).toHaveBeenCalled();
+    expect(result.events.every((event) => event.kind === 'TICKET')).toBe(true);
   });
 
   it('статус обхода OVERDUE отбирает только просроченные визиты', async () => {
@@ -543,13 +810,13 @@ describe('SMA-WORK-CALENDAR-V1 типы и статусы', () => {
       statuses: ['OVERDUE'],
     });
 
-    expect(result.events.map((event) => event.sourceId)).toEqual(['late']);
+    expect(result.events.map((event) => event.entityId)).toEqual(['late']);
   });
 
-  it('неизвестные тип, статус, id и флаг — 400', async () => {
+  it('неизвестные тип, статус, id, assigned и флаги — 400', async () => {
     const { svc } = makeSuite();
     await expect(
-      svc.getCalendar(dispatcher, { ...WEEK, types: 'SHIFT' }),
+      svc.getCalendar(dispatcher, { ...WEEK, eventTypes: 'SHIFT' }),
     ).rejects.toThrow('Unknown event type');
     await expect(
       svc.getCalendar(dispatcher, { ...WEEK, statuses: 'LOST' }),
@@ -558,14 +825,20 @@ describe('SMA-WORK-CALENDAR-V1 типы и статусы', () => {
       svc.getCalendar(dispatcher, { ...WEEK, employeeIds: 'u-1' }),
     ).rejects.toThrow('Invalid id');
     await expect(
+      svc.getCalendar(dispatcher, { ...WEEK, assigned: 'mine' }),
+    ).rejects.toThrow('assigned must be');
+    await expect(
       svc.getCalendar(dispatcher, { ...WEEK, includeUnscheduled: 'yes' }),
     ).rejects.toThrow(BadRequestException);
+    await expect(
+      svc.getCalendar(dispatcher, { ...WEEK, includeCompleted: '1' }),
+    ).rejects.toThrow('includeCompleted must be true or false');
   });
 });
 
 describe('SMA-WORK-CALENDAR-V1 доступ к планам обходов', () => {
-  it('без права LOCATIONS_VIEW планы не читаются, capabilities это говорят', async () => {
-    const { svc, schedules } = makeSuite({
+  it('без права LOCATIONS_VIEW нет ни планов, ни справочника объектов', async () => {
+    const { svc, schedules, locations } = makeSuite({
       schedules: [schedule()],
       locationViewGranted: false,
     });
@@ -573,9 +846,12 @@ describe('SMA-WORK-CALENDAR-V1 доступ к планам обходов', () 
     const result = await svc.getCalendar(dispatcher, WEEK);
 
     expect(schedules.listForCalendar).not.toHaveBeenCalled();
-    expect(result.capabilities.eventTypes).toEqual({
-      TICKET: true,
-      INSPECTION: false,
+    expect(locations.list).not.toHaveBeenCalled();
+    expect(result.capabilities).toMatchObject({
+      tickets: true,
+      inspections: false,
+      resources: false,
+      locationDirectory: false,
     });
   });
 
@@ -590,12 +866,12 @@ describe('SMA-WORK-CALENDAR-V1 доступ к планам обходов', () 
       );
 
       expect(schedules.listForCalendar).not.toHaveBeenCalled();
-      expect(result.capabilities.eventTypes.INSPECTION).toBe(false);
+      expect(result.capabilities.inspections).toBe(false);
     },
   );
 
-  it('наблюдатель платформы: ни планов, ни штата', async () => {
-    const { svc, schedules, prisma } = makeSuite({
+  it('наблюдатель платформы: ни планов, ни штата, ни справочника', async () => {
+    const { svc, schedules, prisma, locations } = makeSuite({
       schedules: [schedule()],
       scope: { visibilityMode: 'platform_observer' },
     });
@@ -607,7 +883,12 @@ describe('SMA-WORK-CALENDAR-V1 доступ к планам обходов', () 
 
     expect(schedules.listForCalendar).not.toHaveBeenCalled();
     expect(prisma.user.findMany).not.toHaveBeenCalled();
-    expect(result.capabilities.employeeRoster).toBe(false);
+    expect(locations.list).not.toHaveBeenCalled();
+    expect(result.capabilities).toMatchObject({
+      inspections: false,
+      resources: false,
+      employeeDirectory: false,
+    });
   });
 
   it('планы другого клиента вне контура запроса не показываются', async () => {
@@ -616,6 +897,7 @@ describe('SMA-WORK-CALENDAR-V1 доступ к планам обходов', () 
         schedule({ id: 'a' }),
         schedule({ id: 'b', location: LOC_B1 }),
       ],
+      directory: [],
     });
 
     const result = await svc.getCalendar(dispatcher, {
@@ -623,7 +905,7 @@ describe('SMA-WORK-CALENDAR-V1 доступ к планам обходов', () 
       linkedClientCompanyId: CLIENT_A,
     });
 
-    expect(result.events.map((event) => event.sourceId)).toEqual(['a']);
+    expect(result.events.map((event) => event.entityId)).toEqual(['a']);
     expect(result.resources.locations.map((location) => location.id)).toEqual([
       LOC_A1.id,
     ]);
@@ -642,11 +924,11 @@ describe('SMA-WORK-CALENDAR-V1 доступ к планам обходов', () 
 
     const result = await svc.getCalendar(dispatcher, WEEK);
 
-    expect(result.events.map((event) => event.sourceId)).toEqual(['bound']);
+    expect(result.events.map((event) => event.entityId)).toEqual(['bound']);
   });
 
-  it('restricted-empty: ни планов, ни штата, признак в capabilities', async () => {
-    const { svc, prisma } = makeSuite({
+  it('restricted-empty: ни событий, ни штата, ни объектов, признак в capabilities', async () => {
+    const { svc, prisma, locations } = makeSuite({
       schedules: [schedule()],
       scope: { where: null },
       locationScopes: {
@@ -660,6 +942,7 @@ describe('SMA-WORK-CALENDAR-V1 доступ к планам обходов', () 
     expect(result.resources).toEqual({ employees: [], locations: [] });
     expect(result.capabilities.restrictedEmpty).toBe(true);
     expect(prisma.user.findMany).not.toHaveBeenCalled();
+    expect(locations.list).not.toHaveBeenCalled();
   });
 
   it('следующий срок плана считается действующей логикой повторения, через DST', async () => {
@@ -677,27 +960,88 @@ describe('SMA-WORK-CALENDAR-V1 доступ к планам обходов', () 
     const result = await svc.getCalendar(dispatcher, WEEK);
 
     // 09:00 EDT → следующий визит в 09:00 EST, то есть на час позже по UTC.
-    expect(result.events[0].inspection?.followingDueAt).toBe(
+    expect(result.events[0].recurrence?.followingDueAt).toBe(
       '2026-11-02T14:00:00.000Z',
     );
   });
 });
 
-describe('SMA-WORK-CALENDAR-V1 resources и сотрудники', () => {
+describe('SMA-WORK-CALENDAR-V1 resources', () => {
   it('штат диспетчера включает сотрудника без событий', async () => {
     const { svc } = makeSuite({ tickets: [ticket()] });
 
     const result = await svc.getCalendar(dispatcher, WEEK);
 
-    expect(result.resources.employees.map((employee) => employee.id)).toEqual([
-      UUID_IDLE,
-      UUID_TECH,
+    expect(
+      result.resources.employees.map((employee) => [
+        employee.id,
+        employee.eventCount,
+      ]),
+    ).toEqual([
+      [UUID_IDLE, 0],
+      [UUID_TECH, 1],
     ]);
-    expect(result.capabilities.employeeRoster).toBe(true);
+    expect(result.capabilities).toMatchObject({
+      resources: true,
+      employeeDirectory: true,
+      locationDirectory: true,
+    });
   });
 
-  it('пустой штат и нет событий — пустые resources без ошибки', async () => {
-    const { svc } = makeSuite({ users: [] });
+  it('пустые объекты — из справочника /locations контура, с лимитом', async () => {
+    const { svc } = makeSuite({ tickets: [ticket()] });
+
+    const result = await svc.getCalendar(dispatcher, WEEK);
+
+    expect(
+      result.resources.locations.map((location) => [
+        location.id,
+        location.eventCount,
+      ]),
+    ).toEqual([
+      [LOC_A1.id, 1],
+      [LOC_A2.id, 0],
+    ]);
+  });
+
+  it('справочник объектов сверх лимита обрезается и отмечается', async () => {
+    const many = Array.from(
+      { length: WORK_CALENDAR_LIMITS.locations + 3 },
+      (_, index) => ({
+        ...LOC_A2,
+        id: `loc-${index}`,
+        name: `Объект ${index}`,
+      }),
+    );
+    const { svc } = makeSuite({ directory: many });
+
+    const result = await svc.getCalendar(dispatcher, WEEK);
+
+    expect(result.resources.locations).toHaveLength(
+      WORK_CALENDAR_LIMITS.locations,
+    );
+    expect(result.meta.truncatedSources).toContain('locations');
+  });
+
+  it('отказ справочника объектов — объекты только по событиям, без ошибки', async () => {
+    const { svc } = makeSuite({
+      tickets: [ticket()],
+      directory: new NotFoundException('Linked client not found'),
+    });
+
+    const result = await svc.getCalendar(dispatcher, WEEK);
+
+    expect(result.resources.locations.map((location) => location.id)).toEqual([
+      LOC_A1.id,
+    ]);
+    expect(result.capabilities).toMatchObject({
+      resources: false,
+      locationDirectory: false,
+    });
+  });
+
+  it('пустой штат и нет событий — пустые сотрудники без ошибки', async () => {
+    const { svc } = makeSuite({ users: [], directory: [] });
 
     const result = await svc.getCalendar(dispatcher, WEEK);
 
@@ -705,8 +1049,8 @@ describe('SMA-WORK-CALENDAR-V1 resources и сотрудники', () => {
     expect(result.events).toEqual([]);
   });
 
-  it('технику — только он сам, а планы — из его контуров', async () => {
-    const { svc, prisma, schedules } = makeSuite({
+  it('технику — только он сам, планы — из его контуров, справочника нет', async () => {
+    const { svc, prisma, schedules, locations } = makeSuite({
       scope: {
         technicianCompanyIds: [CLIENT_A],
         scopeCompanyId: PROVIDER,
@@ -728,7 +1072,8 @@ describe('SMA-WORK-CALENDAR-V1 resources и сотрудники', () => {
       UUID_TECH,
     ]);
     expect(schedules.listForCalendar.mock.calls[0][0]).toBe(technician);
-    expect(result.events.map((event) => event.sourceId)).toEqual(['a']);
+    expect(result.events.map((event) => event.entityId)).toEqual(['a']);
+    expect(locations.list).not.toHaveBeenCalled();
   });
 
   it('чужой id в фильтре сотрудников не попадает в resources', async () => {
@@ -746,32 +1091,36 @@ describe('SMA-WORK-CALENDAR-V1 resources и сотрудники', () => {
     expect(result.events).toEqual([]);
   });
 
-  it('исполнитель другой компании на видимой заявке — строка без лишних полей', async () => {
+  it('ссылки событий ведут на строки resources и на свою сущность', async () => {
     const { svc } = makeSuite({
       tickets: [
+        ticket(),
         ticket({
+          id: 't-foreign',
           assignedTechnician: FOREIGN,
           assignedTechnicianId: FOREIGN.id,
+          plannedDueAt: null,
+        }),
+        ticket({
+          id: 't-off-directory',
+          location: LOC_B1,
+          locationId: LOC_B1.id,
+          assignedTechnician: null,
+          assignedTechnicianId: null,
         }),
       ],
-      users: [],
+      schedules: [schedule()],
+      users: [IDLE],
     });
 
     const result = await svc.getCalendar(dispatcher, WEEK);
 
-    expect(result.resources.employees).toEqual([
-      {
-        id: UUID_FOREIGN,
-        firstName: 'Чужой',
-        lastName: 'Сотрудник',
-        displayName: 'Сотрудник Чужой',
-        isOwnCompany: false,
-      },
-    ]);
+    expect(result.events).toHaveLength(4);
+    expectReferencesResolve(result);
   });
 });
 
-describe('SMA-WORK-CALENDAR-V1 дублирование и обрезка', () => {
+describe('SMA-WORK-CALENDAR-V1 meta, дублирование и обрезка', () => {
   it('строка, пришедшая дважды, даёт одно событие', async () => {
     const row = ticket();
     const { svc } = makeSuite({
@@ -788,50 +1137,175 @@ describe('SMA-WORK-CALENDAR-V1 дублирование и обрезка', () =
       'ticket:t-1',
       'inspection:s-1',
     ]);
-    expect(
-      new Set(result.resources.locations.map((location) => location.id)).size,
-    ).toBe(result.resources.locations.length);
   });
 
-  it('сверх лимита — meta.truncated с источником, событий не больше лимита', async () => {
-    const many = Array.from(
-      { length: WORK_CALENDAR_LIMITS.scheduledTickets + 5 },
-      (_, index) => ticket({ id: `t-${String(index).padStart(5, '0')}` }),
-    );
+  it('без обрезки total = scheduled + unscheduled = событиям ответа', async () => {
     const { svc } = makeSuite({
-      tickets: many,
+      tickets: [ticket(), ticket({ id: 'u', plannedDueAt: null })],
       schedules: [schedule()],
-      fetchedSchedules: 501,
     });
-
-    const result = await svc.getCalendar(dispatcher, {
-      ...WEEK,
-      includeUnscheduled: 'false',
-    });
-
-    expect(result.meta.truncated).toBe(true);
-    expect(result.meta.truncatedSources).toEqual([
-      'scheduledTickets',
-      'inspections',
-    ]);
-    expect(result.meta.counts.scheduledTickets).toBe(
-      WORK_CALENDAR_LIMITS.scheduledTickets,
-    );
-  });
-
-  it('без обрезки meta.truncated = false', async () => {
-    const { svc } = makeSuite({ tickets: [ticket()] });
 
     const result = await svc.getCalendar(dispatcher, WEEK);
 
     expect(result.meta).toMatchObject({
+      total: 3,
+      scheduled: 2,
+      unscheduled: 1,
       truncated: false,
+      totalIsExact: true,
+      returned: { total: 3, scheduled: 2, unscheduled: 1 },
       truncatedSources: [],
     });
-    expect(result.capabilities).toMatchObject({
-      readOnly: true,
-      timeWindows: false,
-      recurrenceProjection: false,
+  });
+
+  it('при обрезке total — полный счёт по тому же WHERE, а не число полученных', async () => {
+    const many = Array.from(
+      { length: WORK_CALENDAR_LIMITS.scheduledTickets + 5 },
+      (_, index) => ticket({ id: `t-${String(index).padStart(5, '0')}` }),
+    );
+    const { svc, prisma } = makeSuite({
+      tickets: [...many, ticket({ id: 'u', plannedDueAt: null })],
     });
+
+    const result = await svc.getCalendar(dispatcher, WEEK);
+
+    expect(result.meta).toMatchObject({
+      total: WORK_CALENDAR_LIMITS.scheduledTickets + 6,
+      scheduled: WORK_CALENDAR_LIMITS.scheduledTickets + 5,
+      unscheduled: 1,
+      truncated: true,
+      totalIsExact: true,
+      truncatedSources: ['scheduledTickets'],
+    });
+    expect(result.meta.returned.total).toBe(
+      WORK_CALENDAR_LIMITS.scheduledTickets + 1,
+    );
+    expect(prisma.ticket.count).toHaveBeenCalledTimes(1);
+    expect(prisma.ticket.count.mock.calls[0][0].where).toEqual(
+      prisma.ticket.findMany.mock.calls[0][0].where,
+    );
+  });
+
+  it('планы сверх лимита: total — все видимые, ответ — в пределах лимита', async () => {
+    const plans = Array.from(
+      { length: WORK_CALENDAR_LIMITS.inspections + 7 },
+      (_, index) => schedule({ id: `s-${String(index).padStart(4, '0')}` }),
+    );
+    const { svc, schedules } = makeSuite({ schedules: plans });
+
+    const result = await svc.getCalendar(dispatcher, WEEK);
+
+    expect(schedules.listForCalendar.mock.calls[0][1].take).toBe(
+      INSPECTION_SCAN_CAP,
+    );
+    expect(result.events).toHaveLength(WORK_CALENDAR_LIMITS.inspections);
+    expect(result.meta).toMatchObject({
+      total: WORK_CALENDAR_LIMITS.inspections + 7,
+      truncated: true,
+      totalIsExact: true,
+      truncatedSources: ['inspections'],
+    });
+  });
+
+  it('за пределом просмотра планов total — нижняя граница, totalIsExact = false', async () => {
+    const { svc } = makeSuite({
+      schedules: [schedule()],
+      fetchedSchedules: INSPECTION_SCAN_CAP + 1,
+    });
+
+    const result = await svc.getCalendar(dispatcher, WEEK);
+
+    expect(result.meta).toMatchObject({ truncated: true, totalIsExact: false });
+  });
+});
+
+describe('SMA-WORK-CALENDAR-V1 contract fixture', () => {
+  /**
+   * Файл — реальный ответ сервиса на детерминированных данных, им пользуются
+   * frontend-тесты. Тест падает, если форма ответа разошлась с файлом.
+   * Обновить после осознанного изменения контракта:
+   * UPDATE_WORK_CALENDAR_FIXTURE=1 npx jest work-calendar.service
+   */
+  const fixturePath = path.join(
+    __dirname,
+    '__fixtures__',
+    'work-calendar.response.v1.json',
+  );
+
+  it('ответ совпадает с contract fixture', async () => {
+    jest.useFakeTimers({ doNotFake: ['nextTick', 'setImmediate'] });
+    jest.setSystemTime(new Date('2026-10-22T09:00:00.000Z'));
+
+    const contractor = person(
+      '44444444-4444-4444-8444-444444444444',
+      'Артём',
+      'Субподрядов',
+      'provider-secondary',
+    );
+    const locA = {
+      id: 'aaaaaaaa-0000-4000-8000-000000000001',
+      name: 'Магазин №14',
+      city: 'Екатеринбург',
+      address: 'пр. Ленина, 40',
+      clientCompanyId: CLIENT_A,
+    };
+    const locEmpty = {
+      id: 'aaaaaaaa-0000-4000-8000-000000000002',
+      name: 'Склад «Восток»',
+      city: 'Екатеринбург',
+      address: 'ул. Труда, 101',
+      clientCompanyId: CLIENT_A,
+    };
+    const { svc } = makeSuite({
+      tickets: [
+        ticket({
+          id: 'bbbbbbbb-0000-4000-8000-000000000001',
+          ticketNumber: 1042,
+          problemText: 'Не холодит витрина',
+          plannedDueAt: new Date('2026-10-27T11:00:00.000Z'),
+          slaDueAt: new Date('2026-10-28T11:00:00.000Z'),
+          location: locA,
+          locationId: locA.id,
+        }),
+        ticket({
+          id: 'bbbbbbbb-0000-4000-8000-000000000002',
+          ticketNumber: 1043,
+          status: TicketStatus.NEW,
+          problemText: 'Течёт кран',
+          plannedDueAt: null,
+          location: locA,
+          locationId: locA.id,
+          assignedTechnician: contractor,
+          assignedTechnicianId: contractor.id,
+        }),
+      ],
+      schedules: [
+        schedule({
+          id: 'cccccccc-0000-4000-8000-000000000001',
+          name: 'ТО холодильного оборудования',
+          nextDueAt: new Date('2026-10-29T06:00:00.000Z'),
+          startDate: new Date('2026-09-29T06:00:00.000Z'),
+          overdueAt: new Date('2026-10-30T06:00:00.000Z'),
+          graceDays: 1,
+          location: locA,
+        }),
+      ],
+      directory: [locA, locEmpty],
+    });
+
+    const result = await svc.getCalendar(dispatcher, {
+      from: '2026-10-26',
+      to: '2026-11-02',
+      timezone: 'Europe/Moscow',
+      linkedClientCompanyId: CLIENT_A,
+    });
+    expectReferencesResolve(result);
+
+    const actual = `${JSON.stringify(result, null, 2)}\n`;
+    if (process.env.UPDATE_WORK_CALENDAR_FIXTURE === '1') {
+      fs.mkdirSync(path.dirname(fixturePath), { recursive: true });
+      fs.writeFileSync(fixturePath, actual);
+    }
+    expect(actual).toBe(fs.readFileSync(fixturePath, 'utf8'));
   });
 });

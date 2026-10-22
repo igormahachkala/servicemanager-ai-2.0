@@ -850,6 +850,61 @@ describe('SMA-WORK-CALENDAR-V1 выборка планов для календа
     });
   });
 
+  it('assigned: менеджер выбирает планы с исполнителем или без, техник без исполнителя не получает ничего', async () => {
+    const manager = makeSuite({ schedules: [scheduleRow()] });
+    await manager.svc.listForCalendar(dispatcher, {
+      from,
+      to,
+      take: 10,
+      assigned: 'unassigned',
+    });
+    expect(firstFindMany(manager.prisma).where.assignedToUserId).toBeNull();
+
+    const taken = makeSuite({ schedules: [scheduleRow()] });
+    await taken.svc.listForCalendar(dispatcher, {
+      from,
+      to,
+      take: 10,
+      assigned: 'assigned',
+    });
+    expect(firstFindMany(taken.prisma).where.assignedToUserId).toEqual({
+      not: null,
+    });
+
+    const tech = makeSuite({ schedules: [scheduleRow()] });
+    const none = await tech.svc.listForCalendar(technician, {
+      from,
+      to,
+      take: 10,
+      assigned: 'unassigned',
+    });
+    expect(none).toEqual({ rows: [], fetched: 0 });
+    expect(findManyCount(tech.prisma)).toBe(0);
+  });
+
+  it('исполнитель плана без email, с признаками для строки сотрудника', async () => {
+    const suite = makeSuite({ schedules: [scheduleRow()] });
+    await suite.svc.listForCalendar(admin, { from, to, take: 10 });
+    const select = (
+      suite.prisma as {
+        inspectionSchedule: {
+          findMany: jest.Mock<
+            unknown,
+            [{ select: { assignedTo: { select: Record<string, boolean> } } }]
+          >;
+        };
+      }
+    ).inspectionSchedule.findMany.mock.calls[0][0].select.assignedTo.select;
+    expect(select).toEqual({
+      id: true,
+      firstName: true,
+      lastName: true,
+      role: true,
+      isActive: true,
+      isExecutor: true,
+    });
+  });
+
   it('отбрасывает площадки вне действующего договора, fetched считает строки до фильтра', async () => {
     const suite = makeSuite({
       schedules: [
