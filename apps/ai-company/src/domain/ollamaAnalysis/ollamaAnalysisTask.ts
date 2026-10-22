@@ -19,11 +19,14 @@ import { listToolExecutionRuns } from '../toolExecution/toolExecutionRunStorage'
 import type { ToolExecutionRun, ToolExecutionRunStatus } from '../toolExecution/toolExecutionRunTypes'
 import { parseAnalysisBlocks, type AnalysisBlock } from './ollamaAnalysisSections'
 import type { OllamaGenerationMetrics } from './ollamaAnalysisClient'
+import { MAX_ANALYSIS_FILES } from './ollamaAnalysisFiles'
 
 export type CreateOllamaAnalysisTaskInput = {
   title: string
   instructions: string
   companyId?: string
+  /** Repository-relative paths the model should read (max MAX_ANALYSIS_FILES). */
+  files?: string[]
 }
 
 export function createOllamaAnalysisTask(input: CreateOllamaAnalysisTaskInput): ToolExecutionRun {
@@ -47,6 +50,7 @@ export function createOllamaAnalysisTask(input: CreateOllamaAnalysisTaskInput): 
     title,
     instructions,
     expectedResult: 'Problem / Risk / Recommendation / Effort',
+    fileScope: [...new Set(input.files ?? [])].slice(0, MAX_ANALYSIS_FILES),
   })
   return run
 }
@@ -102,6 +106,8 @@ export type OllamaAnalysisView = {
   emptySections: string[]
   model: string | null
   metrics: OllamaGenerationMetrics | null
+  /** Files the task asked for, and whether the model actually got them. */
+  files: Array<{ path: string; provided: boolean | null; truncated: boolean }>
   errors: string[]
   canApprove: boolean
   canAccept: boolean
@@ -142,6 +148,15 @@ export function buildOllamaAnalysisView(run: ToolExecutionRun): OllamaAnalysisVi
     emptySections: asStringArray(sections.empty),
     model: typeof meta.analysisModel === 'string' ? meta.analysisModel : null,
     metrics: (meta.analysisMetrics as OllamaGenerationMetrics | undefined) ?? null,
+    files: (() => {
+      const got = new Map(
+        (Array.isArray(meta.analysisFiles) ? meta.analysisFiles : []).map((f: { path: string; provided: boolean; truncated: boolean }) => [f.path, f]),
+      )
+      return run.fileScope.map((p) => {
+        const f = got.get(p)
+        return { path: p, provided: f ? f.provided : null, truncated: f ? f.truncated : false }
+      })
+    })(),
     errors,
     canApprove: run.status === 'awaiting_owner',
     canAccept: run.status === 'awaiting_employee_review' || run.status === 'result_received',

@@ -123,3 +123,23 @@
 
 /* Lazy route placeholder */
 .acPageLoading { min-height: 40vh; }
+
+/* File picker */
+.acAnalysisFiles { display: flex; flex-direction: column; gap: 6px; }
+.acAnalysisFileChips, .acAnalysisFileResults { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.acAnalysisFileChip {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 4px 8px; border-radius: 6px; background: var(--mc-accent-dim); font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.acAnalysisFileChip button { border: none; background: transparent; color: var(--mc-muted); cursor: pointer; font-size: 16px; line-height: 1; }
+.acAnalysisFileResults {
+  max-height: 220px; overflow-y: auto; border: 1px solid var(--mc-border); border-radius: 8px; padding: 4px;
+}
+.acAnalysisFileResults button {
+  width: 100%; text-align: left; border: none; background: transparent; color: var(--mc-text);
+  padding: 4px 6px; border-radius: 6px; cursor: pointer; font-size: 12px; overflow-wrap: anywhere;
+}
+.acAnalysisFileResults button:hover { background: var(--mc-surface-2); }
+.acAnalysisGivenFiles { margin-top: 10px; }
+.acAnalysisGivenFiles ul { margin: 4px 0 0; padding-left: 18px; font-size: 12px; }

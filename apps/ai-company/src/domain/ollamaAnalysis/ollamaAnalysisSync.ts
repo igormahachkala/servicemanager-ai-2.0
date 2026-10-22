@@ -24,11 +24,14 @@ import {
   recordToolExecutionResult,
 } from '../toolExecution/toolExecutionRunStorage'
 import { runOllamaAnalysis } from './ollamaAnalysisRunner'
+import { loadAnalysisFiles } from './ollamaAnalysisFiles'
 
 export type QueueOllamaAnalysisOptions = {
   /** Injected by tests; production uses global fetch. */
   fetchImpl?: typeof fetch
   model?: string | null
+  /** Injected by tests for the file reads (the Ollama fetch is fetchImpl). */
+  filesFetchImpl?: (input: string, init?: RequestInit) => Promise<Response>
 }
 
 export type QueueOllamaAnalysisOutcome = { ok: boolean; error: string | null }
@@ -56,10 +59,16 @@ export async function queueToolExecutionRunForOllamaAnalysis(
     return { ok: false, error: `ToolExecutionRun ${runId} could not be started.` }
   }
 
+  const files =
+    existing.fileScope.length > 0
+      ? await loadAnalysisFiles(existing.fileScope, { fetchImpl: options.filesFetchImpl })
+      : undefined
+
   const outcome = await runOllamaAnalysis({
     toolExecutionRunId: runId,
     title: existing.title,
     instructions: existing.instructions,
+    files,
     model: options.model ?? null,
     fetchImpl: options.fetchImpl,
   })

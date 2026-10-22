@@ -3,6 +3,11 @@ import { createRoot } from 'react-dom/client'
 import { LanguageProvider } from './i18n'
 import { ThemeProvider, bootstrapTheme } from './theme'
 import App from './App'
+// Order matters: before the split these came first via PlatformShell (imported
+// by App). PlatformShell is now in a lazy chunk; importing them here keeps the
+// original cascade (later files like polish-v2/styles.css override them).
+import './mission-control/styles/mission-control.css'
+import './mission-control/styles/company.css'
 import './styles/theme-tokens.css'
 import './styles/design-system.css'
 import './styles/layout.css'

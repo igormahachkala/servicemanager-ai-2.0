@@ -4,6 +4,7 @@
 
 import type { ExecutionResultEnvelope } from '../cursorResultEnvelope/cursorResultEnvelopeTypes'
 import type { AnalysisSectionValidation } from './ollamaAnalysisSections'
+import type { AnalysisContextFile } from './ollamaAnalysisPrompt'
 
 /** Won the blind coder benchmark (scripts/output/ollama-coder-quality-blind-2.json). */
 export const OLLAMA_ANALYSIS_DEFAULT_MODEL = 'qwen3-coder:30b'
@@ -33,6 +34,8 @@ export type OllamaAnalysisRequest = {
   timeoutMs?: number | null
   /** Injected by tests — production passes nothing and uses global fetch. */
   fetchImpl?: typeof fetch
+  /** Project files picked by the owner, already read. */
+  files?: AnalysisContextFile[]
 }
 
 export type OllamaAnalysisOutcome =

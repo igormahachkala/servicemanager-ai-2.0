@@ -23,7 +23,7 @@ import {
   getToolDispatcherEndpointConfig,
 } from '../toolDispatcher/toolDispatcherConfig'
 import { callOllamaGenerate } from './ollamaAnalysisClient'
-import { buildOllamaAnalysisPrompt, OLLAMA_ANALYSIS_SYSTEM } from './ollamaAnalysisPrompt'
+import { buildOllamaAnalysisPrompt, contextWindowFor, OLLAMA_ANALYSIS_SYSTEM } from './ollamaAnalysisPrompt'
 import { describeSectionFailure, validateAnalysisSections } from './ollamaAnalysisSections'
 import {
   OLLAMA_ANALYSIS_DEFAULT_MODEL,
@@ -67,16 +67,21 @@ export async function runOllamaAnalysis(
     }
   }
 
+  const prompt = buildOllamaAnalysisPrompt({
+    title: request.title,
+    instructions: request.instructions,
+    files: request.files,
+  })
+  const numCtx = contextWindowFor(prompt, OLLAMA_ANALYSIS_SYSTEM)
+
   const generated = await callOllamaGenerate({
     url,
     model,
     system: OLLAMA_ANALYSIS_SYSTEM,
-    prompt: buildOllamaAnalysisPrompt({
-      title: request.title,
-      instructions: request.instructions,
-    }),
+    prompt,
     timeoutMs,
     fetchImpl: request.fetchImpl,
+    numCtx,
   })
 
   if (!generated.ok) {
@@ -140,6 +145,12 @@ export async function runOllamaAnalysis(
     // Telemetry for Cost Guard and load measurement. A null means Ollama did
     // not report that counter, not that the work was free.
     analysisMetrics: generated.metrics,
+    analysisFiles: (request.files ?? []).map((f) => ({
+      path: f.path,
+      provided: f.content !== null,
+      truncated: Boolean(f.truncated),
+    })),
+    analysisContextWindow: numCtx,
   }
 
   // An answer that misses the contract is not a success. The envelope still gets

@@ -84,6 +84,8 @@ export async function callOllamaGenerate(input: {
   prompt: string
   timeoutMs: number
   fetchImpl?: typeof fetch
+  /** Ollama num_ctx; omitted = server default. */
+  numCtx?: number | null
 }): Promise<OllamaGenerateOutcome> {
   const doFetch = input.fetchImpl ?? globalThis.fetch
   if (typeof doFetch !== 'function') {
@@ -112,6 +114,7 @@ export async function callOllamaGenerate(input: {
           prompt: input.prompt,
           stream: true,
           think: false,
+          ...(input.numCtx ? { options: { num_ctx: input.numCtx } } : {}),
         }),
       })
     } catch (error) {

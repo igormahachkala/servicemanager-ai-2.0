@@ -15,6 +15,7 @@ import {
   type OllamaAnalysisPhase,
   type OllamaAnalysisView,
 } from '../domain/ollamaAnalysis/ollamaAnalysisTask'
+import { MAX_ANALYSIS_FILES, searchProjectFiles } from '../domain/ollamaAnalysis/ollamaAnalysisFiles'
 
 const PHASE_DOT: Record<OllamaAnalysisPhase, string> = {
   waiting_owner: 'mcDot mcDotAmber',
@@ -65,15 +66,20 @@ export function AnalysisTasksPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [title, setTitle] = useState('')
   const [instructions, setInstructions] = useState('')
+  const [files, setFiles] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
   const autoApprove = isSafeToolAutoApproveEnabled()
 
   const selected = views.find((v) => v.runId === selectedId) ?? views[0] ?? null
 
-  function startTask(taskTitle: string, taskInstructions: string) {
+  function startTask(taskTitle: string, taskInstructions: string, taskFiles: string[]) {
     setError(null)
     try {
-      const run = createOllamaAnalysisTask({ title: taskTitle, instructions: taskInstructions })
+      const run = createOllamaAnalysisTask({
+        title: taskTitle,
+        instructions: taskInstructions,
+        files: taskFiles,
+      })
       setSelectedId(run.id)
       refresh()
       return true
@@ -85,9 +91,10 @@ export function AnalysisTasksPage() {
 
   function onSubmit(event: FormEvent) {
     event.preventDefault()
-    if (startTask(title, instructions)) {
+    if (startTask(title, instructions, files)) {
       setTitle('')
       setInstructions('')
+      setFiles([])
     }
   }
 
@@ -118,6 +125,7 @@ export function AnalysisTasksPage() {
                   onChange={(e) => setInstructions(e.target.value)}
                 />
               </label>
+              <FilePicker value={files} onChange={setFiles} />
               <p className="mcMuted acAnalysisNote">
                 {autoApprove ? c.form.autoApproveNote : c.form.manualApproveNote}
               </p>
@@ -168,7 +176,9 @@ export function AnalysisTasksPage() {
             <AnalysisDetail
               view={selected}
               onChanged={refresh}
-              onRerun={() => startTask(selected.title, selected.instructions)}
+              onRerun={() =>
+                startTask(selected.title, selected.instructions, selected.files.map((f) => f.path))
+              }
             />
           ) : (
             <Panel title={c.detail.answer}>
@@ -203,6 +213,20 @@ function AnalysisDetail(props: {
         }
       >
         <div className="acAnalysisTaskText">{v.instructions}</div>
+        {v.files.length > 0 ? (
+          <div className="acAnalysisGivenFiles">
+            <div className="acAnalysisBlockLabel">{c.detail.files}</div>
+            <ul>
+              {v.files.map((f) => (
+                <li key={f.path} className="mcMono">
+                  {f.path}
+                  {f.provided === false ? <span className="acAnalysisWarn"> · {c.detail.fileMissing}</span> : null}
+                  {f.truncated ? <span className="mcMuted"> · {c.detail.fileTruncated}</span> : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         <div className="acAnalysisActions">
           {v.canApprove ? (
             <>
@@ -344,5 +368,92 @@ function AnalysisDetail(props: {
         ) : null}
       </Panel>
     </>
+  )
+}
+
+function FilePicker(props: { value: string[]; onChange: (files: string[]) => void }) {
+  const { t } = useI18n()
+  const c = t.analysisTasks.form
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<string[]>([])
+  const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'unavailable'>('idle')
+
+  useEffect(() => {
+    const q = query.trim()
+    if (q.length < 2) {
+      setResults([])
+      setState('idle')
+      return
+    }
+    setState('loading')
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      searchProjectFiles(q)
+        .then((files) => {
+          if (cancelled) return
+          setResults(files)
+          setState('ready')
+        })
+        .catch(() => {
+          if (!cancelled) setState('unavailable')
+        })
+    }, 250)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [query])
+
+  const full = props.value.length >= MAX_ANALYSIS_FILES
+  const visible = results.filter((f) => !props.value.includes(f)).slice(0, 12)
+
+  return (
+    <div className="mcField acAnalysisFiles">
+      <span className="mcFieldLabel">{c.filesLabel}</span>
+      {props.value.length > 0 ? (
+        <ul className="acAnalysisFileChips">
+          {props.value.map((f) => (
+            <li key={f} className="acAnalysisFileChip">
+              <span className="mcMono">{f}</span>
+              <button
+                type="button"
+                aria-label={`${c.filesRemove} ${f}`}
+                onClick={() => props.onChange(props.value.filter((x) => x !== f))}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <input
+        className="mcInput"
+        value={query}
+        disabled={full}
+        placeholder={c.filesPlaceholder}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      {state === 'unavailable' ? <span className="mcMuted acAnalysisNote">{c.filesUnavailable}</span> : null}
+      {state === 'ready' && visible.length === 0 ? <span className="mcMuted acAnalysisNote">{c.filesNone}</span> : null}
+      {visible.length > 0 && !full ? (
+        <ul className="acAnalysisFileResults">
+          {visible.map((f) => (
+            <li key={f}>
+              <button
+                type="button"
+                className="mcMono"
+                onClick={() => {
+                  props.onChange([...props.value, f].slice(0, MAX_ANALYSIS_FILES))
+                  setQuery('')
+                }}
+              >
+                + {f}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <span className="mcMuted acAnalysisNote">{c.filesHint.replace('{max}', String(MAX_ANALYSIS_FILES))}</span>
+    </div>
   )
 }

@@ -48,6 +48,12 @@ copy ..\env\bridges.env.example ..\env\bridges.env
 .\05-public-hostname.ps1 -Hostname ai.sma-tech.ru
 ```
 
+## Файлы проекта в анализе
+
+В форме «Анализ» можно выбрать до 8 файлов репозитория — модель прочитает их вместе с задачей.
+Файлы берутся из клона `C:\ai-company\repo` (только чтение; `.env`, ключи и `node_modules` недоступны),
+поэтому видна версия, собранная последним `02`.
+
 ## Общие данные
 
 Служба `ai-company-state` хранит состояние компании на сервере (`C:\ai-company\state\state.json`,

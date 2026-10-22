@@ -14,6 +14,8 @@ const config = {
   host: process.env.STATE_BRIDGE_HOST ?? '127.0.0.1',
   port: Number.parseInt(process.env.STATE_BRIDGE_PORT ?? '17322', 10),
   dataDir: path.resolve(process.env.AI_COMPANY_STATE_DIR ?? path.join(process.cwd(), '.state')),
+  // Files offered to analysis tasks (read-only). On the server: the clone.
+  repoRoot: path.resolve(process.env.AI_COMPANY_FILES_ROOT ?? process.env.AI_COMPANY_REPO_ROOT ?? path.join(process.cwd(), '..', '..')),
 }
 
 async function main(): Promise<void> {
@@ -22,7 +24,7 @@ async function main(): Promise<void> {
     return
   }
   const server = await startStateBridgeServer(config)
-  console.log(`[state-bridge] listening on http://${config.host}:${server.port} data=${config.dataDir} rev=${server.store.rev}`)
+  console.log(`[state-bridge] listening on http://${config.host}:${server.port} data=${config.dataDir} files=${config.repoRoot} rev=${server.store.rev}`)
   const shutdown = async () => {
     await server.close()
     process.exit(0)

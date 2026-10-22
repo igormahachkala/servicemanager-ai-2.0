@@ -6,15 +6,18 @@
  *   GET  /v1/snapshot              -> { rev, keys: { key: value } }
  *   GET  /v1/changes?since=<rev>   -> { rev, changes: [{ key, value|null, rev }], reset }
  *   PUT  /v1/keys  { changes: [{ key, value|null }] } -> { rev, applied }
+ *   GET  /v1/files/search?q=<text>  -> { root, files: [relative paths] }   (read-only)
+ *   GET  /v1/files/read?path=<rel>  -> { path, content, truncated, bytes }
  */
 
 import http from 'node:http'
 import { createStateStore, type StateStore } from './stateStore.ts'
+import { createRepoFiles } from './repoFiles.ts'
 
 export const STATE_BRIDGE_VERSION = 'v1'
 const MAX_BODY_BYTES = 32 * 1024 * 1024
 
-export type StateBridgeConfig = { host: string; port: number; dataDir: string }
+export type StateBridgeConfig = { host: string; port: number; dataDir: string; repoRoot?: string }
 export type StateBridgeServer = { close: () => Promise<void>; store: StateStore; port: number }
 
 function readBody(req: http.IncomingMessage): Promise<string> {
@@ -47,6 +50,7 @@ function sendJson(res: http.ServerResponse, status: number, body: unknown): void
 
 export function startStateBridgeServer(config: StateBridgeConfig): Promise<StateBridgeServer> {
   const store = createStateStore({ dir: config.dataDir })
+  const files = config.repoRoot ? createRepoFiles(config.repoRoot) : null
 
   return new Promise((resolve, reject) => {
     const server = http.createServer(async (req, res) => {
@@ -65,6 +69,20 @@ export function startStateBridgeServer(config: StateBridgeConfig): Promise<State
         if (method === 'GET' && url.pathname === '/v1/changes') {
           const since = Number.parseInt(url.searchParams.get('since') ?? '0', 10)
           sendJson(res, 200, store.changesSince(Number.isFinite(since) ? since : 0))
+          return
+        }
+        if (method === 'GET' && url.pathname === '/v1/files/search') {
+          if (!files) return sendJson(res, 404, { error: 'no repository configured' })
+          sendJson(res, 200, { root: files.root, files: files.search(url.searchParams.get('q') ?? '') })
+          return
+        }
+        if (method === 'GET' && url.pathname === '/v1/files/read') {
+          if (!files) return sendJson(res, 404, { error: 'no repository configured' })
+          try {
+            sendJson(res, 200, files.read(url.searchParams.get('path') ?? ''))
+          } catch (error) {
+            sendJson(res, 403, { error: error instanceof Error ? error.message : String(error) })
+          }
           return
         }
         if (method === 'PUT' && url.pathname === '/v1/keys') {
