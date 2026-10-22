@@ -2,6 +2,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { contractorAnalyticsScope } from '../lib/contractorAnalytics'
+import { ContractorAnalyticsPanel } from './ContractorAnalyticsPanel'
 
 function fmtNumber(v?: number | null) {
   if (typeof v !== 'number' || Number.isNaN(v)) return '—'
@@ -116,6 +118,17 @@ export function AnalyticsPage() {
     if (providerHasNoLinkedClients) return false
     return !!activeLinkedClientCompanyId
   }, [analyticsAllowedForRole, isObserverMode, canShowLinkedClients, linkedClientsQ.isLoading, providerHasNoLinkedClients, activeLinkedClientCompanyId])
+
+  // SMA-ANALYTICS-CONTRACTORS: SECONDARY тоже получает блок — только свою работу.
+  const contractorScope = contractorAnalyticsScope({
+    analyticsAllowedForRole,
+    observerCompanyId,
+    canShowLinkedClients,
+    linkedClientsLoading: linkedClientsQ.isLoading,
+    selectedLinkedClient: selectedLinkedClient
+      ? { clientCompanyId: selectedLinkedClient.clientCompany.id, role: selectedLinkedClient.role }
+      : null,
+  })
 
   const q = useQuery<api.AnalyticsOverviewResponse>({
     queryKey: ['analytics', 'overview', activeLinkedClientCompanyId, observerCompanyId],
@@ -373,6 +386,8 @@ export function AnalyticsPage() {
           {analyticsEnabled && data.timing.note ? <div className="muted small" style={{ marginTop: 10 }}>{data.timing.note}</div> : null}
         </div>
       </div>
+
+      <ContractorAnalyticsPanel scope={contractorScope} />
 
       <div className="panel" style={{ marginTop: 12 }}>
         <h3 style={{ marginBottom: 10 }}>Публичные заявки по точкам</h3>
