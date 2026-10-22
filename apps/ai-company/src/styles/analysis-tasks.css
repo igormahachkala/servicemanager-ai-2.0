@@ -120,3 +120,6 @@
 /* Panel bodies here are unpadded by default (mcPanelBody: 0) — pad to the header's 20px. */
 .acAnalysisLayout .mcPanelBody { padding: 4px 20px 20px; }
 .acAnalysisLayout .acAnalysisList { margin: 0 -10px; }
+
+/* Lazy route placeholder */
+.acPageLoading { min-height: 40vh; }

@@ -262,17 +262,30 @@ export function getTodayWorkdays(): EmployeeWorkday[] {
   return loadWorkdays().filter((item) => item.date === date)
 }
 
+function sameWorkdayContent(a: EmployeeWorkday, b: EmployeeWorkday): boolean {
+  const { updatedAt: _a, ...restA } = a
+  const { updatedAt: _b, ...restB } = b
+  void _a
+  void _b
+  return JSON.stringify(restA) === JSON.stringify(restB)
+}
+
 export function syncWorkdaysFromPlatform(): EmployeeWorkday[] {
   const date = getTodayDateKey()
   const companyId = DEFAULT_COMPANY_ID
-  const synced = listEmployeeIds().map((employeeId) => {
+  // Write only what actually changed. This runs on every dashboard read, and
+  // every write fires CHANGE_EVENT, whose listener (useWorkday) reads the
+  // dashboard again: writing unconditionally (upsert always bumps updatedAt)
+  // recursed until "Maximum call stack size exceeded" — reproducible as
+  // /ops/day then /ops/canvas. It also pushed a write to the shared server
+  // state on every render.
+  return listEmployeeIds().map((employeeId) => {
     const existing = getTodayWorkdayForEmployee(employeeId)
     const base = existing ?? createEmptyWorkday({ employeeId, companyId, date })
-    return syncWorkdayFromPresence(base)
+    const next = syncWorkdayFromPresence(base)
+    if (existing && sameWorkdayContent(existing, next)) return existing
+    return upsertWorkday(next)
   })
-
-  synced.forEach((item) => upsertWorkday(item))
-  return synced
 }
 
 export function startWorkday(employeeId: string): EmployeeWorkday {

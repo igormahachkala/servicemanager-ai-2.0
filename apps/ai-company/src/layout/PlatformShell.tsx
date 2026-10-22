@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { HelpCenterPanel } from '../components/guided/HelpCenterPanel'
 import { PresenceRouteBridge } from '../components/presence'
@@ -36,7 +36,9 @@ export function PlatformShell() {
           <TopBar onMenuToggle={() => setSidebarOpen((value) => !value)} />
           <PresenceRouteBridge />
           <main className="acPlatformContent">
-            <Outlet />
+            <Suspense fallback={<div className="acPageLoading" aria-busy="true" />}>
+              <Outlet />
+            </Suspense>
           </main>
           <StatusBar />
         </div>

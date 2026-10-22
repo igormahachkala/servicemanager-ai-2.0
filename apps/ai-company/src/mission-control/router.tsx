@@ -1,67 +1,71 @@
+import { lazy } from 'react'
 import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { MissionControlShell } from './layout/MissionControlShell'
-import { DashboardPage } from './pages/DashboardPage'
-import { CompaniesPage } from '../pages/CompaniesPage'
-import { CompanyPage } from '../pages/CompanyPage'
-import { NewCompanyPage } from '../pages/NewCompanyPage'
-import { NotificationsPage } from '../pages/NotificationsPage'
-import { OrganizationChartPage } from '../pages/OrganizationChartPage'
-import { DepartmentPage } from '../pages/DepartmentPage'
-import { TeamPage } from '../pages/TeamPage'
-import { EmployeesPage } from './pages/EmployeesPage'
-import { NewEmployeePage } from './pages/NewEmployeePage'
-import { EmployeeProfilePage } from './pages/EmployeeProfilePage'
-import { TasksPage } from './pages/TasksPage'
-import { ToolsCatalogPage } from './pages/ToolsCatalogPage'
-import { ToolDetailsPage } from './pages/ToolDetailsPage'
-import { PresencePage } from '../pages/PresencePage'
-import { ProjectsPage } from '../pages/ProjectsPage'
-import { NewProjectPage } from '../pages/NewProjectPage'
-import { ProjectPage } from '../pages/ProjectPage'
-import { WorkspacesPage } from './pages/WorkspacesPage'
-import { NewWorkspacePage } from './pages/NewWorkspacePage'
-import { WorkspacePage } from './pages/WorkspacePage'
-import { EmployeeMemoryPage } from '../pages/EmployeeMemoryPage'
-import { KnowledgePage } from '../pages/KnowledgePage'
-import { KnowledgeItemPage } from '../pages/KnowledgeItemPage'
-import { KnowledgeCollectionsPage } from '../pages/KnowledgeCollectionsPage'
-import { ApprovalsPage } from '../pages/ApprovalsPage'
-import { ApprovalDetailsPage } from '../pages/ApprovalDetailsPage'
-import { ReportsPage } from '../pages/ReportsPage'
-import { ReportPage } from '../pages/ReportPage'
-import { AuditPage } from '../pages/AuditPage'
-import { CompanyTimelinePage } from '../pages/CompanyTimelinePage'
-import { ActivityPage } from '../pages/ActivityPage'
-import { EmployeeRuntimePage } from '../pages/EmployeeRuntimePage'
-import { EmployeeWorkspacePage } from '../pages/EmployeeWorkspacePage'
-import { RuntimeLivePage } from '../pages/RuntimeLivePage'
-import { RuntimeRunPage } from '../pages/RuntimeRunPage'
-import { RuntimeSettingsPage } from '../pages/RuntimeSettingsPage'
-import { RunsPage } from '../pages/RunsPage'
-import { RunDetailsPage } from '../pages/RunDetailsPage'
-import { ChatsPage } from '../pages/ChatsPage'
-import { ChatPage } from '../pages/ChatPage'
-import { NewChatPage } from '../pages/NewChatPage'
-import { EmployeeCompetenciesPage } from '../pages/EmployeeCompetenciesPage'
-import { EmployeeLearningPage } from '../pages/EmployeeLearningPage'
-import { CollaborationPage } from '../pages/CollaborationPage'
-import { AiPhotoLabControlRoomPage } from '../pages/AiPhotoLabControlRoomPage'
-import { AiPhotoLabKickoffPage } from '../pages/AiPhotoLabKickoffPage'
-import { ExecutionPage } from '../pages/ExecutionPage'
-import { AnalysisTasksPage } from '../pages/AnalysisTasksPage'
-import { CompanyCanvasPage } from '../pages/CompanyCanvasPage'
-import { ToolExecutionsPage } from '../pages/ToolExecutionsPage'
-import { HandoffsPage } from '../pages/HandoffsPage'
-import { HandoffDetailsPage } from '../pages/HandoffDetailsPage'
-import { SprintPage } from '../pages/SprintPage'
-import { WorkdayPage } from '../pages/WorkdayPage'
-import { TaskResultsPage } from '../pages/TaskResultsPage'
-import { TaskResultDetailsPage } from '../pages/TaskResultDetailsPage'
-import { VisualLabPage } from '../pages/VisualLabPage'
-import { CompanyOperatingDayPage } from '../pages/CompanyOperatingDayPage'
-import { RunTaskPage } from '../pages/RunTaskPage'
-import { OwnerMorningReportPage } from '../pages/OwnerMorningReportPage'
-import { EmployeeOperatingDayPage } from '../pages/EmployeeOperatingDayPage'
+
+// Every page is its own chunk: the panel loads only the screen being opened
+// (the single 2.5 MB bundle was slow over the internet). Suspense: PlatformShell.
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })))
+const CompaniesPage = lazy(() => import('../pages/CompaniesPage').then((m) => ({ default: m.CompaniesPage })))
+const CompanyPage = lazy(() => import('../pages/CompanyPage').then((m) => ({ default: m.CompanyPage })))
+const NewCompanyPage = lazy(() => import('../pages/NewCompanyPage').then((m) => ({ default: m.NewCompanyPage })))
+const NotificationsPage = lazy(() => import('../pages/NotificationsPage').then((m) => ({ default: m.NotificationsPage })))
+const OrganizationChartPage = lazy(() => import('../pages/OrganizationChartPage').then((m) => ({ default: m.OrganizationChartPage })))
+const DepartmentPage = lazy(() => import('../pages/DepartmentPage').then((m) => ({ default: m.DepartmentPage })))
+const TeamPage = lazy(() => import('../pages/TeamPage').then((m) => ({ default: m.TeamPage })))
+const EmployeesPage = lazy(() => import('./pages/EmployeesPage').then((m) => ({ default: m.EmployeesPage })))
+const NewEmployeePage = lazy(() => import('./pages/NewEmployeePage').then((m) => ({ default: m.NewEmployeePage })))
+const EmployeeProfilePage = lazy(() => import('./pages/EmployeeProfilePage').then((m) => ({ default: m.EmployeeProfilePage })))
+const TasksPage = lazy(() => import('./pages/TasksPage').then((m) => ({ default: m.TasksPage })))
+const ToolsCatalogPage = lazy(() => import('./pages/ToolsCatalogPage').then((m) => ({ default: m.ToolsCatalogPage })))
+const ToolDetailsPage = lazy(() => import('./pages/ToolDetailsPage').then((m) => ({ default: m.ToolDetailsPage })))
+const PresencePage = lazy(() => import('../pages/PresencePage').then((m) => ({ default: m.PresencePage })))
+const ProjectsPage = lazy(() => import('../pages/ProjectsPage').then((m) => ({ default: m.ProjectsPage })))
+const NewProjectPage = lazy(() => import('../pages/NewProjectPage').then((m) => ({ default: m.NewProjectPage })))
+const ProjectPage = lazy(() => import('../pages/ProjectPage').then((m) => ({ default: m.ProjectPage })))
+const WorkspacesPage = lazy(() => import('./pages/WorkspacesPage').then((m) => ({ default: m.WorkspacesPage })))
+const NewWorkspacePage = lazy(() => import('./pages/NewWorkspacePage').then((m) => ({ default: m.NewWorkspacePage })))
+const WorkspacePage = lazy(() => import('./pages/WorkspacePage').then((m) => ({ default: m.WorkspacePage })))
+const EmployeeMemoryPage = lazy(() => import('../pages/EmployeeMemoryPage').then((m) => ({ default: m.EmployeeMemoryPage })))
+const KnowledgePage = lazy(() => import('../pages/KnowledgePage').then((m) => ({ default: m.KnowledgePage })))
+const KnowledgeItemPage = lazy(() => import('../pages/KnowledgeItemPage').then((m) => ({ default: m.KnowledgeItemPage })))
+const KnowledgeCollectionsPage = lazy(() => import('../pages/KnowledgeCollectionsPage').then((m) => ({ default: m.KnowledgeCollectionsPage })))
+const ApprovalsPage = lazy(() => import('../pages/ApprovalsPage').then((m) => ({ default: m.ApprovalsPage })))
+const ApprovalDetailsPage = lazy(() => import('../pages/ApprovalDetailsPage').then((m) => ({ default: m.ApprovalDetailsPage })))
+const ReportsPage = lazy(() => import('../pages/ReportsPage').then((m) => ({ default: m.ReportsPage })))
+const ReportPage = lazy(() => import('../pages/ReportPage').then((m) => ({ default: m.ReportPage })))
+const AuditPage = lazy(() => import('../pages/AuditPage').then((m) => ({ default: m.AuditPage })))
+const CompanyTimelinePage = lazy(() => import('../pages/CompanyTimelinePage').then((m) => ({ default: m.CompanyTimelinePage })))
+const ActivityPage = lazy(() => import('../pages/ActivityPage').then((m) => ({ default: m.ActivityPage })))
+const EmployeeRuntimePage = lazy(() => import('../pages/EmployeeRuntimePage').then((m) => ({ default: m.EmployeeRuntimePage })))
+const EmployeeWorkspacePage = lazy(() => import('../pages/EmployeeWorkspacePage').then((m) => ({ default: m.EmployeeWorkspacePage })))
+const RuntimeLivePage = lazy(() => import('../pages/RuntimeLivePage').then((m) => ({ default: m.RuntimeLivePage })))
+const RuntimeRunPage = lazy(() => import('../pages/RuntimeRunPage').then((m) => ({ default: m.RuntimeRunPage })))
+const RuntimeSettingsPage = lazy(() => import('../pages/RuntimeSettingsPage').then((m) => ({ default: m.RuntimeSettingsPage })))
+const RunsPage = lazy(() => import('../pages/RunsPage').then((m) => ({ default: m.RunsPage })))
+const RunDetailsPage = lazy(() => import('../pages/RunDetailsPage').then((m) => ({ default: m.RunDetailsPage })))
+const ChatsPage = lazy(() => import('../pages/ChatsPage').then((m) => ({ default: m.ChatsPage })))
+const ChatPage = lazy(() => import('../pages/ChatPage').then((m) => ({ default: m.ChatPage })))
+const NewChatPage = lazy(() => import('../pages/NewChatPage').then((m) => ({ default: m.NewChatPage })))
+const EmployeeCompetenciesPage = lazy(() => import('../pages/EmployeeCompetenciesPage').then((m) => ({ default: m.EmployeeCompetenciesPage })))
+const EmployeeLearningPage = lazy(() => import('../pages/EmployeeLearningPage').then((m) => ({ default: m.EmployeeLearningPage })))
+const CollaborationPage = lazy(() => import('../pages/CollaborationPage').then((m) => ({ default: m.CollaborationPage })))
+const AiPhotoLabControlRoomPage = lazy(() => import('../pages/AiPhotoLabControlRoomPage').then((m) => ({ default: m.AiPhotoLabControlRoomPage })))
+const AiPhotoLabKickoffPage = lazy(() => import('../pages/AiPhotoLabKickoffPage').then((m) => ({ default: m.AiPhotoLabKickoffPage })))
+const ExecutionPage = lazy(() => import('../pages/ExecutionPage').then((m) => ({ default: m.ExecutionPage })))
+const AnalysisTasksPage = lazy(() => import('../pages/AnalysisTasksPage').then((m) => ({ default: m.AnalysisTasksPage })))
+const CompanyCanvasPage = lazy(() => import('../pages/CompanyCanvasPage').then((m) => ({ default: m.CompanyCanvasPage })))
+const ToolExecutionsPage = lazy(() => import('../pages/ToolExecutionsPage').then((m) => ({ default: m.ToolExecutionsPage })))
+const HandoffsPage = lazy(() => import('../pages/HandoffsPage').then((m) => ({ default: m.HandoffsPage })))
+const HandoffDetailsPage = lazy(() => import('../pages/HandoffDetailsPage').then((m) => ({ default: m.HandoffDetailsPage })))
+const SprintPage = lazy(() => import('../pages/SprintPage').then((m) => ({ default: m.SprintPage })))
+const WorkdayPage = lazy(() => import('../pages/WorkdayPage').then((m) => ({ default: m.WorkdayPage })))
+const TaskResultsPage = lazy(() => import('../pages/TaskResultsPage').then((m) => ({ default: m.TaskResultsPage })))
+const TaskResultDetailsPage = lazy(() => import('../pages/TaskResultDetailsPage').then((m) => ({ default: m.TaskResultDetailsPage })))
+const VisualLabPage = lazy(() => import('../pages/VisualLabPage').then((m) => ({ default: m.VisualLabPage })))
+const CompanyOperatingDayPage = lazy(() => import('../pages/CompanyOperatingDayPage').then((m) => ({ default: m.CompanyOperatingDayPage })))
+const RunTaskPage = lazy(() => import('../pages/RunTaskPage').then((m) => ({ default: m.RunTaskPage })))
+const OwnerMorningReportPage = lazy(() => import('../pages/OwnerMorningReportPage').then((m) => ({ default: m.OwnerMorningReportPage })))
+const EmployeeOperatingDayPage = lazy(() => import('../pages/EmployeeOperatingDayPage').then((m) => ({ default: m.EmployeeOperatingDayPage })))
 
 function LegacyConversationRedirect() {
   const { id } = useParams<{ id: string }>()
