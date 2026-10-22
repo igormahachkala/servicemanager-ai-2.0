@@ -2,8 +2,9 @@ import { BadRequestException } from '@nestjs/common';
 import { TicketStatus } from '@prisma/client';
 
 /**
- * SMA-MOBILE-LONG-TERM-TICKETS — правило «долгосрочной заявки» и страницы её
- * выборки. Без БД и без часов: правило проверяется исполнением.
+ * SMA-MOBILE-LONG-TERM-TICKETS — правило «долгосрочной заявки», порядок и курсор
+ * её выборки. Выборка идёт в PostgreSQL (long-term-tickets.sql.ts); здесь — то же
+ * правило без БД: по нему тесты сверяют SQL.
  *
  * Долгосрочная — активная заявка, у которой плановый срок выполнения
  * plannedDueAt − createdAt не меньше 240 часов. Это время, отведённое на работу
@@ -46,7 +47,8 @@ export function isLongTermCandidate(
   );
 }
 
-type SortKey = { p: number; c: number; i: string };
+export type LongTermSortKey = { p: number; c: number; i: string };
+type SortKey = LongTermSortKey;
 
 function keyOf(row: LongTermRow): SortKey {
   return {
@@ -61,10 +63,14 @@ function keyOf(row: LongTermRow): SortKey {
  * id уникален, поэтому порядок полный: у двух заявок не бывает равного ключа,
  * и страница не может ни потерять, ни повторить строку.
  */
-function compareKeys(a: SortKey, b: SortKey): number {
+export function compareLongTermKeys(a: SortKey, b: SortKey): number {
   if (a.p !== b.p) return a.p - b.p;
   if (a.c !== b.c) return a.c - b.c;
   return a.i < b.i ? -1 : a.i > b.i ? 1 : 0;
+}
+
+export function longTermKeyOf(row: LongTermRow): SortKey {
+  return keyOf(row);
 }
 
 export function encodeLongTermCursor(row: LongTermRow): string {
@@ -90,35 +96,4 @@ export function decodeLongTermCursor(cursor: string): SortKey {
     // ниже — общий отказ
   }
   throw new BadRequestException('Invalid cursor');
-}
-
-/**
- * Страница по курсору-ключу (keyset), а не по смещению: если между запросами
- * заявка закрылась или появилась новая, следующая страница всё равно начнётся
- * строго после последней показанной — без дублей и без пропуска оставшихся.
- *
- * total — все долгосрочные заявки выборки, а не число строк на странице.
- */
-export function paginateLongTerm(
-  candidates: LongTermCandidate[],
-  params: { limit: number; cursor?: string | null },
-): { total: number; page: LongTermRow[]; nextCursor: string | null } {
-  const rows = candidates
-    .filter(isLongTermCandidate)
-    .sort((a, b) => compareKeys(keyOf(a), keyOf(b)));
-  const after = params.cursor ? decodeLongTermCursor(params.cursor) : null;
-  const start = after
-    ? rows.findIndex((row) => compareKeys(keyOf(row), after) > 0)
-    : 0;
-  const from = start === -1 ? rows.length : start;
-  const page = rows.slice(from, from + params.limit);
-  const hasMore = from + params.limit < rows.length;
-  return {
-    total: rows.length,
-    page,
-    nextCursor:
-      hasMore && page.length > 0
-        ? encodeLongTermCursor(page[page.length - 1])
-        : null,
-  };
 }

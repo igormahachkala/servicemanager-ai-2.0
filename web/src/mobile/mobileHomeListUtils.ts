@@ -92,10 +92,23 @@ export function mergeLongTermTicketPages(pages: ReadonlyArray<{ items: TicketCar
   return out
 }
 
-/** Счётчик карточки — серверный total по всему контуру, не длина загруженного. */
+/** «Показано N из total» в открытом списке — total страницы, не длина загруженного. */
 export function longTermTicketsTotal(pages: ReadonlyArray<{ total: number }> | undefined): number {
   const first = pages?.[0]
   return first && Number.isFinite(first.total) ? first.total : 0
+}
+
+/**
+ * Счётчик карточки на главной — ответ GET /tickets/long-term/count: один COUNT
+ * по всему контуру, без списка. Нет ответа или он битый — ноль, карточка скрыта.
+ */
+export function longTermCardCount(count: { total: number } | undefined): number {
+  return count && Number.isFinite(count.total) && count.total > 0 ? count.total : 0
+}
+
+/** Список долгосрочных грузится, только когда карточку открыли. */
+export function shouldLoadLongTermList(quickFilter: MobileHomeQuickFilter): boolean {
+  return quickFilter === 'longterm'
 }
 
 export function readPersistedMobileHomeBoardUi(): {

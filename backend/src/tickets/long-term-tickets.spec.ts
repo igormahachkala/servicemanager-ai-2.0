@@ -5,14 +5,21 @@ import { PERMISSIONS } from '../common/permissions.constants';
 import { PERMISSIONS_KEY } from '../common/permissions.decorator';
 import { ROLES_KEY } from '../common/roles.decorator';
 import {
+  compareLongTermKeys,
   decodeLongTermCursor,
   encodeLongTermCursor,
   isLongTermCandidate,
   LONG_TERM_MIN_HOURS,
   LONG_TERM_STATUSES,
-  paginateLongTerm,
+  longTermKeyOf,
   type LongTermCandidate,
 } from './long-term-tickets';
+import {
+  countLongTermTickets,
+  longTermCountSql,
+  longTermPageSql,
+  pageLongTermTickets,
+} from './long-term-tickets.sql';
 import { TicketsController } from './tickets.controller';
 
 const HOUR = 60 * 60 * 1000;
@@ -67,74 +74,133 @@ describe('SMA-MOBILE-LONG-TERM-TICKETS правило', () => {
   });
 });
 
-describe('SMA-MOBILE-LONG-TERM-TICKETS страницы', () => {
-  const rows = Array.from({ length: 1200 }, (_, index) =>
-    // одинаковые сроки и даты у групп по 7 — порядок решает id
-    candidate(
-      `t-${String(index).padStart(4, '0')}`,
-      Math.floor(index / 7),
-      index % 4 === 0 ? 100 * HOUR : 300 * HOUR,
-    ),
-  );
-
-  it('total точный, страницы покрывают выборку без потерь и дублей', () => {
-    const seen: string[] = [];
-    let cursor: string | null = null;
-    let total = 0;
-    for (let guard = 0; guard < 500; guard++) {
-      const page = paginateLongTerm(rows, { limit: 23, cursor });
-      total = page.total;
-      seen.push(...page.page.map((row) => row.id));
-      if (!page.nextCursor) break;
-      cursor = page.nextCursor;
-    }
-    expect(total).toBe(900);
-    expect(seen).toHaveLength(900);
-    expect(new Set(seen).size).toBe(900);
-  });
-
-  it('порядок одинаков при любом порядке входа', () => {
-    const shuffled = [...rows].reverse();
-    expect(
-      paginateLongTerm(shuffled, { limit: 50 }).page.map((r) => r.id),
-    ).toEqual(paginateLongTerm(rows, { limit: 50 }).page.map((r) => r.id));
-  });
-
-  it('последняя страница без курсора; курсор за концом — пустая страница', () => {
-    const small = [
-      candidate('a', 0, 300 * HOUR),
-      candidate('b', 1, 300 * HOUR),
-    ];
-    const first = paginateLongTerm(small, { limit: 2 });
-    expect(first.nextCursor).toBeNull();
-    const beyond = paginateLongTerm(small, {
-      limit: 2,
-      cursor: encodeLongTermCursor(first.page[1]),
-    });
-    expect(beyond).toEqual({ total: 2, page: [], nextCursor: null });
-  });
-
-  it('курсор — ключ строки, а не смещение: удаление строк до курсора ничего не сдвигает', () => {
-    const list = Array.from({ length: 6 }, (_, index) =>
-      candidate(`r-${index}`, index, 300 * HOUR),
+describe('SMA-MOBILE-LONG-TERM-TICKETS курсор и порядок', () => {
+  it('курсор — ключ последней строки (plannedDueAt, createdAt, id), туда и обратно', () => {
+    const last = candidate(
+      't-42',
+      3,
+      300 * HOUR,
+    ) as Required<LongTermCandidate> & {
+      plannedDueAt: Date;
+    };
+    expect(decodeLongTermCursor(encodeLongTermCursor(last))).toEqual(
+      longTermKeyOf(last),
     );
-    const first = paginateLongTerm(list, { limit: 3 });
-    const second = paginateLongTerm(list.slice(2), {
-      limit: 3,
-      cursor: first.nextCursor,
-    });
-    expect(second.page.map((r) => r.id)).toEqual(['r-3', 'r-4', 'r-5']);
+  });
+
+  it('порядок полный: срок, затем дата создания, затем id', () => {
+    const key = (p: number, c: number, i: string) => ({ p, c, i });
+    expect(compareLongTermKeys(key(1, 9, 'z'), key(2, 0, 'a'))).toBeLessThan(0);
+    expect(compareLongTermKeys(key(1, 1, 'z'), key(1, 2, 'a'))).toBeLessThan(0);
+    expect(compareLongTermKeys(key(1, 1, 'a'), key(1, 1, 'b'))).toBeLessThan(0);
+    expect(compareLongTermKeys(key(1, 1, 'a'), key(1, 1, 'a'))).toBe(0);
   });
 
   it('битый курсор — ошибка запроса', () => {
-    expect(() => decodeLongTermCursor('мусор')).toThrow('Invalid cursor');
-    expect(() =>
-      decodeLongTermCursor(
-        Buffer.from(JSON.stringify({ p: 'x', c: 1, i: 'a' })).toString(
-          'base64url',
-        ),
-      ),
-    ).toThrow('Invalid cursor');
+    const encoded = (value: unknown) =>
+      Buffer.from(JSON.stringify(value)).toString('base64url');
+    for (const cursor of [
+      'мусор',
+      encoded({ p: 'x', c: 1, i: 'a' }),
+      encoded({ p: 1, c: Number.NaN, i: 'a' }),
+      encoded({ p: 1, c: 1, i: '' }),
+      encoded({ p: 1, c: 1 }),
+      encoded(null),
+    ]) {
+      expect(() => decodeLongTermCursor(cursor)).toThrow('Invalid cursor');
+    }
+  });
+});
+
+describe('SMA-MOBILE-LONG-TERM-TICKETS SQL', () => {
+  const where = { companyId: 'client-1', status: { in: LONG_TERM_STATUSES } };
+  const text = (sql: { text: string }) => sql.text.replace(/\s+/g, ' ');
+
+  it('правило 240 ч — в SQL, по разности колонок, без slaDueAt и без now()', () => {
+    for (const sql of [
+      longTermCountSql(where),
+      longTermPageSql(where, { limit: 50, after: null }),
+    ]) {
+      expect(text(sql)).toContain(
+        '"t"."plannedDueAt" IS NOT NULL AND "t"."plannedDueAt" - "t"."createdAt" >= make_interval(hours => $',
+      );
+      expect(sql.values).toContain(240);
+      expect(text(sql)).not.toMatch(/slaDueAt|now\(\)|CURRENT_/i);
+    }
+  });
+
+  it('COUNT — отдельный запрос по тому же WHERE видимости', () => {
+    const count = longTermCountSql(where);
+    expect(text(count)).toMatch(
+      /^SELECT COUNT\(\*\)::int AS "total" FROM "Ticket" AS "t" WHERE \(/,
+    );
+    expect(text(count)).toContain('"t"."companyId" = $1');
+    expect(count.values[0]).toBe('client-1');
+    expect(text(count)).not.toMatch(/LIMIT|ORDER BY/);
+  });
+
+  it('страница — keyset по (plannedDueAt, createdAt, id), ORDER BY того же ключа и LIMIT limit + 1', () => {
+    const after = {
+      p: Date.UTC(2026, 0, 11),
+      c: Date.UTC(2026, 0, 1),
+      i: 'id-9',
+    };
+    const page = longTermPageSql(where, { limit: 50, after });
+    expect(text(page)).toContain(
+      '("t"."plannedDueAt", "t"."createdAt", "t"."id") > (CAST($',
+    );
+    expect(text(page)).toMatch(
+      /ORDER BY "t"\."plannedDueAt" ASC, "t"\."createdAt" ASC, "t"\."id" ASC LIMIT \$\d+$/,
+    );
+    expect(page.values.slice(-4)).toEqual([
+      '2026-01-11T00:00:00.000Z',
+      '2026-01-01T00:00:00.000Z',
+      'id-9',
+      51,
+    ]);
+    expect(text(page)).not.toMatch(/OFFSET/);
+    expect(
+      text(longTermPageSql(where, { limit: 50, after: null })),
+    ).not.toContain(') > (');
+  });
+
+  it('значения курсора — параметры, а не текст запроса', () => {
+    const page = longTermPageSql(where, {
+      limit: 10,
+      after: { p: 1, c: 1, i: `x'); DROP TABLE "Ticket"; --` },
+    });
+    expect(page.text).not.toContain('DROP TABLE');
+    expect(page.values).toContain(`x'); DROP TABLE "Ticket"; --`);
+  });
+
+  it('в Node.js приходит не больше limit строк; лишняя строка только говорит «есть ещё»', async () => {
+    const rows = Array.from({ length: 11 }, (_, index) => ({
+      id: `r-${index}`,
+      createdAt: new Date(BASE),
+      plannedDueAt: new Date(BASE + 300 * HOUR),
+    }));
+    const db = { $queryRaw: jest.fn().mockResolvedValue(rows) };
+    const page = await pageLongTermTickets(db as never, where, {
+      limit: 10,
+      after: null,
+    });
+    expect(page.rows).toHaveLength(10);
+    expect(page.hasMore).toBe(true);
+
+    db.$queryRaw.mockResolvedValue(rows.slice(0, 10));
+    const last = await pageLongTermTickets(db as never, where, {
+      limit: 10,
+      after: null,
+    });
+    expect(last).toMatchObject({ hasMore: false });
+    expect(last.rows).toHaveLength(10);
+  });
+
+  it('COUNT отдаёт число, пустой ответ — ноль', async () => {
+    const db = { $queryRaw: jest.fn().mockResolvedValue([{ total: 734 }]) };
+    await expect(countLongTermTickets(db as never, where)).resolves.toBe(734);
+    db.$queryRaw.mockResolvedValue([]);
+    await expect(countLongTermTickets(db as never, where)).resolves.toBe(0);
   });
 });
 
@@ -144,12 +210,18 @@ describe('SMA-MOBILE-LONG-TERM-TICKETS маршрут', () => {
     Object.getOwnPropertyDescriptor(TicketsController.prototype, name)
       ?.value as (...args: unknown[]) => unknown;
 
-  it('роли и право — те же, что у GET /tickets/board', () => {
-    const roles = reflector.get<UserRole[]>(ROLES_KEY, methodOf('longTerm'));
-    const boardRoles = reflector.get<UserRole[]>(ROLES_KEY, methodOf('board'));
-    expect([...roles].sort()).toEqual([...boardRoles].sort());
-    expect(
-      reflector.get<string[]>(PERMISSIONS_KEY, methodOf('longTerm')),
-    ).toEqual([PERMISSIONS.TICKETS_VIEW]);
-  });
+  it.each(['longTerm', 'longTermCount'])(
+    '%s: роли и право — те же, что у GET /tickets/board',
+    (name) => {
+      const roles = reflector.get<UserRole[]>(ROLES_KEY, methodOf(name));
+      const boardRoles = reflector.get<UserRole[]>(
+        ROLES_KEY,
+        methodOf('board'),
+      );
+      expect([...roles].sort()).toEqual([...boardRoles].sort());
+      expect(reflector.get<string[]>(PERMISSIONS_KEY, methodOf(name))).toEqual([
+        PERMISSIONS.TICKETS_VIEW,
+      ]);
+    },
+  );
 });

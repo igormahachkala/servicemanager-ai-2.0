@@ -3,6 +3,12 @@ import { ServiceContractRole, TicketStatus, UserRole } from '@prisma/client'
 
 import { TicketsQueryService } from './tickets.query.service'
 import * as ticketAccessUtils from './ticket-access.utils'
+import {
+  compareLongTermKeys,
+  isLongTermCandidate,
+  longTermKeyOf,
+} from './long-term-tickets';
+import * as longTermSql from './long-term-tickets.sql';
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
@@ -1337,6 +1343,11 @@ describe('TicketsQueryService.getOne', () => {
  * where, что и тесты board: доступ проверяется по тому, что реально пришло, а
  * не по аргументам. findMany повторяет поведение Prisma в нужном объёме:
  * where, orderBy createdAt desc и take — поэтому board честно режется на 500.
+ *
+ * COUNT и keyset-страница в проде — SQL в PostgreSQL. Здесь их заменяет та же
+ * выборка в памяти, но WHERE, пришедший в них, сначала по-настоящему
+ * переводится в SQL: форма доступа каждого сценария должна переводиться. Сам
+ * SQL сверяется с Prisma на PostgreSQL в test/long-term-tickets.e2e-spec.ts.
  */
 /* eslint-disable @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/require-await -- строки и Prisma-мок в памяти, как в тестах board выше */
 describe('TicketsQueryService.longTermTickets', () => {
@@ -1418,10 +1429,43 @@ describe('TicketsQueryService.longTermTickets', () => {
     };
   }
 
+  /** Сколько строк каждая операция «БД» отдала в Node.js. */
+  let transferred: Array<{ op: string; rows: number; where?: unknown }> = [];
+
+  function longTermRows(rows: any[], where: any) {
+    return rows
+      .filter((ticket) => ticketMatchesWhere(where, ticket))
+      .filter(isLongTermCandidate)
+      .sort((a, b) => compareLongTermKeys(longTermKeyOf(a), longTermKeyOf(b)));
+  }
+
   function prismaWith(
     rows: any[],
     opts: Parameters<typeof makePrisma>[0] = {},
   ) {
+    transferred = [];
+    jest
+      .spyOn(longTermSql, 'countLongTermTickets')
+      .mockImplementation(async (_db, where) => {
+        longTermSql.longTermCountSql(where);
+        transferred.push({ op: 'count', rows: 1, where });
+        return longTermRows(rows, where).length;
+      });
+    jest
+      .spyOn(longTermSql, 'pageLongTermTickets')
+      .mockImplementation(async (_db, where, { limit, after }) => {
+        longTermSql.longTermPageSql(where, { limit, after });
+        const fetched = longTermRows(rows, where)
+          .filter(
+            (r) => !after || compareLongTermKeys(longTermKeyOf(r), after) > 0,
+          )
+          .slice(0, limit + 1);
+        transferred.push({ op: 'page', rows: fetched.length, where });
+        return {
+          rows: fetched.slice(0, limit),
+          hasMore: fetched.length > limit,
+        };
+      });
     const prisma = makePrisma(opts);
     prisma.ticket.findMany.mockImplementation(
       async ({ where, take, orderBy }: any) => {
@@ -1431,7 +1475,9 @@ describe('TicketsQueryService.longTermTickets', () => {
             (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
           );
         }
-        return typeof take === 'number' ? found.slice(0, take) : found;
+        const result = typeof take === 'number' ? found.slice(0, take) : found;
+        transferred.push({ op: 'findMany', rows: result.length, where });
+        return result;
       },
     );
     return prisma;
@@ -1610,6 +1656,10 @@ describe('TicketsQueryService.longTermTickets', () => {
     for (const [args] of prisma.ticket.findMany.mock.calls) {
       expect(JSON.stringify(args.where)).toContain(CLIENT_ID);
     }
+    for (const op of transferred) {
+      expect(JSON.stringify(op.where)).toContain(CLIENT_ID);
+      expect(JSON.stringify(op.where)).not.toContain('client-2');
+    }
   });
 
   it('PRIMARY-провайдер видит долгосрочные заявки клиента в контуре договора', async () => {
@@ -1763,6 +1813,92 @@ describe('TicketsQueryService.longTermTickets', () => {
       'claimable',
       'mine',
     ]);
+  });
+
+  it.each([1000, 10000, 100000])(
+    '%i заявок: точный total, в Node.js приходит не больше страницы, заявки — только по id страницы',
+    async (size) => {
+      const rows = Array.from({ length: size }, (_, index) =>
+        row(
+          `t-${String(index).padStart(6, '0')}`,
+          index % 97,
+          index % 3 === 0 ? 300 : index % 3 === 1 ? 239 : null,
+          index % 7 === 0 ? { status: TicketStatus.CANCELED } : {},
+        ),
+      );
+      const expected = rows.filter(
+        (_, index) => index % 3 === 0 && index % 7 !== 0,
+      ).length;
+      const prisma = prismaWith(rows);
+      const svc = makeService(prisma);
+
+      const first: any = await svc.longTermTickets(
+        CLIENT_ID,
+        USER_ID,
+        UserRole.ADMIN,
+        { limit: 100 },
+      );
+      const second: any = await svc.longTermTickets(
+        CLIENT_ID,
+        USER_ID,
+        UserRole.ADMIN,
+        { limit: 100, cursor: first.nextCursor },
+      );
+
+      expect(first.total).toBe(expected);
+      expect(second.total).toBe(expected);
+      expect(first.items).toHaveLength(100);
+      expect(second.items).toHaveLength(100);
+      const ids = [...first.items, ...second.items].map((item: any) => item.id);
+      expect(new Set(ids).size).toBe(200);
+      for (const op of transferred) {
+        expect(op.rows).toBeLessThanOrEqual(101);
+      }
+      for (const [args] of prisma.ticket.findMany.mock.calls) {
+        expect(JSON.stringify(args.where)).toContain('"in"');
+        expect(args.take).toBeLessThanOrEqual(100);
+      }
+    },
+  );
+
+  it('счётчик главной: только COUNT, без страницы и без карточек', async () => {
+    const rows = [row('a', 0, 300), row('b', 0, 24), row('c', 0, 240)];
+    const prisma = prismaWith(rows);
+    const svc = makeService(prisma);
+
+    await expect(
+      svc.longTermTicketsTotal(CLIENT_ID, USER_ID, UserRole.ADMIN),
+    ).resolves.toEqual({ total: 2 });
+    expect(transferred.map((op) => op.op)).toEqual(['count']);
+    expect(prisma.ticket.findMany).not.toHaveBeenCalled();
+  });
+
+  it('счётчик главной при restricted-empty — ноль без запроса в БД', async () => {
+    spyLocationScope.mockResolvedValue({
+      mode: 'restricted_empty',
+      locationIds: [],
+    });
+    const svc = makeService(prismaWith([row('t', 0, 300)]));
+
+    await expect(
+      svc.longTermTicketsTotal(CLIENT_ID, USER_ID, UserRole.ADMIN),
+    ).resolves.toEqual({ total: 0 });
+  });
+
+  it('битый курсор отклоняется до запросов в БД', async () => {
+    const prisma = prismaWith([row('t', 0, 300)]);
+    const svc = makeService(prisma);
+    for (const cursor of [
+      'не курсор',
+      Buffer.from('{"p":"x","c":1,"i":"a"}').toString('base64url'),
+      Buffer.from('{"p":1,"c":1,"i":""}').toString('base64url'),
+      Buffer.from('[]').toString('base64url'),
+    ]) {
+      await expect(
+        svc.longTermTickets(CLIENT_ID, USER_ID, UserRole.ADMIN, { cursor }),
+      ).rejects.toThrow('Invalid cursor');
+    }
+    expect(transferred).toEqual([]);
   });
 
   it('карточки страницы — формат board: срок и дата создания на месте', async () => {

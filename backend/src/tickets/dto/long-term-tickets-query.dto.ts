@@ -11,8 +11,19 @@ import {
 import { IsCanonicalUuid } from '../../common/validators/is-canonical-uuid.decorator';
 import { LONG_TERM_MAX_LIMIT } from '../long-term-tickets';
 
-/** SMA-MOBILE-LONG-TERM-TICKETS — GET /tickets/long-term. Контур — как у board. */
-export class LongTermTicketsQueryDto {
+/** SMA-MOBILE-LONG-TERM-TICKETS — GET /tickets/long-term/count. Контур — как у board. */
+export class LongTermTicketsCountQueryDto {
+  @IsOptional()
+  @IsCanonicalUuid()
+  linkedClientCompanyId?: string;
+
+  @IsOptional()
+  @IsCanonicalUuid()
+  companyId?: string;
+}
+
+/** SMA-MOBILE-LONG-TERM-TICKETS — GET /tickets/long-term. */
+export class LongTermTicketsQueryDto extends LongTermTicketsCountQueryDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -24,12 +35,4 @@ export class LongTermTicketsQueryDto {
   @IsString()
   @MaxLength(512)
   cursor?: string;
-
-  @IsOptional()
-  @IsCanonicalUuid()
-  linkedClientCompanyId?: string;
-
-  @IsOptional()
-  @IsCanonicalUuid()
-  companyId?: string;
 }

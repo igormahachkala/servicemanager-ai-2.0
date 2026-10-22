@@ -25,10 +25,12 @@ import {
   buildMobileHomeVisibleTickets,
   filterTicketsByQuickFilter,
   formatActiveMobileHomeFiltersSummary,
+  longTermCardCount,
   longTermTicketsTotal,
   mergeLongTermTicketPages,
   MOBILE_HOME_QUICK_FILTER_LABELS,
   readPersistedMobileHomeBoardUi,
+  shouldLoadLongTermList,
   toggleMobileHomeQuickFilter,
   writePersistedMobileHomeBoardUi,
 } from '../mobileHomeListUtils'
@@ -156,9 +158,19 @@ export function MobileHome() {
   })
 
   // SMA-MOBILE-LONG-TERM-TICKETS: долгосрочные заявки — серверная выборка по
-  // всему контуру с точным total; board (последние 500) для них не источник.
+  // всему контуру; board (последние 500) для них не источник. Главная берёт
+  // только точное число, список — когда карточку открыли, страницы — по кнопке.
+  const longTermCountQ = useQuery({
+    queryKey: ['mobile-home-long-term', 'count', linkedClientCompanyId, companyId],
+    queryFn: () =>
+      api.longTermTicketsCount({
+        linkedClientCompanyId: pageScope.linkedClientCompanyId,
+        companyId: pageScope.companyId,
+      }),
+    enabled: boardEnabled && isOnline,
+  })
   const longTermQ = useInfiniteQuery({
-    queryKey: ['mobile-home-long-term', linkedClientCompanyId, companyId],
+    queryKey: ['mobile-home-long-term', 'list', linkedClientCompanyId, companyId],
     queryFn: ({ pageParam }) =>
       api.longTermTickets({
         linkedClientCompanyId: pageScope.linkedClientCompanyId,
@@ -168,7 +180,7 @@ export function MobileHome() {
       }),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
-    enabled: boardEnabled && isOnline,
+    enabled: boardEnabled && isOnline && shouldLoadLongTermList(quickFilter),
   })
 
   const linkedClientsQ = useQuery({
@@ -268,7 +280,8 @@ export function MobileHome() {
     () => (isReworkRole ? dedupeBoardCards(cards).filter((t) => t.status === 'IN_PROGRESS' && reworkTicketIds.has(t.id)).length : 0),
     [isReworkRole, cards, reworkTicketIds],
   )
-  const longTermCount = longTermTicketsTotal(longTermQ.data?.pages)
+  const longTermCount = longTermCardCount(longTermCountQ.data)
+  const longTermListTotal = longTermTicketsTotal(longTermQ.data?.pages)
   const longTermTickets = useMemo(() => mergeLongTermTicketPages(longTermQ.data?.pages), [longTermQ.data])
   const quickTickets = useMemo(() => {
     if (!quickFilter) return null
@@ -689,7 +702,7 @@ export function MobileHome() {
           />
           {quickFilter === 'longterm' ? (
             <div className="mobileNotice" style={{ textAlign: 'center', fontSize: '0.82rem', marginTop: 4 }}>
-              Показано {longTermTickets.length} из {longTermCount}
+              {longTermQ.isLoading ? 'Загрузка…' : `Показано ${longTermTickets.length} из ${longTermListTotal}`}
               {longTermQ.hasNextPage ? (
                 <>
                   {' · '}

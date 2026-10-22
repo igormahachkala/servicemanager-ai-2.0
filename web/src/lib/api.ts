@@ -3487,6 +3487,18 @@ export async function longTermTickets(params: LongTermTicketsParams = {}): Promi
   return request<LongTermTicketsResponse>(`/tickets/long-term${buildLongTermTicketsQuery(params)}`)
 }
 
+/** SMA-MOBILE-LONG-TERM-TICKETS — только точное число, для счётчика карточки главной. */
+export async function longTermTicketsCount(
+  params: Pick<LongTermTicketsParams, 'linkedClientCompanyId' | 'companyId'> = {},
+): Promise<{ total: number }> {
+  return request<{ total: number }>(
+    `/tickets/long-term/count${buildLongTermTicketsQuery({
+      linkedClientCompanyId: params.linkedClientCompanyId,
+      companyId: params.companyId,
+    })}`,
+  )
+}
+
 export async function tickets(): Promise<any[]> {
   return request<any[]>('/tickets')
 }

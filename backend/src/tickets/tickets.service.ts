@@ -138,6 +138,29 @@ export class TicketsService {
     )
   }
 
+  longTermTicketsTotal(
+    companyId: string,
+    userId: string,
+    role: UserRole,
+    accessFlags?: AccessFlags,
+    linkedClientCompanyId?: string,
+    observerCompanyId?: string,
+  ) {
+    const scope = scopeForClient(
+      role,
+      linkedClientCompanyId,
+      observerCompanyId,
+    );
+    return this.query.longTermTicketsTotal(
+      companyId,
+      userId,
+      role,
+      accessFlags,
+      scope.linkedClientCompanyId,
+      scope.observerCompanyId,
+    );
+  }
+
   contextAnalytics(
     companyId: string,
     userId: string,

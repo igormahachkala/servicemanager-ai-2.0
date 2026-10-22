@@ -40,8 +40,13 @@ import {
   LONG_TERM_DEFAULT_LIMIT,
   LONG_TERM_MAX_LIMIT,
   LONG_TERM_STATUSES,
-  paginateLongTerm,
+  decodeLongTermCursor,
+  encodeLongTermCursor,
 } from './long-term-tickets';
+import {
+  countLongTermTickets,
+  pageLongTermTickets,
+} from './long-term-tickets.sql';
 
 const companyIdentitySelect = {
   id: true,
@@ -809,16 +814,63 @@ export class TicketsQueryService {
   }
 
   /**
-   * SMA-MOBILE-LONG-TERM-TICKETS — долгосрочные заявки по всему разрешённому
-   * контуру, не по последним 500 строкам board.
+   * SMA-MOBILE-LONG-TERM-TICKETS — WHERE долгосрочных заявок: тот же scope, что
+   * у board (resolveBoardWhere), активные статусы, архив не отсекается.
+   * null — не видно ничего.
+   */
+  private async resolveLongTermWhere(
+    companyId: string,
+    userId: string,
+    role: UserRole,
+    accessFlags?: AccessFlags,
+    linkedClientCompanyId?: string,
+    observerCompanyId?: string,
+  ) {
+    const { where } = await this.resolveBoardWhere(
+      companyId,
+      userId,
+      role,
+      { statuses: LONG_TERM_STATUSES, includeArchived: true },
+      accessFlags,
+      linkedClientCompanyId,
+      observerCompanyId,
+    );
+    return where;
+  }
+
+  /**
+   * SMA-MOBILE-LONG-TERM-TICKETS — только точное число, для счётчика карточки
+   * на главной. Один COUNT(*) в PostgreSQL по всему разрешённому контуру.
+   */
+  async longTermTicketsTotal(
+    companyId: string,
+    userId: string,
+    role: UserRole,
+    accessFlags?: AccessFlags,
+    linkedClientCompanyId?: string,
+    observerCompanyId?: string,
+  ) {
+    const where = await this.resolveLongTermWhere(
+      companyId,
+      userId,
+      role,
+      accessFlags,
+      linkedClientCompanyId,
+      observerCompanyId,
+    );
+    return { total: where ? await countLongTermTickets(this.prisma, where) : 0 };
+  }
+
+  /**
+   * SMA-MOBILE-LONG-TERM-TICKETS — страница долгосрочных заявок по всему
+   * разрешённому контуру, не по последним 500 строкам board.
    *
-   * Доступ не решается здесь: кандидаты берутся тем же WHERE, что board
-   * (resolveBoardWhere), а карточки страницы строит сам board() по id страницы —
-   * со всеми его проверками и в том же формате, что рисует мобильная главная.
+   * Доступ не решается здесь: WHERE берётся из resolveBoardWhere и переводится
+   * в SQL как есть, а карточки страницы строит сам board() по id страницы — со
+   * всеми его проверками и в том же формате, что рисует мобильная главная.
    *
-   * Плановая длительность — разность двух колонок, Prisma не сравнивает её в
-   * WHERE. Поэтому выбираются только id и два срока активных заявок с плановым
-   * сроком, правило и порядок применяются в памяти. total точный по всей выборке.
+   * Правило 240 ч, порядок и keyset-курсор выполняет PostgreSQL; total — отдельный
+   * COUNT(*) по тому же WHERE. В Node.js приходит не больше limit + 1 строк.
    */
   async longTermTickets(
     companyId: string,
@@ -833,11 +885,11 @@ export class TicketsQueryService {
       Math.max(params.limit ?? LONG_TERM_DEFAULT_LIMIT, 1),
       LONG_TERM_MAX_LIMIT,
     );
-    const { where } = await this.resolveBoardWhere(
+    const after = params.cursor ? decodeLongTermCursor(params.cursor) : null;
+    const where = await this.resolveLongTermWhere(
       companyId,
       userId,
       role,
-      { statuses: LONG_TERM_STATUSES, includeArchived: true },
       accessFlags,
       linkedClientCompanyId,
       observerCompanyId,
@@ -846,15 +898,15 @@ export class TicketsQueryService {
       return { total: 0, items: [], nextCursor: null, limit };
     }
 
-    const candidates = await this.prisma.ticket.findMany({
-      where: { AND: [where, { plannedDueAt: { not: null } }] },
-      select: { id: true, createdAt: true, plannedDueAt: true },
-    });
-    const { total, page, nextCursor } = paginateLongTerm(candidates, {
-      limit,
-      cursor: params.cursor,
-    });
-    if (page.length === 0) {
+    const [total, { rows, hasMore }] = await Promise.all([
+      countLongTermTickets(this.prisma, where),
+      pageLongTermTickets(this.prisma, where, { limit, after }),
+    ]);
+    const nextCursor =
+      hasMore && rows.length > 0
+        ? encodeLongTermCursor(rows[rows.length - 1])
+        : null;
+    if (rows.length === 0) {
       return { total, items: [], nextCursor: null, limit };
     }
 
@@ -865,8 +917,8 @@ export class TicketsQueryService {
       {
         statuses: LONG_TERM_STATUSES,
         includeArchived: true,
-        ticketIds: page.map((row) => row.id),
-        take: page.length,
+        ticketIds: rows.map((row) => row.id),
+        take: rows.length,
       },
       accessFlags,
       linkedClientCompanyId,
@@ -881,7 +933,7 @@ export class TicketsQueryService {
     }
     // Порядок страницы — порядок выборки. Заявка, закрытая между двумя
     // запросами, просто выпадает: курсор всё равно стоит после последней строки.
-    const items = page
+    const items = rows
       .map((row) => cardById.get(row.id))
       .filter((card): card is NonNullable<typeof card> => !!card);
 
