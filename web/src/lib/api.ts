@@ -3786,15 +3786,21 @@ export async function analyticsOverview(params?: { linkedClientCompanyId?: strin
 /** SMA-ANALYTICS-CONTRACTORS: счётчики подрядчика, строки объекта и сводка «не отнесено». */
 export type ContractorCountersDto = {
   totalTickets: number
-  /** DONE. */
-  completedTickets: number
-  /** Работа сделана, ждёт приёмки или закрытия родителя. */
-  awaitingClosureTickets: number
-  /** NEW, ASSIGNED, IN_PROGRESS. */
+  /** В работе: NEW, ASSIGNED, IN_PROGRESS. */
   activeTickets: number
-  /** Активные с прошедшим сроком SLA. */
-  overdueTickets: number
+  /** Выполнено подрядчиком (работа сдана): AWAITING_ACCEPTANCE + FIELD_COMPLETE + DONE. */
+  workCompletedTickets: number
+  /** Ждёт приёмки клиентом: AWAITING_ACCEPTANCE. */
+  awaitingAcceptanceTickets: number
+  /** Подзаявка сдана, ждёт закрытия родительской: FIELD_COMPLETE. */
+  awaitingParentCloseTickets: number
+  /** Принято и закрыто: DONE. */
+  closedTickets: number
   canceledTickets: number
+  /** Просрочка V2 (openOverdueCount), работа ещё у подрядчика. */
+  overdueActiveTickets: number
+  /** Просрочка V2, работа сдана, заявка не закрыта. */
+  overdueAwaitingClosureTickets: number
 }
 
 export type ContractorAnalyticsItem = {

@@ -100,13 +100,156 @@ describe('buildContractorAnalytics — показатели', () => {
 
     expect(item.counters).toEqual({
       totalTickets: 6,
-      completedTickets: 1,
-      awaitingClosureTickets: 2,
       activeTickets: 2,
-      // Просрочка — только у активных: ожидающая приёмки работа уже сделана.
-      overdueTickets: 1,
+      // Сдано подрядчиком: AWAITING_ACCEPTANCE + FIELD_COMPLETE + DONE.
+      workCompletedTickets: 3,
+      awaitingAcceptanceTickets: 1,
+      awaitingParentCloseTickets: 1,
+      closedTickets: 1,
       canceledTickets: 1,
+      // Просрочка разделена по стороне: у подрядчика и у клиента.
+      overdueActiveTickets: 1,
+      overdueAwaitingClosureTickets: 1,
     });
+  });
+
+  it('сдача работы подрядчиком не считается закрытием клиентом', () => {
+    const rows = [
+      row({ executorCompanyId: 'sub-a', status: 'AWAITING_ACCEPTANCE' }),
+      row({ executorCompanyId: 'sub-a', status: 'FIELD_COMPLETE' }),
+    ];
+
+    const [item] = buildContractorAnalytics({
+      rows,
+      contractors: [SUB_A],
+      includeUnattributed: false,
+      now: NOW,
+    }).contractors;
+
+    expect(item.counters.workCompletedTickets).toBe(2);
+    expect(item.counters.closedTickets).toBe(0);
+    // Время до закрытия и доля SLA — по closedAt (V2): незакрытым считать нечего.
+    expect(item.sla.resolvedCount).toBe(0);
+    expect(item.sla.avgResolutionMinutes).toBeNull();
+    expect(item.sla.withinSlaRatio).toBeNull();
+    // В городе V2 FIELD_COMPLETE не числится ни принятым, ни ждущим приёмки.
+    expect(item.cities[0]).toMatchObject({
+      totalTickets: 2,
+      doneTickets: 0,
+      awaitingAcceptanceTickets: 1,
+    });
+  });
+
+  it('DONE без шага приёмки — сдано и закрыто одновременно', () => {
+    const [item] = buildContractorAnalytics({
+      rows: [
+        row({
+          executorCompanyId: 'sub-a',
+          status: 'DONE',
+          closedAt: new Date('2026-10-01T10:00:00.000Z'),
+        }),
+      ],
+      contractors: [SUB_A],
+      includeUnattributed: false,
+      now: NOW,
+    }).contractors;
+
+    expect(item.counters).toMatchObject({
+      workCompletedTickets: 1,
+      closedTickets: 1,
+      awaitingAcceptanceTickets: 0,
+    });
+    expect(item.sla.resolvedCount).toBe(1);
+  });
+
+  it('просрочка совпадает с каноническим openOverdueCount V2 и не берёт закрытые', () => {
+    const due = new Date('2026-10-10T00:00:00.000Z');
+    const rows = [
+      row({ executorCompanyId: 'sub-a', status: 'NEW', slaDueAt: due }),
+      row({ executorCompanyId: 'sub-a', status: 'IN_PROGRESS', slaDueAt: due }),
+      row({
+        executorCompanyId: 'sub-a',
+        status: 'AWAITING_ACCEPTANCE',
+        slaDueAt: due,
+      }),
+      row({
+        executorCompanyId: 'sub-a',
+        status: 'FIELD_COMPLETE',
+        slaDueAt: due,
+      }),
+      // Закрыта с опозданием: историческое нарушение, но не текущая просрочка.
+      row({
+        executorCompanyId: 'sub-a',
+        status: 'DONE',
+        slaDueAt: due,
+        closedAt: new Date('2026-10-12T00:00:00.000Z'),
+        slaBreachedAt: due,
+      }),
+      // Отменённая с прошедшим сроком — не просрочка.
+      row({ executorCompanyId: 'sub-a', status: 'CANCELED', slaDueAt: due }),
+      // Срок впереди.
+      row({
+        executorCompanyId: 'sub-a',
+        status: 'ASSIGNED',
+        slaDueAt: new Date('2026-10-30T00:00:00.000Z'),
+      }),
+    ];
+
+    const [item] = buildContractorAnalytics({
+      rows,
+      contractors: [SUB_A],
+      includeUnattributed: false,
+      now: NOW,
+    }).contractors;
+
+    expect(item.counters.overdueActiveTickets).toBe(2);
+    expect(item.counters.overdueAwaitingClosureTickets).toBe(2);
+    expect(
+      item.counters.overdueActiveTickets +
+        item.counters.overdueAwaitingClosureTickets,
+    ).toBe(item.sla.openOverdueCount);
+    expect(item.sla.slaBreaches).toBe(1);
+    // Город — в смысле V2: overdueTickets — исторические нарушения,
+    // текущая просрочка — sla.openOverdueCount.
+    expect(item.cities[0].overdueTickets).toBe(1);
+    expect(item.cities[0].sla.openOverdueCount).toBe(4);
+  });
+
+  it('тождества счётчиков держатся на любом наборе статусов', () => {
+    const statuses = [
+      'NEW',
+      'ASSIGNED',
+      'IN_PROGRESS',
+      'AWAITING_ACCEPTANCE',
+      'FIELD_COMPLETE',
+      'DONE',
+      'CANCELED',
+    ];
+    const rows = statuses.flatMap((status, i) =>
+      Array.from({ length: i + 1 }, () =>
+        row({ executorCompanyId: 'sub-a', status }),
+      ),
+    );
+
+    const result = buildContractorAnalytics({
+      rows,
+      contractors: [SUB_A],
+      includeUnattributed: true,
+      now: NOW,
+    });
+    for (const c of [
+      result.contractors[0].counters,
+      ...result.contractors[0].locations,
+    ]) {
+      expect(c.activeTickets + c.workCompletedTickets + c.canceledTickets).toBe(
+        c.totalTickets,
+      );
+      expect(
+        c.awaitingAcceptanceTickets +
+          c.awaitingParentCloseTickets +
+          c.closedTickets,
+      ).toBe(c.workCompletedTickets);
+    }
   });
 
   it('SLA и среднее время выполнения — правилами Analytics V2', () => {
@@ -142,6 +285,10 @@ describe('buildContractorAnalytics — показатели', () => {
     expect(item.sla.withinSlaCount).toBe(1);
     expect(item.sla.slaEvaluatedCount).toBe(2);
     expect(item.sla.slaBreaches).toBe(1);
+    // Город — в смысле V2 (/analytics/locations): overdueTickets — исторические
+    // нарушения, текущая просрочка — sla.openOverdueCount.
+    expect(item.cities[0].overdueTickets).toBe(1);
+    expect(item.cities[0].sla.openOverdueCount).toBe(0);
   });
 
   it('города и объекты: разбиение без потерь, «Город не указан» последним', () => {

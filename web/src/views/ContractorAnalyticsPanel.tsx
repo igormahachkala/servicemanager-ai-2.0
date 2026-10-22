@@ -69,10 +69,17 @@ export function ContractorAnalyticsPanel({ scope }: { scope: ContractorScope }) 
               <span style={{ fontWeight: 700 }}>{item.name}</span>
               <span className="muted small"> · {contractorRoleLabel(item.role)}</span>
               <div className="muted small" style={{ marginTop: 4 }}>
-                Выполнено: {fmtNumber(item.counters.completedTickets)} · в работе: {fmtNumber(item.counters.activeTickets)} ·
-                просрочено: {fmtNumber(item.counters.overdueTickets)} · ждут закрытия:{' '}
-                {fmtNumber(item.counters.awaitingClosureTickets)} · SLA: {fmtSlaRatio(item.sla.withinSlaRatio)} · среднее
-                выполнение: {fmtDurationMinutes(item.sla.avgResolutionMinutes)}
+                В работе: {fmtNumber(item.counters.activeTickets)} (просрочено{' '}
+                {fmtNumber(item.counters.overdueActiveTickets)}) · выполнено подрядчиком:{' '}
+                {fmtNumber(item.counters.workCompletedTickets)} · ждут приёмки:{' '}
+                {fmtNumber(item.counters.awaitingAcceptanceTickets)} · подзаявки ждут закрытия родительской:{' '}
+                {fmtNumber(item.counters.awaitingParentCloseTickets)} · принято и закрыто:{' '}
+                {fmtNumber(item.counters.closedTickets)}
+              </div>
+              <div className="muted small" style={{ marginTop: 2 }}>
+                SLA по закрытым: {fmtSlaRatio(item.sla.withinSlaRatio)} · среднее время до закрытия:{' '}
+                {fmtDurationMinutes(item.sla.avgResolutionMinutes)} · просрочено после сдачи (ждут закрытия):{' '}
+                {fmtNumber(item.counters.overdueAwaitingClosureTickets)}
               </div>
             </summary>
 
@@ -81,8 +88,9 @@ export function ContractorAnalyticsPanel({ scope }: { scope: ContractorScope }) 
                 <div style={{ fontWeight: 600, marginBottom: 4 }}>По городам</div>
                 {item.cities.map((city) => (
                   <div key={city.cityKey} className="muted small">
-                    {city.cityLabel}: заявок {fmtNumber(city.totalTickets)}, выполнено {fmtNumber(city.doneTickets)},
-                    просрочено {fmtNumber(city.overdueTickets)}, SLA {fmtSlaRatio(city.sla.withinSlaRatio)}
+                    {city.cityLabel}: заявок {fmtNumber(city.totalTickets)}, принято и закрыто {fmtNumber(city.doneTickets)},
+                    ждут приёмки {fmtNumber(city.awaitingAcceptanceTickets)}, просрочено сейчас{' '}
+                    {fmtNumber(city.sla.openOverdueCount)}, SLA по закрытым {fmtSlaRatio(city.sla.withinSlaRatio)}
                   </div>
                 ))}
               </div>
@@ -94,9 +102,10 @@ export function ContractorAnalyticsPanel({ scope }: { scope: ContractorScope }) 
                 {item.locations.map((location) => (
                   <div key={location.locationId} className="muted small">
                     {location.locationName || location.locationId}
-                    {location.city ? `, ${location.city}` : ''}: заявок {fmtNumber(location.totalTickets)}, выполнено{' '}
-                    {fmtNumber(location.completedTickets)}, в работе {fmtNumber(location.activeTickets)}, просрочено{' '}
-                    {fmtNumber(location.overdueTickets)}, среднее выполнение{' '}
+                    {location.city ? `, ${location.city}` : ''}: заявок {fmtNumber(location.totalTickets)}, в работе{' '}
+                    {fmtNumber(location.activeTickets)}, выполнено подрядчиком {fmtNumber(location.workCompletedTickets)},
+                    принято и закрыто {fmtNumber(location.closedTickets)}, просрочено у подрядчика{' '}
+                    {fmtNumber(location.overdueActiveTickets)}, среднее время до закрытия{' '}
                     {fmtDurationMinutes(location.sla.avgResolutionMinutes)}
                   </div>
                 ))}

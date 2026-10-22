@@ -44,17 +44,44 @@ export type ContractorTicketRow = {
   firstResponseAt: Date | null;
 };
 
+/**
+ * Счётчики разделяют два разных события: подрядчик сдал работу и клиент
+ * заявку закрыл. Семантика статусов — по ticket.workflow.ts:
+ *
+ * - NEW, ASSIGNED, IN_PROGRESS — работа идёт;
+ * - AWAITING_ACCEPTANCE — подрядчик сдал работу, ждёт приёмки клиентом;
+ *   при отказе возвращается в IN_PROGRESS;
+ * - FIELD_COMPLETE — подзаявка: полевая работа сдана, своей приёмки нет,
+ *   закроется вместе с родительской (ticket-close-tree);
+ * - DONE — принято и закрыто, стоит closedAt. Бывает и без шага приёмки
+ *   (ASSIGNED/IN_PROGRESS → DONE).
+ *
+ * Тождества, которые держатся по построению:
+ *   totalTickets = activeTickets + workCompletedTickets + canceledTickets
+ *   workCompletedTickets = awaitingAcceptanceTickets + awaitingParentCloseTickets + closedTickets
+ *   overdueActiveTickets + overdueAwaitingClosureTickets = sla.openOverdueCount
+ */
 export type ContractorCounters = {
   totalTickets: number;
-  /** Выполнено: DONE, канонический момент завершения — closedAt. */
-  completedTickets: number;
-  /** Работа исполнителя сделана, ждёт приёмки клиентом или закрытия родителя. */
-  awaitingClosureTickets: number;
   /** В работе: NEW, ASSIGNED, IN_PROGRESS. */
   activeTickets: number;
-  /** Активные с прошедшим slaDueAt на момент ответа. */
-  overdueTickets: number;
+  /** Выполнено подрядчиком — работа сдана: AWAITING_ACCEPTANCE + FIELD_COMPLETE + DONE. */
+  workCompletedTickets: number;
+  /** Ждёт приёмки клиентом: AWAITING_ACCEPTANCE. */
+  awaitingAcceptanceTickets: number;
+  /** Подзаявка сдана, ждёт закрытия родительской: FIELD_COMPLETE. */
+  awaitingParentCloseTickets: number;
+  /** Принято и закрыто: DONE. */
+  closedTickets: number;
   canceledTickets: number;
+  /**
+   * Текущая просрочка по правилу V2 (computeSlaMetrics.openOverdueCount:
+   * не закрыта, не отменена, slaDueAt < now), разделённая по тому, на чьей
+   * стороне заявка: работа ещё идёт — у подрядчика…
+   */
+  overdueActiveTickets: number;
+  /** …работа сдана, но заявка не закрыта — ждёт клиента или родительскую. */
+  overdueAwaitingClosureTickets: number;
 };
 
 export type ContractorLocationRow = ContractorCounters & {
@@ -128,7 +155,6 @@ export function selectVisibleContractors(
 }
 
 const ACTIVE = new Set(['NEW', 'ASSIGNED', 'IN_PROGRESS']);
-const AWAITING_CLOSURE = new Set(['AWAITING_ACCEPTANCE', 'FIELD_COMPLETE']);
 
 /** Подрядчик заявки или null. Других путей атрибуции нет. */
 export function attributeTicket(
@@ -142,29 +168,60 @@ export function attributeTicket(
 export function emptyContractorCounters(): ContractorCounters {
   return {
     totalTickets: 0,
-    completedTickets: 0,
-    awaitingClosureTickets: 0,
     activeTickets: 0,
-    overdueTickets: 0,
+    workCompletedTickets: 0,
+    awaitingAcceptanceTickets: 0,
+    awaitingParentCloseTickets: 0,
+    closedTickets: 0,
     canceledTickets: 0,
+    overdueActiveTickets: 0,
+    overdueAwaitingClosureTickets: 0,
   };
 }
 
-function countInto(
-  counters: ContractorCounters,
-  row: ContractorTicketRow,
-  nowMs: number,
-) {
-  counters.totalTickets += 1;
-  if (row.status === 'DONE') counters.completedTickets += 1;
-  else if (row.status === 'CANCELED') counters.canceledTickets += 1;
-  else if (AWAITING_CLOSURE.has(row.status))
-    counters.awaitingClosureTickets += 1;
-  else if (ACTIVE.has(row.status)) {
-    counters.activeTickets += 1;
-    if (row.slaDueAt && row.slaDueAt.getTime() < nowMs)
-      counters.overdueTickets += 1;
+/**
+ * Счётчики набора заявок. Просрочка не пересчитывается своим правилом:
+ * это openOverdueCount канонического computeSlaMetrics, применённого к
+ * активным и к сданным-но-не-закрытым по отдельности.
+ */
+export function computeContractorCounters(
+  rows: readonly ContractorTicketRow[],
+  now: Date,
+): ContractorCounters {
+  const counters = emptyContractorCounters();
+  const active: ContractorTicketRow[] = [];
+  const awaitingClosure: ContractorTicketRow[] = [];
+
+  for (const row of rows) {
+    counters.totalTickets += 1;
+    if (row.status === 'CANCELED') {
+      counters.canceledTickets += 1;
+    } else if (row.status === 'DONE') {
+      counters.workCompletedTickets += 1;
+      counters.closedTickets += 1;
+    } else if (row.status === 'AWAITING_ACCEPTANCE') {
+      counters.workCompletedTickets += 1;
+      counters.awaitingAcceptanceTickets += 1;
+      awaitingClosure.push(row);
+    } else if (row.status === 'FIELD_COMPLETE') {
+      counters.workCompletedTickets += 1;
+      counters.awaitingParentCloseTickets += 1;
+      awaitingClosure.push(row);
+    } else if (ACTIVE.has(row.status)) {
+      counters.activeTickets += 1;
+      active.push(row);
+    }
   }
+
+  counters.overdueActiveTickets = computeSlaMetrics(
+    active.map(toSlaSource),
+    now,
+  ).openOverdueCount;
+  counters.overdueAwaitingClosureTickets = computeSlaMetrics(
+    awaitingClosure.map(toSlaSource),
+    now,
+  ).openOverdueCount;
+  return counters;
 }
 
 function toSlaSource(row: ContractorTicketRow): SlaSourceTicket {
@@ -184,12 +241,9 @@ function buildItem(
   rows: readonly ContractorTicketRow[],
   now: Date,
 ): ContractorAnalyticsItem {
-  const nowMs = now.getTime();
-  const counters = emptyContractorCounters();
   const byLocation = new Map<string, ContractorTicketRow[]>();
 
   for (const row of rows) {
-    countInto(counters, row, nowMs);
     const bucket = byLocation.get(row.locationId);
     if (bucket) bucket.push(row);
     else byLocation.set(row.locationId, [row]);
@@ -197,14 +251,12 @@ function buildItem(
 
   const locations: ContractorLocationRow[] = Array.from(byLocation.values())
     .map((bucket) => {
-      const locationCounters = emptyContractorCounters();
-      for (const row of bucket) countInto(locationCounters, row, nowMs);
       const first = bucket[0];
       return {
         locationId: first.locationId,
         locationName: first.locationName,
         city: first.city,
-        ...locationCounters,
+        ...computeContractorCounters(bucket, now),
         sla: computeSlaMetrics(bucket.map(toSlaSource), now),
       };
     })
@@ -215,26 +267,26 @@ function buildItem(
     );
 
   /*
-   * Города — тем же агрегатором V2, что и в аналитике по точкам: одинаковая
-   * нормализация названия и «Город не указан» последним. В его полях
-   * newTickets + inProgressTickets дают активные, overdueTickets — текущую
-   * просрочку активных, как и в счётчиках подрядчика.
+   * Города — агрегатором V2 и с полями в смысле V2, как в /analytics/locations:
+   * doneTickets — DONE, awaitingAcceptanceTickets — AWAITING_ACCEPTANCE,
+   * overdueTickets — исторические нарушения (slaBreachedAt), текущая
+   * просрочка — city.sla.openOverdueCount. FIELD_COMPLETE V2 отдельным
+   * полем не знает: он входит только в totalTickets города.
    */
   const cities = buildCityAggregates(
-    locations.map((location) => {
-      const bucket = byLocation.get(location.locationId) ?? [];
+    Array.from(byLocation.entries()).map(([locationId, bucket]) => {
+      const count = (status: string) =>
+        bucket.filter((row) => row.status === status).length;
       return {
-        locationId: location.locationId,
-        city: location.city,
-        totalTickets: location.totalTickets,
-        newTickets: bucket.filter((row) => row.status === 'NEW').length,
-        inProgressTickets:
-          location.activeTickets -
-          bucket.filter((row) => row.status === 'NEW').length,
-        awaitingAcceptanceTickets: location.awaitingClosureTickets,
-        doneTickets: location.completedTickets,
-        canceledTickets: location.canceledTickets,
-        overdueTickets: location.overdueTickets,
+        locationId,
+        city: bucket[0].city,
+        totalTickets: bucket.length,
+        newTickets: count('NEW'),
+        inProgressTickets: count('ASSIGNED') + count('IN_PROGRESS'),
+        awaitingAcceptanceTickets: count('AWAITING_ACCEPTANCE'),
+        doneTickets: count('DONE'),
+        canceledTickets: count('CANCELED'),
+        overdueTickets: bucket.filter((row) => row.slaBreachedAt).length,
       };
     }),
     rows.map(toSlaSource),
@@ -245,7 +297,7 @@ function buildItem(
     companyId: contractor.companyId,
     name: contractor.name,
     role: contractor.role,
-    counters,
+    counters: computeContractorCounters(rows, now),
     sla: computeSlaMetrics(rows.map(toSlaSource), now),
     cities,
     locations,
@@ -267,13 +319,12 @@ export function buildContractorAnalytics(params: {
 }): ContractorAnalyticsResult {
   const contractorIds = new Set(params.contractors.map((c) => c.companyId));
   const rowsByContractor = new Map<string, ContractorTicketRow[]>();
-  const unattributed = emptyContractorCounters();
-  const nowMs = params.now.getTime();
+  const unattributedRows: ContractorTicketRow[] = [];
 
   for (const row of params.rows) {
     const companyId = attributeTicket(row, contractorIds);
     if (!companyId) {
-      countInto(unattributed, row, nowMs);
+      unattributedRows.push(row);
       continue;
     }
     const bucket = rowsByContractor.get(companyId);
@@ -297,6 +348,8 @@ export function buildContractorAnalytics(params: {
 
   return {
     contractors,
-    unattributed: params.includeUnattributed ? unattributed : null,
+    unattributed: params.includeUnattributed
+      ? computeContractorCounters(unattributedRows, params.now)
+      : null,
   };
 }
