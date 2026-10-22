@@ -51,11 +51,23 @@ function createConnectionsDevRelay(): Record<string, ProxyOptions> {
   }
 }
 
+/** Shared company state (tools/state-bridge) — every browser sees one company. */
+function createStateRelay(): Record<string, ProxyOptions> {
+  return {
+    '/runtime/state': {
+      target: `http://127.0.0.1:${process.env.STATE_BRIDGE_PORT ?? '17322'}`,
+      changeOrigin: true,
+      rewrite: (path: string) => path.replace(/^\/runtime\/state/, ''),
+    },
+  }
+}
+
 function createDevProxy(): Record<string, ProxyOptions> {
   return {
     ...createOllamaDevRelay(),
     ...createGitHubEvidenceDevRelay(),
     ...createConnectionsDevRelay(),
+    ...createStateRelay(),
   }
 }
 

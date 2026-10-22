@@ -1,5 +1,9 @@
 ﻿# Shared helpers for the AI Company Windows Server kit. Dot-source: . "$PSScriptRoot\_common.ps1"
 $ErrorActionPreference = 'Stop'
+# Windows PowerShell 5.1: TLS 1.2 for GitHub/nodejs.org, and no progress bar
+# (it slows Invoke-WebRequest down by an order of magnitude).
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+$ProgressPreference = 'SilentlyContinue'
 
 $KitRoot = Split-Path -Parent $PSScriptRoot
 $DefaultInstallRoot = 'C:\ai-company'
@@ -49,4 +53,12 @@ function Test-Http([string]$Url, [int]$TimeoutSec = 5) {
         if ($_.Exception.Response) { return [int]$_.Exception.Response.StatusCode }
         return 0
     }
+}
+
+function Add-MachinePath([string]$Dir) {
+    $machine = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+    if (($machine -split ';') -notcontains $Dir) {
+        [Environment]::SetEnvironmentVariable('Path', "$machine;$Dir", 'Machine')
+    }
+    Update-SessionPath
 }

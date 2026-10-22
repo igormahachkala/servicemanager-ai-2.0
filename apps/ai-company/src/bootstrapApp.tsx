@@ -1,0 +1,49 @@
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import { LanguageProvider } from './i18n'
+import { ThemeProvider, bootstrapTheme } from './theme'
+import App from './App'
+import './styles/theme-tokens.css'
+import './styles/design-system.css'
+import './styles/layout.css'
+import './styles/navigation.css'
+import './styles/projects.css'
+import './styles/presence.css'
+import './styles/execution.css'
+import './styles/canvas.css'
+import './styles/toolExecution.css'
+import './styles/handoff.css'
+import './styles/employeeWorkspace.css'
+import './styles/workday.css'
+import './styles/operating-day.css'
+import './styles/kickoff.css'
+import './styles/visual-lab.css'
+import './styles/task-results.css'
+import './styles/living-company.css'
+import './styles/memory-evolution.css'
+import './styles/runtime-monitor.css'
+import './styles/max-worker-loop.css'
+import './styles/max-workspace.css'
+import './styles/guided-experience.css'
+import './styles/context-empty-state.css'
+import './styles/employee-timeline.css'
+import './styles/polish-v2.css'
+import './styles/morning-report.css'
+import './styles/employee-operating-day.css'
+import './styles/owner-home.css'
+import './styles/mobile.css'
+import './styles/decision-plan.css'
+import './styles/analysis-tasks.css'
+import './styles.css'
+
+bootstrapTheme()
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <ThemeProvider>
+      <LanguageProvider>
+        <App />
+      </LanguageProvider>
+    </ThemeProvider>
+  </StrictMode>,
+)

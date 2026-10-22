@@ -4,7 +4,7 @@ param([int]$Port = 8080)
 $fail = 0
 
 Write-Step 'Services'
-foreach ($n in 'ai-company-web', 'ai-company-gh-evidence', 'ai-company-connections', 'ollama') {
+foreach ($n in 'ai-company-web', 'ai-company-gh-evidence', 'ai-company-connections', 'ai-company-state', 'ollama') {
     $s = Get-Service -Name $n -ErrorAction SilentlyContinue
     if (-not $s) { if ($n -ne 'ollama') { Write-Warn2 "$n not installed"; $fail++ } else { Write-Host '    --  ollama: not a service (tray app?) - checked via HTTP below' }; continue }
     if ($s.Status -eq 'Running') { Write-Ok "$n Running" } else { Write-Warn2 "$n $($s.Status)"; $fail++ }
@@ -16,7 +16,8 @@ $checks = @(
     @{ Name = 'Panel';                        Url = "http://127.0.0.1:$Port/" },
     @{ Name = 'Relay /runtime/ollama';        Url = "http://127.0.0.1:$Port/runtime/ollama/api/tags" },
     @{ Name = 'GitHub evidence (via relay)';  Url = "http://127.0.0.1:$Port/runtime/github-evidence/v1/health" },
-    @{ Name = 'Connections (via relay)';      Url = "http://127.0.0.1:$Port/runtime/connections/v1/health" }
+    @{ Name = 'Connections (via relay)';      Url = "http://127.0.0.1:$Port/runtime/connections/v1/health" },
+    @{ Name = 'Shared state (via relay)';     Url = "http://127.0.0.1:$Port/runtime/state/v1/health" }
 )
 foreach ($c in $checks) {
     $code = Test-Http $c.Url

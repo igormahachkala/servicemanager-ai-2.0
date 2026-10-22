@@ -10,6 +10,7 @@
 | `ai-company-web` | `0.0.0.0:8080` | `vite preview`: отдаёт `dist/` и проксирует `/runtime/*` |
 | `ai-company-gh-evidence` | `127.0.0.1:17320` | PR/checks как evidence (держит `GITHUB_TOKEN`) |
 | `ai-company-connections` | `127.0.0.1:17321` | секреты интеграций (в памяти, до перезапуска) |
+| `ai-company-state` | `127.0.0.1:17322` | общее состояние компании для всех браузеров |
 | Ollama (уже стоит) | `127.0.0.1:11434` | модели; наружу не открывается |
 
 Браузер ходит в Ollama только через `/runtime/ollama` на том же адресе. Прокси вырезает
@@ -17,27 +18,43 @@
 открытия 11434. `VITE_TOOL_DISPATCHER_OLLAMA_BASE_URL` **не задавать**: явный адрес с IP
 код отвергает (`assertToolEndpointHasNoRawIp`), а same-origin работает и так.
 
-## Установка (PowerShell от администратора)
+## Установка — одна команда
+
+В командной строке или PowerShell **от администратора** (по SSH тоже работает):
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol='Tls12'; & ([scriptblock]::Create((irm 'https://raw.githubusercontent.com/igormahachkala/servicemanager-ai-2.0/feat/memory-reconciliation/apps/ai-company/deploy/windows-server/bootstrap.ps1'))) -Hostname ai.sma-tech.ru"
+```
+
+Скачивает комплект в `C:\ai-company\kit` и запускает `scripts\install.ps1`: Git, Node, NSSM (через winget,
+а если он недоступен — напрямую с официальных сайтов) → сборка → службы → модели → проверка →
+публичное имя. Без `-Hostname` панель будет только в локальной сети. Повторный запуск безопасен.
+Ключи: `-SkipModels` (не трогать модели), `-Proxy http://адрес:порт`.
+
+`GITHUB_TOKEN` можно вписать позже в `C:\ai-company\kit\env\bridges.env` и выполнить
+`scripts\03-install-services.ps1`.
+
+### По шагам (если нужно)
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass -Force
-cd <папка комплекта>\scripts
-
-.\01-install-prereqs.ps1                 # Git, Node LTS, NSSM; проверяет Ollama
+cd C:\ai-company\kit\scripts
+.\01-install-prereqs.ps1
 copy ..\env\bridges.env.example ..\env\bridges.env
-notepad ..\env\bridges.env               # вписать GITHUB_TOKEN (read-only, fine-grained)
-.\02-clone-and-build.ps1                 # клон ветки feat/memory-reconciliation → тесты → сборка
-.\03-install-services.ps1                # сервисы + правило firewall на 8080
-.\04-pull-models.ps1                     # докачивает только недостающее + смоук-генерация
-.\healthcheck.ps1                        # всё зелёное → открыть адрес на другом ПК
-.\05-public-hostname.ps1 -Hostname ...   # по желанию: доступ снаружи, см. ниже
+.\02-clone-and-build.ps1
+.\03-install-services.ps1
+.\04-pull-models.ps1
+.\healthcheck.ps1
+.\05-public-hostname.ps1 -Hostname ai.sma-tech.ru
 ```
 
-После первого клона комплект есть и в самом репо:
-`C:\ai-company\repo\apps\ai-company\deploy\windows-server` (тогда `bridges.env` положить туда).
+## Общие данные
 
-С прокси: добавить `-Proxy http://proxy:3128` к 01/02/04 и раскомментировать `HTTP(S)_PROXY`
-в `bridges.env`.
+Служба `ai-company-state` хранит состояние компании на сервере (`C:\ai-company\state\state.json`,
+ежедневные копии за 14 дней). Все браузеры — офис, дом, телефон — видят одну и ту же компанию,
+изменения доезжают за несколько секунд. Первый браузер, открывший панель на пустом сервере, загружает
+туда свои данные; остальные берут серверную копию. Язык и тема остаются свои на каждом устройстве.
+При одновременной правке одного и того же раздела с двух устройств сохраняется последняя.
 
 ## Доступ снаружи
 
@@ -72,9 +89,6 @@ Restart-Service ai-company-web
 
 ## Ограничения V1
 
-- **Состояние хранится в браузере** (localStorage/IndexedDB). Вести команду с одного браузера
-  на одном ПК; другой ПК/браузер увидит пустую компанию. Общее серверное хранилище —
-  следующий этап.
 - Секреты `connections-bridge` теряются при перезапуске службы.
 - Панель открывать по IP. Для имени сервера — `AI_COMPANY_ALLOWED_HOSTS=имя` в `bridges.env`
   и `03` заново.

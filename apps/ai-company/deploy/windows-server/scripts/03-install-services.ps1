@@ -4,6 +4,8 @@
                             (/runtime/ollama strips Origin so Ollama accepts LAN browsers)
     ai-company-gh-evidence  github-evidence-bridge on 127.0.0.1:17320
     ai-company-connections  connections-bridge on 127.0.0.1:17321
+    ai-company-state        state-bridge on 127.0.0.1:17322 - shared company state,
+                            file in C:\ai-company\state (daily copies kept 14 days)
   Ollama is not wrapped here unless -InstallOllamaService is given (see README).
 #>
 param(
@@ -28,6 +30,7 @@ if (-not (Test-Path $bridgesEnvPath)) { throw "Create $bridgesEnvPath from bridg
 $bridgesEnv = Read-EnvFile $bridgesEnvPath
 if (-not $bridgesEnv['GITHUB_TOKEN']) { Write-Warn2 'GITHUB_TOKEN is empty - evidence bridge will start but cannot read PRs.' }
 $envPairs = @("AI_COMPANY_REPO_ROOT=$(Join-Path $InstallRoot 'repo')", 'NODE_ENV=production')
+if (-not $bridgesEnv['AI_COMPANY_STATE_DIR']) { $envPairs += "AI_COMPANY_STATE_DIR=$(Join-Path $InstallRoot 'state')" }
 foreach ($k in $bridgesEnv.Keys) { $envPairs += "$k=$($bridgesEnv[$k])" }
 
 function Install-NssmService([string]$Name, [string]$Exe, [string]$Arguments, [string]$Dir, [string[]]$Env) {
@@ -64,6 +67,7 @@ if ($InstallOllamaService) {
 }
 
 Install-NssmService 'ai-company-gh-evidence' $node "`"$tsx`" tools\github-evidence-bridge\src\index.ts run" $appDir $envPairs
+Install-NssmService 'ai-company-state' $node "`"$tsx`" tools\state-bridge\src\index.ts run" $appDir $envPairs
 Install-NssmService 'ai-company-connections' $node "`"$tsx`" tools\connections-bridge\src\index.ts run" $appDir $envPairs
 Install-NssmService 'ai-company-web' $node "`"$vite`" preview --host 0.0.0.0 --port $Port --strictPort" $appDir $envPairs
 
