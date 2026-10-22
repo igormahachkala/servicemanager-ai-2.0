@@ -5,6 +5,22 @@ export const DRY_RUN_ENV = 'STAGE_CANONICAL_SEED_DRY_RUN'
 export const EXPECTED_SEED_CONFIRM = 'stage'
 export const EXPECTED_RELEASE_ENVIRONMENT = 'beta'
 export const EXPECTED_STAGE_DATABASE = 'sma_stage_db'
+export const CI_SEED_CONFIRM = 'ci'
+export const CI_RELEASE_ENVIRONMENT = 'ci'
+export const EXPECTED_CI_DATABASE = 'sma_ci'
+
+export const SEED_TARGETS = {
+  stage: {
+    confirm: EXPECTED_SEED_CONFIRM,
+    releaseEnvironment: EXPECTED_RELEASE_ENVIRONMENT,
+    database: EXPECTED_STAGE_DATABASE,
+  },
+  ci: {
+    confirm: CI_SEED_CONFIRM,
+    releaseEnvironment: CI_RELEASE_ENVIRONMENT,
+    database: EXPECTED_CI_DATABASE,
+  },
+} as const
 
 export const STAGE_QA_SEED_GUARD = {
   passwordEnv: PASSWORD_ENV,

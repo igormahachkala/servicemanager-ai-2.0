@@ -34,7 +34,7 @@ import {
 import { unique } from './seed-stage-qa/utils'
 import { validateCanonicalStageSeedPlan } from './seed-stage-qa/validate'
 
-export { STAGE_QA_SEED_GUARD } from './seed-stage-qa/constants'
+export { SEED_TARGETS, STAGE_QA_SEED_GUARD } from './seed-stage-qa/constants'
 export {
   assertStageQaSeedTarget,
   evaluateStageQaSeedTargetGuard,

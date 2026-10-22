@@ -1,12 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 
-import {
-  EXPECTED_RELEASE_ENVIRONMENT,
-  EXPECTED_SEED_CONFIRM,
-  EXPECTED_STAGE_DATABASE,
-  RELEASE_ENV,
-  SEED_CONFIRM_ENV,
-} from './constants'
+import { RELEASE_ENV, SEED_CONFIRM_ENV, SEED_TARGETS } from './constants'
 import {
   ConfirmationIdentity,
   ConnectedDatabaseIdentityStatus,
@@ -63,12 +57,16 @@ function parseDatabaseUrlIdentity(databaseUrl: string | undefined): ParsedDataba
   }
 }
 
-function confirmationIdentity(env: NodeJS.ProcessEnv): ConfirmationIdentity {
+function confirmationIdentity(env: NodeJS.ProcessEnv, expectedConfirm: string): ConfirmationIdentity {
   const confirmation = normalizedEnvValue(env, SEED_CONFIRM_ENV)
   if (!confirmation) {
     return 'missing'
   }
-  return confirmation === EXPECTED_SEED_CONFIRM ? 'valid' : 'invalid'
+  return confirmation === expectedConfirm ? 'valid' : 'invalid'
+}
+
+function resolveSeedTarget(releaseEnvironment: string | null) {
+  return releaseEnvironment === SEED_TARGETS.ci.releaseEnvironment ? SEED_TARGETS.ci : SEED_TARGETS.stage
 }
 
 function safeDisplay(value: string | null) {
@@ -105,9 +103,10 @@ export function evaluateStageQaSeedTargetGuard(params?: {
   const databaseUrl = parseDatabaseUrlIdentity(env.DATABASE_URL)
   const connectedDatabaseStatus = params?.connectedDatabaseStatus ?? 'not_checked'
   const connectedDatabase = params?.connectedDatabase?.trim() || null
+  const target = resolveSeedTarget(releaseEnvironment)
 
   const identity: StageQaSeedTargetIdentity = {
-    confirmation: confirmationIdentity(env),
+    confirmation: confirmationIdentity(env, target.confirm),
     releaseEnvironment,
     nodeEnvironment,
     databaseUrl,
@@ -118,26 +117,26 @@ export function evaluateStageQaSeedTargetGuard(params?: {
   const failures: string[] = []
 
   if (identity.confirmation !== 'valid') {
-    failures.push(`${SEED_CONFIRM_ENV} must be set to "${EXPECTED_SEED_CONFIRM}"`)
+    failures.push(`${SEED_CONFIRM_ENV} must be set to "${target.confirm}"`)
   }
-  if (releaseEnvironment !== EXPECTED_RELEASE_ENVIRONMENT) {
-    failures.push(`${RELEASE_ENV} must be "${EXPECTED_RELEASE_ENVIRONMENT}"`)
+  if (releaseEnvironment !== target.releaseEnvironment) {
+    failures.push(`${RELEASE_ENV} must be "${target.releaseEnvironment}"`)
   }
   if (nodeEnvironment && ['prod', 'production'].includes(nodeEnvironment.toLowerCase())) {
     failures.push('NODE_ENV=production is forbidden for the Stage QA seed')
   }
   if (databaseUrl.status !== 'parsed') {
     failures.push('DATABASE_URL must be a valid PostgreSQL URL')
-  } else if (databaseUrl.database !== EXPECTED_STAGE_DATABASE) {
-    failures.push(`DATABASE_URL database must be "${EXPECTED_STAGE_DATABASE}"`)
+  } else if (databaseUrl.database !== target.database) {
+    failures.push(`DATABASE_URL database must be "${target.database}"`)
   }
 
   if (connectedDatabaseStatus === 'failed') {
     failures.push('connected database identity could not be read')
   } else if (connectedDatabaseStatus !== 'checked') {
     failures.push('connected database identity was not checked')
-  } else if (connectedDatabase !== EXPECTED_STAGE_DATABASE) {
-    failures.push(`connected database must be "${EXPECTED_STAGE_DATABASE}"`)
+  } else if (connectedDatabase !== target.database) {
+    failures.push(`connected database must be "${target.database}"`)
   }
 
   if (
