@@ -280,6 +280,10 @@ capability переводится в `true` — тогда флаг честно
 `qwen3-coder:30b`, `qwen3.6:latest`, `nomic-embed-text`. Имя хоста для панели —
 `AI_COMPANY_ALLOWED_HOSTS` (`preview.allowedHosts` в `vite.config.ts`), по IP открывается всегда.
 Ограничение V1: состояние в браузере — вести с одного браузера.
+Доступ снаружи (2026-10-22) — `apps/ai-company/deploy/vps-tunnel/`: тот же WireGuard, что у daily (VPS 10.77.0.1 ⇄
+офисный Linux 10.77.0.2), nginx stream в офисе `10.77.0.2:18080 → 192.168.1.157:8080`, на VPS сайт с
+basic auth + Let's Encrypt (скрипт отказывается публиковать без 401). Cloudflare-вариант удалён по решению
+Владельца. Цепочка проверена локально целиком (браузер → nginx auth → stream → панель → Ollama).
 
 ## 7. Известные ловушки
 
