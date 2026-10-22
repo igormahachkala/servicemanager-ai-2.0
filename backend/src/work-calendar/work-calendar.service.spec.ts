@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { InspectionFrequency, TicketStatus, UserRole } from '@prisma/client';
 
+import { ROLE_GRANTS } from '../common/permissions-matrix';
 import * as permissionsGuard from '../common/permissions.guard';
 import * as ticketAccess from '../tickets/ticket-access.utils';
 import {
@@ -88,10 +89,15 @@ const technician = {
   id: UUID_TECH,
   role: UserRole.TECHNICIAN,
 };
-const clientAdmin = {
+const clientCompanyAdmin = {
   companyId: CLIENT_A,
   id: 'u-client-admin',
   role: UserRole.ADMIN,
+};
+const clientAdminRole = {
+  companyId: CLIENT_A,
+  id: 'u-client-admin-role',
+  role: UserRole.CLIENT_ADMIN,
 };
 
 const WEEK = {
@@ -193,6 +199,8 @@ type SuiteOptions = {
   users?: any[];
   directory?: any[] | Error;
   locationViewGranted?: boolean;
+  /** Права из матрицы ROLE_GRANTS по роли актора вместо флага. */
+  permissionsFromMatrix?: boolean;
   locationScopes?: Record<string, ticketAccess.LocationScope>;
   companyTimeZone?: string | null;
 };
@@ -270,9 +278,20 @@ function makeSuite(options: SuiteOptions = {}) {
     ),
   } as any;
 
-  jest
-    .spyOn(permissionsGuard, 'hasAnyPermission')
-    .mockResolvedValue(options.locationViewGranted ?? true);
+  const hasPermission = jest.spyOn(permissionsGuard, 'hasAnyPermission');
+  if (options.permissionsFromMatrix) {
+    hasPermission.mockImplementation((_prisma, user, codes) =>
+      Promise.resolve(
+        ROLE_GRANTS.some(
+          (grant) =>
+            grant.role === user.role &&
+            grant.codes.some((code) => codes.includes(code)),
+        ),
+      ),
+    );
+  } else {
+    hasPermission.mockResolvedValue(options.locationViewGranted ?? true);
+  }
   jest
     .spyOn(ticketAccess, 'resolveActorLocationScope')
     .mockImplementation(({ scopeCompanyId }) =>
@@ -431,7 +450,7 @@ describe('SMA-WORK-CALENDAR-V1 доступ к заявкам', () => {
   });
 });
 
-describe('SMA-WORK-CALENDAR-V1 CLIENT_ADMIN', () => {
+describe('SMA-WORK-CALENDAR-V1 ADMIN клиентской компании', () => {
   const clientScope = {
     where: { companyId: CLIENT_A },
     scopeCompanyId: CLIENT_A,
@@ -456,14 +475,14 @@ describe('SMA-WORK-CALENDAR-V1 CLIENT_ADMIN', () => {
       users: [own, TECH],
     });
 
-    const result = await svc.getCalendar(clientAdmin, WEEK);
+    const result = await svc.getCalendar(clientCompanyAdmin, WEEK);
 
     expect(ticketsQuery.resolveListWhere.mock.calls[0].slice(5)).toEqual([
       undefined,
       undefined,
     ]);
     // Планы — та же выборка, что /inspection/schedules: компания актора.
-    expect(schedules.listForCalendar.mock.calls[0][0]).toBe(clientAdmin);
+    expect(schedules.listForCalendar.mock.calls[0][0]).toBe(clientCompanyAdmin);
     expect(
       result.events
         .filter((event) => event.kind === 'INSPECTION')
@@ -490,7 +509,7 @@ describe('SMA-WORK-CALENDAR-V1 CLIENT_ADMIN', () => {
       users: [],
     });
 
-    const result = await svc.getCalendar(clientAdmin, WEEK);
+    const result = await svc.getCalendar(clientCompanyAdmin, WEEK);
 
     expect(result.resources.employees).toEqual([
       {
@@ -513,11 +532,156 @@ describe('SMA-WORK-CALENDAR-V1 CLIENT_ADMIN', () => {
     );
 
     await expect(
-      svc.getCalendar(clientAdmin, {
+      svc.getCalendar(clientCompanyAdmin, {
         ...WEEK,
         linkedClientCompanyId: CLIENT_B,
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+});
+
+describe('SMA-WORK-CALENDAR-V1 роль CLIENT_ADMIN', () => {
+  const ownScope = {
+    where: { companyId: CLIENT_A },
+    scopeCompanyId: CLIENT_A,
+    visibilityMode: 'tenant',
+  };
+  const ownStaff = person(
+    UUID_IDLE,
+    'Анна',
+    'Клиентова',
+    CLIENT_A,
+    UserRole.ADMIN,
+  );
+
+  it('свой tenant: заявки своей компании; обходов, штата и справочника объектов нет', async () => {
+    const { svc, ticketsQuery, schedules, locations, prisma } = makeSuite({
+      permissionsFromMatrix: true,
+      scope: ownScope,
+      tickets: [
+        ticket({ id: 'own' }),
+        ticket({
+          id: 'foreign',
+          companyId: CLIENT_B,
+          location: LOC_B1,
+          locationId: LOC_B1.id,
+        }),
+      ],
+      schedules: [schedule({ companyId: CLIENT_A })],
+      users: [ownStaff, TECH],
+    });
+
+    const result = await svc.getCalendar(clientAdminRole, WEEK);
+
+    expect(ticketsQuery.resolveListWhere).toHaveBeenCalledWith(
+      CLIENT_A,
+      'u-client-admin-role',
+      UserRole.CLIENT_ADMIN,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+    );
+    expect(result.events.map((event) => event.entityId)).toEqual(['own']);
+    expect(schedules.listForCalendar).not.toHaveBeenCalled();
+    expect(locations.list).not.toHaveBeenCalled();
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+    expect(result.capabilities).toMatchObject({
+      tickets: true,
+      inspections: false,
+      resources: false,
+      employeeDirectory: false,
+      locationDirectory: false,
+      restrictedEmpty: false,
+    });
+    expect(result.resources.locations.map((location) => location.id)).toEqual([
+      LOC_A1.id,
+    ]);
+  });
+
+  it('чужой tenant: отказ контура, ничего не читается', async () => {
+    const { svc, ticketsQuery, prisma, schedules, locations } = makeSuite({
+      permissionsFromMatrix: true,
+      scope: ownScope,
+      tickets: [ticket()],
+    });
+    ticketsQuery.resolveListWhere.mockRejectedValueOnce(
+      new ForbiddenException('Role cannot access linked client tickets'),
+    );
+
+    await expect(
+      svc.getCalendar(clientAdminRole, {
+        ...WEEK,
+        linkedClientCompanyId: CLIENT_B,
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(ticketsQuery.resolveListWhere.mock.calls[0][5]).toBe(CLIENT_B);
+    expect(prisma.ticket.findMany).not.toHaveBeenCalled();
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+    expect(schedules.listForCalendar).not.toHaveBeenCalled();
+    expect(locations.list).not.toHaveBeenCalled();
+  });
+
+  it('restricted-empty: пусто, признак в capabilities', async () => {
+    const { svc, prisma } = makeSuite({
+      permissionsFromMatrix: true,
+      scope: { ...ownScope, where: null },
+      tickets: [ticket()],
+      locationScopes: {
+        [CLIENT_A]: { mode: 'restricted_empty', locationIds: [] },
+      },
+    });
+
+    const result = await svc.getCalendar(clientAdminRole, WEEK);
+
+    expect(result.events).toEqual([]);
+    expect(result.resources).toEqual({ employees: [], locations: [] });
+    expect(result.capabilities.restrictedEmpty).toBe(true);
+    expect(prisma.ticket.findMany).not.toHaveBeenCalled();
+  });
+
+  it('чужого штата нет: подрядчик на заявке — без компании и роли, остальные не видны', async () => {
+    const { svc, prisma } = makeSuite({
+      permissionsFromMatrix: true,
+      scope: ownScope,
+      tickets: [
+        ticket({
+          id: 'by-contractor',
+          assignedTechnician: TECH,
+          assignedTechnicianId: TECH.id,
+        }),
+        ticket({
+          id: 'unassigned',
+          plannedDueAt: null,
+          assignedTechnician: null,
+          assignedTechnicianId: null,
+        }),
+      ],
+      users: [ownStaff, TECH, FOREIGN],
+    });
+
+    const result = await svc.getCalendar(clientAdminRole, WEEK);
+
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+    expect(result.resources.employees).toEqual([
+      {
+        id: UUID_TECH,
+        displayName: 'Петров Иван',
+        companyId: null,
+        role: null,
+        isActive: null,
+        isExecutor: null,
+        isOwnCompany: false,
+        eventCount: 1,
+      },
+    ]);
+
+    const filtered = await svc.getCalendar(clientAdminRole, {
+      ...WEEK,
+      employeeIds: [UUID_FOREIGN, UUID_IDLE],
+    });
+    expect(filtered.resources.employees).toEqual([]);
+    expect(filtered.events).toEqual([]);
   });
 });
 

@@ -15,9 +15,14 @@ import {
 } from './work-calendar.service';
 
 /**
- * SMA-WORK-CALENDAR-V1. Роли и право — те же, что у GET /tickets: календарь
- * показывает заявки в их действующем scope, планы обходов добавляются
- * сервисом, только если у актора есть и доступ к планам.
+ * SMA-WORK-CALENDAR-V1. Право — TICKETS_VIEW, как у чтения заявок: календарь
+ * показывает заявки в их действующем scope, планы обходов и справочник
+ * объектов сервис добавляет, только если у актора есть и доступ к ним.
+ *
+ * Роли — те же, что у GET /tickets/board, включая CLIENT_ADMIN (решение
+ * владельца). У CLIENT_ADMIN в матрице TICKETS_VIEW и WORKFORCE_VIEW, без
+ * LOCATIONS_VIEW: он видит заявки своей компании в пределах своих привязок,
+ * а обходов, справочника объектов и штата не получает.
  */
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsContextGuard, PermissionsGuard)
 @Controller('work-calendar')
@@ -27,6 +32,7 @@ export class WorkCalendarController {
   @Get()
   @Roles(
     UserRole.ADMIN,
+    UserRole.CLIENT_ADMIN,
     UserRole.MASTER,
     UserRole.DISPATCHER,
     UserRole.NETWORK_DIRECTOR,
