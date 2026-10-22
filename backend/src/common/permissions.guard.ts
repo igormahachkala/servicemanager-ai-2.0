@@ -12,25 +12,81 @@ import type { PermissionCode } from './permissions.constants';
 const COMPANY_TYPE_TTL_MS = 5 * 60 * 1000;
 const companyTypeCache = new Map<string, { type: CompanyType; at: number }>();
 
+async function resolveCompanyType(
+  prisma: PrismaService,
+  companyId?: string,
+): Promise<CompanyType | null> {
+  if (!companyId) return null;
+  const cached = companyTypeCache.get(companyId);
+  if (cached && Date.now() - cached.at < COMPANY_TYPE_TTL_MS)
+    return cached.type;
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { type: true },
+  });
+  if (!company) return null;
+  companyTypeCache.set(companyId, { type: company.type, at: Date.now() });
+  return company.type;
+}
+
+/**
+ * Есть ли у пользователя хотя бы одно из прав — тот же расчёт, что у guard.
+ *
+ * SMA-WORK-CALENDAR-V1: вынесено из PermissionsGuard для эндпоинтов, которые
+ * собирают несколько источников под разными правами и должны пропустить
+ * источник, а не отказать целиком. Пустой каталог прав — отказ, как и в guard.
+ */
+export async function hasAnyPermission(
+  prisma: PrismaService,
+  user: { id: string; role: UserRole; companyId?: string },
+  codes: PermissionCode[],
+): Promise<boolean> {
+  if (codes.length === 0) return false;
+  const blocksCount = await prisma.permissionBlock.count();
+  if (blocksCount === 0) return false;
+  return grantsAnyPermission(prisma, user, codes);
+}
+
+async function grantsAnyPermission(
+  prisma: PrismaService,
+  user: { id: string; role: UserRole; companyId?: string },
+  codes: PermissionCode[],
+): Promise<boolean> {
+  // Phase 1.5: гранты ключуются по (role, companyType). Тип компании резолвим
+  // по companyId пользователя (его нет в JWT), с кэшем.
+  const companyType = await resolveCompanyType(prisma, user.companyId);
+
+  // 1) Права через роль (RolePermission -> PermissionBlock.code), матч по типу
+  //    компании ИЛИ wildcard (companyType IS NULL).
+  // 2) Индивидуальные права (UserPermission -> PermissionBlock.code)
+  // Достаточно совпадения хотя бы по одному коду (OR).
+  const [roleHit, userHit] = await Promise.all([
+    prisma.rolePermission.findFirst({
+      where: {
+        role: user.role,
+        OR: [{ companyType }, { companyType: null }],
+        permissionBlock: { code: { in: codes } },
+      },
+      select: { id: true },
+    }),
+    prisma.userPermission.findFirst({
+      where: {
+        userId: user.id,
+        permissionBlock: { code: { in: codes } },
+      },
+      select: { id: true },
+    }),
+  ]);
+
+  return !!roleHit || !!userHit;
+}
+
 @Injectable()
 export class PermissionsGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly prisma: PrismaService,
   ) {}
-
-  private async resolveCompanyType(companyId?: string): Promise<CompanyType | null> {
-    if (!companyId) return null;
-    const cached = companyTypeCache.get(companyId);
-    if (cached && Date.now() - cached.at < COMPANY_TYPE_TTL_MS) return cached.type;
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-      select: { type: true },
-    });
-    if (!company) return null;
-    companyTypeCache.set(companyId, { type: company.type, at: Date.now() });
-    return company.type;
-  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const requiredPermissions = this.reflector.getAllAndOverride<PermissionCode[]>(
@@ -65,33 +121,13 @@ export class PermissionsGuard implements CanActivate {
       });
     }
 
-    // Phase 1.5: гранты ключуются по (role, companyType). Тип компании резолвим
-    // по companyId пользователя (его нет в JWT), с кэшем.
-    const companyType = await this.resolveCompanyType(user?.companyId);
-
-    // 1) Права через роль (RolePermission -> PermissionBlock.code), матч по типу
-    //    компании ИЛИ wildcard (companyType IS NULL).
-    // 2) Индивидуальные права (UserPermission -> PermissionBlock.code)
-    // Достаточно совпадения хотя бы по одному коду (OR).
-    const [roleHit, userHit] = await Promise.all([
-      this.prisma.rolePermission.findFirst({
-        where: {
-          role,
-          OR: [{ companyType }, { companyType: null }],
-          permissionBlock: { code: { in: requiredPermissions } },
-        },
-        select: { id: true },
-      }),
-      this.prisma.userPermission.findFirst({
-        where: {
-          userId,
-          permissionBlock: { code: { in: requiredPermissions } },
-        },
-        select: { id: true },
-      }),
-    ]);
-
-    if (!!roleHit || !!userHit) {
+    if (
+      await grantsAnyPermission(
+        this.prisma,
+        { id: userId, role, companyId: user?.companyId },
+        requiredPermissions,
+      )
+    ) {
       return true;
     }
 

@@ -778,3 +778,107 @@ describe('120G выборка плана для мобильного «Сего�
     expect(orderBy[0]).toEqual({ nextDueAt: 'asc' })
   })
 })
+
+// ── WORK CALENDAR ────────────────────────────────────────────────────────────
+
+describe('SMA-WORK-CALENDAR-V1 выборка планов для календаря', () => {
+  type FindManyArgs = { where: Record<string, unknown>; take: number };
+  const firstFindMany = (prisma: unknown) =>
+    (
+      prisma as {
+        inspectionSchedule: { findMany: jest.Mock<unknown, [FindManyArgs]> };
+      }
+    ).inspectionSchedule.findMany.mock.calls[0][0];
+  const findManyCount = (prisma: unknown) =>
+    (prisma as { inspectionSchedule: { findMany: jest.Mock } })
+      .inspectionSchedule.findMany.mock.calls.length;
+
+  const from = new Date('2026-10-26T00:00:00.000Z');
+  const to = new Date('2026-11-02T00:00:00.000Z');
+
+  it('берёт только активные планы компании со сроком в полуоткрытом [from, to)', async () => {
+    const suite = makeSuite({ schedules: [scheduleRow()] });
+
+    await suite.svc.listForCalendar(admin, { from, to, take: 10 });
+
+    const call = firstFindMany(suite.prisma);
+    expect(call.where).toEqual({
+      companyId: PROVIDER_ID,
+      isActive: true,
+      nextDueAt: { gte: from, lt: to },
+    });
+    expect(call.take).toBe(11);
+  });
+
+  it('техник видит только свои планы, фильтр по сотрудникам их не расширяет', async () => {
+    const suite = makeSuite({ schedules: [scheduleRow()] });
+
+    await suite.svc.listForCalendar(technician, {
+      from,
+      to,
+      take: 10,
+      assignedToUserIds: [technician.id, otherTechnician.id],
+    });
+    expect(firstFindMany(suite.prisma).where.assignedToUserId).toBe(
+      technician.id,
+    );
+
+    const foreign = await suite.svc.listForCalendar(technician, {
+      from,
+      to,
+      take: 10,
+      assignedToUserIds: [otherTechnician.id],
+    });
+    expect(foreign).toEqual({ rows: [], fetched: 0 });
+    expect(findManyCount(suite.prisma)).toBe(1);
+  });
+
+  it('менеджер сужает выборку по сотрудникам и объектам', async () => {
+    const suite = makeSuite({ schedules: [scheduleRow()] });
+
+    await suite.svc.listForCalendar(dispatcher, {
+      from,
+      to,
+      take: 10,
+      assignedToUserIds: [technician.id],
+      locationIds: [LOC_A.id],
+    });
+
+    expect(firstFindMany(suite.prisma).where).toMatchObject({
+      assignedToUserId: { in: [technician.id] },
+      locationId: { in: [LOC_A.id] },
+    });
+  });
+
+  it('отбрасывает площадки вне действующего договора, fetched считает строки до фильтра', async () => {
+    const suite = makeSuite({
+      schedules: [
+        scheduleRow({ id: 'sched-in' }),
+        scheduleRow({
+          id: 'sched-out',
+          location: { id: LOC_UNCONTRACTED.id, clientCompanyId: 'client-x' },
+        }),
+      ],
+    });
+
+    const result = await suite.svc.listForCalendar(admin, {
+      from,
+      to,
+      take: 10,
+    });
+
+    expect(result.rows.map((row) => row.id)).toEqual(['sched-in']);
+    expect(result.fetched).toBe(2);
+  });
+
+  it('роль без доступа к планам получает отказ, как в /inspection/schedules', async () => {
+    const suite = makeSuite({ schedules: [scheduleRow()] });
+
+    await expect(
+      suite.svc.listForCalendar(
+        { id: 'u-client', companyId: CLIENT_A, role: UserRole.CLIENT },
+        { from, to, take: 10 },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+});
