@@ -30,6 +30,7 @@ notepad ..\env\bridges.env               # вписать GITHUB_TOKEN (read-onl
 .\03-install-services.ps1                # сервисы + правило firewall на 8080
 .\04-pull-models.ps1                     # докачивает только недостающее + смоук-генерация
 .\healthcheck.ps1                        # всё зелёное → открыть адрес на другом ПК
+.\05-cloudflare-tunnel.ps1 ...           # по желанию: доступ снаружи, см. ниже
 ```
 
 После первого клона комплект есть и в самом репо:
@@ -37,6 +38,38 @@ notepad ..\env\bridges.env               # вписать GITHUB_TOKEN (read-onl
 
 С прокси: добавить `-Proxy http://proxy:3128` к 01/02/04 и раскомментировать `HTTP(S)_PROXY`
 в `bridges.env`.
+
+## Доступ снаружи (Cloudflare Tunnel + Access)
+
+Панель публикуется на поддомене, например `https://ai.example.ru`. Порты на роутере не открываются:
+`cloudflared` на сервере сам подключается к Cloudflare. Перед панелью стоит Cloudflare Access со входом
+по почте и одноразовому коду. **Без Access не публиковать**: аутентификации в самой панели нет, и
+открытая ссылка даёт управление всей командой и доступ к моделям.
+
+В дашборде Cloudflare (Zero Trust, бесплатно до 50 пользователей). Порядок важен: сначала защита,
+потом туннель.
+
+1. **Zero Trust → Access → Applications → Add → Self-hosted.** Домен приложения — твой поддомен.
+   Policy: Action **Allow**, Include → **Emails** → твоя почта (и почты тех, кому нужен доступ).
+   Session duration — например 24 h.
+2. **Zero Trust → Networks → Tunnels → Create a tunnel → Cloudflared.** Имя `ai-company`.
+   На шаге установки скопируй **token** (длинная строка после `service install`).
+3. В том же туннеле **Public Hostname → Add:** поддомен, Service **HTTP**, URL **`localhost:8080`**.
+   DNS-запись Cloudflare создаст сам.
+
+На сервере (PowerShell от администратора):
+
+```powershell
+.\05-cloudflare-tunnel.ps1 -Hostname ai.example.ru -TunnelToken "<token>"
+```
+
+Скрипт ставит `cloudflared` как службу Windows, добавляет имя в `AI_COMPANY_ALLOWED_HOSTS`,
+перезапускает панель и проверяет адрес снаружи. Если сайт отвечает **без** формы входа Cloudflare,
+скрипт останавливает туннель и пишет `DANGER` — значит, шаг 1 не сделан.
+
+Ограничение: Cloudflare рвёт запрос, если ответ не начался за 100 секунд. Ответ модели идёт потоком
+и начинается быстро, но самый первый вызов после простоя может упереться в загрузку модели в память.
+Если первая задача упала с таймаутом, просто запусти её заново.
 
 ## Обновление версии
 
@@ -71,7 +104,7 @@ Restart-Service ai-company-web
 - Секреты `connections-bridge` теряются при перезапуске службы.
 - Панель открывать по IP. Для имени сервера — `AI_COMPANY_ALLOWED_HOSTS=имя` в `bridges.env`
   и `03` заново.
-- Аутентификации нет: только LAN.
+- В самой панели аутентификации нет: снаружи — только через Cloudflare Access (раздел выше).
 
 ## Логи
 
