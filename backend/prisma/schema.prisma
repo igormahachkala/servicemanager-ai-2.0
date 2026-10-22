@@ -217,6 +217,7 @@ model Company {
   specializations              Specialization[]
   problemCategories            ProblemCategory[]
   failureCauses                FailureCause[]
+  productUpdates               ProductUpdate[]
   ticketFailureCauseAssessments TicketFailureCauseAssessment[]
   tickets                      Ticket[]
   ticketComments               TicketComment[]
@@ -1569,4 +1570,56 @@ model InstalledPart {
   @@index([companyId, equipmentId])
   @@index([installedTicketId])
   @@index([removedTicketId])
+}
+
+// ─── Центр обновлений (SMA-UPDATES-CENTER-V1) ───────────────────────────────
+
+enum ProductUpdateStatus {
+  DRAFT
+  PUBLISHED
+}
+
+/// Откуда карточка: вручную или черновиком после Production-релиза (основа автосоздания).
+enum ProductUpdateSource {
+  MANUAL
+  RELEASE
+}
+
+/// Карточка «Что нового».
+///
+/// companyId = null — глобальная карточка платформы, её ведёт PLATFORM_ADMIN и
+/// видят все компании. companyId задан — карточка этой компании, её ведёт ADMIN
+/// компании и видят только её пользователи.
+model ProductUpdate {
+  id        String   @id @default(uuid())
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  status           ProductUpdateStatus @default(DRAFT)
+  source           ProductUpdateSource @default(MANUAL)
+  /// SHA коммита Production-релиза, из которого создан черновик (source = RELEASE).
+  /// Уникален: два одновременных вызова автосоздания по одному релизу не дадут
+  /// двух черновиков. У ручных карточек NULL — уникальность их не касается.
+  releaseCommitSha String?             @unique
+
+  title         String
+  summary       String
+  changes       String
+  howToUse      String
+  /// Внутренний путь приложения к функции (/inspection/schedules), не внешний URL.
+  featurePath   String?
+  /// Изображения с пояснениями: [{ url, caption }].
+  media         Json       @default("[]")
+  /// Кому показывать. Пусто — всем ролям.
+  audienceRoles UserRole[] @default([])
+
+  createdById   String
+  updatedById   String?
+  publishedById String?
+  publishedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status, publishedAt])
+  @@index([companyId, status])
 }

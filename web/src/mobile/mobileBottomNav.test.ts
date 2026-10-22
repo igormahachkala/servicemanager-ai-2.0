@@ -61,31 +61,31 @@ describe('«Ещё» — видимость по ролям (negative controls)'
 
   it('TECHNICIAN: материалы(Мои) + смена + профиль + настройки; без оборудования/аналитики', () => {
     const list = ids({ role: 'TECHNICIAN', canAccessManagementSurface: false })
-    expect(list).toEqual(['materials', 'shift', 'profile', 'settings'])
+    expect(list).toEqual(['materials', 'shift', 'updates', 'profile', 'settings'])
     expect(getMobileMoreEntries({ role: 'TECHNICIAN' }, '/m')[0].label).toBe('Мои материалы')
   })
 
   it('MASTER (mgmt): материалы + оборудование + смена + аналитика + профиль + настройки', () => {
-    expect(ids({ role: 'MASTER', canAccessManagementSurface: true })).toEqual(['materials', 'equipment', 'shift', 'analytics', 'profile', 'settings'])
+    expect(ids({ role: 'MASTER', canAccessManagementSurface: true })).toEqual(['materials', 'equipment', 'shift', 'analytics', 'updates', 'profile', 'settings'])
   })
 
   it('DISPATCHER (mgmt): без смены (не субъект смены), с аналитикой', () => {
     const list = ids({ role: 'DISPATCHER', canAccessManagementSurface: true })
-    expect(list).toEqual(['materials', 'equipment', 'analytics', 'profile', 'settings'])
+    expect(list).toEqual(['materials', 'equipment', 'analytics', 'updates', 'profile', 'settings'])
     expect(list).not.toContain('shift')
   })
 
   it('ADMIN (mgmt): оборудование + аналитика, без смены', () => {
-    expect(ids({ role: 'ADMIN', canAccessManagementSurface: true })).toEqual(['materials', 'equipment', 'analytics', 'profile', 'settings'])
+    expect(ids({ role: 'ADMIN', canAccessManagementSurface: true })).toEqual(['materials', 'equipment', 'analytics', 'updates', 'profile', 'settings'])
   })
 
   it('CLIENT_ADMIN без mgmt surface: только профиль + настройки', () => {
-    expect(ids({ role: 'CLIENT_ADMIN', canAccessManagementSurface: false })).toEqual(['profile', 'settings'])
+    expect(ids({ role: 'CLIENT_ADMIN', canAccessManagementSurface: false })).toEqual(['updates', 'profile', 'settings'])
   })
 
   it('P1: CLIENT_ADMIN ДАЖЕ с canAccessManagementSurface не получает Оборудование/Материалы (нет реального backend-доступа)', () => {
     const list = ids({ role: 'CLIENT_ADMIN', canAccessManagementSurface: true })
-    expect(list).toEqual(['profile', 'settings'])
+    expect(list).toEqual(['updates', 'profile', 'settings'])
     expect(list).not.toContain('equipment')
     expect(list).not.toContain('materials')
     expect(list).not.toContain('analytics')
@@ -98,7 +98,7 @@ describe('«Ещё» — видимость по ролям (negative controls)'
   })
 
   it('CLIENT без mgmt: только профиль + настройки; без аналитики/оборудования/материалов/смены', () => {
-    expect(ids({ role: 'CLIENT', canAccessManagementSurface: false })).toEqual(['profile', 'settings'])
+    expect(ids({ role: 'CLIENT', canAccessManagementSurface: false })).toEqual(['updates', 'profile', 'settings'])
   })
 
   it('P1: Оборудование — только провайдерский management-набор (ADMIN/ADMIN_PROVIDER/MASTER/DISPATCHER)', () => {

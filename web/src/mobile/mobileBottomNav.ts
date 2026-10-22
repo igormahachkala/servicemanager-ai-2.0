@@ -21,6 +21,7 @@ const MORE_PREFIXES = [
   '/push-settings',
   '/offline-queue',
   '/notifications',
+  '/updates',
 ]
 
 export function mobileNavSectionForPath(pathname?: string | null): MobileNavSectionId | null {
