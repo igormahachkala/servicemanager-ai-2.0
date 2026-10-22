@@ -46,8 +46,16 @@ sudo ./vps_panel_site.sh ai.sma-tech.ru you@mail.ru
 (другое имя: `PANEL_USER=igor`), создаёт сайт, получает сертификат Let's Encrypt, включает редирект
 на HTTPS и проверяет, что без пароля — `401`.
 
-Если порты 80/443 на VPS занимает не nginx (например, Docker с сайтом daily), скрипт остановится и
-покажет процесс. Тогда сайт надо добавить в тот прокси — пришли вывод.
+**Если 80/443 на VPS держит Caddy** (так на сервере daily) — вместо `vps_panel_site.sh`:
+
+```bash
+sudo bash vps_panel_caddy.sh ai.sma-tech.ru
+```
+
+Добавляет в `/etc/caddy/Caddyfile` отдельный блок сайта (с резервной копией файла), пароль хранит
+bcrypt-хешем, проверяет конфиг до записи, перезагружает Caddy без остановки daily, ждёт сертификат и
+проверяет `401` без пароля — иначе возвращает прежний конфиг. Повторный запуск заменяет блок, а не
+дублирует. Сменить пароль — запустить скрипт ещё раз.
 
 **4. Windows-сервер** (PowerShell от администратора):
 
@@ -69,7 +77,7 @@ sudo ./vps_panel_site.sh ai.sma-tech.ru you@mail.ru
 | любой | `curl -s -o /dev/null -w '%{http_code}' https://ai.sma-tech.ru/` | `401` |
 | любой | `curl -s -o /dev/null -w '%{http_code}' -u owner:ПАРОЛЬ https://ai.sma-tech.ru/` | `200` |
 
-Сменить пароль: `sudo htpasswd /etc/nginx/ai-company.htpasswd owner`.
+Сменить пароль (nginx-вариант): `sudo htpasswd /etc/nginx/ai-company.htpasswd owner`.
 Добавить человека: `sudo htpasswd /etc/nginx/ai-company.htpasswd имя`.
 
 ## Частые проблемы
