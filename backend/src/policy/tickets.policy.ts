@@ -48,6 +48,8 @@ export type BoardQueryInput = {
   locationId?: string;
   equipmentId?: string;
   includeArchived?: boolean;
+  /** Внутренний фильтр по id (страница долгосрочных заявок); из HTTP не приходит. */
+  ticketIds?: string[];
 };
 
 export type BoardQuery = {
@@ -147,6 +149,10 @@ export class TicketsPolicy {
 
     if (input.equipmentId && input.equipmentId.trim().length > 0) {
       extraAnd.push({ equipmentId: input.equipmentId.trim() });
+    }
+
+    if (input.ticketIds) {
+      extraAnd.push({ id: { in: input.ticketIds } });
     }
 
     const now = new Date();

@@ -4,7 +4,6 @@ import {
   dedupeBoardCards,
   filterTicketsForMobileHomeTab,
   isAwaitingAcceptanceTicket,
-  isLongTermTicket,
   isMobileHomeBoardFilterTab,
   ticketRequiresMyAction,
   type MobileHomeBoardChipId,
@@ -38,14 +37,20 @@ export type MobileHomeQuickFilterContext = {
   reworkTicketIds: ReadonlySet<string>
 }
 
+/** Быстрые карты, которые считаются по board главной. */
+export type MobileHomeBoardQuickFilter = Exclude<MobileHomeQuickFilter, null | 'longterm'>
+
 /**
- * Выборка быстрой карты главной. Счётчик карты и открытый по нажатию список
- * считаются одной функцией по одному и тому же board, поэтому расходиться не
- * могут, а board уже сужен backend'ом (tenant, контур, привязки к объектам).
+ * Выборка быстрой карты главной по board. Счётчик карты и открытый по нажатию
+ * список считаются одной функцией по одному и тому же board, поэтому
+ * расходиться не могут, а board уже сужен backend'ом (tenant, контур, привязки).
+ *
+ * «Долгосрочные» сюда не входят: board — последние 500 заявок, а долгосрочная
+ * заявка бывает старой. Их выборку и точный total отдаёт GET /tickets/long-term.
  */
 export function filterTicketsByQuickFilter(
   cards: TicketCard[],
-  quickFilter: Exclude<MobileHomeQuickFilter, null>,
+  quickFilter: MobileHomeBoardQuickFilter,
   ctx: MobileHomeQuickFilterContext,
 ): TicketCard[] {
   const list = dedupeBoardCards(cards)
@@ -54,8 +59,6 @@ export function filterTicketsByQuickFilter(
       return list.filter(isHomeUrgentTicket)
     case 'awaiting':
       return list.filter(isAwaitingAcceptanceTicket)
-    case 'longterm':
-      return list.filter(isLongTermTicket)
     case 'rework':
       return list.filter((t) => t.status === 'IN_PROGRESS' && ctx.reworkTicketIds.has(t.id))
     case 'myaction':
@@ -69,6 +72,30 @@ export function toggleMobileHomeQuickFilter(
   next: Exclude<MobileHomeQuickFilter, null>,
 ): MobileHomeQuickFilter {
   return current === next ? null : next
+}
+
+/**
+ * Страницы долгосрочных заявок → один список. Сервер отдаёт страницы по
+ * курсору без пересечений, но запрос мог повториться (refetch, двойной тап на
+ * «Показать ещё»), и одна заявка не должна показаться дважды.
+ */
+export function mergeLongTermTicketPages(pages: ReadonlyArray<{ items: TicketCard[] }> | undefined): TicketCard[] {
+  const seen = new Set<string>()
+  const out: TicketCard[] = []
+  for (const page of pages ?? []) {
+    for (const ticket of page.items) {
+      if (seen.has(ticket.id)) continue
+      seen.add(ticket.id)
+      out.push(ticket)
+    }
+  }
+  return out
+}
+
+/** Счётчик карточки — серверный total по всему контуру, не длина загруженного. */
+export function longTermTicketsTotal(pages: ReadonlyArray<{ total: number }> | undefined): number {
+  const first = pages?.[0]
+  return first && Number.isFinite(first.total) ? first.total : 0
 }
 
 export function readPersistedMobileHomeBoardUi(): {

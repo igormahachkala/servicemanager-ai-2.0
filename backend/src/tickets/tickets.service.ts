@@ -110,6 +110,31 @@ export class TicketsService {
       accessFlags,
       scope.linkedClientCompanyId,
       scope.observerCompanyId,
+    );
+  }
+
+  longTermTickets(
+    companyId: string,
+    userId: string,
+    role: UserRole,
+    params: { limit?: number; cursor?: string | null },
+    accessFlags?: AccessFlags,
+    linkedClientCompanyId?: string,
+    observerCompanyId?: string,
+  ) {
+    const scope = scopeForClient(
+      role,
+      linkedClientCompanyId,
+      observerCompanyId,
+    );
+    return this.query.longTermTickets(
+      companyId,
+      userId,
+      role,
+      params,
+      accessFlags,
+      scope.linkedClientCompanyId,
+      scope.observerCompanyId,
     )
   }
 

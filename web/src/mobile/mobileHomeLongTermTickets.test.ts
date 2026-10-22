@@ -1,31 +1,24 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { TicketCard } from '../lib/api'
-import { isLongTermTicket, LONG_TERM_TICKET_MIN_DAYS, plannedWorkDurationMs } from './mobileHomeBoardFilters'
+import { buildLongTermTicketsQuery, type LongTermTicketsResponse, type TicketCard } from '../lib/api'
 import {
   filterTicketsByQuickFilter,
+  longTermTicketsTotal,
+  mergeLongTermTicketPages,
   MOBILE_HOME_QUICK_FILTER_LABELS,
   readPersistedMobileHomeBoardUi,
   toggleMobileHomeQuickFilter,
   writePersistedMobileHomeBoardUi,
   type MobileHomeQuickFilterContext,
 } from './mobileHomeListUtils'
-import type { MobileHomeQuickFilter } from './home/HomeQuickCards'
 
 /**
  * Карточка «Долгосрочные заявки» на главной /m.
  *
- * Долгосрочная — активная заявка, у которой плановый срок выполнения
- * (plannedDueAt − createdAt) не меньше 10 суток. Не время до дедлайна
- * и не срок SLA.
+ * Правило (plannedDueAt − createdAt ≥ 240 ч, только активные) и доступ решает
+ * GET /tickets/long-term по всему контуру; здесь — как главная пользуется
+ * его страницами: счётчик, список, догрузка, навигация.
  */
-
-const DAY = 24 * 60 * 60 * 1000
-const CREATED = '2026-10-01T09:00:00.000Z'
-
-function at(base: string, ms: number): string {
-  return new Date(Date.parse(base) + ms).toISOString()
-}
 
 function card(id: string, overrides: Partial<TicketCard> = {}): TicketCard {
   return {
@@ -34,9 +27,9 @@ function card(id: string, overrides: Partial<TicketCard> = {}): TicketCard {
     status: 'ASSIGNED',
     title: `Заявка ${id}`,
     description: '',
-    createdAt: CREATED,
+    createdAt: '2026-01-01T00:00:00.000Z',
     slaDueAt: null,
-    plannedDueAt: at(CREATED, 14 * DAY),
+    plannedDueAt: '2026-02-01T00:00:00.000Z',
     priority: 'NORMAL',
     urgency: 'NOT_URGENT',
     slaBreached: false,
@@ -49,6 +42,10 @@ function card(id: string, overrides: Partial<TicketCard> = {}): TicketCard {
   } as TicketCard
 }
 
+function page(ids: string[], total: number, nextCursor: string | null = null): LongTermTicketsResponse {
+  return { total, items: ids.map((id) => card(id)), nextCursor, limit: 50 }
+}
+
 const ctx: MobileHomeQuickFilterContext = {
   meId: 'tech-1',
   meRole: 'TECHNICIAN',
@@ -58,90 +55,57 @@ const ctx: MobileHomeQuickFilterContext = {
 
 const ids = (tickets: TicketCard[]) => tickets.map((t) => t.id)
 
-afterEach(() => {
-  vi.useRealTimers()
-  vi.unstubAllGlobals()
-})
+afterEach(() => vi.unstubAllGlobals())
 
-describe('долгосрочная заявка: плановый срок выполнения от 10 суток', () => {
-  it('порог — ровно 10 суток от регистрации, включительно', () => {
-    expect(LONG_TERM_TICKET_MIN_DAYS).toBe(10)
-    expect(isLongTermTicket(card('t1', { plannedDueAt: at(CREATED, 10 * DAY) }))).toBe(true)
-    expect(isLongTermTicket(card('t2', { plannedDueAt: at(CREATED, 10 * DAY - 60_000) }))).toBe(false)
-    expect(isLongTermTicket(card('t3', { plannedDueAt: at(CREATED, 45 * DAY) }))).toBe(true)
+describe('счётчик — серверный total', () => {
+  it('берётся из ответа, а не из числа загруженных строк', () => {
+    expect(longTermTicketsTotal([page(['t1', 't2'], 734, 'c1')])).toBe(734)
+    expect(longTermTicketsTotal([page(['t1'], 734, 'c1'), page(['t2'], 734)])).toBe(734)
   })
 
-  it('длительность — plannedDueAt минус createdAt', () => {
-    expect(plannedWorkDurationMs(card('t1', { plannedDueAt: at(CREATED, 12 * DAY) }))).toBe(12 * DAY)
-    expect(plannedWorkDurationMs(card('t2', { plannedDueAt: null }))).toBeNull()
-    expect(plannedWorkDurationMs(card('t3', { plannedDueAt: 'не дата' }))).toBeNull()
-    expect(plannedWorkDurationMs(card('t4', { createdAt: 'не дата' }))).toBeNull()
+  it('нет ответа — ноль, карточка скрыта, как «На приёмке» при нуле', () => {
+    expect(longTermTicketsTotal(undefined)).toBe(0)
+    expect(longTermTicketsTotal([])).toBe(0)
   })
 
-  it('не время до дедлайна: результат не зависит от текущего момента', () => {
-    // Создана давно, срок завтра: на работу отводилось 41 сутки — долгосрочная.
-    const longButSoon = card('t1', { createdAt: '2026-09-01T09:00:00.000Z', plannedDueAt: '2026-10-12T09:00:00.000Z' })
-    // Создана сегодня, срок через 3 дня: короткая, хотя «далеко» от старых заявок.
-    const shortFresh = card('t2', { createdAt: '2026-10-11T09:00:00.000Z', plannedDueAt: '2026-10-14T09:00:00.000Z' })
-    // Срок уже прошёл, но длительность 15 суток — по-прежнему долгосрочная.
-    const longOverdue = card('t3', { createdAt: '2026-09-01T09:00:00.000Z', plannedDueAt: '2026-09-16T09:00:00.000Z' })
-
-    for (const now of ['2026-09-02T00:00:00.000Z', '2026-10-11T12:00:00.000Z', '2027-01-01T00:00:00.000Z']) {
-      vi.useFakeTimers()
-      vi.setSystemTime(new Date(now))
-      expect([isLongTermTicket(longButSoon), isLongTermTicket(shortFresh), isLongTermTicket(longOverdue)]).toEqual([
-        true,
-        false,
-        true,
-      ])
-      vi.useRealTimers()
-    }
-  })
-
-  it('срок SLA не подменяет плановый срок', () => {
-    expect(isLongTermTicket(card('t1', { plannedDueAt: null, slaDueAt: at(CREATED, 30 * DAY) }))).toBe(false)
-    expect(isLongTermTicket(card('t2', { plannedDueAt: at(CREATED, 2 * DAY), slaDueAt: at(CREATED, 30 * DAY) }))).toBe(false)
-  })
-
-  it('DONE и CANCELED исключены, остальные статусы активны', () => {
-    for (const status of ['DONE', 'CANCELED'] as const) {
-      expect(isLongTermTicket(card('t', { status }))).toBe(false)
-    }
-    for (const status of ['NEW', 'ASSIGNED', 'IN_PROGRESS', 'AWAITING_ACCEPTANCE', 'FIELD_COMPLETE'] as const) {
-      expect(isLongTermTicket(card('t', { status }))).toBe(true)
-    }
+  it('не зависит от board: при пустом board счётчик тот же', () => {
+    expect(filterTicketsByQuickFilter([], 'awaiting', ctx)).toEqual([])
+    expect(longTermTicketsTotal([page([], 12)])).toBe(12)
   })
 })
 
-describe('счётчик карточки и отфильтрованный список', () => {
-  const board = [
-    card('t1'),
-    card('t2', { plannedDueAt: at(CREATED, 3 * DAY) }),
-    card('t3', { status: 'DONE' }),
-    card('t4', { status: 'CANCELED' }),
-    card('t5', { plannedDueAt: null }),
-    card('t6', { status: 'NEW', assignedTechnicianId: null, assignedTechnician: null, plannedDueAt: at(CREATED, 20 * DAY) }),
-    card('t7', { status: 'AWAITING_ACCEPTANCE' }),
-  ]
-
-  it('считает только активные заявки со сроком от 10 суток', () => {
-    expect(ids(filterTicketsByQuickFilter(board, 'longterm', ctx))).toEqual(['t1', 't6', 't7'])
+describe('список и догрузка страниц', () => {
+  it('страницы склеиваются в порядке сервера', () => {
+    expect(ids(mergeLongTermTicketPages([page(['a', 'b'], 4, 'c1'), page(['c', 'd'], 4)]))).toEqual(['a', 'b', 'c', 'd'])
   })
 
-  it('заявка, пришедшая в board дважды, считается один раз', () => {
-    expect(filterTicketsByQuickFilter([...board, card('t1')], 'longterm', ctx)).toHaveLength(3)
+  it('повтор страницы (refetch, двойной тап) не дублирует заявки', () => {
+    expect(ids(mergeLongTermTicketPages([page(['a', 'b'], 3, 'c1'), page(['b', 'c'], 3), page(['c'], 3)]))).toEqual([
+      'a',
+      'b',
+      'c',
+    ])
   })
 
-  it('пустой board — ноль, карточка скрывается тем же правилом, что «На приёмке»', () => {
-    expect(filterTicketsByQuickFilter([], 'longterm', ctx)).toEqual([])
+  it('пустой ответ — пустой список', () => {
+    expect(mergeLongTermTicketPages(undefined)).toEqual([])
+  })
+})
+
+describe('запрос страницы', () => {
+  it('передаёт контур тем параметром, которым он пришёл, и курсор страницы', () => {
+    expect(buildLongTermTicketsQuery({ limit: 50 })).toBe('?limit=50')
+    expect(buildLongTermTicketsQuery({ limit: 50, cursor: 'abc', linkedClientCompanyId: 'client-1' })).toBe(
+      '?limit=50&cursor=abc&linkedClientCompanyId=client-1',
+    )
+    expect(buildLongTermTicketsQuery({ companyId: 'observed-1' })).toBe('?companyId=observed-1')
   })
 
-  it('«На приёмке» и остальные быстрые карты считают как раньше', () => {
-    expect(ids(filterTicketsByQuickFilter(board, 'awaiting', ctx))).toEqual(['t7'])
-    expect(ids(filterTicketsByQuickFilter(board, 'myaction', ctx))).toEqual(['t1', 't2', 't5', 't6'])
-    expect(
-      ids(filterTicketsByQuickFilter([card('t8', { status: 'IN_PROGRESS' })], 'rework', { ...ctx, reworkTicketIds: new Set(['t8']) })),
-    ).toEqual(['t8'])
+  it('linkedClientCompanyId важнее companyId, пустые параметры не уходят', () => {
+    expect(buildLongTermTicketsQuery({ linkedClientCompanyId: 'client-1', companyId: 'observed-1' })).toBe(
+      '?linkedClientCompanyId=client-1',
+    )
+    expect(buildLongTermTicketsQuery({ cursor: null })).toBe('')
   })
 })
 
@@ -154,7 +118,6 @@ describe('навигация по нажатию', () => {
 
   it('у отфильтрованного списка есть заголовок', () => {
     expect(MOBILE_HOME_QUICK_FILTER_LABELS.longterm).toBe('Долгосрочные заявки')
-    expect(MOBILE_HOME_QUICK_FILTER_LABELS.awaiting).toBe('На приёмке')
   })
 
   it('открытая выборка переживает возврат на главную через сохранённое состояние', () => {
@@ -175,29 +138,29 @@ describe('навигация по нажатию', () => {
   })
 })
 
-describe('разграничение доступа', () => {
-  const quickFilters: Array<Exclude<MobileHomeQuickFilter, null>> = ['urgent', 'awaiting', 'longterm', 'myaction', 'rework']
+describe('остальные карточки не изменились', () => {
+  const board = [
+    card('t1'),
+    card('t2', { status: 'AWAITING_ACCEPTANCE' }),
+    card('t3', { status: 'NEW', assignedTechnicianId: null, assignedTechnician: null }),
+    card('t4', { status: 'IN_PROGRESS' }),
+  ]
 
-  it('выборка — подмножество board: карточка не добавляет заявок сверх видимых', () => {
-    const board = [card('t1'), card('t2', { status: 'NEW', assignedTechnicianId: null, assignedTechnician: null })]
-    const visible = new Set(ids(board))
-    for (const quickFilter of quickFilters) {
-      for (const role of ['TECHNICIAN', 'CLIENT', 'ADMIN', 'DISPATCHER'] as const) {
-        const result = filterTicketsByQuickFilter(board, quickFilter, { ...ctx, meRole: role, canAssignProvider: true })
-        expect(ids(result).every((id) => visible.has(id))).toBe(true)
-      }
-    }
+  it('«На приёмке», «Требует действия», «Требуют доработки» считают по board как раньше', () => {
+    expect(ids(filterTicketsByQuickFilter(board, 'awaiting', ctx))).toEqual(['t2'])
+    expect(ids(filterTicketsByQuickFilter(board, 'myaction', ctx))).toEqual(['t1', 't3', 't4'])
+    expect(ids(filterTicketsByQuickFilter(board, 'rework', { ...ctx, reworkTicketIds: new Set(['t4']) }))).toEqual(['t4'])
   })
 
-  it('роль не меняет выборку долгосрочных: решает только board, суженный backend', () => {
-    const board = [card('t1'), card('t2', { assignedTechnicianId: 'other', assignedTechnician: { id: 'other', email: 'o@test.local' } })]
-    const byRole = (['TECHNICIAN', 'CLIENT', 'ADMIN'] as const).map((role) =>
-      ids(filterTicketsByQuickFilter(board, 'longterm', { ...ctx, meRole: role })),
-    )
-    expect(byRole).toEqual([
-      ['t1', 't2'],
-      ['t1', 't2'],
-      ['t1', 't2'],
-    ])
+  it('board-выборки не выходят за board и дубли считаются один раз', () => {
+    const visible = new Set(ids(board))
+    for (const quickFilter of ['urgent', 'awaiting', 'myaction', 'rework'] as const) {
+      const result = filterTicketsByQuickFilter([...board, card('t1')], quickFilter, {
+        ...ctx,
+        reworkTicketIds: new Set(['t4']),
+      })
+      expect(ids(result).every((id) => visible.has(id))).toBe(true)
+      expect(new Set(ids(result)).size).toBe(result.length)
+    }
   })
 })

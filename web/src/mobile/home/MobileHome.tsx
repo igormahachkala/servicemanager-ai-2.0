@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../../lib/api'
 import {
   compactTicketScope,
@@ -25,6 +25,8 @@ import {
   buildMobileHomeVisibleTickets,
   filterTicketsByQuickFilter,
   formatActiveMobileHomeFiltersSummary,
+  longTermTicketsTotal,
+  mergeLongTermTicketPages,
   MOBILE_HOME_QUICK_FILTER_LABELS,
   readPersistedMobileHomeBoardUi,
   toggleMobileHomeQuickFilter,
@@ -153,6 +155,22 @@ export function MobileHome() {
     enabled: boardEnabled && isOnline && boardTab === 'done',
   })
 
+  // SMA-MOBILE-LONG-TERM-TICKETS: долгосрочные заявки — серверная выборка по
+  // всему контуру с точным total; board (последние 500) для них не источник.
+  const longTermQ = useInfiniteQuery({
+    queryKey: ['mobile-home-long-term', linkedClientCompanyId, companyId],
+    queryFn: ({ pageParam }) =>
+      api.longTermTickets({
+        linkedClientCompanyId: pageScope.linkedClientCompanyId,
+        companyId: pageScope.companyId,
+        cursor: pageParam,
+        limit: 50,
+      }),
+    initialPageParam: null as string | null,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+    enabled: boardEnabled && isOnline,
+  })
+
   const linkedClientsQ = useQuery({
     queryKey: ['mobile-home-linked-clients'],
     queryFn: api.getLinkedClients,
@@ -250,14 +268,13 @@ export function MobileHome() {
     () => (isReworkRole ? dedupeBoardCards(cards).filter((t) => t.status === 'IN_PROGRESS' && reworkTicketIds.has(t.id)).length : 0),
     [isReworkRole, cards, reworkTicketIds],
   )
-  const longTermCount = useMemo(
-    () => filterTicketsByQuickFilter(cards, 'longterm', { meId: meQ.data?.id, meRole: meQ.data?.role, canAssignProvider, reworkTicketIds }).length,
-    [cards, meQ.data?.id, meQ.data?.role, canAssignProvider, reworkTicketIds],
-  )
+  const longTermCount = longTermTicketsTotal(longTermQ.data?.pages)
+  const longTermTickets = useMemo(() => mergeLongTermTicketPages(longTermQ.data?.pages), [longTermQ.data])
   const quickTickets = useMemo(() => {
     if (!quickFilter) return null
+    if (quickFilter === 'longterm') return longTermTickets
     return filterTicketsByQuickFilter(cards, quickFilter, { meId: meQ.data?.id, meRole: meQ.data?.role, canAssignProvider, reworkTicketIds })
-  }, [quickFilter, cards, meQ.data?.id, meQ.data?.role, canAssignProvider, reworkTicketIds])
+  }, [quickFilter, longTermTickets, cards, meQ.data?.id, meQ.data?.role, canAssignProvider, reworkTicketIds])
   const quickFilterLabel = quickFilter ? MOBILE_HOME_QUICK_FILTER_LABELS[quickFilter] : ''
   const renderedTickets = quickFilter ? quickTickets ?? [] : visibleTickets
   const homeListTickets = useMemo(
@@ -466,6 +483,7 @@ export function MobileHome() {
       setAssignTicket(null)
       setAssignTechId('')
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-long-term'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-completed-board'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
@@ -490,6 +508,7 @@ export function MobileHome() {
       parentClose.cancel()
       acceptCloseTicketRef.current = null
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-long-term'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-completed-board'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
@@ -668,7 +687,26 @@ export function MobileHome() {
             onToggleCache={cacheUiOpen ? ticketOfflineCache.toggleSelected : undefined}
             onRefreshCache={cacheUiOpen ? ticketOfflineCache.refreshTicket : undefined}
           />
-          {boardQ.data && boardQ.data.meta.totalTickets >= boardQ.data.meta.limitedToLast && boardQ.data.meta.limitedToLast >= 500 ? (
+          {quickFilter === 'longterm' ? (
+            <div className="mobileNotice" style={{ textAlign: 'center', fontSize: '0.82rem', marginTop: 4 }}>
+              Показано {longTermTickets.length} из {longTermCount}
+              {longTermQ.hasNextPage ? (
+                <>
+                  {' · '}
+                  <button
+                    type="button"
+                    className="mobileLinkButton"
+                    disabled={longTermQ.isFetchingNextPage}
+                    onClick={() => void longTermQ.fetchNextPage()}
+                  >
+                    {longTermQ.isFetchingNextPage ? 'Загрузка…' : 'Показать ещё'}
+                  </button>
+                </>
+              ) : null}
+              {longTermQ.isError ? <div>Не удалось загрузить долгосрочные заявки.</div> : null}
+            </div>
+          ) : null}
+          {quickFilter !== 'longterm' && boardQ.data && boardQ.data.meta.totalTickets >= boardQ.data.meta.limitedToLast && boardQ.data.meta.limitedToLast >= 500 ? (
             <div className="mobileNotice" style={{ textAlign: 'center', fontSize: '0.82rem', marginTop: 4 }}>
               Показано 500 заявок. Используйте фильтры для поиска нужной.
             </div>

@@ -36,6 +36,12 @@ import { isExecutorCapableRole } from '../common/executor.utils'
 import { loadBoardImageAttachmentSummaries } from './board-attachment-summary'
 import { ShiftPolicyService } from '../workforce/shift-policy.service'
 import { loadUnresolvedDescendants } from './ticket-close-tree'
+import {
+  LONG_TERM_DEFAULT_LIMIT,
+  LONG_TERM_MAX_LIMIT,
+  LONG_TERM_STATUSES,
+  paginateLongTerm,
+} from './long-term-tickets';
 
 const companyIdentitySelect = {
   id: true,
@@ -196,6 +202,9 @@ export class TicketsQueryService {
     ) {
       extraAnd.push({ equipmentId: params.input.equipmentId.trim() })
     }
+    if (params.input.ticketIds) {
+      extraAnd.push({ id: { in: params.input.ticketIds } });
+    }
 
     const now = new Date()
     const threshold = new Date(now.getTime() + atRiskThresholdMinutes * 60_000)
@@ -349,7 +358,15 @@ export class TicketsQueryService {
     })
   }
 
-  async board(
+  /**
+   * WHERE видимости board — tenant, PRIMARY/SECONDARY, договор, привязки к
+   * объектам, специализации, архив — вместе с параметрами выборки.
+   *
+   * SMA-MOBILE-LONG-TERM-TICKETS: вынесено из board() без изменений, чтобы
+   * выборка долгосрочных заявок шла по тому же scope, что и board главной,
+   * но по всему контуру, а не по последним 500. where = null — не видно ничего.
+   */
+  private async resolveBoardWhere(
     companyId: string,
     userId: string,
     role: UserRole,
@@ -530,9 +547,6 @@ export class TicketsQueryService {
       input.includeArchived,
     )
 
-    const nowMs = Date.now()
-    const atRiskThresholdMs = decision.meta.atRiskThresholdMinutes * 60_000
-
     let prismaWhere = whereWithArchiveFilter as any
     if (
       prismaWhere &&
@@ -549,6 +563,39 @@ export class TicketsQueryService {
           : {}
     }
     const safeBoardWhere = this.safeTicketWhereOrNull(prismaWhere)
+    return {
+      where: safeBoardWhere as Prisma.TicketWhereInput | null,
+      decision,
+      scope,
+    };
+  }
+
+  async board(
+    companyId: string,
+    userId: string,
+    role: UserRole,
+    input: BoardQueryInput,
+    accessFlags?: AccessFlags,
+    linkedClientCompanyId?: string,
+    observerCompanyId?: string,
+  ) {
+    const {
+      where: safeBoardWhere,
+      decision,
+      scope,
+    } = await this.resolveBoardWhere(
+      companyId,
+      userId,
+      role,
+      input,
+      accessFlags,
+      linkedClientCompanyId,
+      observerCompanyId,
+    );
+
+    const nowMs = Date.now();
+    const atRiskThresholdMs = decision.meta.atRiskThresholdMinutes * 60_000;
+
     const tickets = safeBoardWhere
       ? await this.prisma.ticket.findMany({
           where: safeBoardWhere,
@@ -759,6 +806,86 @@ export class TicketsQueryService {
         visibilityMode: scope.visibilityMode,
       },
     }
+  }
+
+  /**
+   * SMA-MOBILE-LONG-TERM-TICKETS — долгосрочные заявки по всему разрешённому
+   * контуру, не по последним 500 строкам board.
+   *
+   * Доступ не решается здесь: кандидаты берутся тем же WHERE, что board
+   * (resolveBoardWhere), а карточки страницы строит сам board() по id страницы —
+   * со всеми его проверками и в том же формате, что рисует мобильная главная.
+   *
+   * Плановая длительность — разность двух колонок, Prisma не сравнивает её в
+   * WHERE. Поэтому выбираются только id и два срока активных заявок с плановым
+   * сроком, правило и порядок применяются в памяти. total точный по всей выборке.
+   */
+  async longTermTickets(
+    companyId: string,
+    userId: string,
+    role: UserRole,
+    params: { limit?: number; cursor?: string | null },
+    accessFlags?: AccessFlags,
+    linkedClientCompanyId?: string,
+    observerCompanyId?: string,
+  ) {
+    const limit = Math.min(
+      Math.max(params.limit ?? LONG_TERM_DEFAULT_LIMIT, 1),
+      LONG_TERM_MAX_LIMIT,
+    );
+    const { where } = await this.resolveBoardWhere(
+      companyId,
+      userId,
+      role,
+      { statuses: LONG_TERM_STATUSES, includeArchived: true },
+      accessFlags,
+      linkedClientCompanyId,
+      observerCompanyId,
+    );
+    if (!where) {
+      return { total: 0, items: [], nextCursor: null, limit };
+    }
+
+    const candidates = await this.prisma.ticket.findMany({
+      where: { AND: [where, { plannedDueAt: { not: null } }] },
+      select: { id: true, createdAt: true, plannedDueAt: true },
+    });
+    const { total, page, nextCursor } = paginateLongTerm(candidates, {
+      limit,
+      cursor: params.cursor,
+    });
+    if (page.length === 0) {
+      return { total, items: [], nextCursor: null, limit };
+    }
+
+    const board = await this.board(
+      companyId,
+      userId,
+      role,
+      {
+        statuses: LONG_TERM_STATUSES,
+        includeArchived: true,
+        ticketIds: page.map((row) => row.id),
+        take: page.length,
+      },
+      accessFlags,
+      linkedClientCompanyId,
+      observerCompanyId,
+    );
+    const cardById = new Map<
+      string,
+      (typeof board.columns)[number]['cards'][number]
+    >();
+    for (const column of board.columns) {
+      for (const card of column.cards) cardById.set(card.id, card);
+    }
+    // Порядок страницы — порядок выборки. Заявка, закрытая между двумя
+    // запросами, просто выпадает: курсор всё равно стоит после последней строки.
+    const items = page
+      .map((row) => cardById.get(row.id))
+      .filter((card): card is NonNullable<typeof card> => !!card);
+
+    return { total, items, nextCursor, limit };
   }
 
   async contextAnalytics(

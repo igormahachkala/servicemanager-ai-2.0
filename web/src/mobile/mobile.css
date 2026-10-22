@@ -4140,6 +4140,18 @@ a.mobileBtn.mobileCreateTicketLink {
   outline-offset: 1px;
 }
 
+/* «Показать ещё» под списком долгосрочных заявок */
+.mobileLinkButton {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: #0f766e;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.mobileLinkButton:disabled { color: #6b7280; cursor: default; }
+
 /* violet — «Требует действия» / «Планирование» */
 .mobileHomeQuickCard--violet {
   background: #f5f3ff;
