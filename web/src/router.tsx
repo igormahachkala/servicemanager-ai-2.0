@@ -79,6 +79,7 @@ const LocationAnalyticsPage = lazyExport(() => import('./views/LocationAnalytics
 const SettingsPage = lazyExport(() => import('./views/SettingsPage'), 'SettingsPage')
 const MaterialsPage = lazyExport(() => import('./views/MaterialsPage'), 'MaterialsPage')
 const UpdatesCenterPage = lazyExport(() => import('./views/UpdatesCenterPage'), 'UpdatesCenterPage')
+const WorkCalendarPage = lazyExport(() => import('./views/WorkCalendarPage'), 'WorkCalendarPage')
 const FailureCausesPage = lazyExport(() => import('./views/FailureCausesPage'), 'FailureCausesPage')
 const ProblemCategoriesPage = lazyExport(() => import('./views/ProblemCategoriesPage'), 'ProblemCategoriesPage')
 const SpecializationsPage = lazyExport(() => import('./views/SpecializationsPage'), 'SpecializationsPage')
@@ -388,6 +389,7 @@ export function AppRoutes() {
         <Route path="inspection/templates" element={<LazyRoute component={InspectionTemplatesPage} />} />
         <Route path="inspection/runs" element={<LazyRoute component={InspectionRunsPage} />} />
         <Route path="inspection/schedules" element={<LazyRoute component={InspectionSchedulesPage} />} />
+        <Route path="work-calendar" element={<LazyRoute component={WorkCalendarPage} />} />
         <Route path="inspection/runs/:id" element={<LazyRoute component={InspectionRunPage} />} />
         <Route path="inspection/quick/:runId" element={<LazyRoute component={InspectionQuickPage} />} />
         <Route path="inspection/runs/:id/report" element={<LazyRoute component={InspectionRunReportPage} />} />

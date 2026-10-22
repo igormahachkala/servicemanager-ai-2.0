@@ -84,6 +84,7 @@ export const managementRailSections: RailSection[] = [
     id: 'works',
     label: 'Работы',
     items: [
+      { id: 'workCalendar', label: 'Календарь работ', to: '/work-calendar' },
       { id: 'inspectionSchedules', label: 'План обходов', to: '/inspection/schedules' },
       { id: 'inspectionRuns', label: 'Обходы', to: '/inspection/runs' },
       { id: 'inspectionTemplates', label: 'Шаблоны обходов', to: '/inspection/templates' },
@@ -204,6 +205,16 @@ const R = {
   // Планирование/шаблоны обходов (inspection.controller @Roles, десктоп-управление).
   roundsManage: new Set<Role>(['PLATFORM_ADMIN', 'ADMIN', 'ADMIN_PROVIDER', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR']),
   /*
+   * Календарь работ (/work-calendar) — desktop, только просмотр.
+   *
+   * Управленческие роли, которым бэкенд отдаёт заявки и обходы. TECHNICIAN
+   * работает в мобильном контуре (свой планировщик не меняется), CLIENT и
+   * STAFF — до решения владельца о видимости расписания подрядчика.
+   * Это ТОЛЬКО affordance: что показать, решает GET /work-calendar
+   * (capabilities), пункт меню прав не выдаёт.
+   */
+  workCalendar: new Set<Role>(['PLATFORM_ADMIN', 'ADMIN', 'ADMIN_PROVIDER', 'CLIENT_ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TERRITORIAL_MANAGER']),
+  /*
    * Смены и трудозатраты (/workforce).
    *
    * CLIENT_ADMIN входит: владелец утвердил для него WORKFORCE_VIEW —
@@ -263,6 +274,9 @@ export function isManagementNavItemVisible(to: string, ctx: NavVisibilityContext
 
     case '/workforce':
       return has(R.workforce, role)
+
+    case '/work-calendar':
+      return has(R.workCalendar, role)
 
     case '/inspection/schedules':
     case '/inspection/templates':
