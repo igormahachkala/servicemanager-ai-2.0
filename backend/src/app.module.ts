@@ -33,6 +33,7 @@ import { WorkforceModule } from './workforce/workforce.module';
 import { MaterialsModule } from './materials/materials.module';
 import { PlannerModule } from './planner/planner.module';
 import { ProductUpdatesModule } from './product-updates/product-updates.module';
+import { WorkCalendarModule } from './work-calendar/work-calendar.module';
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { ProductUpdatesModule } from './product-updates/product-updates.module';
     MaterialsModule,
     PlannerModule,
     ProductUpdatesModule,
+    WorkCalendarModule,
   ],
   controllers: appControllers(),
   providers: [AppService],
