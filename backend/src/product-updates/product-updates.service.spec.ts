@@ -30,23 +30,50 @@ function matches(row: Row, where: any): boolean {
   });
 }
 
+/** Уступить очередь: одновременные вызовы перемежаются между await, как запросы к БД. */
+const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+/** Ошибка уникальности, как её бросает Prisma (P2002). */
+function uniqueViolation(target: string) {
+  return Object.assign(new Error('Unique constraint failed'), {
+    code: 'P2002',
+    meta: { target: [target] },
+  });
+}
+
 function fakePrisma() {
   const rows: Row[] = [];
   let seq = 0;
   const productUpdate = {
     rows,
-    findMany: jest.fn(async ({ where }: any) =>
-      rows.filter((r) => matches(r, where)),
-    ),
-    findFirst: jest.fn(
-      async ({ where }: any) => rows.find((r) => matches(r, where)) ?? null,
-    ),
+    findMany: jest.fn(async ({ where }: any) => {
+      await tick();
+      return rows.filter((r) => matches(r, where));
+    }),
+    findFirst: jest.fn(async ({ where }: any) => {
+      await tick();
+      return rows.find((r) => matches(r, where)) ?? null;
+    }),
+    findUnique: jest.fn(async ({ where }: any) => {
+      await tick();
+      return rows.find((r) => matches(r, where)) ?? null;
+    }),
+    // Уникальность releaseCommitSha проверяется в момент вставки, как у UNIQUE INDEX.
+    // NULL уникальность не нарушает (ручные карточки).
     create: jest.fn(async ({ data }: any) => {
+      await tick();
+      if (
+        data.releaseCommitSha != null &&
+        rows.some((r) => r.releaseCommitSha === data.releaseCommitSha)
+      ) {
+        throw uniqueViolation('releaseCommitSha');
+      }
       const row = {
         id: `u${++seq}`,
         media: [],
         audienceRoles: [],
         status: 'DRAFT',
+        releaseCommitSha: null,
         publishedAt: null,
         publishedById: null,
         ...data,
@@ -54,12 +81,15 @@ function fakePrisma() {
       rows.push(row);
       return row;
     }),
+    // Условный UPDATE атомарен: отбор и запись без уступки очереди между ними.
     updateMany: jest.fn(async ({ where, data }: any) => {
+      await tick();
       const hit = rows.filter((r) => matches(r, where));
       for (const r of hit) Object.assign(r, data);
       return { count: hit.length };
     }),
     deleteMany: jest.fn(async ({ where }: any) => {
+      await tick();
       const hit = rows.filter((r) => matches(r, where));
       for (const r of hit) rows.splice(rows.indexOf(r), 1);
       return { count: hit.length };
@@ -310,5 +340,129 @@ describe('ProductUpdatesService — черновик из Production-релиз�
     expect((await svc.listPublished(techA)).map((u) => u.id)).toEqual([
       update.id,
     ]);
+  });
+});
+
+describe('ProductUpdatesService — конкурентные запросы', () => {
+  const release = {
+    releaseCommitSha: 'b479dc58',
+    title: 'Релиз',
+    summary: 's',
+    changes: 'c',
+  };
+
+  it('два одновременных createDraftFromRelease по одному SHA дают один черновик', async () => {
+    const { svc, prisma } = setup();
+    const [a, b] = await Promise.all([
+      svc.createDraftFromRelease(release, 'system'),
+      svc.createDraftFromRelease(release, 'system'),
+    ]);
+    expect(prisma.productUpdate.rows).toHaveLength(1);
+    expect([a.created, b.created].sort()).toEqual([false, true]);
+    expect(a.update.id).toBe(b.update.id);
+  });
+
+  it('гонка действительно была: оба вызова прошли предварительную проверку, второй упал на уникальности', async () => {
+    const { svc, prisma } = setup();
+    await Promise.all([
+      svc.createDraftFromRelease(release, 'system'),
+      svc.createDraftFromRelease(release, 'system'),
+    ]);
+    // Без UNIQUE на releaseCommitSha здесь было бы два create и две строки.
+    expect(prisma.productUpdate.create).toHaveBeenCalledTimes(2);
+    expect(prisma.productUpdate.rows).toHaveLength(1);
+  });
+
+  it('десять одновременных вызовов, в том числе с разным регистром SHA, — одна строка', async () => {
+    const { svc, prisma } = setup();
+    const results = await Promise.all(
+      Array.from({ length: 10 }, (_, i) =>
+        svc.createDraftFromRelease(
+          {
+            ...release,
+            releaseCommitSha: i % 2 ? 'B479DC58' : 'b479dc58',
+          },
+          'system',
+        ),
+      ),
+    );
+    expect(prisma.productUpdate.rows).toHaveLength(1);
+    expect(results.filter((r) => r.created)).toHaveLength(1);
+    expect(new Set(results.map((r) => r.update.id)).size).toBe(1);
+  });
+
+  it('разные релизы одновременно — по черновику на каждый', async () => {
+    const { svc, prisma } = setup();
+    await Promise.all([
+      svc.createDraftFromRelease(release, 'system'),
+      svc.createDraftFromRelease(
+        { ...release, releaseCommitSha: 'abcdef1' },
+        'system',
+      ),
+    ]);
+    expect(prisma.productUpdate.rows).toHaveLength(2);
+  });
+
+  it('прочие ошибки БД не маскируются под «уже создано»', async () => {
+    const { svc, prisma } = setup();
+    prisma.productUpdate.create.mockRejectedValueOnce(
+      Object.assign(new Error('connection lost'), { code: 'P1001' }),
+    );
+    await expect(svc.createDraftFromRelease(release, 'system')).rejects.toThrow(
+      'connection lost',
+    );
+  });
+
+  it('ручные карточки без SHA создаются параллельно без конфликта', async () => {
+    const { svc, prisma } = setup();
+    await Promise.all([svc.create(adminA, full), svc.create(adminA, full)]);
+    expect(prisma.productUpdate.rows).toHaveLength(2);
+  });
+
+  it('две одновременные публикации одного черновика: опубликует одна, вторая получит отказ', async () => {
+    const { svc } = setup();
+    const draft = await svc.create(adminA, full);
+    const results = await Promise.allSettled([
+      svc.publish(adminA, draft.id, { confirm: true }),
+      svc.publish(adminA, draft.id, { confirm: true }),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.find(
+      (r) => r.status === 'rejected',
+    ) as PromiseRejectedResult;
+    expect(rejected.reason).toBeInstanceOf(BadRequestException);
+  });
+
+  it('правка, прочитавшая черновик до публикации, не меняет опубликованный текст', async () => {
+    const { svc, prisma } = setup();
+    const draft = await svc.create(adminA, full);
+    await svc.publish(adminA, draft.id, { confirm: true });
+    // Правка успела прочитать карточку ещё черновиком (устаревший снимок),
+    // а записывает уже после публикации: условный UPDATE обязан её отклонить.
+    prisma.productUpdate.findFirst.mockResolvedValueOnce({
+      ...prisma.productUpdate.rows[0],
+      status: ProductUpdateStatus.DRAFT,
+    });
+    await expect(
+      svc.update(adminA, draft.id, { title: 'Подмена после проверки' }),
+    ).rejects.toMatchObject({ response: { code: 'PRODUCT_UPDATE_NOT_DRAFT' } });
+    expect(prisma.productUpdate.rows[0]).toMatchObject({
+      status: ProductUpdateStatus.PUBLISHED,
+      title: full.title,
+    });
+  });
+
+  it('ADMIN другой компании в гонке с владельцем не публикует чужую карточку', async () => {
+    const { svc, prisma } = setup();
+    const draft = await svc.create(adminA, full);
+    const results = await Promise.allSettled([
+      svc.publish(adminB, draft.id, { confirm: true }),
+      svc.publish(adminA, draft.id, { confirm: true }),
+    ]);
+    expect(results[0].status).toBe('rejected');
+    expect((results[0] as PromiseRejectedResult).reason).toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(prisma.productUpdate.rows[0].publishedById).toBe('a1');
   });
 });

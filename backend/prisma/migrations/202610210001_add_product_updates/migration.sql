@@ -29,14 +29,13 @@ CREATE TABLE "ProductUpdate" (
 );
 
 -- CreateIndex
+CREATE UNIQUE INDEX "ProductUpdate_releaseCommitSha_key" ON "ProductUpdate"("releaseCommitSha");
+
+-- CreateIndex
 CREATE INDEX "ProductUpdate_status_publishedAt_idx" ON "ProductUpdate"("status", "publishedAt");
 
 -- CreateIndex
 CREATE INDEX "ProductUpdate_companyId_status_idx" ON "ProductUpdate"("companyId", "status");
 
--- CreateIndex
-CREATE INDEX "ProductUpdate_releaseCommitSha_idx" ON "ProductUpdate"("releaseCommitSha");
-
 -- AddForeignKey
 ALTER TABLE "ProductUpdate" ADD CONSTRAINT "ProductUpdate_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-

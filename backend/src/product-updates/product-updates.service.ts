@@ -269,23 +269,39 @@ export class ProductUpdatesService {
    * Эндпоинта и автоматического вызова на этом этапе нет — это точка входа
    * для будущего шага релиза. Повтор по тому же SHA возвращает существующую
    * карточку, а не создаёт вторую. Публикации здесь нет и быть не должно.
+   *
+   * Идемпотентность держит БД: releaseCommitSha уникален. Предварительная
+   * проверка — только быстрый путь; два одновременных вызова оба её пройдут,
+   * и второй create упадёт с P2002 — тогда возвращаем черновик первого.
    */
   async createDraftFromRelease(
     input: ReleaseDraftInput,
     systemActorId: string,
   ) {
     const data = asBadRequest(() => buildReleaseDraft(input, systemActorId));
-    const existing = await this.prisma.productUpdate.findFirst({
-      where: { companyId: null, releaseCommitSha: data.releaseCommitSha },
+    const bySha = { releaseCommitSha: data.releaseCommitSha };
+
+    const existing = await this.prisma.productUpdate.findUnique({
+      where: bySha,
     });
     if (existing) return { created: false, update: existing };
-    const update = await this.prisma.productUpdate.create({
-      data: {
-        ...data,
-        source: ProductUpdateSource.RELEASE,
-        media: data.media as Prisma.InputJsonValue,
-      },
-    });
-    return { created: true, update };
+
+    try {
+      const update = await this.prisma.productUpdate.create({
+        data: {
+          ...data,
+          source: ProductUpdateSource.RELEASE,
+          media: data.media as Prisma.InputJsonValue,
+        },
+      });
+      return { created: true, update };
+    } catch (error) {
+      if ((error as { code?: string })?.code !== 'P2002') throw error;
+      const winner = await this.prisma.productUpdate.findUnique({
+        where: bySha,
+      });
+      if (!winner) throw error;
+      return { created: false, update: winner };
+    }
   }
 }
