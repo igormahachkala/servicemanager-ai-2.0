@@ -44,9 +44,10 @@ describe('Rail: утверждённая информационная архит
     expect(objects.items?.map((i) => i.to)).toEqual(['/locations', '/equipment', '/map'])
   })
 
-  it('Работы: План обходов/Обходы/Шаблоны/Смены', () => {
+  it('Работы: Календарь работ/План обходов/Обходы/Шаблоны/Смены', () => {
     const works = managementRailSections.find((s) => s.id === 'works')!
     expect(works.items?.map((i) => i.to)).toEqual([
+      '/work-calendar',
       '/inspection/schedules',
       '/inspection/runs',
       '/inspection/templates',

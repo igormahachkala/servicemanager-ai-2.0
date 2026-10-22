@@ -8,5 +8,6 @@ import { DadataModule } from '../dadata/dadata.module'
   imports: [ServiceContractsModule, DadataModule],
   providers: [LocationsService],
   controllers: [LocationsController],
+  exports: [LocationsService],
 })
 export class LocationsModule {}
