@@ -207,13 +207,13 @@ const R = {
   /*
    * Календарь работ (/work-calendar) — desktop, только просмотр.
    *
-   * Ровно @Roles контроллера GET /work-calendar (backend PR #453), кроме
-   * CLIENT: ему пункт открывает CLIENT_ALLOWED. CLIENT_ADMIN и STAFF сервер
-   * не пускает — пункт вёл бы на 403. Право TICKETS_VIEW и частичную
-   * доступность источников проверяет сервер (capabilities); пункт меню
-   * прав не выдаёт.
+   * Решение владельца (22.10.2026): CLIENT_ADMIN — виден; TECHNICIAN и
+   * CLIENT — скрыты (техник работает в мобильном контуре, клиенту
+   * расписание подрядчика не показывается); остальные — по правам
+   * GET /work-calendar. Это ТОЛЬКО affordance: что показать, решает
+   * сервер (capabilities), пункт меню прав не выдаёт.
    */
-  workCalendar: new Set<Role>(['PLATFORM_ADMIN', 'ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TECHNICIAN', 'TERRITORIAL_MANAGER']),
+  workCalendar: new Set<Role>(['PLATFORM_ADMIN', 'ADMIN', 'CLIENT_ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TERRITORIAL_MANAGER']),
   /*
    * Смены и трудозатраты (/workforce).
    *
@@ -230,7 +230,7 @@ const R = {
 }
 
 /** Маршруты, видимые роли CLIENT (узкий allow-list, как в текущем проде). */
-const CLIENT_ALLOWED = new Set<string>(['/board', '/archive', '/tickets', '/tickets/new', '/company', '/settings', '/updates', '/work-calendar'])
+const CLIENT_ALLOWED = new Set<string>(['/board', '/archive', '/tickets', '/tickets/new', '/company', '/settings', '/updates'])
 
 function has(set: Set<Role>, role?: Role | null): boolean {
   return !!role && set.has(role)

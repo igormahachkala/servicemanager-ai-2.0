@@ -10,25 +10,30 @@
  * Ticket.plannedDueAt и InspectionSchedule.nextDueAt — сроки. Срок кладётся
  * на дату как отметка «срок …», а не растягивается в блок на шкале часов.
  *
- * Своего расчёта суток. День события — localDate, посчитанный сервером в
- * поясе ответа. Пересчитывать его из dueAt здесь значило бы завести второе
- * правило «полночи по поясу».
+ * Своего расчёта суток. День события — timing.localDate, посчитанный
+ * сервером в поясе ответа. Пересчитывать его из dueAt здесь значило бы
+ * завести второе правило «полночи по поясу».
  *
  * Своей просрочки. Просрочку плана обхода считает recurrence-логика
- * бэкенда (inspection.isOverdue), календарь её только показывает.
+ * бэкенда (recurrence.isOverdue), календарь её только показывает.
  *
- * Прав. Что пользователь видит, решает сервер. Фильтры здесь только сужают
- * полученный ответ и никогда не расширяют его.
+ * Прав. Что пользователь видит, решает сервер. Фильтры уходят на сервер
+ * и повторно применяются к ответу — только сужая его.
  */
 import { appendScopeToPath } from './api'
 import { locationCardPath, type ScopeParams } from './equipmentCard'
 import { locationSectionLinks } from './locationCardSections'
 import {
+  WORK_CALENDAR_COMPLETED_STATUSES,
   WORK_CALENDAR_INSPECTION_STATUSES,
   WORK_CALENDAR_TICKET_STATUSES,
+  type WorkCalendarAssigned,
   type WorkCalendarCapabilities,
+  type WorkCalendarEmployee,
   type WorkCalendarEvent,
-  type WorkCalendarEventType,
+  type WorkCalendarEventKind,
+  type WorkCalendarMeta,
+  type WorkCalendarParams,
   type WorkCalendarResponse,
   type WorkCalendarTruncatedSource,
 } from './workCalendarApi'
@@ -42,7 +47,7 @@ export const GROUPING_LABEL: Record<CalendarGrouping, string> = {
   locations: 'По объектам',
   works: 'По работам',
 }
-export const KIND_LABEL: Record<WorkCalendarEventType, string> = { TICKET: 'Заявка', INSPECTION: 'Обход' }
+export const KIND_LABEL: Record<WorkCalendarEventKind, string> = { TICKET: 'Заявка', INSPECTION: 'Обход' }
 
 // ─── Диапазон ───────────────────────────────────────────────────────────────
 
@@ -154,10 +159,10 @@ export function browserTimeZone(): string {
 
 // ─── Время события ──────────────────────────────────────────────────────────
 
-/** Срок события или null. Только scheduling = SCHEDULED. */
+/** Срок события или null. Только timing.mode = DUE. */
 export function eventDueAt(event: WorkCalendarEvent): Date | null {
-  if (event.scheduling !== 'SCHEDULED' || !event.dueAt) return null
-  const date = new Date(event.dueAt)
+  if (event.timing.mode !== 'DUE' || !event.timing.dueAt) return null
+  const date = new Date(event.timing.dueAt)
   return Number.isNaN(date.getTime()) ? null : date
 }
 
@@ -179,8 +184,8 @@ export function dueChipLabel(event: WorkCalendarEvent, timeZone?: string | null)
 /** Полная подпись срока для карточки и списка. Дата — localDate сервера. */
 export function dueFullLabel(event: WorkCalendarEvent, timeZone?: string | null): string {
   const due = eventDueAt(event)
-  if (!due || !event.localDate) return 'Без плановой даты'
-  const date = parseDayKey(event.localDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+  if (!due || !event.timing.localDate) return 'Без плановой даты'
+  const date = parseDayKey(event.timing.localDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
   return `до ${date}, ${zonedTime(due, timeZone)}`
 }
 
@@ -193,24 +198,25 @@ export type TimingSplit = {
   outside: WorkCalendarEvent[]
 }
 
-/** Раскладка по localDate сервера. */
+/** Раскладка по timing.localDate сервера. */
 export function splitByTiming(events: readonly WorkCalendarEvent[], days: readonly string[]): TimingSplit {
   const visible = new Set(days)
   const byDay = new Map<string, WorkCalendarEvent[]>()
   const unscheduled: WorkCalendarEvent[] = []
   const outside: WorkCalendarEvent[] = []
   for (const event of sortEvents(events)) {
-    if (event.scheduling !== 'SCHEDULED' || !event.localDate) {
+    const day = event.timing.mode === 'DUE' ? event.timing.localDate : null
+    if (!day) {
       unscheduled.push(event)
       continue
     }
-    if (!visible.has(event.localDate)) {
+    if (!visible.has(day)) {
       outside.push(event)
       continue
     }
-    const list = byDay.get(event.localDate)
+    const list = byDay.get(day)
     if (list) list.push(event)
-    else byDay.set(event.localDate, [event])
+    else byDay.set(day, [event])
   }
   return { byDay, unscheduled, outside }
 }
@@ -227,24 +233,21 @@ export function sortEvents(events: readonly WorkCalendarEvent[]): WorkCalendarEv
 
 // ─── Фильтры ────────────────────────────────────────────────────────────────
 
-export type CalendarAssigned = 'all' | 'assigned' | 'unassigned'
-
 export type CalendarFilters = {
   employeeIds: string[]
   locationIds: string[]
-  types: WorkCalendarEventType[]
+  eventTypes: WorkCalendarEventKind[]
   statuses: string[]
-  /** Только в интерфейсе: у GET /work-calendar такого параметра нет. */
-  assigned: CalendarAssigned
+  assigned: WorkCalendarAssigned
   includeUnscheduled: boolean
-  /** Показывать DONE и CANCELED. Сервер без фильтра статусов отдаёт и их. */
+  /** DONE и CANCELED. Без флага сервер их не отдаёт даже при явном statuses. */
   includeCompleted: boolean
 }
 
 export const EMPTY_FILTERS: CalendarFilters = {
   employeeIds: [],
   locationIds: [],
-  types: [],
+  eventTypes: [],
   statuses: [],
   assigned: 'all',
   includeUnscheduled: true,
@@ -253,52 +256,67 @@ export const EMPTY_FILTERS: CalendarFilters = {
 
 /** Все статусы фильтра — ровно те, что принимает сервер (иначе 400). */
 export const STATUS_OPTIONS: string[] = [...new Set<string>([...WORK_CALENDAR_TICKET_STATUSES, ...WORK_CALENDAR_INSPECTION_STATUSES])]
-const COMPLETED_STATUSES = new Set(['DONE', 'CANCELED'])
-const ACTIVE_STATUSES = STATUS_OPTIONS.filter((s) => !COMPLETED_STATUSES.has(s))
+const COMPLETED = new Set<string>(WORK_CALENDAR_COMPLETED_STATUSES)
+
+export function isCompletedStatus(status: string): boolean {
+  return COMPLETED.has(status)
+}
 
 /**
- * Статусы для запроса.
+ * Фильтры → параметры запроса.
  *
- * Явно выбранные — как есть. Не выбраны и «Завершённые» выключены — все,
- * кроме DONE и CANCELED: сервер без фильтра отдаёт закрытые и отменённые
- * заявки со сроком в периоде. Не выбраны и «Завершённые» включены — без
- * фильтра. undefined = параметр не отправляется.
+ * Завершённые статусы без includeCompleted сервер всё равно не вернёт,
+ * поэтому они из statuses убираются: иначе выбор «Завершена» без галки
+ * выглядел бы как «таких работ нет», а не как «завершённые выключены».
  */
-export function requestStatuses(filters: Pick<CalendarFilters, 'statuses' | 'includeCompleted'>): string[] | undefined {
-  if (filters.statuses.length) return filters.statuses
-  return filters.includeCompleted ? undefined : ACTIVE_STATUSES
+export function filterParams(
+  filters: CalendarFilters,
+): Pick<
+  WorkCalendarParams,
+  'employeeIds' | 'locationIds' | 'eventTypes' | 'statuses' | 'assigned' | 'includeUnscheduled' | 'includeCompleted'
+> {
+  const statuses = filters.includeCompleted ? filters.statuses : filters.statuses.filter((s) => !isCompletedStatus(s))
+  return {
+    employeeIds: filters.employeeIds,
+    locationIds: filters.locationIds,
+    eventTypes: filters.eventTypes,
+    statuses: filters.statuses.length ? statuses : undefined,
+    assigned: filters.assigned,
+    includeUnscheduled: filters.includeUnscheduled,
+    includeCompleted: filters.includeCompleted,
+  }
 }
 
 export function activeFilterCount(filters: CalendarFilters): number {
   return (
     (filters.employeeIds.length ? 1 : 0) +
     (filters.locationIds.length ? 1 : 0) +
-    (filters.types.length ? 1 : 0) +
+    (filters.eventTypes.length ? 1 : 0) +
     (filters.statuses.length ? 1 : 0) +
     (filters.assigned !== 'all' ? 1 : 0)
   )
 }
 
 /**
- * Те же фильтры, что ушли на сервер, повторно на ответе, плюс assigned,
- * которого у сервера нет.
+ * Те же фильтры, что ушли на сервер, повторно на ответе.
  *
- * Только сужение. Расширить ответ отсюда нельзя.
+ * Только сужение. Если сервер параметр не применил, лишнее не покажется;
+ * если применил — повтор ничего не меняет.
  */
 export function applyFilters(events: readonly WorkCalendarEvent[], filters: CalendarFilters): WorkCalendarEvent[] {
   const employees = new Set(filters.employeeIds)
   const locations = new Set(filters.locationIds)
-  const types = new Set(filters.types)
-  const statuses = requestStatuses(filters)
-  const statusSet = statuses ? new Set(statuses) : null
+  const kinds = new Set(filters.eventTypes)
+  const statuses = new Set(filters.statuses)
   return events.filter((event) => {
     if (employees.size && !(event.employeeId && employees.has(event.employeeId))) return false
     if (locations.size && !locations.has(event.locationId)) return false
-    if (types.size && !types.has(event.type)) return false
-    if (statusSet && !statusSet.has(event.status)) return false
+    if (kinds.size && !kinds.has(event.kind)) return false
+    if (statuses.size && !statuses.has(event.status)) return false
+    if (!filters.includeCompleted && isCompletedStatus(event.status)) return false
     if (filters.assigned === 'assigned' && !event.employeeId) return false
     if (filters.assigned === 'unassigned' && event.employeeId) return false
-    if (!filters.includeUnscheduled && event.scheduling !== 'SCHEDULED') return false
+    if (!filters.includeUnscheduled && event.timing.mode !== 'DUE') return false
     return true
   })
 }
@@ -324,6 +342,32 @@ function groupBy(events: readonly WorkCalendarEvent[], keyOf: (e: WorkCalendarEv
     else map.set(key, [event])
   }
   return map
+}
+
+const ROLE_LABEL: Record<string, string> = {
+  PLATFORM_ADMIN: 'Администратор платформы',
+  ADMIN: 'Администратор',
+  CLIENT_ADMIN: 'Администратор клиента',
+  DISPATCHER: 'Диспетчер',
+  MASTER: 'Мастер',
+  TECHNICIAN: 'Техник',
+  CLIENT: 'Клиент',
+  TERRITORIAL_MANAGER: 'Территориальный менеджер',
+  NETWORK_DIRECTOR: 'Директор сети',
+  STAFF: 'Сотрудник',
+}
+
+/**
+ * Подпись сотрудника.
+ *
+ * Своему сотруднику — роль и отметка «неактивен». Исполнителю другой
+ * организации — только это: его роль, компания и признаки не выводятся,
+ * даже если бы пришли (сервер обещает null, проверка ответа это требует).
+ */
+export function employeeSublabel(emp: Pick<WorkCalendarEmployee, 'isOwnCompany' | 'role' | 'isActive'>): string {
+  if (!emp.isOwnCompany) return 'Другая организация'
+  const role = emp.role ? (ROLE_LABEL[emp.role] ?? '') : ''
+  return [role, emp.isActive === false ? 'неактивен' : ''].filter(Boolean).join(' · ')
 }
 
 /**
@@ -355,7 +399,7 @@ export function buildEmployeeRows(
       key: `employee:${emp.id}`,
       kind: 'employee',
       label: emp.displayName || 'Без имени',
-      sublabel: emp.isOwnCompany ? '' : 'Другая организация',
+      sublabel: employeeSublabel(emp),
       events: own,
     })
   }
@@ -379,11 +423,7 @@ export function buildEmployeeRows(
   return rows
 }
 
-/**
- * Строки объектов — тот же принцип. Сервер V1 отдаёт в resources.locations
- * только объекты с событиями; объект без событий, если он придёт, тоже
- * станет строкой.
- */
+/** Строки объектов — тот же принцип; объекты без работ приходят из справочника сервера. */
 export function buildLocationRows(
   response: Pick<WorkCalendarResponse, 'resources'>,
   events: readonly WorkCalendarEvent[],
@@ -429,7 +469,7 @@ const STATUS_RU: Record<string, string> = {
   FIELD_COMPLETE: 'Выполнено',
   DONE: 'Завершена',
   CANCELED: 'Отменена',
-  PLANNED: 'Запланирован',
+  SCHEDULED: 'Запланирован',
   OVERDUE: 'Просрочен',
 }
 
@@ -440,7 +480,7 @@ export function statusLabel(status: string | null | undefined): string {
 
 /** Подпись варианта фильтра: IN_PROGRESS общий у заявок и обходов. */
 export function statusOptionLabel(status: string): string {
-  if (status === 'PLANNED') return 'Обход: запланирован'
+  if (status === 'SCHEDULED') return 'Обход: запланирован'
   if (status === 'OVERDUE') return 'Обход: просрочен'
   return statusLabel(status)
 }
@@ -465,7 +505,7 @@ export function frequencyLabel(frequency: string | null | undefined, intervalDay
 
 /** Просрочка — только из recurrence-логики бэкенда. Своего расчёта нет. */
 export function isServerOverdue(event: WorkCalendarEvent): boolean {
-  return event.inspection?.isOverdue === true
+  return event.recurrence?.isOverdue === true
 }
 
 export type EventLinks = {
@@ -500,13 +540,13 @@ export function eventScope(
 export function eventLinks(event: WorkCalendarEvent, urlScope?: ScopeParams | null, actorCompanyId?: string | null): EventLinks {
   const scope = eventScope(event, urlScope, actorCompanyId)
   const withScope = (path: string) => (Object.keys(scope).length ? appendScopeToPath(path, scope) : path)
-  const id = encodeURIComponent(event.sourceId)
   const locationId = event.locationId
 
   let primary: EventLinks['primary'] = null
   let lastRun: string | null = null
-  if (event.type === 'TICKET') {
-    primary = { label: 'Открыть заявку', to: withScope(`/tickets/${id}`) }
+  if (event.kind === 'TICKET') {
+    const ticketId = event.ticketId ?? event.entityId
+    primary = { label: 'Открыть заявку', to: withScope(`/tickets/${encodeURIComponent(ticketId)}`) }
   } else {
     // Отдельной страницы плана нет: план обходов, суженный до объекта.
     primary = { label: 'Открыть план обходов', to: locationSectionLinks({ locationId, scope, canViewAnalytics: false }).rounds }
@@ -524,15 +564,18 @@ export function capabilityNotices(caps: WorkCalendarCapabilities): string[] {
   if (caps.restrictedEmpty) {
     notices.push('У вас нет доступа ни к одному объекту в этом контуре — календарь пуст не потому, что работ нет.')
   }
-  if (!caps.eventTypes.TICKET && !caps.eventTypes.INSPECTION) {
+  if (!caps.tickets && !caps.inspections) {
     notices.push('Заявки и обходы недоступны вашей роли.')
-  } else if (!caps.eventTypes.TICKET) {
+  } else if (!caps.tickets) {
     notices.push('Заявки недоступны вашей роли: в календаре только обходы.')
-  } else if (!caps.eventTypes.INSPECTION) {
+  } else if (!caps.inspections) {
     notices.push('Планы обходов недоступны вашей роли: в календаре только заявки.')
   }
-  if (!caps.employeeRoster && !caps.restrictedEmpty) {
+  if (!caps.restrictedEmpty && !caps.employeeDirectory) {
     notices.push('Штат недоступен: строки — только исполнители показанных работ, сотрудники без работ не видны.')
+  }
+  if (!caps.restrictedEmpty && !caps.locationDirectory) {
+    notices.push('Справочник объектов недоступен: строки — только объекты с работами.')
   }
   if (!caps.unscheduled) {
     notices.push('Работы без плановой даты сервер не показывает.')
@@ -545,14 +588,16 @@ const TRUNCATED_LABEL: Record<WorkCalendarTruncatedSource, string> = {
   unscheduledTickets: 'заявки без даты',
   inspections: 'планы обходов',
   employees: 'сотрудники',
+  locations: 'объекты',
 }
 
-/** Сообщение о неполном ответе или null. Источник и лимит — из meta сервера. */
-export function truncatedNotice(meta: WorkCalendarResponse['meta']): string | null {
+/** Сообщение о неполном ответе или null. Числа, источники и лимиты — из meta сервера. */
+export function truncatedNotice(meta: WorkCalendarMeta): string | null {
   if (!meta.truncated) return null
   const parts = meta.truncatedSources.map((source) => {
     const limit = meta.limits[source]
     return `${TRUNCATED_LABEL[source]}${typeof limit === 'number' ? ` — первые ${limit}` : ''}`
   })
-  return `Показаны не все данные: ${parts.join(', ')}. Сократите период или уточните фильтры.`
+  const total = meta.totalIsExact ? `${meta.total}` : `не менее ${meta.total}`
+  return `Показаны не все данные: работ в ответе ${meta.returned.total} из ${total}; обрезаны ${parts.join(', ')}. Сократите период или уточните фильтры.`
 }

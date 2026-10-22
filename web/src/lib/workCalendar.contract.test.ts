@@ -1,14 +1,17 @@
 /**
- * SMA-WORK-CALENDAR-V1 — совместимость web с ответом backend PR #453.
+ * SMA-WORK-CALENDAR-V1 — совместимость web с ответом backend PR #453 (4ba0e242).
  *
- * Ответы в fixture вернул настоящий WorkCalendarService (см.
- * __fixtures__/README.md). Тест прогоняет их через тот же путь, что и
- * страница: проверка контракта → проверка пояса и границы → фильтры →
- * раскладка по дням → строки → ссылки.
+ * work-calendar.response.v1.json — эталон бэкенда (побайтовая копия).
+ * workCalendar.scenarios.json — сценарии того же сервиса (см. __fixtures__/README.md).
+ * Ответы идут тем же путём, что на странице: проверка контракта → пояс и
+ * граница → фильтры → раскладка по дням → строки → ссылки.
  */
+import { existsSync, readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import fixture from './__fixtures__/workCalendar.contract.json'
+import canonical from './__fixtures__/work-calendar.response.v1.json'
+import scenarios from './__fixtures__/workCalendar.scenarios.json'
 import {
   EMPTY_FILTERS,
   applyFilters,
@@ -17,7 +20,7 @@ import {
   calendarRange,
   capabilityNotices,
   eventLinks,
-  requestStatuses,
+  filterParams,
   splitByTiming,
   truncatedNotice,
 } from './workCalendar'
@@ -26,12 +29,16 @@ import {
   assertResponseMatchesRequest,
   buildWorkCalendarQuery,
   parseWorkCalendarResponse,
-  type WorkCalendarResponse,
 } from './workCalendarApi'
 
-type Case = { actor: { role: string }; query: Record<string, string>; response: unknown }
-const cases = fixture.cases as unknown as Record<string, Case>
+type Case = { actor: { role: string; companyId: string }; query: Record<string, string>; response: unknown }
+const cases = scenarios.cases as unknown as Record<string, Case>
 const PROVIDER = 'provider-1'
+
+// Ответ, который тест намеренно портит: глубокий доступ без проверок типов.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Raw = Record<string, any>
+const clone = (value: unknown) => structuredClone(value) as Raw
 
 const previousTz = process.env.TZ
 afterEach(() => {
@@ -43,66 +50,154 @@ function load(name: string, view: 'day' | 'week' | 'month', anchor: [number, num
   const c = cases[name]
   process.env.TZ = c.query.timezone
   const range = calendarRange(view, new Date(...anchor))
-  const response = parseWorkCalendarResponse(structuredClone(c.response))
+  const response = parseWorkCalendarResponse(clone(c.response))
   assertResponseMatchesRequest(response, { from: range.days[0], to: c.query.to, timezone: c.query.timezone }, range.from.toISOString())
   return { c, range, response }
 }
 
-// Ответ, который тест намеренно портит: глубокий доступ без проверок типов.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Raw = Record<string, any>
-const clone = (name: string) => structuredClone(cases[name].response) as Raw
+/** Поля, которые читает web. Совпадение с эталоном — точное: и новое, и пропавшее поле видны. */
+const FIELDS = {
+  root: ['capabilities', 'events', 'meta', 'range', 'resources', 'version'],
+  range: ['from', 'timezone', 'to'],
+  capabilities: [
+    'employeeDirectory',
+    'inspections',
+    'locationDirectory',
+    'readOnly',
+    'recurrenceProjection',
+    'resources',
+    'restrictedEmpty',
+    'tickets',
+    'timeWindows',
+    'unscheduled',
+  ],
+  employee: ['companyId', 'displayName', 'eventCount', 'id', 'isActive', 'isExecutor', 'isOwnCompany', 'role'],
+  location: ['address', 'city', 'clientCompanyId', 'eventCount', 'id', 'name'],
+  event: [
+    'clientCompanyId',
+    'companyId',
+    'employeeId',
+    'entityId',
+    'id',
+    'inspection',
+    'kind',
+    'locationId',
+    'recurrence',
+    'scheduleId',
+    'source',
+    'status',
+    'ticket',
+    'ticketId',
+    'timing',
+    'title',
+  ],
+  timing: ['dueAt', 'endAt', 'hasWindow', 'localDate', 'mode', 'startAt'],
+  recurrence: ['followingDueAt', 'frequency', 'intervalDays', 'isOverdue', 'nextDueAt', 'overdueAt'],
+  ticket: ['parentId', 'priority', 'slaDueAt', 'ticketNumber', 'urgency'],
+  inspection: ['lastRunId', 'templateName'],
+  meta: ['generatedAt', 'limits', 'returned', 'scheduled', 'total', 'totalIsExact', 'truncated', 'truncatedSources', 'unscheduled'],
+  returned: ['scheduled', 'total', 'unscheduled'],
+}
+const keys = (o: object) => Object.keys(o).sort()
 
-describe('fixture', () => {
-  it('снят с backend PR #453 и разбирается без ошибок во всех случаях', () => {
-    expect(fixture.source).toMatchObject({ backendPr: 453, commit: 'a301a98181f044deeee22df270e44ef1deec2078' })
-    expect(Object.keys(cases).length).toBeGreaterThanOrEqual(10)
-    for (const [name, c] of Object.entries(cases)) {
-      expect(() => parseWorkCalendarResponse(structuredClone(c.response)), name).not.toThrow()
-    }
+describe('эталон бэкенда work-calendar.response.v1.json', () => {
+  const backendPath = resolve(process.cwd(), '../backend/src/work-calendar/__fixtures__/work-calendar.response.v1.json')
+  const backendPresent = existsSync(backendPath)
+
+  // В ветке web файла бэкенда нет; после влития #453 и #454 проверка становится обязательной.
+  it.skipIf(!backendPresent)('копия в web побайтово совпадает с файлом бэкенда', () => {
+    const webPath = resolve(process.cwd(), 'src/lib/__fixtures__/work-calendar.response.v1.json')
+    expect(readFileSync(webPath, 'utf8')).toBe(readFileSync(backendPath, 'utf8'))
   })
 
-  it('параметры запросов fixture — те, что строит клиент', () => {
-    for (const c of Object.values(cases)) {
-      const built = new URLSearchParams(
-        buildWorkCalendarQuery({
-          from: c.query.from,
-          to: c.query.to,
-          timezone: c.query.timezone,
-          linkedClientCompanyId: c.query.linkedClientCompanyId,
-          types: c.query.types?.split(',') as never,
-          statuses: c.query.statuses?.split(','),
-        }),
-      )
-      expect(Object.fromEntries(built)).toEqual(c.query)
+  it('round-trip: разбор ничего не теряет и не переименовывает', () => {
+    const parsed = parseWorkCalendarResponse(clone(canonical))
+    expect(JSON.parse(JSON.stringify(parsed))).toEqual(canonical)
+  })
+
+  it('каждое поле эталона известно web, и каждое поле web есть в эталоне', () => {
+    const r = canonical as unknown as Raw
+    expect(keys(r)).toEqual(FIELDS.root)
+    expect(keys(r.range)).toEqual(FIELDS.range)
+    expect(keys(r.capabilities)).toEqual(FIELDS.capabilities)
+    expect(keys(r.meta)).toEqual(FIELDS.meta)
+    expect(keys(r.meta.returned)).toEqual(FIELDS.returned)
+    for (const emp of r.resources.employees) expect(keys(emp)).toEqual(FIELDS.employee)
+    for (const loc of r.resources.locations) expect(keys(loc)).toEqual(FIELDS.location)
+    for (const e of r.events) {
+      expect(keys(e)).toEqual(FIELDS.event)
+      expect(keys(e.timing)).toEqual(FIELDS.timing)
+      if (e.recurrence) expect(keys(e.recurrence)).toEqual(FIELDS.recurrence)
+      if (e.ticket) expect(keys(e.ticket)).toEqual(FIELDS.ticket)
+      if (e.inspection) expect(keys(e.inspection)).toEqual(FIELDS.inspection)
     }
+    expect(r.events.map((e: Raw) => e.kind).sort()).toEqual(['INSPECTION', 'TICKET', 'TICKET'])
+  })
+
+  it('эталон проходит путь страницы: дни, строки, ссылки, раскрытие подрядчика', () => {
+    process.env.TZ = 'Europe/Moscow'
+    const range = calendarRange('week', new Date(2026, 9, 27))
+    const response = parseWorkCalendarResponse(clone(canonical))
+    assertResponseMatchesRequest(response, { from: '2026-10-26', to: '2026-11-02', timezone: 'Europe/Moscow' }, range.from.toISOString())
+
+    const split = splitByTiming(response.events, range.days)
+    expect(Object.fromEntries([...split.byDay].map(([d, l]) => [d, l.map((e) => e.ticket?.ticketNumber ?? e.title)]))).toEqual({
+      '2026-10-27': [1042],
+      '2026-10-29': ['ТО холодильного оборудования'],
+    })
+    expect(split.unscheduled.map((e) => e.ticket?.ticketNumber)).toEqual([1043])
+
+    const employees = buildEmployeeRows(response, response.events, { filters: EMPTY_FILTERS, showEmpty: true })
+    expect(employees.map((r) => [r.label, r.sublabel, r.events.length])).toEqual([
+      ['Аксёнов Олег', 'Мастер', 0],
+      ['Петров Иван', 'Техник', 2],
+      ['Субподрядов Артём', 'Другая организация', 1],
+      ['Нераспределённые', 'Исполнитель не назначен', 0],
+    ])
+    const locations = buildLocationRows(response, response.events, { filters: EMPTY_FILTERS, showEmpty: true })
+    expect(locations.map((r) => [r.label, r.events.length])).toEqual([
+      ['Магазин №14', 3],
+      ['Склад «Восток»', 0],
+    ])
+
+    const [ticket, inspection] = response.events
+    expect(eventLinks(ticket, {}, PROVIDER).primary?.to).toBe(
+      '/tickets/bbbbbbbb-0000-4000-8000-000000000001?linkedClientCompanyId=client-a',
+    )
+    expect(eventLinks(inspection, {}, PROVIDER).primary?.to).toBe(
+      '/inspection/schedules?linkedClientCompanyId=client-a&locationId=aaaaaaaa-0000-4000-8000-000000000001',
+    )
   })
 })
 
 describe('нет тихой подстановки: несовместимый ответ — ошибка', () => {
   const broken: Array<[string, (r: Raw) => void, RegExp]> = [
-    ['нет capabilities.eventTypes', (r) => delete r.capabilities.eventTypes, /capabilities\.eventTypes/],
-    [
-      'старое имя поля kind вместо type',
-      (r) => ((r.events[0].kind = r.events[0].type), delete r.events[0].type),
-      /type ∈ TICKET\|INSPECTION/,
-    ],
-    ['нет localDate у SCHEDULED', (r) => (r.events[1].localDate = null), /localDate YYYY-MM-DD/],
+    ['другая версия', (r) => (r.version = 2), /version = 1/],
+    ['старое имя type вместо kind', (r) => ((r.events[0].type = r.events[0].kind), delete r.events[0].kind), /kind ∈ TICKET\|INSPECTION/],
+    ['старое плоское scheduling вместо timing', (r) => delete r.events[0].timing, /events\[0\]\.timing/],
+    ['нет localDate у DUE', (r) => (r.events[0].timing.localDate = null), /localDate YYYY-MM-DD/],
     [
       'пришло окно времени',
-      (r) => ((r.events[1].startAt = '2026-10-27T07:00:00.000Z'), (r.events[1].hasWindow = true)),
+      (r) => ((r.events[0].timing.startAt = '2026-10-27T07:00:00.000Z'), (r.events[0].timing.hasWindow = true)),
       /hasWindow = false/,
     ],
+    ['у обхода нет recurrence', (r) => (r.events[1].recurrence = null), /recurrence\{/],
+    ['ticketId ≠ entityId', (r) => (r.events[0].ticketId = 'other'), /ticketId = entityId/],
+    ['старые capabilities.eventTypes вместо tickets/inspections', (r) => delete r.capabilities.tickets, /capabilities\.tickets/],
     ['неизвестный источник обрезки', (r) => ((r.meta.truncated = true), (r.meta.truncatedSources = ['tickets'])), /truncatedSources/],
     ['truncated без источника', (r) => (r.meta.truncated = true), /truncated ⇔/],
-    ['нет meta.counts', (r) => delete r.meta.counts, /meta\.counts/],
-    ['сотрудник без isOwnCompany', (r) => delete r.resources.employees[0].isOwnCompany, /resources\.employees\[0\]/],
-    ['у обхода нет inspection', (r) => delete r.events[0].inspection, /inspection\{/],
-    ['events не массив', (r) => (r.events = {}), /events\[\]/],
+    ['returned расходится с events', (r) => (r.meta.returned.total = 99), /returned\.total/],
+    ['у объекта нет eventCount', (r) => delete r.resources.locations[0].eventCount, /resources\.locations\[0\]/],
+    ['раскрыта роль подрядчика', (r) => (r.resources.employees[2].role = 'TECHNICIAN'), /другой компании .* должны быть null/],
+    [
+      'раскрыта компания подрядчика',
+      (r) => (r.resources.employees[2].companyId = 'provider-secondary'),
+      /другой компании .* должны быть null/,
+    ],
   ]
   for (const [title, mutate, expected] of broken) {
     it(title, () => {
-      const r = clone('dispatcherWeek')
+      const r = clone(canonical)
       mutate(r)
       expect(() => parseWorkCalendarResponse(r)).toThrow(WorkCalendarContractError)
       expect(() => parseWorkCalendarResponse(r)).toThrow(expected)
@@ -110,22 +205,16 @@ describe('нет тихой подстановки: несовместимый �
   }
 
   it('лишнее новое поле контракт не ломает', () => {
-    const r = clone('dispatcherWeek')
+    const r = clone(canonical)
     r.events[0].futureField = 1
     r.capabilities.somethingNew = true
     expect(() => parseWorkCalendarResponse(r)).not.toThrow()
   })
 
   it('пояс или граница ответа не совпали с запросом — ошибка, а не сдвиг суток', () => {
-    process.env.TZ = 'Europe/Moscow'
-    const response = parseWorkCalendarResponse(clone('dispatcherWeek'))
-    const range = calendarRange('week', new Date(2026, 9, 27))
+    const response = parseWorkCalendarResponse(clone(canonical))
     expect(() =>
-      assertResponseMatchesRequest(
-        response,
-        { from: '2026-10-26', to: '2026-11-02', timezone: 'Asia/Yekaterinburg' },
-        range.from.toISOString(),
-      ),
+      assertResponseMatchesRequest(response, { from: '2026-10-26', to: '2026-11-02', timezone: 'Asia/Yekaterinburg' }, response.range.from),
     ).toThrow(/range\.timezone/)
     expect(() =>
       assertResponseMatchesRequest(
@@ -137,124 +226,147 @@ describe('нет тихой подстановки: несовместимый �
   })
 })
 
-describe('раскладка заявок и обходов по дням (Europe/Moscow)', () => {
-  it('неделя: каждое событие в своих сутках по localDate; поздний срок по UTC — на следующий день', () => {
+describe('сценарии сервиса (4ba0e242)', () => {
+  it('сняты с того же коммита, что эталон, и все разбираются', () => {
+    expect(scenarios.source).toMatchObject({ backendPr: 453, commit: '4ba0e24223a286b808757948e60ffdd6f26d1bf1' })
+    expect(Object.keys(cases)).toHaveLength(12)
+    for (const [name, c] of Object.entries(cases)) expect(() => parseWorkCalendarResponse(clone(c.response)), name).not.toThrow()
+  })
+
+  it('запросы сценариев строятся клиентом из фильтров один в один', () => {
+    for (const c of Object.values(cases)) {
+      const q = c.query
+      const built = buildWorkCalendarQuery({
+        from: q.from,
+        to: q.to,
+        timezone: q.timezone,
+        linkedClientCompanyId: q.linkedClientCompanyId,
+        eventTypes: q.eventTypes?.split(',') as never,
+        statuses: q.statuses?.split(','),
+        assigned: q.assigned as never,
+        includeCompleted: q.includeCompleted ? q.includeCompleted === 'true' : undefined,
+      })
+      expect(Object.fromEntries(new URLSearchParams(built))).toEqual(q)
+    }
+  })
+})
+
+describe('раскладка по дням (Europe/Moscow)', () => {
+  it('неделя: каждое событие в своих сутках по localDate; 22:30 UTC — на следующий день', () => {
     const { range, response } = load('dispatcherWeek', 'week', [2026, 9, 27])
-    expect(range.days).toEqual(['2026-10-26', '2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30', '2026-10-31', '2026-11-01'])
     const split = splitByTiming(response.events, range.days)
-    const byDay = Object.fromEntries([...split.byDay].map(([day, list]) => [day, list.map((e) => e.sourceId)]))
-    expect(byDay).toEqual({
+    expect(Object.fromEntries([...split.byDay].map(([d, l]) => [d, l.map((e) => e.entityId)]))).toEqual({
       '2026-10-26': ['s-overdue'],
       '2026-10-27': ['t-assigned'],
       '2026-10-28': ['t-late', 's-planned'],
       '2026-10-29': ['s-running', 't-unassigned'],
-      '2026-10-30': ['t-done', 't-canceled'],
-      '2026-10-31': ['t-foreign-exec'],
+      '2026-10-31': ['t-contractor'],
     })
-    const late = response.events.find((e) => e.sourceId === 't-late')!
-    expect(late.dueAt!.slice(0, 10)).toBe('2026-10-27')
-    expect(late.localDate).toBe('2026-10-28')
-    expect(split.unscheduled.map((e) => e.sourceId)).toEqual(['t-unscheduled'])
+    const late = response.events.find((e) => e.entityId === 't-late')!
+    expect(late.timing.dueAt!.slice(0, 10)).toBe('2026-10-27')
+    expect(late.timing.localDate).toBe('2026-10-28')
+    expect(split.unscheduled.map((e) => e.entityId)).toEqual(['t-unscheduled'])
     expect(split.outside).toEqual([])
   })
 
-  it('день: один столбец, задача без даты — в своей секции', () => {
-    const { range, response } = load('dispatcherDay', 'day', [2026, 9, 27])
-    const split = splitByTiming(response.events, range.days)
-    expect([...split.byDay.keys()]).toEqual(['2026-10-27'])
-    expect(split.byDay.get('2026-10-27')!.map((e) => e.sourceId)).toEqual(['t-assigned'])
-    expect(split.unscheduled.map((e) => e.sourceId)).toEqual(['t-unscheduled'])
-    expect(split.outside).toEqual([])
-  })
+  it('день и месяц', () => {
+    const day = load('dispatcherDay', 'day', [2026, 9, 27])
+    const daySplit = splitByTiming(day.response.events, day.range.days)
+    expect([...daySplit.byDay.keys()]).toEqual(['2026-10-27'])
+    expect(daySplit.unscheduled.map((e) => e.entityId)).toEqual(['t-unscheduled'])
 
-  it('месяц: 31 столбец, все события внутри', () => {
-    const { range, response } = load('dispatcherMonth', 'month', [2026, 9, 15])
-    expect(range.days).toHaveLength(31)
-    const split = splitByTiming(response.events, range.days)
-    expect(split.outside).toEqual([])
-    expect([...split.byDay.values()].flat()).toHaveLength(response.events.length - split.unscheduled.length)
+    const month = load('dispatcherMonth', 'month', [2026, 9, 15])
+    expect(month.range.days).toHaveLength(31)
+    const monthSplit = splitByTiming(month.response.events, month.range.days)
+    expect(monthSplit.outside).toEqual([])
+    expect([...monthSplit.byDay.values()].flat().length + monthSplit.unscheduled.length).toBe(month.response.events.length)
   })
 })
 
 describe('DST: America/New_York, перевод часов 1 ноября 2026', () => {
-  it('граница недели браузера совпадает с range.from сервера; 23:30 EST — в сутках 1 ноября', () => {
+  it('граница недели браузера совпадает с range сервера; 23:30 EST — в сутках 1 ноября', () => {
     const { range, response } = load('newYorkDstWeek', 'week', [2026, 9, 28])
     expect(range.from.toISOString()).toBe(response.range.from)
     expect(range.to.toISOString()).toBe(response.range.to)
     expect((range.to.getTime() - range.from.getTime()) / 3_600_000).toBe(169)
     const split = splitByTiming(response.events, range.days)
-    expect(split.byDay.get('2026-11-01')?.map((e) => e.sourceId)).toEqual(['t-dst'])
-    expect(split.byDay.get('2026-10-30')?.map((e) => e.sourceId)).toEqual(['t-before-dst'])
-    expect(split.outside).toEqual([])
+    expect(split.byDay.get('2026-11-01')?.map((e) => e.entityId)).toEqual(['t-dst'])
+    expect(split.byDay.get('2026-10-30')?.map((e) => e.entityId)).toEqual(['t-before-dst'])
   })
 })
 
-describe('сотрудники и объекты', () => {
-  it('сотрудник без событий — строка; чужой исполнитель видимой заявки подписан; нераспределённые отдельно', () => {
-    const { response } = load('dispatcherWeek', 'week', [2026, 9, 27])
-    const events = applyFilters(response.events, { ...EMPTY_FILTERS, includeCompleted: true })
-    const rows = buildEmployeeRows(response, events, { filters: EMPTY_FILTERS, showEmpty: true })
-    expect(rows.map((r) => [r.label, r.sublabel, r.events.map((e) => e.sourceId)])).toEqual([
-      ['Аксёнов Олег', '', []],
-      ['Петров Иван', '', ['t-assigned', 's-planned', 's-running', 't-done']],
-      ['Смирнова Анна', '', ['t-late']],
-      ['Сотрудник Чужой', 'Другая организация', ['t-foreign-exec']],
-      ['Нераспределённые', 'Исполнитель не назначен', ['s-overdue', 't-unassigned', 't-canceled', 't-unscheduled']],
-    ])
+describe('завершённые, типы, назначение — серверные параметры', () => {
+  it('по умолчанию DONE/CANCELED нет ни на сервере, ни после фильтра; с флагом — есть', () => {
+    const def = load('dispatcherWeek', 'week', [2026, 9, 27]).response
+    expect(def.events.map((e) => e.status)).not.toContain('DONE')
+    expect(def.events.map((e) => e.status)).not.toContain('CANCELED')
+    const done = load('dispatcherWeekCompleted', 'week', [2026, 9, 27]).response
+    expect(done.events.map((e) => e.entityId)).toEqual(expect.arrayContaining(['t-done', 't-canceled']))
+    expect(applyFilters(done.events, EMPTY_FILTERS).map((e) => e.entityId)).not.toContain('t-done')
+    expect(applyFilters(done.events, { ...EMPTY_FILTERS, includeCompleted: true })).toHaveLength(done.events.length)
   })
 
-  it('объекты — из resources.locations; сервер V1 отдаёт только объекты с работами', () => {
+  it('statuses=DONE без флага сервер возвращает пусто — клиент такой запрос не строит', () => {
+    expect(load('dispatcherWeekDoneWithoutFlag', 'week', [2026, 9, 27]).response.events).toEqual([])
+    const sent = filterParams({ ...EMPTY_FILTERS, statuses: ['DONE'] })
+    expect(sent).toMatchObject({ statuses: [], includeCompleted: false })
+  })
+
+  it('eventTypes=TICKET и assigned=unassigned сужают на сервере, фильтр поверх ничего не теряет', () => {
+    const tickets = load('dispatcherWeekTickets', 'week', [2026, 9, 27]).response
+    expect(tickets.events.every((e) => e.kind === 'TICKET')).toBe(true)
+    expect(applyFilters(tickets.events, { ...EMPTY_FILTERS, eventTypes: ['TICKET'] })).toHaveLength(tickets.events.length)
+
+    const unassigned = load('dispatcherWeekUnassigned', 'week', [2026, 9, 27]).response
+    expect(unassigned.events.length).toBeGreaterThan(0)
+    expect(unassigned.events.every((e) => e.employeeId === null)).toBe(true)
+    expect(applyFilters(unassigned.events, { ...EMPTY_FILTERS, assigned: 'unassigned' })).toHaveLength(unassigned.events.length)
+    const rows = buildEmployeeRows(unassigned, unassigned.events, {
+      filters: { ...EMPTY_FILTERS, assigned: 'unassigned' },
+      showEmpty: true,
+    })
+    expect(rows.map((r) => r.key)).toEqual(['unassigned'])
+  })
+})
+
+describe('сотрудники и объекты без работ, раскрытие подрядчика', () => {
+  it('сотрудник без событий — строка; подрядчик — без роли и компании', () => {
+    const { response } = load('dispatcherWeek', 'week', [2026, 9, 27])
+    const rows = buildEmployeeRows(response, response.events, { filters: EMPTY_FILTERS, showEmpty: true })
+    expect(rows.map((r) => [r.label, r.sublabel, r.events.length])).toEqual([
+      ['Аксёнов Олег', 'Мастер', 0],
+      ['Петров Иван', 'Техник', 3],
+      ['Смирнова Анна', 'Техник', 1],
+      ['Субподрядов Артём', 'Другая организация', 1],
+      ['Нераспределённые', 'Исполнитель не назначен', 3],
+    ])
+    const contractor = response.resources.employees.find((e) => !e.isOwnCompany)!
+    expect(contractor).toMatchObject({ companyId: null, role: null, isActive: null, isExecutor: null })
+    expect(JSON.stringify(rows.map((r) => [r.label, r.sublabel]))).not.toMatch(/provider-secondary|TECHNICIAN/)
+  })
+
+  it('объект без событий — строка из справочника сервера', () => {
     const { response } = load('dispatcherWeek', 'week', [2026, 9, 27])
     const rows = buildLocationRows(response, response.events, { filters: EMPTY_FILTERS, showEmpty: true })
-    expect(rows.map((r) => [r.key, r.label, r.sublabel])).toEqual([
-      ['location:loc-a1', 'А1', 'Уфа'],
-      ['location:loc-a2', 'А2', 'Уфа'],
+    expect(rows.map((r) => [r.key, r.events.length])).toEqual([
+      ['location:loc-a1', 6],
+      ['location:loc-a2', 2],
+      ['location:loc-a3', 0],
     ])
-    expect(rows.every((r) => r.events.length > 0)).toBe(true)
-    expect(rows.reduce((n, r) => n + r.events.length, 0)).toBe(response.events.length)
   })
 
-  it('технику — только он сам', () => {
+  it('технику — только он сам, справочника объектов нет', () => {
     const { response } = load('technicianWeek', 'week', [2026, 9, 27])
     expect(response.resources.employees.map((e) => e.displayName)).toEqual(['Петров Иван'])
+    expect(response.capabilities.locationDirectory).toBe(false)
   })
 })
 
-describe('фильтры поверх ответа', () => {
-  it('«Завершённые» выключены: запрос без DONE/CANCELED даёт тот же набор, что фильтр на полном ответе', () => {
-    const full = load('dispatcherWeek', 'week', [2026, 9, 27]).response
-    const active = load('dispatcherWeekActiveStatuses', 'week', [2026, 9, 27])
-    // Случай fixture снят ровно с тем statuses, который клиент шлёт по умолчанию.
-    expect(active.c.query.statuses.split(',')).toEqual(requestStatuses(EMPTY_FILTERS))
-    const ids = (r: WorkCalendarResponse['events']) => r.map((e) => e.sourceId).sort()
-    expect(ids(applyFilters(full.events, EMPTY_FILTERS))).toEqual(ids(active.response.events))
-    expect(ids(active.response.events)).not.toContain('t-done')
-    expect(ids(active.response.events)).not.toContain('t-canceled')
-  })
-
-  it('types=TICKET: обходов нет и на сервере, и после фильтра', () => {
-    const { response } = load('dispatcherWeekTicketsOnly', 'week', [2026, 9, 27])
-    expect(response.events.every((e) => e.type === 'TICKET')).toBe(true)
-    expect(applyFilters(response.events, { ...EMPTY_FILTERS, types: ['TICKET'], includeCompleted: true })).toHaveLength(
-      response.events.length,
-    )
-  })
-
-  it('assigned (только в интерфейсе) делит ответ на назначенные и нет без потерь', () => {
+describe('ссылки по событиям сценария', () => {
+  it('провайдер без области в адресе: заявка, план, последний обход — с linkedClientCompanyId клиента', () => {
     const { response } = load('dispatcherWeek', 'week', [2026, 9, 27])
-    const base = { ...EMPTY_FILTERS, includeCompleted: true }
-    const a = applyFilters(response.events, { ...base, assigned: 'assigned' })
-    const u = applyFilters(response.events, { ...base, assigned: 'unassigned' })
-    expect(a.length + u.length).toBe(response.events.length)
-    expect(u.every((e) => e.employeeId === null)).toBe(true)
-  })
-})
-
-describe('ссылки по событиям fixture', () => {
-  it('провайдер без области в адресе: заявка и план — с linkedClientCompanyId клиента объекта', () => {
-    const { response } = load('dispatcherWeek', 'week', [2026, 9, 27])
-    const ticket = response.events.find((e) => e.sourceId === 't-assigned')!
-    const running = response.events.find((e) => e.sourceId === 's-running')!
+    const ticket = response.events.find((e) => e.entityId === 't-assigned')!
+    const running = response.events.find((e) => e.entityId === 's-running')!
     expect(eventLinks(ticket, {}, PROVIDER).primary?.to).toBe('/tickets/t-assigned?linkedClientCompanyId=client-a')
     expect(eventLinks(running, {}, PROVIDER)).toEqual({
       primary: { label: 'Открыть план обходов', to: '/inspection/schedules?linkedClientCompanyId=client-a&locationId=loc-a1' },
@@ -264,27 +376,29 @@ describe('ссылки по событиям fixture', () => {
   })
 })
 
-describe('ограниченные capabilities', () => {
-  it('нет LOCATIONS_VIEW: обходов нет, предупреждение, а не пустота', () => {
+describe('ограниченные capabilities и truncated', () => {
+  it('нет LOCATIONS_VIEW: обходов и справочника объектов нет — предупреждения', () => {
     const { response } = load('noLocationsView', 'week', [2026, 9, 27])
-    expect(response.capabilities.eventTypes.INSPECTION).toBe(false)
-    expect(response.events.some((e) => e.type === 'INSPECTION')).toBe(false)
-    expect(capabilityNotices(response.capabilities)).toEqual(['Планы обходов недоступны вашей роли: в календаре только заявки.'])
+    expect(response.events.some((e) => e.kind === 'INSPECTION')).toBe(false)
+    expect(capabilityNotices(response.capabilities)).toEqual([
+      'Планы обходов недоступны вашей роли: в календаре только заявки.',
+      'Справочник объектов недоступен: строки — только объекты с работами.',
+    ])
   })
 
   it('restricted-empty: пусто и объяснено', () => {
     const { response } = load('restrictedEmpty', 'week', [2026, 9, 27])
     expect(response.events).toEqual([])
-    expect(buildEmployeeRows(response, [], { filters: EMPTY_FILTERS, showEmpty: true }).map((r) => r.key)).toEqual(['unassigned'])
     expect(capabilityNotices(response.capabilities)).toEqual([
       'У вас нет доступа ни к одному объекту в этом контуре — календарь пуст не потому, что работ нет.',
     ])
   })
 
-  it('обрезка планов обходов — предупреждение с лимитом сервера', () => {
+  it('обрезка планов: total — нижняя граница, источник и лимит из meta', () => {
     const { response } = load('truncatedInspections', 'week', [2026, 9, 27])
+    expect(response.meta).toMatchObject({ truncated: true, totalIsExact: false, truncatedSources: ['inspections'] })
     expect(truncatedNotice(response.meta)).toBe(
-      'Показаны не все данные: планы обходов — первые 500. Сократите период или уточните фильтры.',
+      'Показаны не все данные: работ в ответе 8 из не менее 8; обрезаны планы обходов — первые 500. Сократите период или уточните фильтры.',
     )
   })
 })

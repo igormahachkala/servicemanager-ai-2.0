@@ -1,10 +1,13 @@
 /**
  * SMA-WORK-CALENDAR-V1 — клиент GET /work-calendar.
  *
- * Контракт — backend PR #453 (backend/src/work-calendar, коммит a301a981):
+ * Контракт — backend PR #453, коммит 4ba0e242 (version 1):
  * work-calendar.controller.ts (параметры), work-calendar.service.ts (ответ),
- * work-calendar-events.ts (события и resources). Календарь только читает:
- * других вызовов у модуля нет.
+ * work-calendar-events.ts (события и resources). Эталон ответа —
+ * backend/src/work-calendar/__fixtures__/work-calendar.response.v1.json,
+ * его копия лежит в web/src/lib/__fixtures__.
+ *
+ * Календарь только читает: других вызовов у модуля нет.
  *
  * Ответ проверяется строго. Несовместимый ответ — ошибка с перечнем
  * расхождений, а не подстановка значений по умолчанию: иначе сменившийся
@@ -13,8 +16,10 @@
  */
 import { request } from './api'
 
-export const WORK_CALENDAR_EVENT_TYPES = ['TICKET', 'INSPECTION'] as const
-export type WorkCalendarEventType = (typeof WORK_CALENDAR_EVENT_TYPES)[number]
+export const WORK_CALENDAR_VERSION = 1
+
+export const WORK_CALENDAR_EVENT_KINDS = ['TICKET', 'INSPECTION'] as const
+export type WorkCalendarEventKind = (typeof WORK_CALENDAR_EVENT_KINDS)[number]
 
 /** Статусы, которые принимает фильтр statuses (TicketStatus + состояния визита плана). */
 export const WORK_CALENDAR_TICKET_STATUSES = [
@@ -26,19 +31,15 @@ export const WORK_CALENDAR_TICKET_STATUSES = [
   'DONE',
   'CANCELED',
 ] as const
-export const WORK_CALENDAR_INSPECTION_STATUSES = ['PLANNED', 'IN_PROGRESS', 'OVERDUE'] as const
+export const WORK_CALENDAR_INSPECTION_STATUSES = ['SCHEDULED', 'IN_PROGRESS', 'OVERDUE'] as const
+/** Сервер возвращает их только при includeCompleted=true — даже если они явно указаны в statuses. */
+export const WORK_CALENDAR_COMPLETED_STATUSES = ['DONE', 'CANCELED'] as const
 
-export const WORK_CALENDAR_TRUNCATED_SOURCES = ['scheduledTickets', 'unscheduledTickets', 'inspections', 'employees'] as const
+export const WORK_CALENDAR_TRUNCATED_SOURCES = ['scheduledTickets', 'unscheduledTickets', 'inspections', 'employees', 'locations'] as const
 export type WorkCalendarTruncatedSource = (typeof WORK_CALENDAR_TRUNCATED_SOURCES)[number]
 
-export type WorkCalendarEvent = {
-  id: string
-  type: WorkCalendarEventType
-  /** id заявки или плана обхода. */
-  sourceId: string
-  title: string
-  status: string
-  scheduling: 'SCHEDULED' | 'UNSCHEDULED'
+export type WorkCalendarTiming = {
+  mode: 'DUE' | 'UNSCHEDULED'
   /** Плановый срок (Ticket.plannedDueAt / InspectionSchedule.nextDueAt). Не время начала. */
   dueAt: string | null
   /** Местные сутки срока в поясе ответа, YYYY-MM-DD. По ним событие ложится на день. */
@@ -46,34 +47,60 @@ export type WorkCalendarEvent = {
   startAt: null
   endAt: null
   hasWindow: false
-  employeeId: string | null
-  locationId: string
+}
+
+export type WorkCalendarRecurrence = {
+  frequency: string
+  intervalDays: number | null
+  nextDueAt: string
+  overdueAt: string
+  isOverdue: boolean
+  followingDueAt: string | null
+}
+
+export type WorkCalendarEvent = {
+  id: string
+  kind: WorkCalendarEventKind
+  source: 'TICKET' | 'INSPECTION_SCHEDULE'
+  /** id заявки или плана обхода. */
+  entityId: string
+  ticketId: string | null
+  scheduleId: string | null
+  /** Владелец записи: компания заявки либо компания, составившая план. */
+  companyId: string
   clientCompanyId: string
-  ticket?: {
+  locationId: string
+  employeeId: string | null
+  title: string
+  status: string
+  timing: WorkCalendarTiming
+  recurrence: WorkCalendarRecurrence | null
+  ticket: {
     ticketNumber: number
     urgency: string
     priority: string
     slaDueAt: string | null
     parentId: string | null
-  }
-  inspection?: {
-    frequency: string
-    intervalDays: number | null
+  } | null
+  inspection: {
     templateName: string | null
-    overdueAt: string
-    isOverdue: boolean
-    followingDueAt: string | null
     lastRunId: string | null
-  }
+  } | null
 }
 
+/**
+ * Строка сотрудника. companyId, role, isActive, isExecutor — только у
+ * сотрудников компании пользователя; у исполнителя другой компании они null.
+ */
 export type WorkCalendarEmployee = {
   id: string
-  firstName: string | null
-  lastName: string | null
   displayName: string
-  /** Сотрудник компании пользователя. Иначе — исполнитель видимой ему заявки. */
+  companyId: string | null
+  role: string | null
+  isActive: boolean | null
+  isExecutor: boolean | null
   isOwnCompany: boolean
+  eventCount: number
 }
 
 export type WorkCalendarLocation = {
@@ -82,31 +109,48 @@ export type WorkCalendarLocation = {
   city: string | null
   address: string | null
   clientCompanyId: string
+  eventCount: number
 }
 
 export type WorkCalendarCapabilities = {
+  tickets: boolean
+  inspections: boolean
+  /** Полные справочники: и штат, и объекты, а не только строки по событиям. */
+  resources: boolean
+  employeeDirectory: boolean
+  locationDirectory: boolean
   readOnly: true
-  eventTypes: Record<WorkCalendarEventType, boolean>
   unscheduled: boolean
   timeWindows: false
   recurrenceProjection: boolean
-  employeeRoster: boolean
   restrictedEmpty: boolean
 }
 
+export type WorkCalendarMeta = {
+  /** Сколько событий подходит под запрос во всём периоде, а не в ответе. */
+  total: number
+  scheduled: number
+  unscheduled: number
+  truncated: boolean
+  /** false — total нижняя граница. */
+  totalIsExact: boolean
+  /** Сколько событий в этом ответе. */
+  returned: { total: number; scheduled: number; unscheduled: number }
+  truncatedSources: WorkCalendarTruncatedSource[]
+  limits: Record<string, number>
+  generatedAt: string
+}
+
 export type WorkCalendarResponse = {
+  version: typeof WORK_CALENDAR_VERSION
   range: { from: string; to: string; timezone: string }
+  capabilities: WorkCalendarCapabilities
   resources: { employees: WorkCalendarEmployee[]; locations: WorkCalendarLocation[] }
   events: WorkCalendarEvent[]
-  capabilities: WorkCalendarCapabilities
-  meta: {
-    truncated: boolean
-    truncatedSources: WorkCalendarTruncatedSource[]
-    limits: Record<string, number>
-    counts: { scheduledTickets: number; unscheduledTickets: number; inspections: number }
-    generatedAt: string
-  }
+  meta: WorkCalendarMeta
 }
+
+export type WorkCalendarAssigned = 'all' | 'assigned' | 'unassigned'
 
 export type WorkCalendarParams = {
   /** Первые сутки, YYYY-MM-DD — полночь в поясе timezone. */
@@ -116,9 +160,11 @@ export type WorkCalendarParams = {
   timezone: string
   employeeIds?: string[]
   locationIds?: string[]
-  types?: WorkCalendarEventType[]
+  eventTypes?: WorkCalendarEventKind[]
   statuses?: string[]
+  assigned?: WorkCalendarAssigned
   includeUnscheduled?: boolean
+  includeCompleted?: boolean
   linkedClientCompanyId?: string
   companyId?: string
 }
@@ -139,9 +185,11 @@ export function buildWorkCalendarQuery(params: WorkCalendarParams): string {
   search.set('timezone', params.timezone)
   setList(search, 'employeeIds', params.employeeIds)
   setList(search, 'locationIds', params.locationIds)
-  setList(search, 'types', params.types)
+  setList(search, 'eventTypes', params.eventTypes)
   setList(search, 'statuses', params.statuses)
+  if (params.assigned && params.assigned !== 'all') search.set('assigned', params.assigned)
   if (params.includeUnscheduled !== undefined) search.set('includeUnscheduled', String(params.includeUnscheduled))
+  if (params.includeCompleted !== undefined) search.set('includeCompleted', String(params.includeCompleted))
   if (params.linkedClientCompanyId) search.set('linkedClientCompanyId', params.linkedClientCompanyId)
   else if (params.companyId) search.set('companyId', params.companyId)
   return search.toString()
@@ -152,9 +200,9 @@ export function buildWorkCalendarQuery(params: WorkCalendarParams): string {
 export class WorkCalendarContractError extends Error {
   readonly problems: string[]
   constructor(problems: string[]) {
-    super(
-      `Ответ GET /work-calendar не совпадает с контрактом: ${problems.slice(0, 3).join('; ')}${problems.length > 3 ? ` (и ещё ${problems.length - 3})` : ''}`,
-    )
+    const head = problems.slice(0, 3).join('; ')
+    const more = problems.length > 3 ? ` (и ещё ${problems.length - 3})` : ''
+    super(`Ответ GET /work-calendar не совпадает с контрактом: ${head}${more}`)
     this.name = 'WorkCalendarContractError'
     this.problems = problems
     Object.setPrototypeOf(this, new.target.prototype)
@@ -164,9 +212,11 @@ export class WorkCalendarContractError extends Error {
 type Obj = Record<string, unknown>
 const isObj = (v: unknown): v is Obj => !!v && typeof v === 'object' && !Array.isArray(v)
 const isStr = (v: unknown): v is string => typeof v === 'string'
+const isNonEmpty = (v: unknown): v is string => isStr(v) && v !== ''
 const isStrOrNull = (v: unknown) => v === null || isStr(v)
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 const isBool = (v: unknown): v is boolean => typeof v === 'boolean'
+const isBoolOrNull = (v: unknown) => v === null || isBool(v)
 const isInstant = (v: unknown) => isStr(v) && !Number.isNaN(new Date(v).getTime()) && /T.*(Z|[+-]\d{2}:\d{2})$/.test(v)
 const LOCAL_DATE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -175,33 +225,67 @@ function checkEvent(e: unknown, at: string, problems: string[]) {
   const need = (ok: boolean, what: string) => {
     if (!ok) problems.push(`${at}.${what}`)
   }
-  need(isStr(e.id) && e.id !== '', 'id')
-  need((WORK_CALENDAR_EVENT_TYPES as readonly unknown[]).includes(e.type), 'type ∈ TICKET|INSPECTION')
-  need(isStr(e.sourceId) && e.sourceId !== '', 'sourceId')
+  need(isNonEmpty(e.id), 'id')
+  need((WORK_CALENDAR_EVENT_KINDS as readonly unknown[]).includes(e.kind), 'kind ∈ TICKET|INSPECTION')
+  need(isNonEmpty(e.entityId), 'entityId')
+  need(isStr(e.companyId), 'companyId')
+  need(isStr(e.clientCompanyId), 'clientCompanyId')
+  need(isNonEmpty(e.locationId), 'locationId')
+  need(isStrOrNull(e.employeeId), 'employeeId')
   need(isStr(e.title), 'title')
   need(isStr(e.status), 'status')
-  need(e.scheduling === 'SCHEDULED' || e.scheduling === 'UNSCHEDULED', 'scheduling ∈ SCHEDULED|UNSCHEDULED')
-  if (e.scheduling === 'SCHEDULED') {
-    need(isInstant(e.dueAt), 'dueAt — момент со смещением у SCHEDULED')
-    need(isStr(e.localDate) && LOCAL_DATE.test(e.localDate), 'localDate YYYY-MM-DD у SCHEDULED')
-  } else if (e.scheduling === 'UNSCHEDULED') {
-    need(e.dueAt === null && e.localDate === null, 'dueAt и localDate = null у UNSCHEDULED')
+
+  if (e.kind === 'TICKET') {
+    need(e.source === 'TICKET', 'source = TICKET у заявки')
+    need(e.ticketId === e.entityId && e.scheduleId === null, 'ticketId = entityId, scheduleId = null у заявки')
+    need(isObj(e.ticket) && isNum(e.ticket.ticketNumber), 'ticket.ticketNumber')
+    need(e.recurrence === null && e.inspection === null, 'recurrence и inspection = null у заявки')
+  } else if (e.kind === 'INSPECTION') {
+    need(e.source === 'INSPECTION_SCHEDULE', 'source = INSPECTION_SCHEDULE у обхода')
+    need(e.scheduleId === e.entityId && e.ticketId === null, 'scheduleId = entityId, ticketId = null у обхода')
+    const r = e.recurrence
+    need(
+      isObj(r) &&
+        isStr(r.frequency) &&
+        isInstant(r.nextDueAt) &&
+        isInstant(r.overdueAt) &&
+        isBool(r.isOverdue) &&
+        isStrOrNull(r.followingDueAt),
+      'recurrence{frequency, nextDueAt, overdueAt, isOverdue, followingDueAt}',
+    )
+    need(
+      isObj(e.inspection) && isStrOrNull(e.inspection.templateName) && isStrOrNull(e.inspection.lastRunId),
+      'inspection{templateName, lastRunId}',
+    )
+    need(e.ticket === null, 'ticket = null у обхода')
+  }
+
+  const t = e.timing
+  if (!isObj(t)) return void problems.push(`${at}.timing`)
+  if (t.mode === 'DUE') {
+    need(isInstant(t.dueAt), 'timing.dueAt — момент со смещением у DUE')
+    need(isStr(t.localDate) && LOCAL_DATE.test(t.localDate), 'timing.localDate YYYY-MM-DD у DUE')
+  } else if (t.mode === 'UNSCHEDULED') {
+    need(t.dueAt === null && t.localDate === null, 'timing.dueAt и localDate = null у UNSCHEDULED')
+  } else {
+    problems.push(`${at}.timing.mode ∈ DUE|UNSCHEDULED`)
   }
   // Окно времени эта версия интерфейса не показывает. Пришло окно — контракт
   // сменился, и молча нарисовать срок вместо окна было бы неправдой.
-  need(e.startAt === null && e.endAt === null && e.hasWindow === false, 'startAt/endAt = null, hasWindow = false')
-  need(isStrOrNull(e.employeeId), 'employeeId')
-  need(isStr(e.locationId) && e.locationId !== '', 'locationId')
-  need(isStr(e.clientCompanyId), 'clientCompanyId')
-  if (e.type === 'TICKET') {
-    need(isObj(e.ticket) && isNum(e.ticket.ticketNumber), 'ticket.ticketNumber')
+  need(t.startAt === null && t.endAt === null && t.hasWindow === false, 'timing: startAt/endAt = null, hasWindow = false')
+}
+
+function checkEmployee(emp: unknown, at: string, problems: string[]) {
+  if (!isObj(emp) || !isNonEmpty(emp.id) || !isStr(emp.displayName) || !isBool(emp.isOwnCompany) || !isNum(emp.eventCount)) {
+    return void problems.push(`${at}{id, displayName, isOwnCompany, eventCount}`)
   }
-  if (e.type === 'INSPECTION') {
-    const insp = e.inspection
-    need(
-      isObj(insp) && isStr(insp.frequency) && isBool(insp.isOverdue) && isStr(insp.overdueAt) && isStrOrNull(insp.lastRunId ?? null),
-      'inspection{frequency, isOverdue, overdueAt, lastRunId}',
-    )
+  if (!isStrOrNull(emp.companyId) || !isStrOrNull(emp.role) || !isBoolOrNull(emp.isActive) || !isBoolOrNull(emp.isExecutor)) {
+    problems.push(`${at}{companyId, role, isActive, isExecutor}`)
+  }
+  // Сервер обещает не раскрывать чужой штат. Пришли внутренние поля
+  // исполнителя другой компании — это нарушение контракта, а не данные.
+  if (!emp.isOwnCompany && (emp.companyId !== null || emp.role !== null || emp.isActive !== null || emp.isExecutor !== null)) {
+    problems.push(`${at}: у сотрудника другой компании companyId/role/isActive/isExecutor должны быть null`)
   }
 }
 
@@ -213,60 +297,61 @@ export function parseWorkCalendarResponse(raw: unknown): WorkCalendarResponse {
     if (!ok) problems.push(what)
   }
 
+  need(raw.version === WORK_CALENDAR_VERSION, `version = ${WORK_CALENDAR_VERSION}`)
   const range = raw.range
-  need(
-    isObj(range) && isInstant(range.from) && isInstant(range.to) && isStr(range.timezone) && range.timezone !== '',
-    'range{from, to, timezone}',
-  )
+  need(isObj(range) && isInstant(range.from) && isInstant(range.to) && isNonEmpty(range.timezone), 'range{from, to, timezone}')
 
   const caps = raw.capabilities
   if (!isObj(caps)) problems.push('capabilities')
   else {
+    const flags = [
+      'tickets',
+      'inspections',
+      'resources',
+      'employeeDirectory',
+      'locationDirectory',
+      'unscheduled',
+      'recurrenceProjection',
+      'restrictedEmpty',
+    ]
+    for (const key of flags) need(isBool(caps[key]), `capabilities.${key}`)
     need(caps.readOnly === true, 'capabilities.readOnly = true')
-    need(
-      isObj(caps.eventTypes) && isBool(caps.eventTypes.TICKET) && isBool(caps.eventTypes.INSPECTION),
-      'capabilities.eventTypes{TICKET, INSPECTION}',
-    )
-    need(isBool(caps.unscheduled), 'capabilities.unscheduled')
     need(caps.timeWindows === false, 'capabilities.timeWindows = false')
-    need(isBool(caps.recurrenceProjection), 'capabilities.recurrenceProjection')
-    need(isBool(caps.employeeRoster), 'capabilities.employeeRoster')
-    need(isBool(caps.restrictedEmpty), 'capabilities.restrictedEmpty')
   }
 
   const meta = raw.meta
   if (!isObj(meta)) problems.push('meta')
   else {
-    need(isBool(meta.truncated), 'meta.truncated')
+    need(isNum(meta.total) && isNum(meta.scheduled) && isNum(meta.unscheduled), 'meta{total, scheduled, unscheduled}')
+    need(isBool(meta.truncated) && isBool(meta.totalIsExact), 'meta{truncated, totalIsExact}')
+    const ret = meta.returned
+    need(isObj(ret) && isNum(ret.total) && isNum(ret.scheduled) && isNum(ret.unscheduled), 'meta.returned{total, scheduled, unscheduled}')
+    const sources = meta.truncatedSources
     need(
-      Array.isArray(meta.truncatedSources) &&
-        meta.truncatedSources.every((s) => (WORK_CALENDAR_TRUNCATED_SOURCES as readonly unknown[]).includes(s)),
-      'meta.truncatedSources ⊆ scheduledTickets|unscheduledTickets|inspections|employees',
+      Array.isArray(sources) && sources.every((s) => (WORK_CALENDAR_TRUNCATED_SOURCES as readonly unknown[]).includes(s)),
+      'meta.truncatedSources ⊆ scheduledTickets|unscheduledTickets|inspections|employees|locations',
     )
+    need(meta.truncated === (Array.isArray(sources) && sources.length > 0), 'meta.truncated ⇔ непустой truncatedSources')
     need(isObj(meta.limits) && Object.values(meta.limits).every(isNum), 'meta.limits')
-    need(
-      isObj(meta.counts) && isNum(meta.counts.scheduledTickets) && isNum(meta.counts.unscheduledTickets) && isNum(meta.counts.inspections),
-      'meta.counts{scheduledTickets, unscheduledTickets, inspections}',
-    )
-    need(
-      meta.truncated === (Array.isArray(meta.truncatedSources) && meta.truncatedSources.length > 0),
-      'meta.truncated ⇔ непустой truncatedSources',
-    )
+    need(isStr(meta.generatedAt), 'meta.generatedAt')
+    if (isObj(ret) && Array.isArray(raw.events)) need(ret.total === raw.events.length, 'meta.returned.total = числу events')
   }
 
   const resources = raw.resources
   if (!isObj(resources) || !Array.isArray(resources.employees) || !Array.isArray(resources.locations)) {
     problems.push('resources{employees[], locations[]}')
   } else {
-    resources.employees.forEach((emp, i) => {
-      if (!isObj(emp) || !isStr(emp.id) || !isStr(emp.displayName) || !isBool(emp.isOwnCompany)) {
-        problems.push(`resources.employees[${i}]{id, displayName, isOwnCompany}`)
-      }
-    })
+    resources.employees.forEach((emp, i) => checkEmployee(emp, `resources.employees[${i}]`, problems))
     resources.locations.forEach((loc, i) => {
-      if (!isObj(loc) || !isStr(loc.id) || !isStr(loc.name) || !isStrOrNull(loc.city) || !isStrOrNull(loc.address)) {
-        problems.push(`resources.locations[${i}]{id, name, city, address}`)
-      }
+      const ok =
+        isObj(loc) &&
+        isNonEmpty(loc.id) &&
+        isStr(loc.name) &&
+        isStrOrNull(loc.city) &&
+        isStrOrNull(loc.address) &&
+        isStr(loc.clientCompanyId) &&
+        isNum(loc.eventCount)
+      if (!ok) problems.push(`resources.locations[${i}]{id, name, city, address, clientCompanyId, eventCount}`)
     })
   }
 
