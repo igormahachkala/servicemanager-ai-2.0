@@ -126,7 +126,10 @@ export const managementRailSections: RailSection[] = [
       {
         id: 'system',
         label: 'Система',
-        items: [{ id: 'settings', label: 'Настройки', to: '/settings' }],
+        items: [
+          { id: 'settings', label: 'Настройки', to: '/settings' },
+          { id: 'updates', label: 'Что нового', to: '/updates' },
+        ],
       },
     ],
   },
@@ -216,7 +219,7 @@ const R = {
 }
 
 /** Маршруты, видимые роли CLIENT (узкий allow-list, как в текущем проде). */
-const CLIENT_ALLOWED = new Set<string>(['/board', '/archive', '/tickets', '/tickets/new', '/company', '/settings'])
+const CLIENT_ALLOWED = new Set<string>(['/board', '/archive', '/tickets', '/tickets/new', '/company', '/settings', '/updates'])
 
 function has(set: Set<Role>, role?: Role | null): boolean {
   return !!role && set.has(role)
@@ -284,6 +287,10 @@ export function isManagementNavItemVisible(to: string, ctx: NavVisibilityContext
     case '/company':
     case '/settings':
       return role !== 'TECHNICIAN' && role !== 'STAFF'
+
+    // «Что нового» — любой роли: что именно показать, решает бэкенд (компания + роль).
+    case '/updates':
+      return true
 
     default:
       // Fail-closed: неизвестный/новый маршрут скрыт, пока явно не разрешён.

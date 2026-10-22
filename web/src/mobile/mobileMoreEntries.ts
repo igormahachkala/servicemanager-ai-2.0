@@ -74,6 +74,9 @@ export function getMobileMoreEntries(
     out.push({ id: 'analytics', label: 'Аналитика', hint: 'Показатели сервиса и качество исполнения', to: p('/analytics') })
   }
 
+  // «Что нового» — любому пользователю; ленту отбирает бэкенд по компании и роли.
+  out.push({ id: 'updates', label: 'Что нового', hint: 'Обновления сервиса и как ими пользоваться', to: p('/updates') })
+
   // Профиль и Настройки — доступны любому аутентифицированному пользователю.
   out.push({ id: 'profile', label: 'Профиль', hint: 'Аккаунт, смена, уведомления', to: p('/profile') })
   out.push({ id: 'settings', label: 'Настройки', hint: 'Системные и управленческие разделы', to: p('/settings') })

@@ -5283,3 +5283,81 @@ export async function updateWorkforceSettings(shiftAutoCloseTime: string) {
     body: { shiftAutoCloseTime },
   })
 }
+
+// ─── Центр обновлений (SMA-UPDATES-CENTER-V1) ───────────────────────────────
+
+export type ProductUpdateStatus = 'DRAFT' | 'PUBLISHED'
+
+export type ProductUpdateMedia = { url: string; caption: string }
+
+export type ProductUpdate = {
+  id: string
+  /** null — глобальная карточка платформы, иначе — карточка компании. */
+  companyId: string | null
+  status: ProductUpdateStatus
+  source: 'MANUAL' | 'RELEASE'
+  releaseCommitSha: string | null
+  title: string
+  summary: string
+  changes: string
+  howToUse: string
+  featurePath: string | null
+  media: ProductUpdateMedia[]
+  /** Кому показывать. Пусто — всем ролям. */
+  audienceRoles: Role[]
+  createdById: string
+  publishedById: string | null
+  publishedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type ProductUpdateInput = {
+  title?: string
+  summary?: string
+  changes?: string
+  howToUse?: string
+  featurePath?: string | null
+  media?: ProductUpdateMedia[]
+  audienceRoles?: Role[]
+}
+
+/** «Что нового»: опубликованные карточки, которые бэкенд разрешил этому пользователю. */
+export async function productUpdates(): Promise<ProductUpdate[]> {
+  const response = await request<unknown>('/product-updates')
+  return normalizeArrayResponse<ProductUpdate>(response, ['items', 'data'])
+}
+
+export async function productUpdate(id: string): Promise<ProductUpdate> {
+  return request<ProductUpdate>(`/product-updates/${encodeURIComponent(id)}`)
+}
+
+/** Карточки области администратора во всех статусах. */
+export async function managedProductUpdates(): Promise<ProductUpdate[]> {
+  const response = await request<unknown>('/product-updates/manage')
+  return normalizeArrayResponse<ProductUpdate>(response, ['items', 'data'])
+}
+
+export async function createProductUpdate(input: ProductUpdateInput): Promise<ProductUpdate> {
+  return request<ProductUpdate>('/product-updates', { method: 'POST', body: input })
+}
+
+export async function updateProductUpdate(id: string, input: ProductUpdateInput): Promise<ProductUpdate> {
+  return request<ProductUpdate>(`/product-updates/${encodeURIComponent(id)}`, { method: 'PATCH', body: input })
+}
+
+/** Публикация требует явного подтверждения: бэкенд без confirm=true откажет. */
+export async function publishProductUpdate(id: string): Promise<ProductUpdate> {
+  return request<ProductUpdate>(`/product-updates/${encodeURIComponent(id)}/publish`, {
+    method: 'POST',
+    body: { confirm: true },
+  })
+}
+
+export async function unpublishProductUpdate(id: string): Promise<ProductUpdate> {
+  return request<ProductUpdate>(`/product-updates/${encodeURIComponent(id)}/unpublish`, { method: 'POST' })
+}
+
+export async function deleteProductUpdateDraft(id: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(`/product-updates/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}

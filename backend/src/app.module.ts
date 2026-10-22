@@ -32,6 +32,7 @@ import { PushModule } from './push/push.module';
 import { WorkforceModule } from './workforce/workforce.module';
 import { MaterialsModule } from './materials/materials.module';
 import { PlannerModule } from './planner/planner.module';
+import { ProductUpdatesModule } from './product-updates/product-updates.module';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { PlannerModule } from './planner/planner.module';
     WorkforceModule,
     MaterialsModule,
     PlannerModule,
+    ProductUpdatesModule,
   ],
   controllers: appControllers(),
   providers: [AppService],
