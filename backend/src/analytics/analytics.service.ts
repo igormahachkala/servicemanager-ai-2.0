@@ -22,6 +22,13 @@ import {
   type SlaSourceTicket,
 } from './analytics-aggregates'
 import { parseAnalyticsDateRange } from './analytics-date-range'
+import {
+  buildContractorAnalytics,
+  selectVisibleContractors,
+  type ContractorRef,
+  type ContractorTicketRow,
+} from './analytics-contractors';
+import { activeServiceContractWhere } from '../service-contracts/service-contract-window';
 
 @Injectable()
 export class AnalyticsService {
@@ -915,6 +922,161 @@ export class AnalyticsService {
       },
       meta: { scopeCompanyId, visibilityMode: scope.visibilityMode, workforceCompanyId },
     }
+  }
+
+  /**
+   * SMA-ANALYTICS-CONTRACTORS — аналитика подрядных организаций клиента.
+   *
+   * Область — та же, что у остальной Analytics V2: resolveScope решает режим
+   * (клиент, PRIMARY, SECONDARY, наблюдатель), resolveScopedTicketWhere сужает
+   * заявки, включая сужение SECONDARY и привязки актора к точкам. Поверх неё
+   * здесь только атрибуция: заявка относится к подрядчику, если её исполнитель
+   * состоит в организации с действующим договором с клиентом.
+   *
+   * Период — по createdAt, как в /analytics/locations: одна и та же выборка
+   * заявок даёт сопоставимые цифры на обоих экранах.
+   */
+  async getContractorsAnalytics(
+    actorCompanyId: string,
+    actorUserId: string,
+    actorRole: UserRole,
+    params: {
+      companyId?: string;
+      linkedClientCompanyId?: string;
+      contractorCompanyId?: string;
+      from?: string;
+      to?: string;
+    },
+  ) {
+    const scope = await this.resolveScope(
+      actorCompanyId,
+      actorRole,
+      params.companyId,
+      params.linkedClientCompanyId,
+    );
+    const scopeCompanyId = scope.scopeCompanyId;
+    const now = new Date();
+
+    const contracts = await this.prisma.serviceContract.findMany({
+      where: {
+        clientCompanyId: scopeCompanyId,
+        ...activeServiceContractWhere(now),
+      },
+      select: {
+        providerCompanyId: true,
+        role: true,
+        providerCompany: { select: { name: true } },
+      },
+    });
+    const contracted: ContractorRef[] = contracts.map((contract) => ({
+      companyId: contract.providerCompanyId,
+      name: contract.providerCompany?.name ?? contract.providerCompanyId,
+      role: contract.role,
+    }));
+
+    const visible = selectVisibleContractors(
+      scope.visibilityMode,
+      actorCompanyId,
+      contracted,
+    );
+    let contractors = visible.contractors;
+    if (params.contractorCompanyId) {
+      // Чужой или несуществующий подрядчик — одинаковый ответ: существование
+      // организации вне области не является информацией для актора.
+      contractors = contractors.filter(
+        (c) => c.companyId === params.contractorCompanyId,
+      );
+      if (contractors.length === 0)
+        throw new NotFoundException('Contractor not found');
+    }
+    const includeUnattributed =
+      visible.includeUnattributed && !params.contractorCompanyId;
+
+    const dateFilter = parseAnalyticsDateRange(params.from, params.to);
+    const period = { from: dateFilter.gte ?? null, to: dateFilter.lte ?? null };
+    const meta = { scopeCompanyId, visibilityMode: scope.visibilityMode };
+
+    if (contractors.length === 0 && !includeUnattributed) {
+      return { contractors: [], unattributed: null, period, meta };
+    }
+
+    const baseWhere = await this.resolveScopedTicketWhere(
+      actorCompanyId,
+      actorUserId,
+      actorRole,
+      scope,
+    );
+    /*
+     * Без сводки «не отнесено» заявки чужих исполнителей не нужны вовсе —
+     * атрибуция повторяется в самом запросе, и строки других организаций не
+     * читаются из базы, а не только отбрасываются в памяти.
+     */
+    const ticketWhere = this.andTicketWhere(baseWhere, {
+      ...(Object.keys(dateFilter).length ? { createdAt: dateFilter } : {}),
+      ...(includeUnattributed
+        ? {}
+        : {
+            assignedTechnician: {
+              companyId: { in: contractors.map((c) => c.companyId) },
+            },
+          }),
+    });
+
+    const [ticketRows, firstResponseRows] = await Promise.all([
+      this.prisma.ticket.findMany({
+        where: ticketWhere,
+        select: {
+          id: true,
+          status: true,
+          locationId: true,
+          location: { select: { name: true, city: true } },
+          assignedTechnician: { select: { companyId: true } },
+          createdAt: true,
+          closedAt: true,
+          slaDueAt: true,
+          slaBreachedAt: true,
+        },
+      }),
+      this.prisma.ticketStatusHistory.groupBy({
+        by: ['ticketId'],
+        where: {
+          toStatus: { in: [...SLA_RESPONSE_STATUSES] },
+          ticket: ticketWhere,
+        },
+        _min: { createdAt: true },
+      }),
+    ]);
+
+    const firstResponseByTicket = new Map<string, Date>();
+    for (const row of firstResponseRows) {
+      if (row._min.createdAt)
+        firstResponseByTicket.set(row.ticketId, row._min.createdAt);
+    }
+
+    const rows: ContractorTicketRow[] = ticketRows.map((row) => ({
+      id: row.id,
+      status: row.status,
+      locationId: row.locationId,
+      locationName: row.location?.name ?? null,
+      city: row.location?.city ?? null,
+      executorCompanyId: row.assignedTechnician?.companyId ?? null,
+      createdAt: row.createdAt,
+      closedAt: row.closedAt ?? null,
+      slaDueAt: row.slaDueAt ?? null,
+      slaBreachedAt: row.slaBreachedAt ?? null,
+      firstResponseAt: firstResponseByTicket.get(row.id) ?? null,
+    }));
+
+    return {
+      ...buildContractorAnalytics({
+        rows,
+        contractors,
+        includeUnattributed,
+        now,
+      }),
+      period,
+      meta,
+    };
   }
 
   private hasStatus(status: string) {
