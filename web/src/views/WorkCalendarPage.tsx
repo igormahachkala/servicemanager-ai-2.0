@@ -2,14 +2,17 @@ import { useEffect, useMemo, useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { Link, useSearchParams } from 'react-router-dom'
 
+import * as api from '../lib/api'
 import { ApiRequestError } from '../lib/api'
 import { readOutboundScopeFromSearch } from '../lib/locationCardSections'
 import {
   EMPTY_FILTERS,
   GROUPING_LABEL,
+  STATUS_OPTIONS,
   KIND_LABEL,
   VIEW_LABEL,
   activeFilterCount,
+  anchorFromSearch,
   applyFilters,
   browserTimeZone,
   buildEmployeeRows,
@@ -27,8 +30,9 @@ import {
   rangeTitle,
   shiftAnchor,
   splitByTiming,
+  requestStatuses,
   statusLabel,
-  statusOptions,
+  statusOptionLabel,
   truncatedNotice,
   type CalendarFilters,
   type CalendarGrouping,
@@ -36,9 +40,12 @@ import {
   type CalendarView,
 } from '../lib/workCalendar'
 import {
+  WorkCalendarContractError,
+  assertResponseMatchesRequest,
   getWorkCalendar,
+  parseWorkCalendarResponse,
   type WorkCalendarEvent,
-  type WorkCalendarEventKind,
+  type WorkCalendarEventType,
   type WorkCalendarParams,
   type WorkCalendarResponse,
 } from '../lib/workCalendarApi'
@@ -51,6 +58,10 @@ function errorText(error: unknown): string {
   if (error instanceof ApiRequestError) {
     if (error.status === 404) return 'Календарь работ ещё не подключён на сервере.'
     if (error.status === 403) return 'Нет доступа к календарю работ.'
+    if (error.status === 400) return `Сервер отклонил запрос календаря: ${error.message}`
+  }
+  if (error instanceof WorkCalendarContractError) {
+    return `${error.message}. Календарь не показан, чтобы не выдать неполные данные за полные.`
   }
   return error instanceof Error ? error.message : String(error)
 }
@@ -113,12 +124,12 @@ function EventChip({ event, timeZone, onOpen }: { event: WorkCalendarEvent; time
   return (
     <button
       type="button"
-      className={`wcChip ${event.kind === 'TICKET' ? 'ticket' : 'inspection'}${overdue ? ' overdue' : ''}`}
+      className={`wcChip ${event.type === 'TICKET' ? 'ticket' : 'inspection'}${overdue ? ' overdue' : ''}`}
       onClick={() => onOpen(event)}
-      title={`${KIND_LABEL[event.kind] ?? event.kind}: ${event.title}`}
+      title={`${KIND_LABEL[event.type] ?? event.type}: ${event.title}`}
     >
       <span className="wcChipMeta">
-        <span>{KIND_LABEL[event.kind] ?? event.kind}</span>
+        <span>{KIND_LABEL[event.type] ?? event.type}</span>
         {due ? <span>{due}</span> : null}
         {overdue ? <span style={{ color: '#9f1239' }}>просрочен</span> : null}
       </span>
@@ -127,13 +138,24 @@ function EventChip({ event, timeZone, onOpen }: { event: WorkCalendarEvent; time
   )
 }
 
+function formatInstant(iso: string, timeZone: string): string {
+  const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }
+  try {
+    return new Date(iso).toLocaleString('ru-RU', { ...options, timeZone })
+  } catch {
+    return new Date(iso).toLocaleString('ru-RU', options)
+  }
+}
+
 type Lookup = {
   employee: (id: string | null) => string
   location: (id: string | null) => { name: string; sub: string }
 }
 
 function makeLookup(data: WorkCalendarResponse | undefined): Lookup {
-  const employees = new Map((data?.resources.employees ?? []).map((e) => [e.id, e.displayName]))
+  const employees = new Map(
+    (data?.resources.employees ?? []).map((e) => [e.id, e.isOwnCompany ? e.displayName : `${e.displayName} (другая организация)`]),
+  )
   const locations = new Map((data?.resources.locations ?? []).map((l) => [l.id, l]))
   return {
     employee: (id) => (id ? (employees.get(id) ?? 'Нет в списке сотрудников') : 'Не назначен'),
@@ -151,15 +173,17 @@ function EventDrawer({
   timeZone,
   lookup,
   scope,
+  actorCompanyId,
   onClose,
 }: {
   event: WorkCalendarEvent
   timeZone: string
   lookup: Lookup
   scope: ReturnType<typeof readOutboundScopeFromSearch>
+  actorCompanyId: string | null
   onClose: () => void
 }) {
-  const links = eventLinks(event, scope)
+  const links = eventLinks(event, scope, actorCompanyId)
   const location = lookup.location(event.locationId)
   const overdue = isServerOverdue(event)
   return (
@@ -167,7 +191,7 @@ function EventDrawer({
       <aside className="wcDrawer" role="dialog" aria-modal="true" aria-label="Карточка события" onClick={(e) => e.stopPropagation()}>
         <div className="row" style={{ alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <span className={`wcKind ${event.kind === 'TICKET' ? 'ticket' : 'inspection'}`}>{KIND_LABEL[event.kind] ?? event.kind}</span>
+            <span className={`wcKind ${event.type === 'TICKET' ? 'ticket' : 'inspection'}`}>{KIND_LABEL[event.type] ?? event.type}</span>
             <span className="uiStatusBadge">{statusLabel(event.status)}</span>
             {overdue ? <span className="tag danger">Просрочен</span> : null}
           </div>
@@ -189,11 +213,19 @@ function EventDrawer({
             {location.sub ? <div className="muted small">{location.sub}</div> : null}
           </dd>
           <dt>Источник</dt>
-          <dd>{event.source === 'INSPECTION_SCHEDULE' ? 'График обхода' : 'Заявка'}</dd>
-          {event.recurrence ? (
+          <dd>{event.type === 'INSPECTION' ? 'План обхода' : `Заявка №${event.ticket?.ticketNumber ?? '—'}`}</dd>
+          {event.inspection ? (
             <>
               <dt>Периодичность</dt>
-              <dd>{frequencyLabel(event.recurrence.frequency, event.recurrence.intervalDays)}</dd>
+              <dd>{frequencyLabel(event.inspection.frequency, event.inspection.intervalDays)}</dd>
+              {event.inspection.templateName ? (
+                <>
+                  <dt>Шаблон</dt>
+                  <dd>{event.inspection.templateName}</dd>
+                </>
+              ) : null}
+              <dt>Следующий визит</dt>
+              <dd>{event.inspection.followingDueAt ? formatInstant(event.inspection.followingDueAt, timeZone) : '—'}</dd>
             </>
           ) : null}
         </dl>
@@ -203,6 +235,7 @@ function EventDrawer({
               {links.primary.label}
             </Link>
           ) : null}
+          {links.lastRun ? <Link to={links.lastRun}>Последний обход</Link> : null}
           {links.location ? <Link to={links.location}>Карточка объекта</Link> : null}
         </div>
         <p className="muted small" style={{ marginTop: 16 }}>
@@ -264,7 +297,7 @@ function ResourceGrid({
 }) {
   const today = dayKey(new Date())
   const compact = view === 'month'
-  const split = useMemo(() => rows.map((row) => ({ row, byDay: splitByTiming(row.events, days, timeZone).byDay })), [rows, days, timeZone])
+  const split = useMemo(() => rows.map((row) => ({ row, byDay: splitByTiming(row.events, days).byDay })), [rows, days])
   if (!rows.length) return <div className="panel muted">{emptyText}</div>
   const colWidth = compact ? 44 : view === 'week' ? 120 : undefined
   return (
@@ -296,12 +329,9 @@ function ResourceGrid({
             const scheduledCount = [...byDay.values()].reduce((sum, list) => sum + list.length, 0)
             const unscheduledCount = row.events.length - scheduledCount
             return (
-              <tr key={row.key} className={row.inactive ? 'wcRowInactive' : undefined}>
+              <tr key={row.key}>
                 <th className={`wcRowHead${special ? ' wcSpecial' : ''}`} scope="row">
-                  <div className="wcRowLabel">
-                    {row.label}
-                    {row.inactive ? ' (неактивен)' : ''}
-                  </div>
+                  <div className="wcRowLabel">{row.label}</div>
                   {row.sublabel ? <div className="wcRowSub">{row.sublabel}</div> : null}
                   {row.events.length === 0 ? (
                     <div className="wcRowEmpty">Нет работ в периоде</div>
@@ -374,7 +404,7 @@ function EventTable({
       <tr key={event.id}>
         <td style={{ whiteSpace: 'nowrap' }}>{dueFullLabel(event, timeZone)}</td>
         <td>
-          <span className={`wcKind ${event.kind === 'TICKET' ? 'ticket' : 'inspection'}`}>{KIND_LABEL[event.kind] ?? event.kind}</span>
+          <span className={`wcKind ${event.type === 'TICKET' ? 'ticket' : 'inspection'}`}>{KIND_LABEL[event.type] ?? event.type}</span>
         </td>
         <td>
           <button type="button" className="wcLinkButton" onClick={() => onOpen(event)}>
@@ -424,12 +454,14 @@ export function WorkCalendarPage() {
   const [searchParams] = useSearchParams()
   const scopeKey = searchParams.toString()
   const scope = useMemo(() => readOutboundScopeFromSearch(new URLSearchParams(scopeKey)), [scopeKey])
-  // Локальные данные — только в dev-сборке и только по явному ?mock=…
+  // Contract fixture бэкенда вместо сервера — только в dev-сборке и только по явному ?mock=<случай>.
   const mockMode = import.meta.env.DEV ? searchParams.get('mock') : null
+  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const actorCompanyId = meQ.data?.companyId ?? null
 
   const [view, setView] = useState<CalendarView>('week')
   const [grouping, setGrouping] = useState<CalendarGrouping>('employees')
-  const [anchor, setAnchor] = useState(() => new Date())
+  const [anchor, setAnchor] = useState(() => anchorFromSearch(searchParams.get('date')) ?? new Date())
   const [filters, setFilters] = useState<CalendarFilters>(EMPTY_FILTERS)
   const [labels, setLabels] = useState<Record<string, string>>({})
   const [showEmpty, setShowEmpty] = useState(true)
@@ -439,35 +471,43 @@ export function WorkCalendarPage() {
   const timeZone = useMemo(() => browserTimeZone(), [])
   const range = useMemo(() => calendarRange(view, anchor), [view, anchor])
 
+  // Только параметры контроллера #453. assigned у сервера нет — он применяется к ответу.
   const params: WorkCalendarParams = useMemo(
     () => ({
-      from: range.from.toISOString(),
-      to: range.to.toISOString(),
+      from: range.days[0],
+      to: dayKey(range.to),
       timezone: timeZone,
-      view,
       employeeIds: filters.employeeIds,
       locationIds: filters.locationIds,
-      eventTypes: filters.eventTypes,
-      statuses: filters.statuses,
-      assigned: filters.assigned,
+      types: filters.types,
+      statuses: requestStatuses(filters),
       includeUnscheduled: filters.includeUnscheduled,
-      includeCompleted: filters.includeCompleted,
       ...scope,
     }),
-    [range, timeZone, view, filters, scope],
+    [range, timeZone, filters, scope],
   )
+  const expectedFromIso = range.from.toISOString()
 
   const calendarQ = useQuery({
     queryKey: ['work-calendar', params, mockMode],
     queryFn: async () => {
       if (import.meta.env.DEV && mockMode) {
-        const { buildWorkCalendarMock } = await import('../lib/workCalendarMock')
-        return buildWorkCalendarMock(params, mockMode)
+        const fixture = (await import('../lib/__fixtures__/workCalendar.contract.json')).default as {
+          cases: Record<string, { response: unknown }>
+        }
+        const found = fixture.cases[mockMode]
+        if (!found) throw new Error(`Нет случая ?mock=${mockMode}. Есть: ${Object.keys(fixture.cases).join(', ')}`)
+        const response = parseWorkCalendarResponse(found.response)
+        assertResponseMatchesRequest(response, params, expectedFromIso)
+        return response
       }
-      return getWorkCalendar(params)
+      return getWorkCalendar(params, expectedFromIso)
     },
     placeholderData: keepPreviousData,
-    retry: (count, error) => !(error instanceof ApiRequestError && (error.status === 403 || error.status === 404)) && count < 2,
+    retry: (count, error) =>
+      !(error instanceof WorkCalendarContractError) &&
+      !(error instanceof ApiRequestError && [400, 403, 404].includes(error.status)) &&
+      count < 2,
   })
 
   useEffect(() => {
@@ -485,11 +525,12 @@ export function WorkCalendarPage() {
   const lookup = useMemo(() => makeLookup(data), [data])
   const displayZone = data?.range.timezone || timeZone
   const events = useMemo(() => applyFilters(data?.events ?? [], filters), [data, filters])
-  const split = useMemo(() => splitByTiming(events, range.days, displayZone), [events, range.days, displayZone])
+  const split = useMemo(() => splitByTiming(events, range.days), [events, range.days])
   const rows = useMemo(() => {
     if (!data) return []
     if (grouping === 'employees') return buildEmployeeRows(data, events, { filters, showEmpty })
-    if (grouping === 'locations') return buildLocationRows(data, events, { filters, showEmpty })
+    // Сервер V1 отдаёт только объекты с работами; пустой объект, если придёт, тоже строка.
+    if (grouping === 'locations') return buildLocationRows(data, events, { filters, showEmpty: true })
     return []
   }, [data, events, filters, grouping, showEmpty])
 
@@ -507,17 +548,17 @@ export function WorkCalendarPage() {
     return [...options].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label, 'ru'))
   }, [data, filters.locationIds, labels])
   const typeOptions: Option[] = [
-    { value: 'TICKET', label: 'Заявки', disabled: data ? !data.capabilities.tickets : false },
-    { value: 'INSPECTION', label: 'Обходы', disabled: data ? !data.capabilities.inspections : false },
+    { value: 'TICKET', label: 'Заявки', disabled: data ? !data.capabilities.eventTypes.TICKET : false },
+    { value: 'INSPECTION', label: 'Обходы', disabled: data ? !data.capabilities.eventTypes.INSPECTION : false },
   ]
-  const statusChoices = useMemo(() => statusOptions(data?.events ?? []).map((value) => ({ value, label: statusLabel(value) })), [data])
+  const statusChoices = STATUS_OPTIONS.map((value) => ({ value, label: statusOptionLabel(value) }))
 
   const patchFilters = (patch: Partial<CalendarFilters>) => setFilters((prev) => ({ ...prev, ...patch }))
   const rememberLabels = (picked: Option[]) =>
     setLabels((prev) => ({ ...prev, ...Object.fromEntries(picked.map((o) => [o.value, o.label])) }))
 
   const notices = data ? capabilityNotices(data.capabilities) : []
-  const truncated = data ? truncatedNotice(data) : null
+  const truncated = data ? truncatedNotice(data.meta) : null
   const filterCount = activeFilterCount(filters)
 
   return (
@@ -608,8 +649,8 @@ export function WorkCalendarPage() {
           <MultiPicker
             label="Типы"
             options={typeOptions}
-            selected={filters.eventTypes}
-            onChange={(values) => patchFilters({ eventTypes: values as WorkCalendarEventKind[] })}
+            selected={filters.types}
+            onChange={(values) => patchFilters({ types: values as WorkCalendarEventType[] })}
           />
           <MultiPicker
             label="Статусы"
@@ -634,18 +675,19 @@ export function WorkCalendarPage() {
             />
             Без назначенного времени
           </label>
-          <label className="wcCheck">
+          <label className="wcCheck" title={filters.statuses.length ? 'Выбраны статусы — действует их список' : undefined}>
             <input
               type="checkbox"
               checked={filters.includeCompleted}
+              disabled={filters.statuses.length > 0}
               onChange={(e) => patchFilters({ includeCompleted: e.target.checked })}
             />
-            Завершённые
+            Завершённые и отменённые
           </label>
-          {grouping !== 'works' ? (
+          {grouping === 'employees' ? (
             <label className="wcCheck">
               <input type="checkbox" checked={showEmpty} onChange={(e) => setShowEmpty(e.target.checked)} />
-              {grouping === 'employees' ? 'Сотрудники без работ' : 'Объекты без работ'}
+              Сотрудники без работ
             </label>
           ) : null}
           {filterCount ? (
@@ -658,7 +700,7 @@ export function WorkCalendarPage() {
 
       <div className="wcBody">
         {mockMode ? (
-          <div className="wcNotice info">Локальные данные для разработки интерфейса (?mock={mockMode}). Не реальные работы.</div>
+          <div className="wcNotice info">Contract fixture бэкенда (?mock={mockMode}), только для разработки. Не реальные работы.</div>
         ) : null}
         {notices.map((text) => (
           <div key={text} className="wcNotice">
@@ -668,8 +710,7 @@ export function WorkCalendarPage() {
         {truncated ? <div className="wcNotice">{truncated}</div> : null}
         {split.outside.length ? (
           <div className="wcNotice info">
-            Событий со сроком за границей видимых дней: {split.outside.length} (часовой пояс сервера отличается). Они есть в представлении
-            «По работам».
+            Событий с датой за границей видимых дней: {split.outside.length}. Они есть в представлении «По работам».
           </div>
         ) : null}
 
@@ -678,6 +719,11 @@ export function WorkCalendarPage() {
 
         {data ? (
           <>
+            {grouping === 'locations' ? (
+              <div className="muted small" style={{ marginBottom: 6 }}>
+                Объекты, на которых есть работы в периоде.
+              </div>
+            ) : null}
             {grouping === 'works' ? (
               split.byDay.size ? (
                 <EventTable
@@ -709,7 +755,7 @@ export function WorkCalendarPage() {
               </section>
             ) : null}
 
-            {filters.includeUnscheduled ? (
+            {filters.includeUnscheduled && data.capabilities.unscheduled ? (
               <section className="wcSection">
                 <h3>Без назначенного времени · {split.unscheduled.length}</h3>
                 <div className="muted small" style={{ marginBottom: 8 }}>
@@ -746,7 +792,14 @@ export function WorkCalendarPage() {
         />
       ) : null}
       {openEvent ? (
-        <EventDrawer event={openEvent} timeZone={displayZone} lookup={lookup} scope={scope} onClose={() => setOpenEvent(null)} />
+        <EventDrawer
+          event={openEvent}
+          timeZone={displayZone}
+          lookup={lookup}
+          scope={scope}
+          actorCompanyId={actorCompanyId}
+          onClose={() => setOpenEvent(null)}
+        />
       ) : null}
     </div>
   )
