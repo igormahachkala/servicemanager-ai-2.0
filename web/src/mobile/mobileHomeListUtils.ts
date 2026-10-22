@@ -3,7 +3,10 @@ import { safeReadJson, safeWriteJson } from '../lib/browserStorage'
 import {
   dedupeBoardCards,
   filterTicketsForMobileHomeTab,
+  isAwaitingAcceptanceTicket,
+  isLongTermTicket,
   isMobileHomeBoardFilterTab,
+  ticketRequiresMyAction,
   type MobileHomeBoardChipId,
   type MobileHomeBoardFilterTab,
   MOBILE_HOME_BOARD_CHIP_IDS,
@@ -13,11 +16,59 @@ import { isHomeUrgentTicket } from './home/homeUrgent'
 
 const LS_KEY = 'sma.mobileHome.boardUi.v1'
 
-const QUICK_FILTER_VALUES = ['urgent', 'awaiting', 'myaction', 'rework'] as const
+const QUICK_FILTER_VALUES = ['urgent', 'awaiting', 'longterm', 'myaction', 'rework'] as const
 function readQuickFilter(v: unknown): MobileHomeQuickFilter {
   return typeof v === 'string' && (QUICK_FILTER_VALUES as readonly string[]).includes(v)
     ? (v as MobileHomeQuickFilter)
     : null
+}
+
+export const MOBILE_HOME_QUICK_FILTER_LABELS: Record<Exclude<MobileHomeQuickFilter, null>, string> = {
+  urgent: 'Срочные заявки',
+  awaiting: 'На приёмке',
+  longterm: 'Долгосрочные заявки',
+  myaction: 'Требует моего действия',
+  rework: 'Требуют доработки',
+}
+
+export type MobileHomeQuickFilterContext = {
+  meId: string | undefined
+  meRole: Role | undefined | null
+  canAssignProvider: boolean
+  reworkTicketIds: ReadonlySet<string>
+}
+
+/**
+ * Выборка быстрой карты главной. Счётчик карты и открытый по нажатию список
+ * считаются одной функцией по одному и тому же board, поэтому расходиться не
+ * могут, а board уже сужен backend'ом (tenant, контур, привязки к объектам).
+ */
+export function filterTicketsByQuickFilter(
+  cards: TicketCard[],
+  quickFilter: Exclude<MobileHomeQuickFilter, null>,
+  ctx: MobileHomeQuickFilterContext,
+): TicketCard[] {
+  const list = dedupeBoardCards(cards)
+  switch (quickFilter) {
+    case 'urgent':
+      return list.filter(isHomeUrgentTicket)
+    case 'awaiting':
+      return list.filter(isAwaitingAcceptanceTicket)
+    case 'longterm':
+      return list.filter(isLongTermTicket)
+    case 'rework':
+      return list.filter((t) => t.status === 'IN_PROGRESS' && ctx.reworkTicketIds.has(t.id))
+    case 'myaction':
+      return list.filter((t) => ticketRequiresMyAction(t, ctx.meId, ctx.meRole, ctx.canAssignProvider))
+  }
+}
+
+/** Нажатие на быструю карту: открыть её выборку, повторное нажатие — закрыть. */
+export function toggleMobileHomeQuickFilter(
+  current: MobileHomeQuickFilter,
+  next: Exclude<MobileHomeQuickFilter, null>,
+): MobileHomeQuickFilter {
+  return current === next ? null : next
 }
 
 export function readPersistedMobileHomeBoardUi(): {

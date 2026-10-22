@@ -1002,6 +1002,80 @@ describe('TicketsQueryService.board', () => {
     }
   })
 
+  it('card carries createdAt and plannedDueAt from the scoped board query', async () => {
+    // Мобильная карточка «Долгосрочные заявки» считает плановый срок
+    // выполнения по этим двум полям board-карточки и других источников не
+    // имеет: без них она молча обнулится, а доступ решает этот же запрос.
+    spyTechScope.mockResolvedValue(makeTechScope());
+    const prisma = makePrisma() as { ticket: { findMany: jest.Mock } };
+    const createdAt = new Date('2026-10-01T09:00:00.000Z');
+    const plannedDueAt = new Date('2026-10-15T09:00:00.000Z');
+    prisma.ticket.findMany.mockResolvedValue([
+      {
+        id: 't-long',
+        companyId: PROVIDER_ID,
+        company: null,
+        ticketNumber: 7,
+        status: TicketStatus.ASSIGNED,
+        urgency: 'NOT_URGENT',
+        priority: 'NORMAL',
+        urgencyReason: null,
+        createdAt,
+        slaDueAt: null,
+        slaBreachedAt: null,
+        plannedDueAt,
+        problemText: 'Замена витрины',
+        requesterName: null,
+        createdByUserId: null,
+        createdByUser: null,
+        pointName: null,
+        parentId: null,
+        locationId: 'loc-1',
+        location: {
+          id: 'loc-1',
+          name: 'Точка',
+          platformCode: 'P1',
+          externalCode: null,
+          city: null,
+          address: null,
+        },
+        problemCategory: {
+          id: 'cat-1',
+          name: 'Холод',
+          specializationLinks: [],
+        },
+        equipment: null,
+        assignedTechnicianId: USER_ID,
+        assignedTechnician: null,
+      },
+    ]);
+    const svc = makeService(prisma);
+
+    const result = await svc.board(
+      PROVIDER_ID,
+      USER_ID,
+      UserRole.TECHNICIAN,
+      {},
+    );
+
+    const card = result.columns
+      .flatMap(
+        (col) =>
+          col.cards as Array<{
+            id: string;
+            createdAt: Date;
+            plannedDueAt: Date | null;
+          }>,
+      )
+      .find((c) => c.id === 't-long');
+    expect(card).toMatchObject({ createdAt, plannedDueAt });
+    const [[boardQuery]] = prisma.ticket.findMany.mock.calls as Array<
+      [{ select: Record<string, unknown> }]
+    >;
+    const select = boardQuery.select;
+    expect(select).toMatchObject({ createdAt: true, plannedDueAt: true });
+  });
+
   it('archive filter: includes OR condition guarding DONE tickets by default', async () => {
     spyTechScope.mockResolvedValue(makeTechScope())
     const prisma = makePrisma()

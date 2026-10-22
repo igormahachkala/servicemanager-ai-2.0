@@ -4123,6 +4123,23 @@ a.mobileBtn.mobileCreateTicketLink {
 .mobileHomeQuickCard--amber .mobileHomeQuickCardSub { color: #b45309; }
 .mobileHomeQuickCard--amber .mobileHomeQuickCardChevron { color: #d97706; }
 
+/* teal — «Долгосрочные заявки» */
+.mobileHomeQuickCard--teal {
+  background: #f0fdfa;
+  border-color: #99f6e4;
+  color: #115e59;
+}
+.mobileHomeQuickCard--teal .mobileHomeQuickCardIcon {
+  background: #ccfbf1;
+  color: #0d9488;
+}
+.mobileHomeQuickCard--teal .mobileHomeQuickCardSub { color: #0f766e; }
+.mobileHomeQuickCard--teal .mobileHomeQuickCardChevron { color: #0d9488; }
+.mobileHomeQuickCard--tealActive {
+  outline: 2px solid #0d9488;
+  outline-offset: 1px;
+}
+
 /* violet — «Требует действия» / «Планирование» */
 .mobileHomeQuickCard--violet {
   background: #f5f3ff;

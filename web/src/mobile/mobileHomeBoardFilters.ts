@@ -99,6 +99,39 @@ export function isAwaitingAcceptanceTicket(ticket: TicketCard): boolean {
   return ticket.status === 'AWAITING_ACCEPTANCE'
 }
 
+/** Порог «долгосрочной» заявки: плановый срок выполнения от 10 суток. */
+export const LONG_TERM_TICKET_MIN_DAYS = 10
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Плановая длительность выполнения: от регистрации заявки (createdAt) до её
+ * планового срока (plannedDueAt), в миллисекундах. null — срока нет или дата битая.
+ *
+ * Это срок, отведённый на работу при постановке, а не время, оставшееся до
+ * дедлайна: заявка на 30 дней остаётся долгосрочной и за день до срока, а
+ * заявка на завтра не становится долгосрочной оттого, что её создали давно.
+ * SLA (slaDueAt) — отдельный срок реакции и сюда не подставляется.
+ */
+export function plannedWorkDurationMs(ticket: Pick<TicketCard, 'createdAt' | 'plannedDueAt'>): number | null {
+  if (!ticket.plannedDueAt) return null
+  const created = new Date(ticket.createdAt).getTime()
+  const due = new Date(ticket.plannedDueAt).getTime()
+  if (Number.isNaN(created) || Number.isNaN(due)) return null
+  return due - created
+}
+
+/**
+ * «Долгосрочная заявка» — активная (не DONE и не CANCELED) заявка с плановым
+ * сроком выполнения от LONG_TERM_TICKET_MIN_DAYS суток. Сутки — длительность
+ * 24 часа, как льготные дни обходов, а не календарные даты.
+ */
+export function isLongTermTicket(ticket: TicketCard): boolean {
+  if (ticket.status === 'DONE' || ticket.status === 'CANCELED') return false
+  const duration = plannedWorkDurationMs(ticket)
+  return duration !== null && duration >= LONG_TERM_TICKET_MIN_DAYS * DAY_MS
+}
+
 /**
  * «Требует моего действия» — быстрая карта Figma HomeScreen. Ролевая семантика:
  * - TECHNICIAN: можно взять/запросить (NEW без назначения), начать (ASSIGNED на меня) или закрыть (IN_PROGRESS на меня).

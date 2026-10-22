@@ -23,8 +23,11 @@ import {
 } from '../mobileHomeBoardFilters'
 import {
   buildMobileHomeVisibleTickets,
+  filterTicketsByQuickFilter,
   formatActiveMobileHomeFiltersSummary,
+  MOBILE_HOME_QUICK_FILTER_LABELS,
   readPersistedMobileHomeBoardUi,
+  toggleMobileHomeQuickFilter,
   writePersistedMobileHomeBoardUi,
 } from '../mobileHomeListUtils'
 import { formatMobileMutationError } from '../mobileActionErrors'
@@ -41,7 +44,7 @@ import { HomeQuickCards, type MobileHomeQuickFilter } from './HomeQuickCards'
 import { HomeUrgentCard } from './HomeUrgentCard'
 import { HomeNextObjectCard } from './HomeNextObjectCard'
 import { HomeShiftStatus } from './HomeShiftStatus'
-import { isHomeUrgentTicket, selectHomeUrgentTickets } from './homeUrgent'
+import { selectHomeUrgentTickets } from './homeUrgent'
 import { HomeOfflineCachePanel } from './HomeOfflineCachePanel'
 import { useTicketOfflineCache } from './useTicketOfflineCache'
 import { useMobileHomeTicketCloseModal } from './MobileHomeTicketCloseModal'
@@ -247,16 +250,15 @@ export function MobileHome() {
     () => (isReworkRole ? dedupeBoardCards(cards).filter((t) => t.status === 'IN_PROGRESS' && reworkTicketIds.has(t.id)).length : 0),
     [isReworkRole, cards, reworkTicketIds],
   )
+  const longTermCount = useMemo(
+    () => filterTicketsByQuickFilter(cards, 'longterm', { meId: meQ.data?.id, meRole: meQ.data?.role, canAssignProvider, reworkTicketIds }).length,
+    [cards, meQ.data?.id, meQ.data?.role, canAssignProvider, reworkTicketIds],
+  )
   const quickTickets = useMemo(() => {
     if (!quickFilter) return null
-    const list = dedupeBoardCards(cards)
-    if (quickFilter === 'urgent') return list.filter(isHomeUrgentTicket)
-    if (quickFilter === 'awaiting') return list.filter(isAwaitingAcceptanceTicket)
-    if (quickFilter === 'rework') return list.filter((t) => t.status === 'IN_PROGRESS' && reworkTicketIds.has(t.id))
-    return list.filter((t) => ticketRequiresMyAction(t, meQ.data?.id, meQ.data?.role, canAssignProvider))
+    return filterTicketsByQuickFilter(cards, quickFilter, { meId: meQ.data?.id, meRole: meQ.data?.role, canAssignProvider, reworkTicketIds })
   }, [quickFilter, cards, meQ.data?.id, meQ.data?.role, canAssignProvider, reworkTicketIds])
-  const quickFilterLabel =
-    quickFilter === 'urgent' ? 'Срочные заявки' : quickFilter === 'awaiting' ? 'На приёмке' : quickFilter === 'myaction' ? 'Требует моего действия' : quickFilter === 'rework' ? 'Требуют доработки' : ''
+  const quickFilterLabel = quickFilter ? MOBILE_HOME_QUICK_FILTER_LABELS[quickFilter] : ''
   const renderedTickets = quickFilter ? quickTickets ?? [] : visibleTickets
   const homeListTickets = useMemo(
     () =>
@@ -285,7 +287,7 @@ export function MobileHome() {
   // При активной быстрой карте список показывает её выборку и обычные фильтры/вкладки очищаются.
   function activateQuickFilter(next: Exclude<MobileHomeQuickFilter, null>) {
     setQuickFilter((prev) => {
-      const value = prev === next ? null : next
+      const value = toggleMobileHomeQuickFilter(prev, next)
       if (value) {
         setBoardTab('all')
         setActiveChips(new Set())
@@ -559,10 +561,12 @@ export function MobileHome() {
         <>
           <HomeQuickCards
             awaitingCount={awaitingCount}
+            longTermCount={longTermCount}
             myActionCount={myActionCount}
             reworkCount={reworkCount}
             activeQuickFilter={quickFilter}
             onToggleAwaiting={() => activateQuickFilter('awaiting')}
+            onToggleLongTerm={() => activateQuickFilter('longterm')}
             onToggleMyAction={() => activateQuickFilter('myaction')}
             onToggleRework={() => activateQuickFilter('rework')}
             planningHref={planningHomeHref}

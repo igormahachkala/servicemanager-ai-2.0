@@ -1,26 +1,30 @@
 import { Link } from 'react-router-dom'
 
-export type MobileHomeQuickFilter = 'urgent' | 'awaiting' | 'myaction' | 'rework' | null
+export type MobileHomeQuickFilter = 'urgent' | 'awaiting' | 'longterm' | 'myaction' | 'rework' | null
 
 type Props = {
   awaitingCount: number
+  longTermCount: number
   myActionCount: number
   reworkCount: number
   activeQuickFilter: MobileHomeQuickFilter
   onToggleAwaiting: () => void
+  onToggleLongTerm: () => void
   onToggleMyAction: () => void
   onToggleRework: () => void
   planningHref?: string | null
 }
 
-/** Быстрые карты главной (Figma HomeScreen): Требуют доработки / На приёмке / Требует действия / Планирование.
+/** Быстрые карты главной (Figma HomeScreen): Требуют доработки / На приёмке / Долгосрочные заявки / Требует действия / Планирование.
  *  «Срочные» вынесены в отдельную операционную карточку HomeUrgentCard (один urgent surface). */
 export function HomeQuickCards({
   awaitingCount,
+  longTermCount,
   myActionCount,
   reworkCount,
   activeQuickFilter,
   onToggleAwaiting,
+  onToggleLongTerm,
   onToggleMyAction,
   onToggleRework,
   planningHref,
@@ -67,6 +71,36 @@ export function HomeQuickCards({
           <span className="mobileHomeQuickCardBody">
             <span className="mobileHomeQuickCardTitle">На приёмке</span>
             <span className="mobileHomeQuickCardSub">{awaitingCount} заявок ожидают решения</span>
+          </span>
+          <span className="mobileHomeQuickCardChevron" aria-hidden>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </span>
+        </button>
+      ) : null}
+
+      {/* Долгосрочные: активные заявки с плановым сроком выполнения от 10 суток (count=0 → скрыта) */}
+      {longTermCount > 0 ? (
+        <button
+          type="button"
+          className={`mobileHomeQuickCard mobileHomeQuickCard--teal${activeQuickFilter === 'longterm' ? ' mobileHomeQuickCard--tealActive' : ''}`}
+          onClick={onToggleLongTerm}
+        >
+          <span className="mobileHomeQuickCardIcon" aria-hidden>
+            {/* Tabler calendar-time */}
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11.795 21h-6.795a2 2 0 0 1 -2 -2v-12a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v4" />
+              <circle cx="18" cy="18" r="4" />
+              <path d="M15 3v4" />
+              <path d="M7 3v4" />
+              <path d="M3 11h16" />
+              <path d="M18 16.496v1.504l1 1" />
+            </svg>
+          </span>
+          <span className="mobileHomeQuickCardBody">
+            <span className="mobileHomeQuickCardTitle">Долгосрочные заявки</span>
+            <span className="mobileHomeQuickCardSub">{longTermCount} со сроком выполнения от 10 дней</span>
           </span>
           <span className="mobileHomeQuickCardChevron" aria-hidden>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
