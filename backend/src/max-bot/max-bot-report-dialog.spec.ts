@@ -7,6 +7,7 @@ import { MaxBotReportDialog } from './max-bot-report-dialog';
 import { MaxBotReportStore } from './max-bot-report.store';
 import { MaxBotScreenJournal } from './max-bot-screen-journal';
 import type { MaxIncomingMedia } from './max-file.client';
+import type { MaxBotMessageBody } from './max-bot.types';
 
 const identity = {
   resolved: true as const,
@@ -27,8 +28,12 @@ function photoMedia(url = 'https://cdn.example/shot.jpg'): MaxIncomingMedia {
   };
 }
 
-function payloadsOf(response: { attachments?: { payload: { buttons: { payload: string }[][] } }[] }) {
-  return response.attachments?.[0]?.payload.buttons.flat().map((button) => button.payload) || [];
+function payloadsOf(response: MaxBotMessageBody) {
+  return (
+    response.attachments?.[0]?.payload.buttons
+      .flat()
+      .map((button) => ('payload' in button ? button.payload : undefined)) || []
+  );
 }
 
 describe('MaxBotReportDialog', () => {

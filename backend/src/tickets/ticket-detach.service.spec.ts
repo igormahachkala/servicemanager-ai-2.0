@@ -22,7 +22,11 @@ const TICKET_ID = 'ticket-1'
 const PARENT_ID = 'parent-1'
 const USER_ID = 'user-1'
 
-function makeAccess(overrides: Record<string, unknown> = {}) {
+type OperationAccess = Awaited<
+  ReturnType<typeof ticketAccessUtils.resolveTicketOperationAccess>
+>;
+
+function makeAccess(overrides: Partial<OperationAccess> = {}): OperationAccess {
   return {
     ticket: { id: TICKET_ID, companyId: CLIENT_ID, assignedTechnicianId: null },
     scopeCompanyId: CLIENT_ID,
@@ -32,7 +36,16 @@ function makeAccess(overrides: Record<string, unknown> = {}) {
   }
 }
 
-function makeTxTicket(overrides: Record<string, unknown> = {}) {
+type TxTicket = {
+  id: string;
+  companyId: string;
+  status: TicketStatus;
+  parentId: string | null | undefined;
+  ticketNumber: number;
+  parent: { id: string; ticketNumber: number } | null;
+};
+
+function makeTxTicket(overrides: Partial<TxTicket> = {}): TxTicket {
   return {
     id: TICKET_ID,
     companyId: CLIENT_ID,

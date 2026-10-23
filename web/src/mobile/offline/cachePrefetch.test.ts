@@ -312,18 +312,33 @@ test('fix-cache 13. offline queries read IDB instead of pausing react-query', as
 })
 
 test('prefetch write-path does not squash server originals', async () => {
-  const { readFileSync } = await import('node:fs')
+  const { readFileSync, readdirSync } = await import('node:fs')
   for (const name of ['serverMediaCache.ts', 'ticketPrefetch.ts', 'ticketDetailCache.ts', 'roundCache.ts']) {
     const src = readFileSync(new URL(`../../../src/mobile/offline/${name}`, import.meta.url), 'utf8')
     assert.equal(src.includes('squashOutgoingImage'), false, `${name} не зовёт squash`)
     assert.equal(src.includes('@jsquash/jpeg'), false, `${name} не тянет MozJPEG`)
   }
-  const ticket = readFileSync(new URL('../../../src/mobile/MobileTicketPage.tsx', import.meta.url), 'utf8')
-  const create = readFileSync(new URL('../../../src/mobile/MobileCreateTicket.tsx', import.meta.url), 'utf8')
-  const home = readFileSync(new URL('../../../src/mobile/home/HomeList.tsx', import.meta.url), 'utf8')
-  const inspection = readFileSync(new URL('../../../src/mobile/MobileInspectionRunPage.tsx', import.meta.url), 'utf8')
-  assert.match(ticket, /prepareOutgoingTicketMedia/)
-  assert.match(create, /prepareOutgoingTicketMedia/)
-  assert.match(home, /prepareOutgoingTicketMedia/)
-  assert.match(inspection, /prepareOutgoingTicketMedia/)
+
+  // Сжатие — только на пути отправки. Список экранов не задан руками: это все
+  // экраны мобильной версии с выбором файла. Каждый готовит файл через
+  // prepareOutgoingTicketMedia, и дальше идёт только prepared.file — сырой файл
+  // в состояние формы и в отправку не попадает.
+  const mobileRoot = new URL('../../../src/mobile/', import.meta.url)
+  const screens = (readdirSync(mobileRoot, { recursive: true }) as string[])
+    .filter((name) => /\.tsx?$/.test(name) && !/\.test\.tsx?$/.test(name) && !name.startsWith('offline'))
+    .map((name) => ({ name, src: readFileSync(new URL(name, mobileRoot), 'utf8') }))
+    .filter(({ src }) => src.includes('type="file"'))
+  assert.deepEqual(
+    screens.map(({ name }) => name.replace(/\\/g, '/')).sort(),
+    ['MobileCreateTicket.tsx', 'MobileInspectionRunPage.tsx', 'MobileTicketPage.tsx', 'home/MobileHomeTicketCloseModal.tsx'],
+    'экраны с выбором файла — новый экран тоже должен пройти проверку ниже',
+  )
+  for (const { name, src } of screens) {
+    assert.match(src, /const prepared = await prepareOutgoingTicketMedia\(\w+\)/, `${name}: файл готовится к отправке`)
+    assert.match(src, /prepared\.file/, `${name}: дальше идёт подготовленный файл`)
+    for (const [, value] of src.matchAll(/\bfile: ([^,}\n]+)/g)) {
+      if (/^(null|File\b)/.test(value.trim())) continue
+      assert.equal(value.trim(), 'prepared.file', `${name}: в поле file кладётся только prepared.file, а не ${value.trim()}`)
+    }
+  }
 })
