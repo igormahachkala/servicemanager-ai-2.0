@@ -3,6 +3,12 @@ import { ServiceContractRole, TicketStatus, UserRole } from '@prisma/client'
 
 import { TicketsQueryService } from './tickets.query.service'
 import * as ticketAccessUtils from './ticket-access.utils'
+import {
+  compareLongTermKeys,
+  isLongTermCandidate,
+  longTermKeyOf,
+} from './long-term-tickets';
+import * as longTermSql from './long-term-tickets.sql';
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
@@ -194,13 +200,23 @@ function ticketMatchesWhere(where: any, ticket: any): boolean {
   if (!fieldMatches(where.assignedTechnicianId, ticket.assignedTechnicianId))
     return false
   if (!fieldMatches(where.status, ticket.status)) return false
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access -- where/ticket — any, как у полей выше
+  if (!fieldMatches(where.plannedDueAt, ticket.plannedDueAt)) return false;
   if (!problemCategoryMatches(where.problemCategory, ticket.problemCategory))
     return false
-  if (Array.isArray(where.AND)) {
-    return where.AND.every((part: any) => ticketMatchesWhere(part, ticket))
+  // AND и OR на одном уровне проверяются оба: where техника — это OR видимости
+  // плюс AND ограничений, и ранний return по AND пропускал бы OR.
+  if (
+    Array.isArray(where.AND) &&
+    !where.AND.every((part: any) => ticketMatchesWhere(part, ticket))
+  ) {
+    return false;
   }
-  if (Array.isArray(where.OR)) {
-    return where.OR.some((part: any) => ticketMatchesWhere(part, ticket))
+  if (
+    Array.isArray(where.OR) &&
+    !where.OR.some((part: any) => ticketMatchesWhere(part, ticket))
+  ) {
+    return false;
   }
   return true
 }
@@ -1002,6 +1018,80 @@ describe('TicketsQueryService.board', () => {
     }
   })
 
+  it('card carries createdAt and plannedDueAt from the scoped board query', async () => {
+    // Мобильная карточка «Долгосрочные заявки» считает плановый срок
+    // выполнения по этим двум полям board-карточки и других источников не
+    // имеет: без них она молча обнулится, а доступ решает этот же запрос.
+    spyTechScope.mockResolvedValue(makeTechScope());
+    const prisma = makePrisma() as { ticket: { findMany: jest.Mock } };
+    const createdAt = new Date('2026-10-01T09:00:00.000Z');
+    const plannedDueAt = new Date('2026-10-15T09:00:00.000Z');
+    prisma.ticket.findMany.mockResolvedValue([
+      {
+        id: 't-long',
+        companyId: PROVIDER_ID,
+        company: null,
+        ticketNumber: 7,
+        status: TicketStatus.ASSIGNED,
+        urgency: 'NOT_URGENT',
+        priority: 'NORMAL',
+        urgencyReason: null,
+        createdAt,
+        slaDueAt: null,
+        slaBreachedAt: null,
+        plannedDueAt,
+        problemText: 'Замена витрины',
+        requesterName: null,
+        createdByUserId: null,
+        createdByUser: null,
+        pointName: null,
+        parentId: null,
+        locationId: 'loc-1',
+        location: {
+          id: 'loc-1',
+          name: 'Точка',
+          platformCode: 'P1',
+          externalCode: null,
+          city: null,
+          address: null,
+        },
+        problemCategory: {
+          id: 'cat-1',
+          name: 'Холод',
+          specializationLinks: [],
+        },
+        equipment: null,
+        assignedTechnicianId: USER_ID,
+        assignedTechnician: null,
+      },
+    ]);
+    const svc = makeService(prisma);
+
+    const result = await svc.board(
+      PROVIDER_ID,
+      USER_ID,
+      UserRole.TECHNICIAN,
+      {},
+    );
+
+    const card = result.columns
+      .flatMap(
+        (col) =>
+          col.cards as Array<{
+            id: string;
+            createdAt: Date;
+            plannedDueAt: Date | null;
+          }>,
+      )
+      .find((c) => c.id === 't-long');
+    expect(card).toMatchObject({ createdAt, plannedDueAt });
+    const [[boardQuery]] = prisma.ticket.findMany.mock.calls as Array<
+      [{ select: Record<string, unknown> }]
+    >;
+    const select = boardQuery.select;
+    expect(select).toMatchObject({ createdAt: true, plannedDueAt: true });
+  });
+
   it('archive filter: includes OR condition guarding DONE tickets by default', async () => {
     spyTechScope.mockResolvedValue(makeTechScope())
     const prisma = makePrisma()
@@ -1098,6 +1188,592 @@ describe('TicketsQueryService.board', () => {
 })
 
 // ── context analytics ─────────────────────────────────────────────────────────
+
+// ── long-term ─────────────────────────────────────────────────────────────────
+
+/**
+ * SMA-MOBILE-LONG-TERM-TICKETS. Строки в памяти фильтрует тот же вычислитель
+ * where, что и тесты board: доступ проверяется по тому, что реально пришло, а
+ * не по аргументам. findMany повторяет поведение Prisma в нужном объёме:
+ * where, orderBy createdAt desc и take — поэтому board честно режется на 500.
+ *
+ * COUNT и keyset-страница в проде — SQL в PostgreSQL. Здесь их заменяет та же
+ * выборка в памяти, но WHERE, пришедший в них, сначала по-настоящему
+ * переводится в SQL: форма доступа каждого сценария должна переводиться. Сам
+ * SQL сверяется с Prisma на PostgreSQL в test/long-term-tickets.e2e-spec.ts.
+ */
+/* eslint-disable @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/require-await -- строки и Prisma-мок в памяти, как в тестах board выше */
+describe('TicketsQueryService.longTermTickets', () => {
+  const HOUR = 60 * 60 * 1000;
+  const BASE = Date.parse('2026-01-01T00:00:00Z');
+  const CATEGORY = {
+    id: 'cat-1',
+    name: 'Холод',
+    specializationLinks: [
+      {
+        specializationId: 'contract-default',
+        specialization: { name: 'Холод' },
+      },
+    ],
+  };
+
+  let spyTechScope: jest.SpyInstance;
+  let spyReadScope: jest.SpyInstance;
+  let spyLocationScope: jest.SpyInstance;
+
+  beforeEach(() => {
+    spyTechScope = jest.spyOn(
+      ticketAccessUtils,
+      'resolveTechnicianOperationalScope',
+    );
+    spyReadScope = jest
+      .spyOn(ticketAccessUtils, 'resolveTicketReadScope')
+      .mockResolvedValue(makeManagementScope(CLIENT_ID));
+    spyLocationScope = jest
+      .spyOn(ticketAccessUtils, 'resolveActorLocationScope')
+      .mockResolvedValue(wideLocationScope);
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
+  function row(
+    id: string,
+    createdHoursFromBase: number,
+    durationHours: number | null,
+    overrides: Record<string, unknown> = {},
+  ) {
+    const createdAt = new Date(BASE + createdHoursFromBase * HOUR);
+    return {
+      id,
+      companyId: CLIENT_ID,
+      locationId: 'loc-1',
+      assignedTechnicianId: null,
+      status: TicketStatus.ASSIGNED,
+      problemText: `Заявка ${id}`,
+      problemCategory: CATEGORY,
+      company: null,
+      ticketNumber: 1,
+      urgency: 'NOT_URGENT',
+      priority: 'NORMAL',
+      urgencyReason: null,
+      createdAt,
+      slaDueAt: null,
+      slaBreachedAt: null,
+      plannedDueAt:
+        durationHours === null
+          ? null
+          : new Date(createdAt.getTime() + durationHours * HOUR),
+      requesterName: null,
+      createdByUserId: null,
+      createdByUser: null,
+      pointName: null,
+      location: {
+        id: 'loc-1',
+        name: 'Точка',
+        platformCode: 'P1',
+        externalCode: null,
+        city: null,
+        address: null,
+      },
+      equipment: null,
+      assignedTechnician: null,
+      parentId: null,
+      ...overrides,
+    };
+  }
+
+  /** Сколько строк каждая операция «БД» отдала в Node.js. */
+  let transferred: Array<{ op: string; rows: number; where?: unknown }> = [];
+
+  function longTermRows(rows: any[], where: any) {
+    return rows
+      .filter((ticket) => ticketMatchesWhere(where, ticket))
+      .filter(isLongTermCandidate)
+      .sort((a, b) => compareLongTermKeys(longTermKeyOf(a), longTermKeyOf(b)));
+  }
+
+  function prismaWith(
+    rows: any[],
+    opts: Parameters<typeof makePrisma>[0] = {},
+  ) {
+    transferred = [];
+    jest
+      .spyOn(longTermSql, 'countLongTermTickets')
+      .mockImplementation(async (_db, where) => {
+        longTermSql.longTermCountSql(where);
+        transferred.push({ op: 'count', rows: 1, where });
+        return longTermRows(rows, where).length;
+      });
+    jest
+      .spyOn(longTermSql, 'pageLongTermTickets')
+      .mockImplementation(async (_db, where, { limit, after }) => {
+        longTermSql.longTermPageSql(where, { limit, after });
+        const fetched = longTermRows(rows, where)
+          .filter(
+            (r) => !after || compareLongTermKeys(longTermKeyOf(r), after) > 0,
+          )
+          .slice(0, limit + 1);
+        transferred.push({ op: 'page', rows: fetched.length, where });
+        return {
+          rows: fetched.slice(0, limit),
+          hasMore: fetched.length > limit,
+        };
+      });
+    const prisma = makePrisma(opts);
+    prisma.ticket.findMany.mockImplementation(
+      async ({ where, take, orderBy }: any) => {
+        let found = rows.filter((ticket) => ticketMatchesWhere(where, ticket));
+        if (orderBy?.createdAt === 'desc') {
+          found = [...found].sort(
+            (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
+          );
+        }
+        const result = typeof take === 'number' ? found.slice(0, take) : found;
+        transferred.push({ op: 'findMany', rows: result.length, where });
+        return result;
+      },
+    );
+    return prisma;
+  }
+
+  async function allPages(
+    svc: TicketsQueryService,
+    limit: number,
+    ...scopeArgs: any[]
+  ) {
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    let total = -1;
+    for (let guard = 0; guard < 1000; guard++) {
+      const page: any = await svc.longTermTickets(
+        CLIENT_ID,
+        USER_ID,
+        UserRole.ADMIN,
+        { limit, cursor },
+        undefined,
+        ...scopeArgs,
+      );
+      total = page.total;
+      seen.push(...page.items.map((item: any) => item.id));
+      if (!page.nextCursor) break;
+      cursor = page.nextCursor;
+    }
+    return { seen, total };
+  }
+
+  it('больше 500 заявок: старая долгосрочная за пределами первой страницы board считается и находится', async () => {
+    const rows = [
+      row('old-long', 0, 400),
+      ...Array.from({ length: 600 }, (_, index) =>
+        row(
+          `recent-${String(index).padStart(3, '0')}`,
+          1000 + index,
+          index % 3 === 0 ? 300 : 24,
+        ),
+      ),
+    ];
+    const prisma = prismaWith(rows);
+    const svc = makeService(prisma);
+
+    const board = await svc.board(CLIENT_ID, USER_ID, UserRole.ADMIN, {});
+    const boardIds = board.columns.flatMap((column) =>
+      column.cards.map((card: any) => card.id),
+    );
+    expect(boardIds).toHaveLength(500);
+    expect(boardIds).not.toContain('old-long');
+
+    const { seen, total } = await allPages(svc, 37);
+    const expected = rows.filter(
+      (r) =>
+        r.plannedDueAt &&
+        r.plannedDueAt.getTime() - r.createdAt.getTime() >= 240 * HOUR,
+    );
+    expect(total).toBe(expected.length);
+    expect(total).toBe(201);
+    expect(seen).toHaveLength(total);
+    expect(new Set(seen).size).toBe(total);
+    expect(seen).toContain('old-long');
+  });
+
+  it('порядок детерминирован: ближайший плановый срок, затем дата создания, затем id', async () => {
+    const rows = [
+      row('b', 0, 300),
+      row('a', 0, 300),
+      row('c', -100, 400),
+      row('d', 10, 250),
+    ];
+    const svc = makeService(prismaWith(rows));
+
+    const { seen } = await allPages(svc, 1);
+
+    // сроки: c = 300ч, a/b = 300ч (созданы позже c), d = 260ч
+    expect(seen).toEqual(['d', 'c', 'a', 'b']);
+  });
+
+  it('точный счётчик: порог ровно 240 часов, завершённые, отменённые и без срока не считаются', async () => {
+    const rows = [
+      row('exact', 0, 240),
+      row('almost', 0, 240 - 1 / 3600),
+      row('no-due', 0, null, { slaDueAt: new Date(BASE + 1000 * HOUR) }),
+      row('done', 0, 500, {
+        status: TicketStatus.DONE,
+        closedAt: new Date(BASE),
+      }),
+      row('canceled', 0, 500, { status: TicketStatus.CANCELED }),
+      row('field-complete', 0, 500, { status: TicketStatus.FIELD_COMPLETE }),
+      row('new', 0, 500, { status: TicketStatus.NEW }),
+      row('accepting', 0, 500, { status: TicketStatus.AWAITING_ACCEPTANCE }),
+    ];
+    const svc = makeService(prismaWith(rows));
+
+    const page: any = await svc.longTermTickets(
+      CLIENT_ID,
+      USER_ID,
+      UserRole.ADMIN,
+      { limit: 50 },
+    );
+
+    expect(page.total).toBe(3);
+    expect(page.items.map((item: any) => item.id).sort()).toEqual([
+      'accepting',
+      'exact',
+      'new',
+    ]);
+    expect(page.nextCursor).toBeNull();
+  });
+
+  it('пагинация: заявка, закрытая между страницами, не сдвигает и не дублирует остальные', async () => {
+    const rows = Array.from({ length: 10 }, (_, index) =>
+      row(`t-${index}`, index, 300),
+    );
+    const svc = makeService(prismaWith(rows));
+
+    const first: any = await svc.longTermTickets(
+      CLIENT_ID,
+      USER_ID,
+      UserRole.ADMIN,
+      { limit: 4 },
+    );
+    rows.splice(0, 2);
+    const second: any = await svc.longTermTickets(
+      CLIENT_ID,
+      USER_ID,
+      UserRole.ADMIN,
+      {
+        limit: 4,
+        cursor: first.nextCursor,
+      },
+    );
+
+    expect(first.items.map((item: any) => item.id)).toEqual([
+      't-0',
+      't-1',
+      't-2',
+      't-3',
+    ]);
+    expect(second.items.map((item: any) => item.id)).toEqual([
+      't-4',
+      't-5',
+      't-6',
+      't-7',
+    ]);
+    expect(second.total).toBe(8);
+  });
+
+  it('битый курсор — 400', async () => {
+    const svc = makeService(prismaWith([row('t', 0, 300)]));
+    await expect(
+      svc.longTermTickets(CLIENT_ID, USER_ID, UserRole.ADMIN, {
+        cursor: 'не курсор',
+      }),
+    ).rejects.toThrow('Invalid cursor');
+  });
+
+  it('tenant isolation: заявки чужой компании не считаются и не отдаются', async () => {
+    const rows = [
+      row('own', 0, 300),
+      row('foreign', 0, 300, { companyId: 'client-2' }),
+    ];
+    const prisma = prismaWith(rows);
+    const svc = makeService(prisma);
+
+    const page: any = await svc.longTermTickets(
+      CLIENT_ID,
+      USER_ID,
+      UserRole.ADMIN,
+      { limit: 50 },
+    );
+
+    expect(page.total).toBe(1);
+    expect(page.items.map((item: any) => item.id)).toEqual(['own']);
+    for (const [args] of prisma.ticket.findMany.mock.calls) {
+      expect(JSON.stringify(args.where)).toContain(CLIENT_ID);
+    }
+    for (const op of transferred) {
+      expect(JSON.stringify(op.where)).toContain(CLIENT_ID);
+      expect(JSON.stringify(op.where)).not.toContain('client-2');
+    }
+  });
+
+  it('PRIMARY-провайдер видит долгосрочные заявки клиента в контуре договора', async () => {
+    spyReadScope.mockResolvedValue(makeProviderLinkedScope(CLIENT_ID));
+    const rows = [
+      row('client-long', 0, 300),
+      row('other-client', 0, 300, { companyId: 'client-2' }),
+    ];
+    const svc = makeService(prismaWith(rows));
+
+    const page: any = await svc.longTermTickets(
+      PROVIDER_ID,
+      USER_ID,
+      UserRole.ADMIN,
+      { limit: 50 },
+      undefined,
+      CLIENT_ID,
+    );
+
+    expect(page.total).toBe(1);
+    expect(page.items.map((item: any) => item.id)).toEqual(['client-long']);
+  });
+
+  it('SECONDARY-провайдер: видит заявки своих исполнителей, а не весь контур клиента', async () => {
+    spyReadScope.mockResolvedValue(makeProviderLinkedScope(CLIENT_ID));
+    const rows = [
+      row('outside', 0, 300),
+      row('by-own-executor', 0, 300, {
+        assignedTechnicianId: 'secondary-exec',
+      }),
+    ];
+    const svc = makeService(
+      prismaWith(rows, { executorIds: ['secondary-exec'] }),
+      makeSecondaryContracts(),
+    );
+
+    const page: any = await svc.longTermTickets(
+      PROVIDER_ID,
+      USER_ID,
+      UserRole.ADMIN,
+      { limit: 50 },
+      undefined,
+      CLIENT_ID,
+    );
+
+    expect(page.items.map((item: any) => item.id)).toEqual(['by-own-executor']);
+    expect(page.total).toBe(1);
+  });
+
+  it('SECONDARY-провайдер: видит заявки на объектах своей привязки, остальные — нет', async () => {
+    spyReadScope.mockResolvedValue(makeProviderLinkedScope(CLIENT_ID));
+    const rows = [
+      row('outside', 0, 300),
+      row('at-bound-location', 0, 300, { locationId: 'secondary-loc' }),
+    ];
+    const svc = makeService(
+      prismaWith(rows, { boundLocationIds: ['secondary-loc'] }),
+      makeSecondaryContracts(),
+    );
+
+    const page: any = await svc.longTermTickets(
+      PROVIDER_ID,
+      USER_ID,
+      UserRole.ADMIN,
+      { limit: 50 },
+      undefined,
+      CLIENT_ID,
+    );
+
+    expect(page.items.map((item: any) => item.id)).toEqual([
+      'at-bound-location',
+    ]);
+    expect(page.total).toBe(1);
+  });
+
+  it('SECONDARY-провайдер без исполнителей и привязок не видит ничего', async () => {
+    spyReadScope.mockResolvedValue(makeProviderLinkedScope(CLIENT_ID));
+    const svc = makeService(
+      prismaWith([row('outside', 0, 300)]),
+      makeSecondaryContracts(),
+    );
+
+    const page: any = await svc.longTermTickets(
+      PROVIDER_ID,
+      USER_ID,
+      UserRole.ADMIN,
+      { limit: 50 },
+      undefined,
+      CLIENT_ID,
+    );
+
+    expect(page).toMatchObject({ total: 0, items: [] });
+  });
+
+  it('привязки к объектам сужают выборку', async () => {
+    spyLocationScope.mockResolvedValue({
+      mode: 'bound_locations',
+      locationIds: ['loc-bound'],
+    });
+    const rows = [
+      row('bound', 0, 300, { locationId: 'loc-bound' }),
+      row('unbound', 0, 300),
+    ];
+    const svc = makeService(prismaWith(rows));
+
+    const page: any = await svc.longTermTickets(
+      CLIENT_ID,
+      USER_ID,
+      UserRole.ADMIN,
+      { limit: 50 },
+    );
+
+    expect(page.items.map((item: any) => item.id)).toEqual(['bound']);
+    expect(page.total).toBe(1);
+  });
+
+  it('restricted-empty: ноль и пустой список', async () => {
+    spyLocationScope.mockResolvedValue({
+      mode: 'restricted_empty',
+      locationIds: [],
+    });
+    const svc = makeService(prismaWith([row('t', 0, 300)]));
+
+    const page: any = await svc.longTermTickets(
+      CLIENT_ID,
+      USER_ID,
+      UserRole.ADMIN,
+      { limit: 50 },
+    );
+
+    expect(page).toEqual({ total: 0, items: [], nextCursor: null, limit: 50 });
+  });
+
+  it('техник: только свои и доступные для взятия, как на board', async () => {
+    spyTechScope.mockResolvedValue(makeTechScope([CLIENT_ID]));
+    const rows = [
+      row('mine', 0, 300, { assignedTechnicianId: USER_ID }),
+      row('claimable', 0, 300, { status: TicketStatus.NEW }),
+      row('colleague', 0, 300, { assignedTechnicianId: 'other-tech' }),
+    ];
+    const svc = makeService(prismaWith(rows));
+
+    const page: any = await svc.longTermTickets(
+      CLIENT_ID,
+      USER_ID,
+      UserRole.TECHNICIAN,
+      { limit: 50 },
+    );
+
+    expect(page.items.map((item: any) => item.id).sort()).toEqual([
+      'claimable',
+      'mine',
+    ]);
+  });
+
+  it.each([1000, 10000, 100000])(
+    '%i заявок: точный total, в Node.js приходит не больше страницы, заявки — только по id страницы',
+    async (size) => {
+      const rows = Array.from({ length: size }, (_, index) =>
+        row(
+          `t-${String(index).padStart(6, '0')}`,
+          index % 97,
+          index % 3 === 0 ? 300 : index % 3 === 1 ? 239 : null,
+          index % 7 === 0 ? { status: TicketStatus.CANCELED } : {},
+        ),
+      );
+      const expected = rows.filter(
+        (_, index) => index % 3 === 0 && index % 7 !== 0,
+      ).length;
+      const prisma = prismaWith(rows);
+      const svc = makeService(prisma);
+
+      const first: any = await svc.longTermTickets(
+        CLIENT_ID,
+        USER_ID,
+        UserRole.ADMIN,
+        { limit: 100 },
+      );
+      const second: any = await svc.longTermTickets(
+        CLIENT_ID,
+        USER_ID,
+        UserRole.ADMIN,
+        { limit: 100, cursor: first.nextCursor },
+      );
+
+      expect(first.total).toBe(expected);
+      expect(second.total).toBe(expected);
+      expect(first.items).toHaveLength(100);
+      expect(second.items).toHaveLength(100);
+      const ids = [...first.items, ...second.items].map((item: any) => item.id);
+      expect(new Set(ids).size).toBe(200);
+      for (const op of transferred) {
+        expect(op.rows).toBeLessThanOrEqual(101);
+      }
+      for (const [args] of prisma.ticket.findMany.mock.calls) {
+        expect(JSON.stringify(args.where)).toContain('"in"');
+        expect(args.take).toBeLessThanOrEqual(100);
+      }
+    },
+  );
+
+  it('счётчик главной: только COUNT, без страницы и без карточек', async () => {
+    const rows = [row('a', 0, 300), row('b', 0, 24), row('c', 0, 240)];
+    const prisma = prismaWith(rows);
+    const svc = makeService(prisma);
+
+    await expect(
+      svc.longTermTicketsTotal(CLIENT_ID, USER_ID, UserRole.ADMIN),
+    ).resolves.toEqual({ total: 2 });
+    expect(transferred.map((op) => op.op)).toEqual(['count']);
+    expect(prisma.ticket.findMany).not.toHaveBeenCalled();
+  });
+
+  it('счётчик главной при restricted-empty — ноль без запроса в БД', async () => {
+    spyLocationScope.mockResolvedValue({
+      mode: 'restricted_empty',
+      locationIds: [],
+    });
+    const svc = makeService(prismaWith([row('t', 0, 300)]));
+
+    await expect(
+      svc.longTermTicketsTotal(CLIENT_ID, USER_ID, UserRole.ADMIN),
+    ).resolves.toEqual({ total: 0 });
+  });
+
+  it('битый курсор отклоняется до запросов в БД', async () => {
+    const prisma = prismaWith([row('t', 0, 300)]);
+    const svc = makeService(prisma);
+    for (const cursor of [
+      'не курсор',
+      Buffer.from('{"p":"x","c":1,"i":"a"}').toString('base64url'),
+      Buffer.from('{"p":1,"c":1,"i":""}').toString('base64url'),
+      Buffer.from('[]').toString('base64url'),
+    ]) {
+      await expect(
+        svc.longTermTickets(CLIENT_ID, USER_ID, UserRole.ADMIN, { cursor }),
+      ).rejects.toThrow('Invalid cursor');
+    }
+    expect(transferred).toEqual([]);
+  });
+
+  it('карточки страницы — формат board: срок и дата создания на месте', async () => {
+    const svc = makeService(prismaWith([row('t', 0, 300)]));
+
+    const page: any = await svc.longTermTickets(
+      CLIENT_ID,
+      USER_ID,
+      UserRole.ADMIN,
+      { limit: 50 },
+    );
+
+    expect(page.items[0]).toMatchObject({
+      id: 't',
+      status: TicketStatus.ASSIGNED,
+      createdAt: new Date(BASE),
+      plannedDueAt: new Date(BASE + 300 * HOUR),
+      category: { id: 'cat-1', name: 'Холод' },
+    });
+  });
+});
+/* eslint-enable @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/require-await */
 
 describe('TicketsQueryService.contextAnalytics', () => {
   let spyTechScope: jest.SpyInstance

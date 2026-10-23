@@ -3457,6 +3457,48 @@ export async function board(params?: {
   return request<BoardResponse>(`/tickets/board${suffix}`)
 }
 
+/** SMA-MOBILE-LONG-TERM-TICKETS — страница GET /tickets/long-term. */
+export type LongTermTicketsResponse = {
+  /** Все долгосрочные заявки разрешённого контура, а не только эта страница. */
+  total: number
+  items: TicketCard[]
+  nextCursor: string | null
+  limit: number
+}
+
+export type LongTermTicketsParams = {
+  limit?: number
+  cursor?: string | null
+  linkedClientCompanyId?: string
+  companyId?: string
+}
+
+export function buildLongTermTicketsQuery(params: LongTermTicketsParams = {}): string {
+  const search = new URLSearchParams()
+  if (params.limit) search.set('limit', String(params.limit))
+  if (params.cursor) search.set('cursor', params.cursor)
+  if (params.linkedClientCompanyId) search.set('linkedClientCompanyId', params.linkedClientCompanyId)
+  else if (params.companyId) search.set('companyId', params.companyId)
+  const suffix = search.toString()
+  return suffix ? `?${suffix}` : ''
+}
+
+export async function longTermTickets(params: LongTermTicketsParams = {}): Promise<LongTermTicketsResponse> {
+  return request<LongTermTicketsResponse>(`/tickets/long-term${buildLongTermTicketsQuery(params)}`)
+}
+
+/** SMA-MOBILE-LONG-TERM-TICKETS — только точное число, для счётчика карточки главной. */
+export async function longTermTicketsCount(
+  params: Pick<LongTermTicketsParams, 'linkedClientCompanyId' | 'companyId'> = {},
+): Promise<{ total: number }> {
+  return request<{ total: number }>(
+    `/tickets/long-term/count${buildLongTermTicketsQuery({
+      linkedClientCompanyId: params.linkedClientCompanyId,
+      companyId: params.companyId,
+    })}`,
+  )
+}
+
 export async function tickets(): Promise<any[]> {
   return request<any[]>('/tickets')
 }
