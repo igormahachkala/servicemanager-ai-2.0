@@ -3,6 +3,7 @@ import { CompanyType, PrismaClient, ServiceContractRole, ServiceContractStatus, 
 import * as bcrypt from 'bcrypt';
 
 import type { PermissionCode } from '../src/common/permissions.constants';
+import { PERMISSION_BLOCKS, ROLE_GRANTS } from '../src/common/permissions-matrix';
 
 export const prisma = new PrismaClient();
 
@@ -39,6 +40,31 @@ export async function ensurePermissionBlocks(codes: PermissionCode[]) {
       },
     });
   }
+}
+
+/** Каталог PBAC и гранты ролей по матрице приложения, так же как в prisma/seed.ts. */
+export async function seedPermissionMatrix() {
+  for (const block of PERMISSION_BLOCKS) {
+    await prisma.permissionBlock.upsert({
+      where: { code: block.code },
+      update: {},
+      create: { code: block.code, name: block.name, description: block.description ?? null },
+    });
+  }
+
+  const blocks = await prisma.permissionBlock.findMany({ select: { id: true, code: true } });
+  const blockIdByCode = new Map(blocks.map((b) => [b.code, b.id]));
+
+  await prisma.rolePermission.createMany({
+    data: ROLE_GRANTS.flatMap((grant) =>
+      grant.codes.map((code) => ({
+        role: grant.role,
+        companyType: grant.companyType,
+        permissionBlockId: blockIdByCode.get(code)!,
+      })),
+    ),
+    skipDuplicates: true,
+  });
 }
 
 export async function grantRolePermissions(role: UserRole, codes: PermissionCode[]) {
