@@ -810,7 +810,14 @@ describe('MaxBotService.handleWebhookUpdate — MAX webhook payload', () => {
     await svc.handleWebhookUpdate(wrongChatUpdate);
 
     expect(commandService.handleUpdate).not.toHaveBeenCalled();
-    const ignored = logSpy.mock.calls.find(([obj, event]) => event === 'max_bot_update_ignored' && obj?.reason === 'other_group_chat');
+    const ignored = logSpy.mock.calls.find(
+      ([obj, event]) =>
+        event === 'max_bot_update_ignored' &&
+        typeof obj === 'object' &&
+        obj !== null &&
+        'reason' in obj &&
+        obj.reason === 'other_group_chat',
+    );
     expect(ignored).toBeDefined();
   });
 

@@ -14,7 +14,11 @@ describe('NotificationsService access resolver delivery gate', () => {
 
   let resolveReadableSpy: jest.SpyInstance;
 
-  function candidate(id: string, companyId = ticketCompanyId, role = UserRole.ADMIN) {
+  function candidate(
+    id: string,
+    companyId = ticketCompanyId,
+    role: UserRole = UserRole.ADMIN,
+  ) {
     return { id, companyId, role };
   }
 
@@ -33,11 +37,7 @@ describe('NotificationsService access resolver delivery gate', () => {
     ticketLocationId?: string | null;
     ticketSpecializations?: Array<{ specializationId: string; name: string }>;
     contractsByProvider?: Record<string, ContractFixture | null | undefined>;
-    resolveReadableImplementation?: (params: any) => Promise<{
-      ticket: { id: string; companyId: string; assignedTechnicianId: string | null };
-      scopeCompanyId: string;
-      visibilityMode: string;
-    }>;
+    resolveReadableImplementation?: typeof ticketAccess.resolveReadableTicketAccess;
   }) {
     const allowedUserIds = new Set(options?.allowedUserIds ?? []);
     const ticketSpecializations = options?.ticketSpecializations ?? [
@@ -45,7 +45,9 @@ describe('NotificationsService access resolver delivery gate', () => {
     ];
     resolveReadableSpy = jest
       .spyOn(ticketAccess, 'resolveReadableTicketAccess')
-      .mockImplementation(options?.resolveReadableImplementation ?? (async (params: any) => {
+      .mockImplementation(
+        options?.resolveReadableImplementation ??
+          (async (params) => {
           if (!allowedUserIds.has(params.actor.id)) {
             throw new Error('denied');
           }
@@ -279,7 +281,7 @@ describe('NotificationsService access resolver delivery gate', () => {
 
     const { service } = makeService({
       allowedUserIds: Array.from(allowedUserIds),
-      resolveReadableImplementation: async (params: any) => {
+      resolveReadableImplementation: async (params) => {
         inFlight += 1;
         maxInFlight = Math.max(maxInFlight, inFlight);
         await new Promise((resolve) => setTimeout(resolve, 1));

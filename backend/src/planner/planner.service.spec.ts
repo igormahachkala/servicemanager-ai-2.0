@@ -53,7 +53,13 @@ function makeService(overrides?: {
   schedules?: any[]
   domainEvents?: any[]
 }) {
-  const domainEventFindMany = jest.fn(async () => overrides?.domainEvents ?? [])
+  // Аргумент описан той формой, которую проверяют тесты: запрос назначений по id заявок.
+  type DomainEventQuery = {
+    where: { entityType: string; type: string; entityId: { in: string[] } };
+  };
+  const domainEventFindMany = jest.fn<Promise<unknown[]>, [DomainEventQuery]>(
+    async () => overrides?.domainEvents ?? [],
+  );
   const prisma = {
     workShift: {
       findFirst: jest.fn(async () =>
