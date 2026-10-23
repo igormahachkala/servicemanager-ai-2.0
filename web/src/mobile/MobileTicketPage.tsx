@@ -77,6 +77,7 @@ import { ProtectedUploadAnchor } from '../ui/ProtectedUploadMedia'
 import { useProtectedUploadSrcs } from '../ui/useProtectedUploadSrc'
 import { MobileTicketPhotoGallery } from './MobileTicketPhotoGallery'
 import { MobileTicketActionsSheet, type TicketSheetAction } from './MobileTicketActionsSheet'
+import { resolveTicketPageScope } from '../lib/ticketPageScope'
 import { MobileModalBackdrop } from './MobileModalBackdrop'
 import { TicketMaterialsPanel } from '../components/tickets/TicketMaterialsPanel'
 import { compactIdentityLabel, identityLines, presentActorIdentity, presentTicketAssignee, presentTicketCreator } from '../lib/ticketActorIdentity'
@@ -404,10 +405,18 @@ export function MobileTicketPage() {
     }
   }, [rejectModal?.previewUrl])
 
-  const observerCompanyId = useMemo(
-    () => (searchParams.get('companyId') || api.getObserverCompanyId(meQ.data)).trim(),
+  const pageScope = useMemo(
+    () =>
+      resolveTicketPageScope({
+        urlCompanyId: searchParams.get('companyId'),
+        urlLinkedClientCompanyId: searchParams.get('linkedClientCompanyId'),
+        persistedCompanyId: api.getObserverCompanyId(meQ.data),
+        persistedLinkedClientCompanyId: api.getLinkedClientCompanyId(meQ.data),
+        role: meQ.data?.role || api.getUserRole() || undefined,
+      }),
     [searchParams, meQ.data],
   )
+  const observerCompanyId = pageScope.companyId
 
   const ownCompanyQ = useQuery({
     queryKey: ['mobile-own-company'],
@@ -415,11 +424,7 @@ export function MobileTicketPage() {
     enabled: !observerCompanyId,
   })
 
-  const urlLinkedClientCompanyId = useMemo(() => {
-    const q = (searchParams.get('linkedClientCompanyId') || '').trim()
-    if (q) return q
-    return (api.getLinkedClientCompanyId(meQ.data) || '').trim()
-  }, [searchParams, meQ.data])
+  const urlLinkedClientCompanyId = pageScope.linkedClientCompanyId
 
   const navTicketOwnerCompanyId = (navState?.ticketOwnerCompanyId || '').trim()
 
@@ -489,7 +494,7 @@ export function MobileTicketPage() {
           stateTicketOwnerCompanyId: navTicketOwnerCompanyId,
           persistedCompanyId: persistedObs,
           persistedLinkedClientCompanyId: persistedLinked,
-          meRole: meQ.data?.role,
+          meRole: meQ.data?.role || api.getUserRole() || undefined,
         })
 
         let lastErr: unknown

@@ -21,7 +21,7 @@ const ME = {
 }
 const COMPANY = { client: 'CLIENT', provider: 'PROVIDER', platform: 'PLATFORM' }
 
-async function session(browser, who, { viewport, delayMs = 0, delayPaths, max = false } = {}) {
+async function session(browser, who, { viewport, delayMs = 0, delayPaths, max = false, seedScope = null } = {}) {
   const ctx = await browser.newContext({ viewport: viewport || { width: 1280, height: 800 }, locale: 'ru-RU' })
   if (max) {
     await ctx.addInitScript(() => {
@@ -34,6 +34,7 @@ async function session(browser, who, { viewport, delayMs = 0, delayPaths, max = 
   page.on('pageerror', (e) => errs.push(String(e).slice(0, 200)))
   await page.goto(BASE + '/')
   await page.evaluate((r) => { localStorage.setItem('sm_base_url', 'http://mock.api'); localStorage.setItem('sm_token', 'x.eyJzdWIiOiJ1MSJ9.y'); localStorage.setItem('sm_user_role', r); localStorage.setItem('sma.mobileGuidedTour.v1.u1', 'skipped') }, me.role)
+  if (seedScope) await page.evaluate(seedOwnerScope, { me, scope: seedScope })
   return { ctx, page, log, errs }
 }
 
@@ -57,6 +58,23 @@ async function clickVisible(page, selector, _minTop, frac = 0.6) {
 
 function scopeOfTicketRequests(log, ticketId) {
   return log.filter((l) => l.startsWith(`GET /tickets/${ticketId}`) && !l.includes('/timeline'))
+}
+
+/** Все запросы к заявке и её ресурсам (вложения, кандидаты, маршрут...). */
+function allTicketRequests(log, ticketId) {
+  return log.filter((l) => l.startsWith(`GET /tickets/${ticketId}?`) || l.startsWith(`GET /tickets/${ticketId}/`) || l === `GET /tickets/${ticketId}`)
+}
+
+/**
+ * Состояние после входа: сохранённая область и её владелец в localStorage
+ * (их пишет вход и Shell). Без ключей владельца сохранённая область не
+ * читается, поэтому прежние сценарии дефект «companyId из хранилища» не видели.
+ */
+function seedOwnerScope({ me, scope }) {
+  localStorage.setItem('sm_last_scope', JSON.stringify({ linkedClientCompanyId: scope.linkedClientCompanyId || '', companyId: scope.companyId || '', ownerUserId: me.id, ownerCompanyId: me.companyId, ownerRole: me.role }))
+  localStorage.setItem('sm_scope_owner_user_id', me.id)
+  localStorage.setItem('sm_scope_owner_company_id', me.companyId)
+  localStorage.setItem('sm_scope_owner_role', me.role)
 }
 
 async function scenario(name, fn) {
@@ -132,6 +150,8 @@ async function scenario(name, fn) {
       const id = href.split('?')[0].split('/').pop()
       const reqs = scopeOfTicketRequests(log, id)
       check('API заявки получил контур владельца, 404 нет', reqs.length > 0 && reqs.every((r) => r.includes('linkedClientCompanyId=client-1')) && !/не найден|not found/i.test(await page.locator('body').innerText()), reqs.join(' '))
+      const all = allTicketRequests(log, id)
+      check('ни один GET /tickets/:id… не несёт companyId', all.length > 0 && all.every((r) => !/[?&]companyId=/.test(r)), all.filter((r) => /[?&]companyId=/.test(r)).join(' '))
       check('подпись «Обходы»', (await caption(page)) === 'Открыто из раздела «Обходы»', await caption(page))
       await page.getByRole('button', { name: '← Назад: Обходы' }).first().click(); await settle(page, 2000)
       check('«Назад»: тот же обход и тот же URL', path(page) === url, path(page))
@@ -154,10 +174,44 @@ async function scenario(name, fn) {
     await ctx.close()
   })
 
+  // Негативный контроль аудита: провайдер пришёл в обход с карточки объекта
+  // (?companyId=client-1), в хранилище уже лежит companyId=client-1 — как после
+  // реального входа. Раньше карточка подмешивала его к linked → «Режим наблюдения».
+  await scenario('desktop provider: Rounds?companyId → Ticket (сохранённый companyId)', async () => {
+    const { ctx, page, errs, log } = await session(browser, 'provider', { seedScope: { companyId: 'client-1' } })
+    await page.goto(BASE + '/inspection/runs/run-1?companyId=client-1'); await settle(page, 2200)
+    const a = page.locator('a[href^="/tickets/t-"]').first(); const href = (await a.getAttribute('href')) || ''
+    check('href содержит linkedClientCompanyId=client-1 и не содержит companyId', href.includes('linkedClientCompanyId=client-1') && !/[?&]companyId=/.test(href), href)
+    await a.click(); await settle(page, 2000)
+    const id = href.split('?')[0].split('/').pop()
+    const all = allTicketRequests(log, id)
+    check('каждый GET /tickets/:id… без companyId', all.length > 0 && all.every((r) => !/[?&]companyId=/.test(r)), all.join(' ; '))
+    const one = scopeOfTicketRequests(log, id).filter((r) => !r.includes(`/tickets/${id}/`))
+    check('GET /tickets/:id получил linkedClientCompanyId=client-1', one.length > 0 && one.every((r) => r.includes('linkedClientCompanyId=client-1')), one.join(' ; '))
+    const body = await page.locator('body').innerText()
+    check('UI: «Заявка клиента», не «Режим наблюдения»', /Заявка клиента/.test(body) && !/Режим наблюдения/.test(body))
+    for (const name of ['В работу', 'Назначить техника', 'Отправить']) {
+      check(`действие исполнителя «${name}» доступно`, (await page.getByRole('button', { name, exact: true }).count()) > 0)
+    }
+    check('ошибок нет', errs.length === 0, errs.join(' | '))
+    await ctx.close()
+  })
+
+  await scenario('desktop PLATFORM_ADMIN: прямая ссылка с сохранённым наблюдением', async () => {
+    const { ctx, page, log } = await session(browser, 'platform', { seedScope: { companyId: 'client-1' } })
+    await page.goto(BASE + '/tickets/t-7'); await settle(page, 1800)
+    const reqs = scopeOfTicketRequests(log, 't-7')
+    check('GET /tickets/t-7 с companyId=client-1, без linked', reqs.length > 0 && reqs.every((r) => r.includes('companyId=client-1') && !r.includes('linkedClientCompanyId')), reqs.join(' ; '))
+    check('«Режим наблюдения» сохранён', /Режим наблюдения/.test(await page.locator('body').innerText()))
+    await ctx.close()
+  })
+
   await scenario('desktop direct link + push', async () => {
-    const { ctx, page, errs } = await session(browser, 'client')
+    const { ctx, page, errs, log } = await session(browser, 'client')
     await page.goto(BASE + '/tickets/t-7'); await settle(page, 1500)
     check('direct link: без подписи источника', (await page.locator('[data-testid="ticket-origin"]').count()) === 0)
+    const own = scopeOfTicketRequests(log, 't-7')
+    check('direct link своей заявки: GET без companyId и linked', own.length > 0 && own.every((r) => !/[?&](companyId|linkedClientCompanyId)=/.test(r)), own.join(' ; '))
     check('direct link: «← Назад к доске» по умолчанию', (await page.getByRole('button', { name: '← Назад к доске' }).count()) >= 1)
     await page.evaluate(() => history.replaceState({ ...history.state, usr: { ticketNav: { v: 1, source: 'board', returnTo: 'https://evil.example/board', originKey: 'x', originIdx: 0 } } }, ''))
     await page.reload(); await settle(page, 1200)
@@ -280,6 +334,25 @@ async function scenario(name, fn) {
     await page.locator('a.mobileTicketBackBtn').click(); await settle(page, 1800)
     check('«Назад»: в тот же обход, тот же URL, что при клике (раньше — на главную)', path(page) === urlAtClick && path(page).startsWith('/m/inspection/run-1'), `${path(page)} vs ${urlAtClick}`)
     check('«Назад»: прокрутка', Math.abs((await scrollY(page)) - y0) <= 2, `${await scrollY(page)} vs ${y0}`)
+    check('ошибок нет', errs.length === 0, errs.join(' | '))
+    await ctx.close()
+  })
+
+  await scenario('mobile provider: Rounds?companyId → Ticket (сохранённый companyId)', async () => {
+    const { ctx, page, errs, log } = await session(browser, 'provider', { viewport: MOB, seedScope: { companyId: 'client-1' } })
+    await page.goto(BASE + '/m/inspection/run-1?companyId=client-1'); await settle(page, 2200)
+    const links = await page.locator('a[href*="/m/tickets/"]').evaluateAll((as) => as.map((a) => a.getAttribute('href')))
+    check('href содержит linkedClientCompanyId=client-1 и не содержит companyId', links.length > 0 && links.every((h) => h.includes('linkedClientCompanyId=client-1') && !/[?&]companyId=/.test(h)), links[0])
+    const href = links[0] || ''
+    await page.locator('a[href*="/m/tickets/"]').first().click(); await settle(page, 2000)
+    const id = href.split('?')[0].split('/').pop()
+    const all = allTicketRequests(log, id)
+    check('каждый GET /tickets/:id… без companyId', all.length > 0 && all.every((r) => !/[?&]companyId=/.test(r)), all.filter((r) => /[?&]companyId=/.test(r)).join(' ; '))
+    const one = scopeOfTicketRequests(log, id).filter((r) => !r.includes(`/tickets/${id}/`))
+    check('GET /tickets/:id получил linkedClientCompanyId=client-1', one.length > 0 && one.every((r) => r.includes('linkedClientCompanyId=client-1')), one.join(' ; '))
+    check('действие «Назначить исполнителя» доступно', (await page.getByRole('button', { name: 'Назначить исполнителя' }).count()) > 0)
+    await page.locator('.mobileDetailTab', { hasText: 'Чат' }).first().click(); await settle(page, 800)
+    check('чат: поле ввода есть (не режим наблюдения)', (await page.locator('.mobileTicketChatComposer textarea').count()) > 0)
     check('ошибок нет', errs.length === 0, errs.join(' | '))
     await ctx.close()
   })

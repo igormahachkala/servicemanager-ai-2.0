@@ -1,5 +1,6 @@
 import type { Me, Role, TicketCard, TicketGetOne, TicketPriority, TicketScopeParams, TicketStatus } from '../lib/api'
 import type { MobileHomeBoardChipId, MobileHomeBoardFilterTab } from './mobileHomeBoardFilters'
+import { dropsObserverWithLinked } from '../lib/ticketPageScope'
 
 /** Состояние для Link: откуда открыли карточку (кнопка «Назад» на деталях). */
 export type MobileTicketListOrigin = 'home' | 'my' | 'chat' | 'notifications'
@@ -70,9 +71,13 @@ export function mobileTicketDetailGetOneScopes(input: {
   const persistedCompanyId = (input.persistedCompanyId || '').trim()
   const persistedLinked = (input.persistedLinkedClientCompanyId || '').trim()
 
+  // Явная область адреса не смешивается с сохранённой (см. resolveTicketPageScope).
+  const explicit = !!(urlCompanyId || urlLinkedClientCompanyId)
+  const linkedClientCompanyId = urlLinkedClientCompanyId || stateOwner || (explicit ? '' : persistedLinked)
+  const companyId = urlCompanyId || (explicit ? '' : persistedCompanyId)
   const primary: TicketScopeParams = {
-    companyId: urlCompanyId || persistedCompanyId || undefined,
-    linkedClientCompanyId: urlLinkedClientCompanyId || stateOwner || persistedLinked || undefined,
+    companyId: companyId && !(linkedClientCompanyId && dropsObserverWithLinked(input.meRole)) ? companyId : undefined,
+    linkedClientCompanyId: linkedClientCompanyId || undefined,
   }
 
   const out: TicketScopeParams[] = []
@@ -91,7 +96,7 @@ export function mobileTicketDetailGetOneScopes(input: {
 
   if (canOwnerRetry) {
     add({
-      companyId: primary.companyId,
+      companyId: dropsObserverWithLinked(input.meRole) ? undefined : primary.companyId,
       linkedClientCompanyId: stateOwner,
     })
   }
@@ -108,15 +113,17 @@ export function scopeForMobileTicketLink(
   pageScope: TicketScopeParams,
   ticket: Pick<TicketCard, 'companyId'>,
 ): TicketScopeParams {
+  // companyId (наблюдение) рядом с linked у не-PLATFORM_ADMIN не переносим: см. resolveTicketPageScope.
   const base: TicketScopeParams = {
-    companyId: pageScope.companyId,
+    companyId:
+      pageScope.linkedClientCompanyId && dropsObserverWithLinked(me?.role) ? undefined : pageScope.companyId,
     linkedClientCompanyId: pageScope.linkedClientCompanyId,
   }
   if (!me?.companyId || !ticket.companyId) return base
   if (ticket.companyId === me.companyId) return base
   if (!me.role || !MOBILE_TICKET_LINK_SCOPE_ROLES.includes(me.role)) return base
   return {
-    companyId: base.companyId,
+    companyId: undefined,
     linkedClientCompanyId: ticket.companyId,
   }
 }

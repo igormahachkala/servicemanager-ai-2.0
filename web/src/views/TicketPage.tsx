@@ -32,6 +32,7 @@ import { dateTimeLocalToIso, formatPlannedDueAt, isoToDateTimeLocalValue } from 
 import { PlannedDueAtInput } from '../components/tickets/PlannedDueAtInput'
 import { orderProblemCategories } from '../lib/problemCategoryOrdering'
 import { resolveAdminProfile } from '../lib/resolveAdminProfile'
+import { resolveTicketPageScope } from '../lib/ticketPageScope'
 import {
   MAX_TICKET_IMAGE_BYTES,
   TICKET_MEDIA_ACCEPT,
@@ -214,8 +215,14 @@ export function TicketPage() {
   const operationalFileInputRef = useRef<HTMLInputElement | null>(null)
   const acceptanceFileInputRef = useRef<HTMLInputElement | null>(null)
 
-  const observerCompanyId = (searchParams.get('companyId') || api.getObserverCompanyId()).trim()
-  const linkedClientCompanyId = (searchParams.get('linkedClientCompanyId') || api.getLinkedClientCompanyId()).trim()
+  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const { companyId: observerCompanyId, linkedClientCompanyId } = resolveTicketPageScope({
+    urlCompanyId: searchParams.get('companyId'),
+    urlLinkedClientCompanyId: searchParams.get('linkedClientCompanyId'),
+    persistedCompanyId: api.getObserverCompanyId(),
+    persistedLinkedClientCompanyId: api.getLinkedClientCompanyId(),
+    role: meQ.data?.role || api.getUserRole() || undefined,
+  })
   const [autoLinkedClientCompanyId, setAutoLinkedClientCompanyId] = useState('')
   const effectiveLinkedClientCompanyId = linkedClientCompanyId || autoLinkedClientCompanyId
 
@@ -262,8 +269,6 @@ export function TicketPage() {
   const [closeReportFailureCauseId, setCloseReportFailureCauseId] = useState('')
   const [detachError, setDetachError] = useState<string | null>(null)
   const parentClose = useParentCloseDialog()
-
-  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
   const boardNavState = useMemo(() => location.state as BoardTicketNavState | null | undefined, [location.state])
   const boardNavContext = useMemo(() => {
