@@ -152,6 +152,19 @@ export async function createCompanyWithUsers(params?: {
   };
 }
 
+export async function createCompanyUser(params: { companyId: string; role: UserRole }) {
+  const passwordPlain = 'Passw0rd!';
+  const user = await prisma.user.create({
+    data: {
+      companyId: params.companyId,
+      email: `${params.role.toLowerCase()}-${randomUUID().slice(0, 8)}@example.com`,
+      password: await bcrypt.hash(passwordPlain, 10),
+      role: params.role,
+    },
+  });
+  return { ...user, passwordPlain };
+}
+
 export async function createSpecAndCategory(companyId: string) {
   const spec = await prisma.specialization.create({
     data: {
