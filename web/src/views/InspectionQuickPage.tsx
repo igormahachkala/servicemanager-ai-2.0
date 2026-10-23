@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { useTicketNavSource } from '../lib/useTicketNav'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
@@ -25,6 +26,7 @@ function fmtDate(value?: string | null) {
 }
 
 export function InspectionQuickPage() {
+  const ticketNav = useTicketNavSource({ source: 'rounds' })
   /*
    * Контур из адреса для исходящих ссылок. Канонический помощник, второго
    * механизма области не заводится: переход не должен менять контур
@@ -244,7 +246,7 @@ export function InspectionQuickPage() {
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       {item.ticketId ? (
-                        <Link to={`/tickets/${item.ticketId}`}>
+                        <Link to={`/tickets/${item.ticketId}`} state={{ ticketNav }}>
                           <button className="ghost" type="button">Открыть заявку</button>
                         </Link>
                       ) : null}

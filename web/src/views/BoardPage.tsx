@@ -10,8 +10,11 @@ import {
   readBoardNavigationContextFromSearch,
   sanitizeBoardNavigationContext,
   type BoardSourcePath,
+  type BoardNavigationContext,
   type BoardTicketNavState,
 } from '../lib/boardNavigationContext'
+import { withTicketNav, type TicketNavState } from '../lib/ticketNavContext'
+import { useTicketNavSource } from '../lib/useTicketNav'
 import { pushToast } from '../lib/appToast'
 import { logTicketActionError, mapTicketActionError } from '../lib/ticketOperationalErrors'
 import { canOfferTicketClaimAction } from '../lib/ticketActionCapabilities'
@@ -217,6 +220,19 @@ export function BoardPage() {
     if (restore.take) setTake(restore.take)
     navigate(appendBoardNavigationContextToPath(`${location.pathname}${location.search}`, restore), { replace: true, state: undefined })
   }, [location.key, location.pathname, location.search, navigate])
+
+  const ticketNav = useTicketNavSource<BoardNavigationContext | undefined>({
+    source: 'board',
+    restore: sanitizeBoardNavigationContext({ selectedLocationId, selectedEquipmentId, selectedStatus, includeArchived, take }),
+    onRestore: (raw) => {
+      const restore = sanitizeBoardNavigationContext(raw as BoardNavigationContext | undefined)
+      setSelectedLocationId(restore?.selectedLocationId || '')
+      setSelectedEquipmentId(restore?.selectedEquipmentId || '')
+      setSelectedStatus(restore?.selectedStatus || '')
+      setIncludeArchived(!!restore?.includeArchived)
+      if (restore?.take) setTake(restore.take)
+    },
+  })
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const requestedCompanyId = useMemo(() => {
@@ -609,7 +625,7 @@ export function BoardPage() {
     return `/tickets/${ticket.id}`
   }
 
-  function buildTicketLinkState(): BoardTicketNavState | undefined {
+  function buildTicketLinkState(): BoardTicketNavState & TicketNavState {
     const boardContext = sanitizeBoardNavigationContext({
       selectedLocationId,
       selectedEquipmentId,
@@ -619,7 +635,7 @@ export function BoardPage() {
       tab: activeOperationsView,
     })
     const sourcePath = defaultOperationsSourcePath(location.pathname)
-    return boardContext ? { boardContext, sourcePath } : { sourcePath }
+    return withTicketNav<BoardTicketNavState>(boardContext ? { boardContext, sourcePath } : { sourcePath }, ticketNav)
   }
 
   const subtitle = (() => {

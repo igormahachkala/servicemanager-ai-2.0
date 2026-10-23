@@ -1,11 +1,12 @@
 import { Link } from 'react-router-dom'
 import type { TicketStatus, UpdateTicketStatusInput } from '../../lib/api'
 import type { PrimaryTicketAction } from '../../lib/ticketOperationalModel'
+import type { TicketBackLink } from '../../lib/useTicketNav'
 import { TicketActionButton } from './TicketActionButton'
 import { TicketActionErrors } from './TicketActionErrors'
 
 export type TicketActionBarProps = {
-  backToBoardHref: string
+  back: TicketBackLink
   primaryAction: PrimaryTicketAction | null
   canClaim: boolean
   canChangeStatus: boolean
@@ -36,7 +37,7 @@ export type TicketActionBarProps = {
 
 export function TicketActionBar(props: TicketActionBarProps) {
   const {
-    backToBoardHref,
+    back,
     primaryAction,
     canClaim,
     canChangeStatus,
@@ -112,9 +113,9 @@ export function TicketActionBar(props: TicketActionBarProps) {
         ) : null}
 
         <div className="ticketActionBarSecondary">
-          <Link to={backToBoardHref} style={{ textDecoration: 'none' }}>
+          <Link to={back.to} state={back.state} onClick={back.onClick} style={{ textDecoration: 'none' }}>
             <TicketActionButton variant="ghost" disabled={busy}>
-              ← Доска
+              {back.label ? `← ${back.label}` : '← Доска'}
             </TicketActionButton>
           </Link>
 

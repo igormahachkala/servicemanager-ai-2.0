@@ -45,6 +45,8 @@ import { ONLINE_ONLY_ACTION_MESSAGE, OFFLINE_TICKET_NOT_CACHED_MESSAGE } from '.
 import { formatMobileMutationError } from './mobileActionErrors'
 import { getMobileRouteRoot, mobilePath } from './mobileRoute'
 import { childTicketCreatePath } from '../lib/childTicketCreatePath'
+import { stripTicketNav, withTicketNav } from '../lib/ticketNavContext'
+import { useTicketNavBack } from '../lib/useTicketNav'
 import { isChildTicket, roleCanCreateChildTicket, roleCanDetachChildTicket } from '../lib/ticketIsChild'
 import { MobileParentCloseChildrenSheet } from './MobileParentCloseChildrenSheet'
 import { useParentCloseDialog } from '../hooks/useParentCloseDialog'
@@ -1340,6 +1342,7 @@ export function MobileTicketPage() {
           ? mobilePath(location.pathname, '/notifications')
           : mobilePath(location.pathname, '')
   const backHref = api.appendScopeToPath(backPath, scopeNorm, meQ.data)
+  const ticketBack = useTicketNavBack({ to: backHref, state: stripTicketNav(navState ?? undefined) })
   const boardTabLabel = navState?.homeBoardTab ? MOBILE_HOME_TAB_LABELS[navState.homeBoardTab] : ''
   const boardChipLabels = useMemo(() => {
     const chips = navState?.homeBoardChips
@@ -1826,10 +1829,11 @@ export function MobileTicketPage() {
       />
       <div className="mobileTicketDetailsToolbar">
         <Link
-          to={backHref}
-          state={(location.state as MobileTicketNavState | null | undefined) ?? undefined}
+          to={ticketBack.to}
+          state={ticketBack.state}
+          onClick={ticketBack.onClick}
           className="mobileTicketBackBtn"
-          aria-label="Назад"
+          aria-label={ticketBack.label ? `Назад: ${ticketBack.label}` : 'Назад'}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <polyline points="15 18 9 12 15 6" />
@@ -1871,6 +1875,12 @@ export function MobileTicketPage() {
           </button>
         ) : null}
       </div>
+
+      {ticketBack.caption ? (
+        <div className="mobileMeta mobileTicketOrigin" data-testid="ticket-origin">
+          {ticketBack.caption}
+        </div>
+      ) : null}
 
       {hasBoardContext ? (
         <div className="mobileCard" style={{ marginBottom: 8 }}>
@@ -2157,12 +2167,16 @@ export function MobileTicketPage() {
                   <Link
                     key={ch.id}
                     to={childHref(ch.id)}
-                    state={mobileTicketNavState(
-                      listOrigin,
-                      [navState?.ticketOwnerCompanyId, ticketCompanyId, urlLinkedClientCompanyId, ticket?.companyId]
-                        .map((x) => (x || '').trim())
-                        .find((x) => x.length > 0),
-                    )}
+                    state={(() => {
+                      const childState = mobileTicketNavState(
+                        listOrigin,
+                        [navState?.ticketOwnerCompanyId, ticketCompanyId, urlLinkedClientCompanyId, ticket?.companyId]
+                          .map((x) => (x || '').trim())
+                          .find((x) => x.length > 0),
+                      )
+                      // Подзадача открыта из того же списка: «Назад» ведёт туда же.
+                      return ticketBack.ctx ? withTicketNav(childState, ticketBack.ctx) : childState
+                    })()}
                     className={`mobileCard mobileTicketCard mobileTicketCard--${ch.status} mobileCardClickable`}
                     style={{ display: 'block', padding: 12 }}
                   >

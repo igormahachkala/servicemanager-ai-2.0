@@ -22,6 +22,7 @@ import {
   sanitizeBoardNavigationContext,
   type BoardTicketNavState,
 } from '../lib/boardNavigationContext'
+import { useTicketNavBack } from '../lib/useTicketNav'
 import { pushToast } from '../lib/appToast'
 import { logTicketActionError, mapTicketActionError } from '../lib/ticketOperationalErrors'
 import { computePrimaryTicketAction } from '../lib/ticketOperationalModel'
@@ -269,18 +270,24 @@ export function TicketPage() {
     return sanitizeBoardNavigationContext(boardNavState?.boardContext)
   }, [boardNavState])
   const boardSourcePath = useMemo(() => normalizeBoardSourcePath(boardNavState?.sourcePath) || '/board', [boardNavState])
-  const backToBoardHref = useMemo(() => {
-    const base = observerCompanyId
-      ? `${boardSourcePath}?companyId=${observerCompanyId}`
-      : effectiveLinkedClientCompanyId
-        ? `${boardSourcePath}?linkedClientCompanyId=${effectiveLinkedClientCompanyId}`
-        : boardSourcePath
-    return appendBoardNavigationContextToPath(base, boardNavContext)
-  }, [observerCompanyId, effectiveLinkedClientCompanyId, boardSourcePath, boardNavContext])
+  const boardBaseHref = useMemo(
+    () =>
+      observerCompanyId
+        ? `${boardSourcePath}?companyId=${observerCompanyId}`
+        : effectiveLinkedClientCompanyId
+          ? `${boardSourcePath}?linkedClientCompanyId=${effectiveLinkedClientCompanyId}`
+          : boardSourcePath,
+    [observerCompanyId, effectiveLinkedClientCompanyId, boardSourcePath],
+  )
+  const backToBoardHref = useMemo(
+    () => appendBoardNavigationContextToPath(boardBaseHref, boardNavContext),
+    [boardBaseHref, boardNavContext],
+  )
   const backToBoardState = useMemo<BoardTicketNavState | undefined>(
     () => (boardNavContext ? { boardContext: boardNavContext, sourcePath: boardSourcePath } : undefined),
     [boardNavContext, boardSourcePath],
   )
+  const ticketBack = useTicketNavBack({ to: backToBoardHref, state: backToBoardState })
 
   useEffect(() => {
     api.persistScopeFromSearchParams(searchParams, meQ.data)
@@ -890,10 +897,10 @@ export function TicketPage() {
     return { hasSla: true, isBreached, isAtRisk }
   }, [ticket?.slaDueAt, ticket?.slaBreachedAt])
 
-  const contextBadge = useMemo(() => {
+  const modeLabel = useMemo(() => {
     if (contextMode === 'observer') return 'Режим наблюдения'
-    if (contextMode === 'provider') return 'Режим подрядчика'
-    return 'Контекст компании'
+    if (contextMode === 'provider') return 'Заявка клиента'
+    return ''
   }, [contextMode])
   const timelineItems = timelineQ.data?.timeline || timelineQ.data?.items || []
   const childTickets = ticket?.children || []
@@ -1071,9 +1078,9 @@ export function TicketPage() {
         isFetching={ticketQ.isFetching}
         observerCompanyId={observerCompanyId}
         linkedClientCompanyId={effectiveLinkedClientCompanyId}
-        contextBadge={contextBadge}
-        backToBoardHref={backToBoardHref}
-        backToBoardState={backToBoardState}
+        originCaption={ticketBack.caption}
+        modeLabel={modeLabel}
+        back={ticketBack}
         canEditTicket={canEditTicket}
         editOpen={editOpen}
         onToggleEdit={() => setEditOpen((value) => !value)}
@@ -1097,15 +1104,15 @@ export function TicketPage() {
       {boardNavContext ? (
         <div className="panel uiCard" style={{ marginBottom: 12 }}>
           <div className="row" style={{ marginBottom: 8 }}>
-            <div style={{ fontWeight: 700 }}>Контекст доски</div>
-            <Link to={backToBoardHref} style={{ textDecoration: 'none' }}>
+            <div style={{ fontWeight: 700 }}>Фильтры списка</div>
+            <Link to={boardBaseHref} style={{ textDecoration: 'none' }}>
               <button className="ghost">Без фильтров</button>
             </Link>
           </div>
           <div className="muted small">
             {boardNavContext.selectedStatus ? `Статус: ${statusLabel(boardNavContext.selectedStatus)} · ` : ''}
-            {boardNavContext.selectedLocationId ? `Объект: ${boardNavContext.selectedLocationId} · ` : ''}
-            {boardNavContext.selectedEquipmentId ? `Оборудование: ${boardNavContext.selectedEquipmentId} · ` : ''}
+            {boardNavContext.selectedLocationId ? 'Отбор по объекту · ' : ''}
+            {boardNavContext.selectedEquipmentId ? 'Отбор по оборудованию · ' : ''}
             {boardNavContext.includeArchived ? 'Архив: включён' : 'Архив: выключен'}
           </div>
         </div>
@@ -1259,7 +1266,7 @@ export function TicketPage() {
           <TicketActionsPanel
             showTechnicianActionBar={showTechnicianActionBar}
             ticket={ticket}
-            backToBoardHref={backToBoardHref}
+            back={ticketBack}
             primaryAction={primaryAction}
             canClaim={canClaim}
             canChangeStatus={canChangeStatus}
