@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useTicketNavSource } from '../lib/useTicketNav'
+import { roundTicketPath } from '../lib/roundTicketLink'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
@@ -57,6 +58,7 @@ export function InspectionQuickPage() {
    * Подробнее — тот же блок в InspectionRunPage.
    */
   const targetClientCompanyId = runQ.data?.location?.clientCompanyId || ''
+  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const categoriesQ = useQuery<api.ProblemCategoryListItem[]>({
     queryKey: ['problem-categories', targetClientCompanyId],
     queryFn: () => api.problemCategories(targetClientCompanyId),
@@ -246,7 +248,10 @@ export function InspectionQuickPage() {
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       {item.ticketId ? (
-                        <Link to={`/tickets/${item.ticketId}`} state={{ ticketNav }}>
+                        <Link
+                          to={roundTicketPath(item.ticketId, { me: meQ.data, outboundScope, ownerCompanyId: targetClientCompanyId || run.companyId })}
+                          state={{ ticketNav }}
+                        >
                           <button className="ghost" type="button">Открыть заявку</button>
                         </Link>
                       ) : null}
