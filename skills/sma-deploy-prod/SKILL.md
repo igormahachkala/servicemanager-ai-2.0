@@ -23,7 +23,7 @@ sma-deploy-stage. Тег stage-ok — допуск, а не команда ка�
 <project>sma-service</project>
 <compose_file>/opt/sma-prod/docker-compose.yml</compose_file>
 <compose_file>/etc/servicemanager-ai/docker-compose.production.override.yml</compose_file>
-<service area="backend">backend</service>
+<service area="backend">backend migrate</service>
 <service area="frontend">web</service>
 <never_touch>postgres</never_touch>
 <url>https://servicemanagerai.ru</url>
@@ -52,7 +52,8 @@ sma-deploy-stage. Тег stage-ok — допуск, а не команда ка�
   шаг 7   занять контур замком и слить PR, скрипт lock-acquire.sh.
           Перед слиянием отчёт, не вопрос
   шаг 8   развернуть; для none, scripts, skills, nginx контейнеры
-          не поднимаются, блок skip_deploy, но git pull обязателен
+          не поднимаются, блок skip_deploy, но git pull обязателен.
+          При has_migration до подъёма запуск сервиса migrate, блок migrate
   шаг 9   сверка после развёртывания
   шаг 10  проверка критерия приёмки в Production
   шаг 11  восстановить инвариант beta ⊇ prod слиянием prod в beta.
@@ -563,16 +564,47 @@ ssh sma 'cd /opt/sma-prod &amp;&amp; RELEASE_SHA=$(git rev-parse HEAD) &amp;&amp
 Поднимать оба безопаснее: изменение общего файла окружения затрагивает
 обе стороны, и обе должны перезапуститься.
 Не «наводить порядок», подставляя сюда сервисы по области.
+Сервис migrate в подъём не входит. Он запускается блоком migrate.
 </service_map_scope>
+<migrate if="флаг has_migration">
+<precondition>Дамп шага 6 снят и прошёл проверки.</precondition>
+<command>
+ssh sma 'docker compose -p sma-service -f /opt/sma-prod/docker-compose.yml -f /etc/servicemanager-ai/docker-compose.production.override.yml run --rm --no-deps migrate'
+</command>
+<expect>
+Код возврата 0. В выводе prisma перечислены применённые миграции
+либо строка No pending migrations to apply.
+</expect>
+<on_failure>
+Код не 0, миграция не прошла. Подъём ниже не выполнять: работающие
+контейнеры остаются на прежней версии. Миграцию не повторять.
+Сохранить вывод команды, сообщить пользователю и перейти к блоку
+rollback, фаза 1. Замки не снимать. Запись о неудачной миграции
+в _prisma_migrations разбирает человек.
+</on_failure>
+<why>
+Миграцию выполняет отдельный сервис migrate из docker-compose.yml,
+у backend в depends_on стоит его успешное завершение. Подъём ниже идёт
+с --no-deps и migrate не запускает. Поэтому migrate запускается здесь,
+отдельно и до подъёма. run ждёт окончания и возвращает код миграции,
+--no-deps не трогает postgres, --rm убирает одноразовый контейнер.
+restart: "no" у migrate исключает повтор упавшей миграции.
+</why>
+<image>
+Образ migrate собирается шагом rebuild вместе с backend, карта сервисов
+блока contour. Флаг --build здесь не ставить: compose соберёт образ
+без аргументов выпуска, и проверка SMA_RELEASE_ENFORCE
+в backend/Dockerfile для migrate не сработает.
+</image>
+<skip>
+Без флага has_migration блок не выполняется: дампа нет, а миграция
+без дампа запрещена.
+</skip>
+</migrate>
 <always>
 ssh sma 'docker compose -p sma-service -f /opt/sma-prod/docker-compose.yml -f /etc/servicemanager-ai/docker-compose.production.override.yml up -d --no-deps backend web'
 </always>
 <constraint>--no-deps обязателен: postgres не пересоздавать.</constraint>
-<fact>
-Миграции в Production применяются автоматически при старте контейнера:
-command: sh -lc "npx prisma migrate deploy &amp;&amp; npm run start:prod"
-Отдельный шаг не нужен, статус проверяется после запуска.
-</fact>
 </step>
 
 <step id="9" name="сверка после развёртывания">
