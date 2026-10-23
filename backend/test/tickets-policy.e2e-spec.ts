@@ -361,10 +361,9 @@ describe('Tickets — PRIMARY provider ADMIN assign client ticket (Failure 2 reg
   });
 
   it('PRIMARY_PROVIDER_ADMIN can assign a client ticket via linkedClientCompanyId (was 403 before fix)', async () => {
-    const { client, provider, admin, tech } = await createProviderClientSetup({
+    const { client, admin, tech, categoryOk } = await createProviderClientSetup({
       contractRole: ServiceContractRole.PRIMARY,
     });
-    const { categoryOk } = await createSpecAndCategory(client.id);
 
     const ticket = await createTicket({
       companyId: client.id,
@@ -387,7 +386,7 @@ describe('Tickets — PRIMARY provider ADMIN assign client ticket (Failure 2 reg
   });
 
   it('SECONDARY_PROVIDER_ADMIN cannot assign a client ticket they have no access to', async () => {
-    const { client, provider: secondaryProvider, admin: secondaryAdmin } = await createProviderClientSetup({
+    const { client, admin: secondaryAdmin, categoryOk } = await createProviderClientSetup({
       contractRole: ServiceContractRole.SECONDARY,
     });
 
@@ -397,8 +396,7 @@ describe('Tickets — PRIMARY provider ADMIN assign client ticket (Failure 2 reg
       clientSuffix: client.id, // reuse same client — but createProviderClientSetup creates a new client
     });
 
-    // Create the category and ticket on the original client
-    const { categoryOk } = await createSpecAndCategory(client.id);
+    // Ticket on the original client, in the category covered by the SECONDARY contract
     const ticket = await createTicket({
       companyId: client.id,
       problemCategoryId: categoryOk.id,
@@ -469,10 +467,9 @@ describe('Tickets — SECONDARY provider board scope (Failure 1 regression)', ()
   });
 
   it('SECONDARY_PROVIDER_ADMIN board does NOT return unrelated client tickets (isolation)', async () => {
-    const { client, admin: secondaryAdmin, tech: secondaryTech } = await createProviderClientSetup({
+    const { client, admin: secondaryAdmin, categoryOk } = await createProviderClientSetup({
       contractRole: ServiceContractRole.SECONDARY,
     });
-    const { categoryOk } = await createSpecAndCategory(client.id);
 
     // Create a ticket NOT assigned to secondary provider's executors and no location binding
     const unrelatedTicket = await createTicket({
@@ -497,9 +494,8 @@ describe('Tickets — SECONDARY provider board scope (Failure 1 regression)', ()
   });
 
   it('SECONDARY_PROVIDER_ADMIN board DOES return tickets assigned to their executor', async () => {
-    const { client, provider: secondaryProvider, admin: secondaryAdmin, tech: secondaryTech } =
+    const { client, admin: secondaryAdmin, tech: secondaryTech, categoryOk } =
       await createProviderClientSetup({ contractRole: ServiceContractRole.SECONDARY });
-    const { categoryOk } = await createSpecAndCategory(client.id);
 
     // Ticket assigned to the secondary provider's executor — SHOULD be visible
     const assignedTicket = await createTicket({

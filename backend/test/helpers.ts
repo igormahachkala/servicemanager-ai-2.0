@@ -244,6 +244,9 @@ export async function createTicket(params: {
 /**
  * Creates a CLIENT company and a PROVIDER company connected by a service contract.
  * The provider admin is set up with ADMIN role. Tech is executor-capable.
+ * The client gets categories from createSpecAndCategory. The contract and the tech
+ * get the specialization of categoryOk: a contract without specializations gives
+ * the provider no client tickets, and a tech without it is not an assignment candidate.
  */
 export async function createProviderClientSetup(params: {
   contractRole: ServiceContractRole;
@@ -281,23 +284,30 @@ export async function createProviderClientSetup(params: {
     include: { users: true },
   });
 
+  const { spec, categoryOk, categoryNoMatch } = await createSpecAndCategory(client.id);
+
   await prisma.serviceContract.create({
     data: {
       clientCompanyId: client.id,
       providerCompanyId: provider.id,
       role: params.contractRole,
       status: ServiceContractStatus.ACTIVE,
+      specializationLinks: { create: [{ specializationId: spec.id }] },
     },
   });
 
   const admin = provider.users.find((u) => u.role === UserRole.ADMIN)!;
   const tech = provider.users.find((u) => u.role === UserRole.TECHNICIAN)!;
+  await linkTechToSpec(tech.id, spec.id);
 
   return {
     client,
     provider,
     admin: { ...admin, passwordPlain: adminPassword },
     tech: { ...tech, passwordPlain: techPassword },
+    spec,
+    categoryOk,
+    categoryNoMatch,
   };
 }
 
