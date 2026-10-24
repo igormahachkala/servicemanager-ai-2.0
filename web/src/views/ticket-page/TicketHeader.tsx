@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import * as api from '../../lib/api'
+import type { TicketBackLink } from '../../lib/useTicketNav'
 import { TicketClaimBlock } from './TicketClaimBlock'
 
 type TicketHeaderProps = {
@@ -8,9 +9,11 @@ type TicketHeaderProps = {
   isFetching: boolean
   observerCompanyId: string
   linkedClientCompanyId: string
-  contextBadge: string
-  backToBoardHref: string
-  backToBoardState?: unknown
+  /** «Открыто из раздела …»; пусто, если источник неизвестен. */
+  originCaption: string
+  /** Человеческое название режима просмотра; пусто для своей компании. */
+  modeLabel: string
+  back: TicketBackLink
   canEditTicket: boolean
   editOpen: boolean
   onToggleEdit: () => void
@@ -37,9 +40,9 @@ export function TicketHeader(props: TicketHeaderProps) {
     isFetching,
     observerCompanyId,
     linkedClientCompanyId,
-    contextBadge,
-    backToBoardHref,
-    backToBoardState,
+    originCaption,
+    modeLabel,
+    back,
     canEditTicket,
     editOpen,
     onToggleEdit,
@@ -72,18 +75,14 @@ export function TicketHeader(props: TicketHeaderProps) {
 
       <div className="panel" style={{ marginBottom: 12 }}>
         <div className="row" style={{ marginBottom: 0 }}>
-          <div>
-            <div className="muted small">Контекст доступа</div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 999, border: '1px solid #e5e7eb', background: '#f9fafb', fontSize: 12 }}>{contextBadge}</span>
-              {observerCompanyId ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 999, border: '1px solid #e5e7eb', background: '#f9fafb', fontSize: 12 }}>companyId: {observerCompanyId}</span> : null}
-              {linkedClientCompanyId ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 999, border: '1px solid #e5e7eb', background: '#f9fafb', fontSize: 12 }}>linkedClientCompanyId: {linkedClientCompanyId}</span> : null}
-            </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {originCaption ? <span className="muted small" data-testid="ticket-origin">{originCaption}</span> : null}
+            {modeLabel ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 999, border: '1px solid #e5e7eb', background: '#f9fafb', fontSize: 12 }}>{modeLabel}</span> : null}
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Link to={backToBoardHref} state={backToBoardState}>
-              <button className="ghost">← Назад к доске</button>
+            <Link to={back.to} state={back.state} onClick={back.onClick}>
+              <button className="ghost">{back.label ? `← Назад: ${back.label}` : '← Назад к доске'}</button>
             </Link>
 
             {canEditTicket ? (
