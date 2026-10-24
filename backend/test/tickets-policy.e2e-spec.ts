@@ -2,7 +2,7 @@ import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
-import { ServiceContractRole, TicketStatus } from '@prisma/client';
+import { ServiceContractRole, TicketStatus, UserRole } from '@prisma/client';
 import { PERMISSIONS } from '../src/common/permissions.constants';
 import type { PermissionCode } from '../src/common/permissions.constants';
 
@@ -18,6 +18,7 @@ import {
   linkTechToSpec,
   createTicket,
   createProviderClientSetup,
+  createCompanyUser,
 } from './helpers';
 
 describe('Tickets Policy Contract (e2e)', () => {
@@ -243,79 +244,105 @@ describe('Tickets Policy Contract (e2e)', () => {
     expect(res.body.assignedTechnicianId).toBe(tech.id);
   });
 
-  it.each([
-    ['MASTER', 'master.executor@example.com'],
-    ['DISPATCHER', 'dispatcher.executor@example.com'],
-  ])('%s executor can assign self, move IN_PROGRESS, and close DONE', async (role, email) => {
-    const { company, admin } = await createCompanyWithUsers({ adminEmail: email });
-    const { spec, categoryOk } = await createSpecAndCategory(company.id);
-    await linkTechToSpec(admin.id, spec.id);
+  it.each([['MASTER'], ['DISPATCHER']])(
+    '%s executor can assign self, move IN_PROGRESS, submit for acceptance, and client closes DONE',
+    async (role) => {
+      const { client, admin, spec, categoryOk } = await createProviderClientSetup({
+        contractRole: ServiceContractRole.PRIMARY,
+      });
+      await linkTechToSpec(admin.id, spec.id);
 
-    await prisma.user.update({
-      where: { id: admin.id },
-      data: { role: role as any, isExecutor: true },
-    });
+      await prisma.user.update({
+        where: { id: admin.id },
+        data: { role: role as UserRole, isExecutor: true },
+      });
 
-    const ticket = await createTicket({
-      companyId: company.id,
-      problemCategoryId: categoryOk.id,
-      status: TicketStatus.NEW,
-      assignedTechnicianId: null,
-      problemText: `${role} executor flow`,
-    });
+      const ticket = await createTicket({
+        companyId: client.id,
+        problemCategoryId: categoryOk.id,
+        status: TicketStatus.NEW,
+        assignedTechnicianId: null,
+        problemText: `${role} executor flow`,
+      });
+      const failureCause = await prisma.failureCause.create({
+        data: { companyId: client.id, name: 'Износ оборудования' },
+      });
+      const clientAdmin = await createCompanyUser({ companyId: client.id, role: UserRole.ADMIN });
 
-    const token = await login(email, 'Passw0rd!');
+      const token = await login(admin.email, admin.passwordPlain);
+      const scope = `linkedClientCompanyId=${client.id}`;
 
-    const assigned = await request(app.getHttpServer())
-      .put(`/tickets/${ticket.id}/assign/${admin.id}`)
-      .set('Authorization', `Bearer ${token}`)
-      .expect(200);
+      const assigned = await request(app.getHttpServer())
+        .put(`/tickets/${ticket.id}/assign/${admin.id}?${scope}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
 
-    expect(assigned.body.id).toBe(ticket.id);
-    expect(assigned.body.status).toBe('ASSIGNED');
-    expect(assigned.body.assignedTechnicianId).toBe(admin.id);
+      expect(assigned.body.id).toBe(ticket.id);
+      expect(assigned.body.status).toBe('ASSIGNED');
+      expect(assigned.body.assignedTechnicianId).toBe(admin.id);
 
-    const inProgress = await request(app.getHttpServer())
-      .patch(`/tickets/${ticket.id}/status`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ status: TicketStatus.IN_PROGRESS })
-      .expect(200);
+      const inProgress = await request(app.getHttpServer())
+        .patch(`/tickets/${ticket.id}/status?${scope}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ status: TicketStatus.IN_PROGRESS })
+        .expect(200);
 
-    expect(inProgress.body.status).toBe('IN_PROGRESS');
+      expect(inProgress.body.status).toBe('IN_PROGRESS');
 
-    await prisma.ticketAttachment.create({
-      data: {
-        companyId: company.id,
-        ticketId: ticket.id,
-        uploadedByUserId: admin.id,
-        originalName: 'work-report.png',
-        storageKey: `test-${ticket.id}`,
-        mimeType: 'image/png',
-        sizeBytes: 100,
-        url: `http://example.invalid/${ticket.id}.png`,
-        purpose: 'WORK_REPORT' as any,
-      },
-    });
-    await prisma.domainEvent.create({
-      data: {
-        companyId: company.id,
-        entityType: 'Ticket',
-        entityId: ticket.id,
-        type: 'ticket.comment_added',
-        actorUserId: admin.id,
-        payload: { comment: 'Executor completed work' },
-      },
-    });
+      await prisma.ticketAttachment.create({
+        data: {
+          companyId: client.id,
+          ticketId: ticket.id,
+          uploadedByUserId: admin.id,
+          originalName: 'work-report.png',
+          storageKey: `test-${ticket.id}`,
+          mimeType: 'image/png',
+          sizeBytes: 100,
+          url: `http://example.invalid/${ticket.id}.png`,
+          purpose: 'WORK_REPORT' as any,
+        },
+      });
+      await prisma.domainEvent.create({
+        data: {
+          companyId: client.id,
+          entityType: 'Ticket',
+          entityId: ticket.id,
+          type: 'ticket.comment_added',
+          actorUserId: admin.id,
+          payload: { comment: 'Executor completed work' },
+        },
+      });
 
-    const done = await request(app.getHttpServer())
-      .patch(`/tickets/${ticket.id}/status`)
-      .set('Authorization', `Bearer ${token}`)
-      .send({ status: TicketStatus.DONE, comment: 'Completed' })
-      .expect(200);
+      // Исполнитель не закрывает заявку сам: работа сдаётся на приёмку с причиной отказа.
+      const directDone = await request(app.getHttpServer())
+        .patch(`/tickets/${ticket.id}/status?${scope}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ status: TicketStatus.DONE, comment: 'Completed' })
+        .expect(400);
 
-    expect(done.body.status).toBe('DONE');
-    expect(done.body.closedAt).toBeTruthy();
-  });
+      expect(directDone.body.message).toBe('Failure cause is required; use submit-acceptance endpoint');
+
+      const submitted = await request(app.getHttpServer())
+        .post(`/tickets/${ticket.id}/submit-acceptance?${scope}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ failureCauseId: failureCause.id, comment: 'Completed' })
+        .expect(201);
+
+      expect(submitted.body.status).toBe('AWAITING_ACCEPTANCE');
+      expect(submitted.body.closedAt).toBeNull();
+
+      const clientToken = await login(clientAdmin.email, clientAdmin.passwordPlain);
+
+      const done = await request(app.getHttpServer())
+        .post(`/tickets/${ticket.id}/acceptance`)
+        .set('Authorization', `Bearer ${clientToken}`)
+        .send({ decision: 'ACCEPT' })
+        .expect(201);
+
+      expect(done.body.status).toBe('DONE');
+      expect(done.body.closedAt).toBeTruthy();
+    },
+  );
 });
 
 // ─── Failure 2: PRIMARY provider ADMIN assign via linkedClientCompanyId ──────
@@ -361,10 +388,9 @@ describe('Tickets — PRIMARY provider ADMIN assign client ticket (Failure 2 reg
   });
 
   it('PRIMARY_PROVIDER_ADMIN can assign a client ticket via linkedClientCompanyId (was 403 before fix)', async () => {
-    const { client, provider, admin, tech } = await createProviderClientSetup({
+    const { client, admin, tech, categoryOk } = await createProviderClientSetup({
       contractRole: ServiceContractRole.PRIMARY,
     });
-    const { categoryOk } = await createSpecAndCategory(client.id);
 
     const ticket = await createTicket({
       companyId: client.id,
@@ -387,7 +413,7 @@ describe('Tickets — PRIMARY provider ADMIN assign client ticket (Failure 2 reg
   });
 
   it('SECONDARY_PROVIDER_ADMIN cannot assign a client ticket they have no access to', async () => {
-    const { client, provider: secondaryProvider, admin: secondaryAdmin } = await createProviderClientSetup({
+    const { client, admin: secondaryAdmin, categoryOk } = await createProviderClientSetup({
       contractRole: ServiceContractRole.SECONDARY,
     });
 
@@ -397,8 +423,7 @@ describe('Tickets — PRIMARY provider ADMIN assign client ticket (Failure 2 reg
       clientSuffix: client.id, // reuse same client — but createProviderClientSetup creates a new client
     });
 
-    // Create the category and ticket on the original client
-    const { categoryOk } = await createSpecAndCategory(client.id);
+    // Ticket on the original client, in the category covered by the SECONDARY contract
     const ticket = await createTicket({
       companyId: client.id,
       problemCategoryId: categoryOk.id,
@@ -469,10 +494,9 @@ describe('Tickets — SECONDARY provider board scope (Failure 1 regression)', ()
   });
 
   it('SECONDARY_PROVIDER_ADMIN board does NOT return unrelated client tickets (isolation)', async () => {
-    const { client, admin: secondaryAdmin, tech: secondaryTech } = await createProviderClientSetup({
+    const { client, admin: secondaryAdmin, categoryOk } = await createProviderClientSetup({
       contractRole: ServiceContractRole.SECONDARY,
     });
-    const { categoryOk } = await createSpecAndCategory(client.id);
 
     // Create a ticket NOT assigned to secondary provider's executors and no location binding
     const unrelatedTicket = await createTicket({
@@ -497,9 +521,8 @@ describe('Tickets — SECONDARY provider board scope (Failure 1 regression)', ()
   });
 
   it('SECONDARY_PROVIDER_ADMIN board DOES return tickets assigned to their executor', async () => {
-    const { client, provider: secondaryProvider, admin: secondaryAdmin, tech: secondaryTech } =
+    const { client, admin: secondaryAdmin, tech: secondaryTech, categoryOk } =
       await createProviderClientSetup({ contractRole: ServiceContractRole.SECONDARY });
-    const { categoryOk } = await createSpecAndCategory(client.id);
 
     // Ticket assigned to the secondary provider's executor — SHOULD be visible
     const assignedTicket = await createTicket({

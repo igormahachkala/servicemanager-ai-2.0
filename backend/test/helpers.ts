@@ -3,6 +3,7 @@ import { CompanyType, PrismaClient, ServiceContractRole, ServiceContractStatus, 
 import * as bcrypt from 'bcrypt';
 
 import type { PermissionCode } from '../src/common/permissions.constants';
+import { PERMISSION_BLOCKS, ROLE_GRANTS } from '../src/common/permissions-matrix';
 
 export const prisma = new PrismaClient();
 
@@ -39,6 +40,31 @@ export async function ensurePermissionBlocks(codes: PermissionCode[]) {
       },
     });
   }
+}
+
+/** Каталог PBAC и гранты ролей по матрице приложения, так же как в prisma/seed.ts. */
+export async function seedPermissionMatrix() {
+  for (const block of PERMISSION_BLOCKS) {
+    await prisma.permissionBlock.upsert({
+      where: { code: block.code },
+      update: {},
+      create: { code: block.code, name: block.name, description: block.description ?? null },
+    });
+  }
+
+  const blocks = await prisma.permissionBlock.findMany({ select: { id: true, code: true } });
+  const blockIdByCode = new Map(blocks.map((b) => [b.code, b.id]));
+
+  await prisma.rolePermission.createMany({
+    data: ROLE_GRANTS.flatMap((grant) =>
+      grant.codes.map((code) => ({
+        role: grant.role,
+        companyType: grant.companyType,
+        permissionBlockId: blockIdByCode.get(code)!,
+      })),
+    ),
+    skipDuplicates: true,
+  });
 }
 
 export async function grantRolePermissions(role: UserRole, codes: PermissionCode[]) {
@@ -124,6 +150,19 @@ export async function createCompanyWithUsers(params?: {
     tech: { ...tech, passwordPlain: techPassword },
     otherTech: { ...otherTech, passwordPlain: otherTechPassword },
   };
+}
+
+export async function createCompanyUser(params: { companyId: string; role: UserRole }) {
+  const passwordPlain = 'Passw0rd!';
+  const user = await prisma.user.create({
+    data: {
+      companyId: params.companyId,
+      email: `${params.role.toLowerCase()}-${randomUUID().slice(0, 8)}@example.com`,
+      password: await bcrypt.hash(passwordPlain, 10),
+      role: params.role,
+    },
+  });
+  return { ...user, passwordPlain };
 }
 
 export async function createSpecAndCategory(companyId: string) {
@@ -218,6 +257,9 @@ export async function createTicket(params: {
 /**
  * Creates a CLIENT company and a PROVIDER company connected by a service contract.
  * The provider admin is set up with ADMIN role. Tech is executor-capable.
+ * The client gets categories from createSpecAndCategory. The contract and the tech
+ * get the specialization of categoryOk: a contract without specializations gives
+ * the provider no client tickets, and a tech without it is not an assignment candidate.
  */
 export async function createProviderClientSetup(params: {
   contractRole: ServiceContractRole;
@@ -255,23 +297,30 @@ export async function createProviderClientSetup(params: {
     include: { users: true },
   });
 
+  const { spec, categoryOk, categoryNoMatch } = await createSpecAndCategory(client.id);
+
   await prisma.serviceContract.create({
     data: {
       clientCompanyId: client.id,
       providerCompanyId: provider.id,
       role: params.contractRole,
       status: ServiceContractStatus.ACTIVE,
+      specializationLinks: { create: [{ specializationId: spec.id }] },
     },
   });
 
   const admin = provider.users.find((u) => u.role === UserRole.ADMIN)!;
   const tech = provider.users.find((u) => u.role === UserRole.TECHNICIAN)!;
+  await linkTechToSpec(tech.id, spec.id);
 
   return {
     client,
     provider,
     admin: { ...admin, passwordPlain: adminPassword },
     tech: { ...tech, passwordPlain: techPassword },
+    spec,
+    categoryOk,
+    categoryNoMatch,
   };
 }
 
