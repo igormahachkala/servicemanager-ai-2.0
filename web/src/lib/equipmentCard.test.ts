@@ -507,8 +507,11 @@ describe('V2 связи Location ↔ Equipment ↔ Ticket', () => {
     const boardCode = codeOf(readSrc('views/BoardPage.tsx'))
     const equipmentWrites = boardCode.match(/setSelectedEquipmentId\(/g)?.length || 0
     const locationWrites = boardCode.match(/setSelectedLocationId\(/g)?.length || 0
-    expect(equipmentWrites, 'новая запись в фильтр оборудования').toBe(8)
-    expect(locationWrites, 'новая запись в фильтр точки').toBe(7)
+    // TUX-02: +1 к каждому счёту — восстановление снимка доски при возврате
+    // из карточки (useTicketNavSource.onRestore). Пишет те значения, что были
+    // на доске в этой же записи истории.
+    expect(equipmentWrites, 'новая запись в фильтр оборудования').toBe(9)
+    expect(locationWrites, 'новая запись в фильтр точки').toBe(8)
 
     /*
      * Счёт по имени обходится псевдонимом: аудит вернул P0 строкой

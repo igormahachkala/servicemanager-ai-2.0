@@ -10,6 +10,7 @@ import {
   type PlannerNextObject,
   type PlannerNextWork,
 } from '../../lib/plannerApi'
+import { withTicketNav, type TicketNavContext } from '../../lib/ticketNavContext'
 import { compactTicketScope, mobileTicketNavState } from '../mobileTicketDisplay'
 import { inspectionNavSuffix, mobilePath } from '../mobileRoute'
 import { useLocationRouteLabels } from '../useLocationRouteLabels'
@@ -21,6 +22,8 @@ type Props = {
   isOnline: boolean
   me?: api.Me | null
   pageScope: api.TicketScopeParams
+  /** Контекст главной: карточка открыта из блока «Следующий объект». */
+  ticketNav?: TicketNavContext
 }
 
 function workLabel(work: PlannerNextWork): string {
@@ -46,7 +49,7 @@ function ObjectPreview({ obj }: { obj: PlannerNextObject }) {
  * Кэш на компанию-клиента: смена A→B→A не пересчитывает A повторно
  * (пока нет invalidate от claim / смены статуса).
  */
-export function HomeNextObjectCard({ role, isOnline, me, pageScope }: Props) {
+export function HomeNextObjectCard({ role, isOnline, me, pageScope, ticketNav }: Props) {
   const location = useLocation()
   const [expanded, setExpanded] = useState(true)
   const linkedClientCompanyId = (pageScope.linkedClientCompanyId || '').trim()
@@ -172,7 +175,7 @@ export function HomeNextObjectCard({ role, isOnline, me, pageScope }: Props) {
                       <Link
                         key={`ticket-${id}`}
                         to={ticketHref(id)}
-                        state={mobileTicketNavState('home')}
+                        state={ticketNav ? withTicketNav(mobileTicketNavState('home'), { ...ticketNav, source: 'home' }) : mobileTicketNavState('home')}
                         className="mobileHomeUrgentRow"
                       >
                         <span className="mobileHomeUrgentRowMain">

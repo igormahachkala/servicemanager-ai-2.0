@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { useTicketNavSource } from '../lib/useTicketNav'
+import { roundTicketPath } from '../lib/roundTicketLink'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
@@ -63,6 +65,7 @@ function reportStatusLabel(status: api.InspectionReportStatus) {
 }
 
 export function InspectionRunReportPage() {
+  const ticketNav = useTicketNavSource({ source: 'rounds' })
   const { id = '' } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
   const outboundScope = readOutboundScopeFromSearch(searchParams)
@@ -353,7 +356,10 @@ export function InspectionRunReportPage() {
                             <div className="muted small">{item.ticket.status}</div>
                             <div className="muted small">{item.ticket.problemText || 'Без описания'}</div>
                             <div className="no-print" style={{ marginTop: 8 }}>
-                              <Link to={`/tickets/${item.ticket.id}`}><button className="ghost">Открыть заявку</button></Link>
+                              <Link
+                                to={roundTicketPath(item.ticket.id, { me: meQ.data, outboundScope, ownerCompanyId: report.document.clientCompany.id })}
+                                state={{ ticketNav }}
+                              ><button className="ghost">Открыть заявку</button></Link>
                             </div>
                           </div>
                         ) : '—'}
