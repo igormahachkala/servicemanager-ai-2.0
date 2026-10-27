@@ -21,7 +21,6 @@ description: "Порядок ведения задачи в этом репоз�
 <i>prod — код, развёрнутый в Production.</i>
 <i>beta — код, развёрнутый на Stage.</i>
 <i>beta никогда не вливается в prod. Каждая задача попадает в prod своим PR.</i>
-<i>beta должна содержать prod. Соблюдение проверяется в deploy-stage и deploy-prod.</i>
 <i>Код, которого нет в prod, не лежит в beta без замка stage-busy.</i>
 <i>Доказательством является вывод команды. Память и документация доказательством не являются.</i>
 </invariants>
@@ -126,22 +125,6 @@ Read/Write/Delete просит разрешение.
 
 Список деревьев: git worktree list.
 </branch_busy>
-<beta_without_switch>
-Отдельно про служебные операции с beta — восстановление инварианта,
-шаг 0 sma-deploy-stage и шаг 11 sma-deploy-prod. Они предписывают
-git switch -C beta origin/beta, и это упирается в занятость ветки чужим
-деревом. Переключаться на ветку для них не обязательно:
-
-git switch --detach origin/beta
-git merge origin/prod -m "Merge prod into beta: восстановление инварианта"
-git push origin HEAD:beta
-git switch -   # вернуться в ветку задачи
-
-Результат тот же: в beta появляется коммит слияния с prod. Отличие в том,
-что локальная ветка beta не создаётся и не занимается.
-
-Отказ push с GH006, protected branch или Changes must be made through a pull request пропускает восстановление. PR в beta ради инварианта не открывать. Так же пропускают шаг 0 sma-deploy-stage и шаг 11 sma-deploy-prod.
-</beta_without_switch>
 <naming>fix/ | feat/ | docs/ | chore/ | skills/</naming>
 <naming_scope>
 skills/ — правки самих скилов и их скриптов, пути skills/*. Тип введён
@@ -322,11 +305,10 @@ unrevert/&lt;тема&gt; от origin/prod. Только если такой р�
 Ветка соответствует коду, работающему у пользователей.
 </b>
 <b name="beta">
-Расходная. Код задач попадает только слиянием PR, но три служебные операции
+Расходная. Код задач попадает только слиянием PR, но две служебные операции
 выполняются напрямую:
-  1. слияние prod в beta — восстановление инварианта beta ⊇ prod после релиза. Отказ push защитой ветки пропускает этот пункт.
-  2. сброс beta = prod — очистка контура, git push --force-with-lease;
-  3. откат указателя beta на предка — убрать слияние целиком,
+  1. сброс beta = prod — очистка контура, git push --force-with-lease;
+  2. откат указателя beta на предка — убрать слияние целиком,
      git push --force-with-lease.
 Других причин писать в beta напрямую нет.
 </b>
@@ -335,7 +317,6 @@ unrevert/&lt;тема&gt; от origin/prod. Только если такой р�
 не делается. Защищать beta наравне с prod означает отказаться от очистки
 контура, и beta накопит отброшенные задачи. Поэтому граница beta проведена
 правилом в этом документе, а не настройкой GitHub.
-Прямой push инварианта при отказе защиты ветки пропускается. Это шаг 0 sma-deploy-stage и шаг 11 sma-deploy-prod.
 </rationale>
 </branch_status>
 
