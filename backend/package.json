@@ -34,6 +34,7 @@
     "backfill:failure-causes": "dotenv -e .env -- ts-node scripts/bootstrap-failure-causes.ts",
     "seed:stage-canonical": "dotenv -e .env -- ts-node scripts/seed-stage-qa.ts",
     "seed:max-bot-stage": "dotenv -e .env -- ts-node scripts/seed-max-bot-stage.ts",
+    "seed:ci": "ts-node scripts/seed-ci.ts",
     "seed:stage-qa": "dotenv -e .env -- ts-node scripts/seed-stage-qa.ts",
     "seed:permissions": "dotenv -e .env -- ts-node scripts/seed-permissions-matrix.ts",
     "seed:permissions:rollback": "dotenv -e .env -- ts-node scripts/rollback-permissions.ts",

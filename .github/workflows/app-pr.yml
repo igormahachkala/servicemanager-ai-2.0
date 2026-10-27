@@ -41,7 +41,102 @@ jobs:
       - run: npx prisma generate
       - run: npx tsc --noEmit
       - run: npx jest --watchman=false
-      - run: npx prisma migrate deploy
+
+  database:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sma
+          POSTGRES_PASSWORD: sma
+          POSTGRES_DB: sma_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sma -d sma_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      NODE_ENV: test
+      CI_DATABASE_URL: postgresql://sma:sma@localhost:5432/sma_ci?schema=public
+      E2E_DATABASE_URL: postgresql://sma:sma@localhost:5432/sma_e2e?schema=public
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          path: pr
+      - name: Checkout prod
+        uses: actions/checkout@v4
+        with:
+          ref: prod
+          path: base
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            base/backend/package-lock.json
+            pr/backend/package-lock.json
+      - name: Create sma_e2e
+        env:
+          PGPASSWORD: sma
+        run: psql -h localhost -U sma -d sma_ci -v ON_ERROR_STOP=1 -c 'CREATE DATABASE sma_e2e'
+
+      - name: prod · install
+        working-directory: base/backend
+        run: |
+          npm ci
+          npx prisma generate
+      - name: prod · migrations into sma_ci
+        working-directory: base/backend
+        env:
+          DATABASE_URL: ${{ env.CI_DATABASE_URL }}
+        run: npx prisma migrate deploy
+      - name: prod · seed sma_ci
+        working-directory: base/backend
+        env:
+          DATABASE_URL: ${{ env.CI_DATABASE_URL }}
+        run: |
+          if [ ! -f scripts/seed-ci.ts ]; then
+            echo "::notice title=seed skipped::prod has no backend/scripts/seed-ci.ts yet, sma_ci gets prod migrations without data"
+            exit 0
+          fi
+          npm run seed:ci
+
+      - name: PR · install
+        working-directory: pr/backend
+        run: |
+          npm ci
+          npx prisma generate
+      - name: PR · migrations into sma_ci
+        working-directory: pr/backend
+        env:
+          DATABASE_URL: ${{ env.CI_DATABASE_URL }}
+        run: npx prisma migrate deploy
+      - name: PR · migrations into sma_e2e
+        working-directory: pr/backend
+        env:
+          DATABASE_URL: ${{ env.E2E_DATABASE_URL }}
+        run: npx prisma migrate deploy
+      - name: PR · e2e on sma_e2e
+        id: e2e
+        continue-on-error: true
+        working-directory: pr/backend
+        env:
+          DATABASE_URL: ${{ env.E2E_DATABASE_URL }}
+        run: |
+          JWT_SECRET="$(openssl rand -hex 32)" npx jest --watchman=false --config ./test/jest-e2e.json
+      - name: e2e result
+        if: always() && steps.e2e.outcome != 'skipped'
+        run: |
+          if [ "${{ steps.e2e.outcome }}" = "success" ]; then
+            echo "Backend e2e: passed" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::warning title=e2e failed::backend e2e failed on sma_e2e; this does not fail the job yet"
+            echo "Backend e2e: **failed**, job status is not affected yet" >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   web:
     runs-on: ubuntu-latest
