@@ -1,6 +1,6 @@
 ---
 name: sma-agent-setup
-description: "Подготовка машины агента к работе с проектом: доступ к серверу по ssh под учётной записью deploy, авторизация gh classic-токеном с областями repo, read:org, workflow, проверка того, что переменные окружения дошли до контейнеров. Обязательно применять, когда команда ssh или gh отказывает, когда пользователь просит настроить доступ к серверу, подключиться к серверу, авторизовать gh, разобраться с токеном или правами на pull request, а также при первой на этой машине попытке развёртывания. Выполняется один раз на машину и на агента. Без этого sma-deploy-stage и sma-deploy-prod не работают."
+description: "Подготовка машины агента к работе с проектом: доступ к серверу по ssh под учётной записью deploy, авторизация gh classic-токеном в диалоге gh auth login с протоколом SSH, проверка того, что переменные окружения дошли до контейнеров. Обязательно применять, когда команда ssh или gh отказывает, когда пользователь просит настроить доступ к серверу, подключиться к серверу, авторизовать gh, разобраться с токеном или правами на pull request, а также при первой на этой машине попытке развёртывания. Выполняется один раз на машину и на агента. Без этого sma-deploy-stage и sma-deploy-prod не работают."
 ---
 
 <purpose>
@@ -28,7 +28,7 @@ gh для работы с PR. Выполняется один раз для ка
           шаг 5  проверить доступ
   part C  gh — работа с Pull Request
           шаг 1  установить
-          шаг 2  авторизовать, требования к токену
+          шаг 2  авторизовать токеном в диалоге, протокол SSH
           шаг 3  проверить право на PR
   part D  отзыв доступа к серверу
   part E  проверка обнаружения скилов
@@ -391,10 +391,15 @@ cat /etc/os-release 2&gt;/dev/null | head -2
 </step>
 
 <step id="2" name="авторизовать">
-<command>gh auth login --with-token</command>
+<command>gh auth login</command>
 <action>
-Токен вставить из буфера в приглашение ввода. Не передавать аргументом
-командной строки — попадёт в историю.
+Ответы в диалоге:
+  Where do you use GitHub? → GitHub.com
+  How would you like to authenticate GitHub CLI? → Paste an authentication token
+  Preferred protocol for Git operations → SSH
+  Upload your SSH public key → Skip
+  Paste your authentication token → вставить токен и Enter
+Дождаться строки Logged in as &lt;учётка&gt;.
 </action>
 <token_requirements>
 Токен classic. Создаётся в GitHub: Settings → Developer settings
@@ -408,33 +413,17 @@ cat /etc/os-release 2&gt;/dev/null | head -2
 
 Остальное не отмечать.
 </token_requirements>
-<why_classic>
-Установлено 2026-08-31 на практике.
-
-Fine-grained токен не годится тому, кто не владеет репозиторием: он работает
-только с репозиториями выпустившего его аккаунта, и соавтор в списке
-репозиториев чужого владельца их не увидит. Вариант «Public repositories»
-в fine-grained даёт доступ только на чтение — push и создание PR им не сделать.
-
-Владелец репозитория может выпустить fine-grained, но порядок держится один
-для всех: classic работает и у владельца, и у соавторов.
-</why_classic>
-<why_three_scopes>
-gh при входе проверяет ровно три области: repo, read:org, workflow. Без любой
-из них gh auth login отказывает с сообщением
-error validating token: missing required scope.
-
-read:org и workflow самому потоку доставки не нужны, это требование gh.
-</why_three_scopes>
-<note_private>
-Область repo, а не public_repo: репозиторий планируется перевести в закрытый.
-С public_repo токен в день перевода перестанет работать, и отказ будет
-выглядеть как 404, будто репозитория нет.
-</note_private>
-<note_scope>
-Classic-токен действует на все репозитории, к которым у выпустившего есть
-доступ. Выбор одного репозитория в нём не предусмотрен.
-</note_scope>
+<forbidden>
+Не использовать gh auth login --with-token.
+На Windows в Git Bash эта форма молчит без приглашения.
+Вставка токена попадает в историю оболочки.
+Не выбирать HTTPS и не выбирать Login with a web browser.
+</forbidden>
+<why_dialog>
+Установлено 2026-10-27 на Windows.
+Диалог gh auth login показывает приглашение Paste your authentication token.
+Протокол SSH совпадает с git remote по ssh.
+</why_dialog>
 </step>
 
 <step id="3" name="проверить">
