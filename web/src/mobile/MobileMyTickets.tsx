@@ -9,6 +9,8 @@ import {
   scopeForMobileTicketLink,
 } from './mobileTicketDisplay'
 import { isActiveMobileMyTicket, ticketsForMobileMyPage } from './mobileHomeBoardFilters'
+import { withTicketNav, type TicketNavContext } from '../lib/ticketNavContext'
+import { useTicketNavSource } from '../lib/useTicketNav'
 import { appendBoardNavigationContextToPath, readBoardNavigationContextFromSearch } from '../lib/boardNavigationContext'
 import { ticketMatchesMobileHomeSearch } from './mobileHomeListUtils'
 import { mobilePath } from './mobileRoute'
@@ -24,8 +26,14 @@ type AdvancedFilters = {
   period: string
 }
 
-function ticketLinkState(ticketCompanyId?: string | null) {
-  return mobileTicketNavState('my', ticketCompanyId || undefined)
+function ticketLinkState(ticketNav: TicketNavContext, ticketCompanyId?: string | null) {
+  return withTicketNav(mobileTicketNavState('my', ticketCompanyId || undefined), ticketNav)
+}
+
+function sanitizeAdvancedFilters(raw: unknown): AdvancedFilters {
+  const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+  const text = (v: unknown) => (typeof v === 'string' ? v.trim().slice(0, 120) : '')
+  return { location: text(r.location), categoryId: text(r.categoryId), priority: text(r.priority), period: text(r.period) }
 }
 
 const filterStatuses: Partial<Record<FilterKey, api.TicketStatus[]>> = {
@@ -90,6 +98,17 @@ export function MobileMyTickets() {
   const [advFilters, setAdvFilters] = useState<AdvancedFilters>(DEFAULT_ADV_FILTERS)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [take, setTake] = useState(PAGE_SIZE)
+  // Вкладка и поиск уже в URL; расширенные фильтры и подгруженная длина — в снимке.
+  const ticketNav = useTicketNavSource({
+    source: 'my',
+    restore: { advFilters, take },
+    onRestore: (raw) => {
+      const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+      setAdvFilters(sanitizeAdvancedFilters(r.advFilters))
+      const nextTake = Number(r.take)
+      if (Number.isInteger(nextTake) && nextTake >= PAGE_SIZE) setTake(Math.min(nextTake, PAGE_SIZE * 20))
+    },
+  })
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
@@ -541,7 +560,7 @@ export function MobileMyTickets() {
                 key={ticket.id}
                 ticket={ticket}
                 ticketHref={ticketHref(ticket)}
-                linkState={ticketLinkState(ticket.companyId)}
+                linkState={ticketLinkState(ticketNav, ticket.companyId)}
                 routeLabel={ticket.location?.id ? routeLabels.get(ticket.location.id) ?? null : null}
               />
             ))

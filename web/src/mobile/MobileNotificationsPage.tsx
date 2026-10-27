@@ -6,12 +6,15 @@ import { formatMobileMutationError } from './mobileActionErrors'
 import { getMobileRouteRoot, mobilePath } from './mobileRoute'
 import { mobileTicketNavState } from './mobileTicketDisplay'
 import { resolveNotificationSourcePath } from '../lib/notificationNavigation'
+import { withTicketNav } from '../lib/ticketNavContext'
+import { useTicketNavSource } from '../lib/useTicketNav'
 
 export function MobileNotificationsPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const ticketNav = useTicketNavSource({ source: 'notifications' })
 
   const scope = useMemo(() => {
     const params = new URLSearchParams(location.search)
@@ -129,9 +132,9 @@ export function MobileNotificationsPage() {
                 getMobileRouteRoot(location.pathname) === '/max' ? 'max' : 'mobile',
                 ticketScope,
               ) || undefined
-            const ticketNavState = mobileTicketNavState(
-              'notifications',
-              n.linkedClientCompanyId || scope.linkedClientCompanyId,
+            const ticketNavState = withTicketNav(
+              mobileTicketNavState('notifications', n.linkedClientCompanyId || scope.linkedClientCompanyId),
+              ticketNav,
             )
             const unread = !n.readAt
             const tone = api.getNotificationTypeTone(n.type)

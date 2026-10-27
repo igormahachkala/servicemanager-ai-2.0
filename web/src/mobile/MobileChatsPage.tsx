@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { withTicketNav } from '../lib/ticketNavContext'
+import { useTicketNavSource } from '../lib/useTicketNav'
 
 import * as api from '../lib/api'
 import { useLinkedBoardScope } from '../hooks/useLinkedBoardScope'
@@ -248,6 +250,25 @@ export function MobileChatsPage() {
   const [collapsedSections, setCollapsedSections] = useState<Partial<Record<ChatsSectionId, boolean>>>({})
   const [expandedObjects, setExpandedObjects] = useState<Set<string>>(new Set())
   const [take, setTake] = useState(50)
+  // Адрес треда уже в URL; поиск, фильтры и раскрытые группы — в снимке.
+  const ticketNav = useTicketNavSource({
+    source: 'chats',
+    restore: { search, filter, chatView, activeTab, collapsedSections, expandedObjects: [...expandedObjects] },
+    onRestore: (raw) => {
+      const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+      if (typeof r.search === 'string') setSearch(r.search.slice(0, 240))
+      if (CHAT_FILTERS.some((f) => f.id === r.filter)) setFilter(r.filter as ChatsFilter)
+      if (r.chatView === 'active' || r.chatView === 'archive') setChatView(r.chatView)
+      if (r.activeTab === 'chat' || r.activeTab === 'info' || r.activeTab === 'files' || r.activeTab === 'history') setActiveTab(r.activeTab)
+      if (r.collapsedSections && typeof r.collapsedSections === 'object') {
+        const c = r.collapsedSections as Record<string, unknown>
+        setCollapsedSections({ tickets: c.tickets === true, objects: c.objects === true, internal: c.internal === true })
+      }
+      if (Array.isArray(r.expandedObjects)) {
+        setExpandedObjects(new Set(r.expandedObjects.filter((x): x is string => typeof x === 'string').slice(0, 200)))
+      }
+    },
+  })
 
   useEffect(() => {
     setTake(50)
@@ -650,7 +671,7 @@ export function MobileChatsPage() {
       compactTicketScope(scopeForMobileTicketLink(me, boardParams, { companyId: currentTicketCompanyId })),
       me,
     )
-    const currentTicketNavState = mobileTicketNavState('chat', currentTicketCompanyId || undefined)
+    const currentTicketNavState = withTicketNav(mobileTicketNavState('chat', currentTicketCompanyId || undefined), ticketNav)
 
     // Unified chronological feed built from chatMessages (already in order, deduped)
     const unifiedFeed: UnifiedFeedEntry[] = chatMessages.map((msg) =>
@@ -969,7 +990,7 @@ export function MobileChatsPage() {
           ) : sectionIsExpanded('tickets') ? (
             <div className="mobileChatsList">
               {ticketRows.map(({ ticket, href, preview }) => (
-                <Link key={ticket.id} className="mobileChatsItem" to={href} state={mobileTicketNavState('chat', ticket.companyId)}>
+                <Link key={ticket.id} className="mobileChatsItem" to={href} state={withTicketNav(mobileTicketNavState('chat', ticket.companyId), ticketNav)}>
                   <div className={chatListIconClass(ticket.status)} aria-hidden="true">
                     <ChatRoomGlyphMessage />
                   </div>
@@ -1064,7 +1085,7 @@ export function MobileChatsPage() {
                     {isExpanded ? (
                       <div className="mobileChatsObjectTickets">
                         {item.tickets.map((t) => (
-                          <Link key={t.id} className="mobileChatsObjectTicketRow" to={t.href} state={mobileTicketNavState('chat', t.companyId)}>
+                          <Link key={t.id} className="mobileChatsObjectTicketRow" to={t.href} state={withTicketNav(mobileTicketNavState('chat', t.companyId), ticketNav)}>
                             <span className={`mobileChatsIndicator mobileChatsIndicator--${t.status}`} />
                             <div className="mobileChatsObjectTicketBody">
                               <span className="mobileChatsObjectTicketTitle">{mobileTicketNumberTitle(t.ticketNumber)}</span>

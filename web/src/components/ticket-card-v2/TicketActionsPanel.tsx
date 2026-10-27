@@ -3,11 +3,12 @@ import { TicketActionBar } from '../ticket-page/TicketActionBar'
 import type * as api from '../../lib/api'
 import { isChildTicket } from '../../lib/ticketIsChild'
 import type { PrimaryTicketAction } from '../../lib/ticketOperationalModel'
+import type { TicketBackLink } from '../../lib/useTicketNav'
 
 export type TicketActionsPanelProps = {
   showTechnicianActionBar: boolean
   ticket: api.TicketGetOne | null
-  backToBoardHref: string
+  back: TicketBackLink
   primaryAction: PrimaryTicketAction | null
   canClaim: boolean
   canChangeStatus: boolean
@@ -55,7 +56,7 @@ export function TicketActionsPanel(props: TicketActionsPanelProps) {
   const {
     showTechnicianActionBar,
     ticket,
-    backToBoardHref,
+    back,
     primaryAction,
     canClaim,
     canChangeStatus,
@@ -98,7 +99,7 @@ export function TicketActionsPanel(props: TicketActionsPanelProps) {
     return (
       <div style={{ marginBottom: 12 }}>
         <TicketActionBar
-          backToBoardHref={backToBoardHref}
+          back={back}
           primaryAction={primaryAction}
           canClaim={canClaim}
           canChangeStatus={canChangeStatus}
@@ -165,9 +166,9 @@ export function TicketActionsPanel(props: TicketActionsPanelProps) {
       ) : null}
 
       <div className="uiActions">
-        <a href={backToBoardHref} style={{ textDecoration: 'none' }}>
-          <button className="ghost">← Назад к доске</button>
-        </a>
+        <Link to={back.to} state={back.state} onClick={back.onClick} style={{ textDecoration: 'none' }}>
+          <button className="ghost">{back.label ? `← Назад: ${back.label}` : '← Назад к доске'}</button>
+        </Link>
         {canEditTicket && !isTechnicianRole ? (
           <button className="ghost" onClick={onToggleEdit}>
             {editOpen ? 'Скрыть редактирование' : 'Редактировать заявку'}
