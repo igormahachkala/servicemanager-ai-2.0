@@ -18,4 +18,5 @@
 
 | Дата | Среда | origin/prod | Исход |
 |---|---|---|---|
+| 2026-10-27 | Cursor Agent (Composer), Windows DESKTOP-VV5L8V7, `core.symlinks=true` | `b30722d951bc5194d529d58c17a08814eadae2bc` | оба маркера получены |
 | | | | |
