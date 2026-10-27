@@ -39,13 +39,13 @@ gh для работы с PR. Выполняется один раз для ка
 </contents>
 
 <server contour="production">
-<host>194.67.101.37</host>
+<host>151.248.123.88</host>
 <user>deploy</user>
 <alias>sma</alias>
 </server>
 
 <server contour="stage">
-<host>194.67.92.186</host>
+<host>91.197.98.14</host>
 <user>deploy</user>
 <alias>sma-spare</alias>
 </server>
@@ -170,6 +170,7 @@ cut -d= -f1 отрезает значения: в вывод попадают т
 <d symptom="permission denied на каталоге развёртывания">Каталог не принадлежит deploy. initial_setup, строка chown.</d>
 <d symptom="env file not found при docker compose up">Файл окружения недоступен пользователю deploy. Проверка «файлы окружения читаются» в verify_server, лечение — initial_setup, строки chgrp и chmod. Работающий контейнер этого не покажет: переменные у него с прошлого запуска.</d>
 <d symptom="отказ записи в /var/backups/sma при снятии дампа">Каталог не создан либо принадлежит не deploy. initial_setup на Production-машине, строки mkdir, chown, chmod.</d>
+<d symptom="Connection refused или timeout при ssh sma или ssh sma-spare">Алиас указывает не на текущую машину. Часть B шаг 2, заменить HostName, затем шаг 3.</d>
 <d symptom="Host key verification failed">Ключ хоста не в known_hosts либо изменился. Часть B шаг 3, сверить отпечаток заново для того IP, куда идёт ssh.</d>
 </diagnostics>
 
@@ -239,17 +240,22 @@ ssh-keygen -t ed25519 -f ~/.ssh/sma_deploy -N "" -C "&lt;кто&gt;@sma"
 </step>
 
 <step id="2" name="добавить алиасы">
-<action>Дописать в ~/.ssh/config. Блок Host sma не менять, если он уже есть.</action>
+<action>
+Проверить ~/.ssh/config.
+Блоков Host sma и Host sma-spare нет. Дописать оба из образца ниже.
+Блоки уже есть. Заменить в них только HostName. У Host sma адрес 151.248.123.88, у Host sma-spare адрес 91.197.98.14. Port, User, IdentityFile и IdentitiesOnly не менять.
+После замены адреса выполнить шаг 3 для новых адресов, затем шаг 5.
+</action>
 <content>
 Host sma
-  HostName 194.67.101.37
+  HostName 151.248.123.88
   Port 22009
   User deploy
   IdentityFile ~/.ssh/sma_deploy
   IdentitiesOnly yes
 
 Host sma-spare
-  HostName 194.67.92.186
+  HostName 91.197.98.14
   Port 22009
   User deploy
   IdentityFile ~/.ssh/sma_deploy
@@ -281,7 +287,7 @@ sma-deploy-stage обращается к Stage-машине как ssh sma-spare
 ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 
 и передать две полученные строки, с пометкой какая Production-машина
-(194.67.101.37), какая Stage-машина (194.67.92.186). Канал передачи —
+(151.248.123.88), какая Stage-машина (91.197.98.14). Канал передачи —
 любой, кроме этого же ssh-подключения: смысл сверки в том, что источник
 независим.
 </action>
@@ -289,10 +295,10 @@ ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 
 <substep id="3.2" name="снять ключ Production-машины и сверить">
 <command>
-ssh-keyscan -p 22009 -t ed25519 194.67.101.37 &gt; /tmp/sma_host_key
+ssh-keyscan -p 22009 -t ed25519 151.248.123.88 &gt; /tmp/sma_host_key
 ssh-keygen -lf /tmp/sma_host_key
 </command>
-<expect>Отпечаток совпадает с полученным на шаге 3.1 для 194.67.101.37 посимвольно.</expect>
+<expect>Отпечаток совпадает с полученным на шаге 3.1 для 151.248.123.88 посимвольно.</expect>
 <on_failure>
 Не совпал — остановиться, в known_hosts не записывать, сообщить пользователю.
 Возможные причины: ключ хоста на сервере переустанавливали, либо соединение
@@ -309,10 +315,10 @@ cat /tmp/sma_host_key &gt;&gt; ~/.ssh/known_hosts
 
 <substep id="3.4" name="снять ключ Stage-машины и сверить">
 <command>
-ssh-keyscan -p 22009 -t ed25519 194.67.92.186 &gt; /tmp/sma_spare_host_key
+ssh-keyscan -p 22009 -t ed25519 91.197.98.14 &gt; /tmp/sma_spare_host_key
 ssh-keygen -lf /tmp/sma_spare_host_key
 </command>
-<expect>Отпечаток совпадает с полученным на шаге 3.1 для 194.67.92.186 посимвольно.</expect>
+<expect>Отпечаток совпадает с полученным на шаге 3.1 для 91.197.98.14 посимвольно.</expect>
 <on_failure>
 Не совпал — остановиться, в known_hosts не записывать, сообщить пользователю.
 Возможные причины: ключ хоста на сервере переустанавливали, либо соединение
