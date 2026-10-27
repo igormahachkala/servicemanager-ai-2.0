@@ -293,8 +293,9 @@ SRC2="$TMP/src2"; BARE2="$TMP/remote2.git"
 git init -q "$SRC2"; ( cd "$SRC2" || exit 1; git config user.email a@b.c; git config user.name t
   echo x>f; git add f; git commit -qm base; git branch beta; echo y>>f; git commit -qam prodonly; git branch -M prod; git checkout -qb feat/cand )
 git clone -q --bare "$SRC2" "$BARE2"
-OUT=$(bash "$SCRIPT" feat/cand --remote "$BARE2" --stage-runtime-sha "$C1" --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" --deployed-workdir-tree "$C1_TREE" 2>&1); rc_is "beta ⊉ prod" 1 $?
-has "$OUT" "beta ⊇ prod           : VIOLATED" "beta⊉prod noted"
+OUT=$(bash "$SCRIPT" feat/cand --remote "$BARE2" --stage-runtime-sha "$C1" --merge-check-evidence "$EV_C1" --ci-evidence "$EV_C1" --deployed-workdir-tree "$C1_TREE" 2>&1)
+printf '%s' "$OUT" | grep -q "restore before release" && no "ancestry orders restore" || ok "ancestry does not order restore"
+printf '%s' "$OUT" | grep -q "beta ⊇ prod" && no "ancestry invariant still printed" || ok "ancestry invariant not printed"
 
 # candidate not contained in beta
 SRC3="$TMP/src3"; BARE3="$TMP/remote3.git"
@@ -318,7 +319,6 @@ mk3(){
 mk3 stage-ok/feat/cand "$C1b" "$(printf 'branch: feat/cand\nstage_sha: %s' "$C1b")"
 mk3 stage-busy "$C1b" "$(printf 'branch: feat/cand')"
 OUT=$(bash "$SCRIPT" feat/cand --remote "$BARE3" --stage-runtime-sha "$C1b" --merge-check-evidence "$EV_C1b" --ci-evidence "$EV_C1b" --deployed-workdir-tree "$C1b_TREE" 2>&1); rc_is "candidate NOT in beta → INCOMPLETE" 1 $?
-has "$OUT" "beta ⊇ prod           : OK" "  (beta ⊇ prod still OK)"
 has "$OUT" "stage-ok (exact)      : PRESENT and matches" "  (stage-ok still matches tip)"
 has "$OUT" "Candidate ∈ beta      : NO" "candidate-not-in-beta gate fires"
 has "$OUT" "OWNER GO               : REQUIRED" "OWNER-GO warning preserved"

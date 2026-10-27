@@ -3,7 +3,7 @@
 # prod-readiness.sh — A7 of SMA_DEVELOPMENT_ACCELERATION_PROTOCOL (DRAFT).
 #
 # READ-ONLY aggregator of the Production-readiness signals for one candidate:
-# current prod/beta SHAs, the beta ⊇ prod invariant, candidate containment in
+# current prod/beta SHAs, candidate containment in
 # current beta, a stage-ok tag with a cryptographically checked stage tree that
 # matches the exact candidate, actual Stage
 # runtime SHA evidence, canonical merge-check / CI evidence, Production tree
@@ -325,12 +325,6 @@ echo "  Candidate             : $CAND_REF" ; [ -n "$CAND_BRANCH" ] && echo "    
 echo "  Current Production SHA: ${PROD_SHA:-<none>}"
 echo "  Current beta SHA      : ${BETA_SHA:-<none>}"
 echo
-
-# beta ⊇ prod
-echo -n "  beta ⊇ prod           : "
-if [ -n "$PROD_SHA" ] && [ -n "$BETA_SHA" ] && git cat-file -e "$PROD_SHA" 2>/dev/null && git cat-file -e "$BETA_SHA" 2>/dev/null; then
-  if git merge-base --is-ancestor "$PROD_SHA" "$BETA_SHA" 2>/dev/null; then echo "OK"; else echo "VIOLATED (restore before release)"; note_missing; fi
-else echo "UNKNOWN (objects unavailable)"; note_missing; fi
 
 # already in prod?
 if [ -n "$PROD_SHA" ] && git cat-file -e "$CAND_SHA" 2>/dev/null && git merge-base --is-ancestor "$CAND_SHA" "$PROD_SHA" 2>/dev/null; then

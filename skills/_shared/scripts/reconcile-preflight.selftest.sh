@@ -58,9 +58,9 @@ printf 'production\n' > "$F2/prod-only.txt"
 git -C "$F2" add prod-only.txt
 git -C "$F2" commit -qm prod-forward
 git -C "$F2" update-ref refs/remotes/origin/prod refs/heads/prod
-expect_rc "beta ancestry violation" 1 bash -c "cd '$F2' && '$SCRIPT' origin/candidate origin/prod origin/beta"
-has "beta ⊇ prod invariant : VIOLATED" "violated invariant reported"
-has "READY FOR RELEASE PREPARATION : NO" "violated invariant blocks readiness"
+expect_rc "prod ahead of beta is not a blocker" 0 bash -c "cd '$F2' && '$SCRIPT' origin/candidate origin/prod origin/beta"
+printf '%s\n' "$OUT" | grep -Fq "restore before release" && no "ancestry does not order restore" || ok "ancestry does not order restore"
+has "READY FOR RELEASE PREPARATION : YES" "prod ahead of beta still ready"
 
 F3="$TMP/same-file"
 make_fixture "$F3"
