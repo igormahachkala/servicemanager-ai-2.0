@@ -549,6 +549,7 @@ Fetch, checkout и pull ниже выполняются отдельными в�
 </why_prune_tags>
 
 <rebuild if="область содержит backend или frontend, либо флаг needs_rebuild">
+ssh sma 'docker image prune -af'
 ssh sma 'cd /opt/sma-prod &amp;&amp; RELEASE_SHA=$(git rev-parse HEAD) &amp;&amp; SMA_RELEASE_ENFORCE=true SMA_RELEASE_COMMIT_SHA="$RELEASE_SHA" SMA_RELEASE_ENVIRONMENT=prod docker compose -p sma-service -f /opt/sma-prod/docker-compose.yml -f /etc/servicemanager-ai/docker-compose.production.override.yml build --build-arg SMA_RELEASE_ENFORCE=true --build-arg SMA_RELEASE_COMMIT_SHA="$RELEASE_SHA" --build-arg SMA_RELEASE_ENVIRONMENT=prod &lt;сервисы по области&gt;'
 </rebuild>
 <rebuild if="область только infra">не требуется, образы не затронуты</rebuild>
@@ -600,8 +601,16 @@ restart: "no" у migrate исключает повтор упавшей мигр
 </migrate>
 <always>
 ssh sma 'docker compose -p sma-service -f /opt/sma-prod/docker-compose.yml -f /etc/servicemanager-ai/docker-compose.production.override.yml up -d --no-deps backend web'
+ssh sma 'docker image prune -af'
 </always>
 <constraint>--no-deps обязателен: postgres не пересоздавать.</constraint>
+<image_prune>
+Перед build команда снимает образы, на которые не ссылается ни один контейнер. Образ работающего и остановленного контейнера остаётся. Между build и up команду не ставить. Новый образ ещё никто не держит, и очистка сотрёт его до запуска.
+Перед run migrate команду не ставить. Образ migrate собирается в rebuild и нужен команде run --rm. После up контейнер migrate уже удалён, вторая очистка снимет и его образ. Следующая выкладка собирает его снова в rebuild, до migrate. Если миграция не прошла и up не выполняется, вторая очистка не запускается.
+</image_prune>
+<constraint name="очистка образов">
+В шаг входит только docker image prune -af. docker system prune, docker volume prune и docker builder prune в шаг не входят. Том базы эта команда не трогает. Команда идёт по демону Docker целиком, не по проекту compose.
+</constraint>
 </step>
 
 <step id="9" name="сверка после развёртывания">

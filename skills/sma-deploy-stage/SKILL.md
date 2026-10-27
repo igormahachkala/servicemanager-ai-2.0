@@ -363,6 +363,7 @@ Fetch, checkout и pull ниже выполняются отдельными в�
 </why_prune_tags>
 
 <rebuild if="область содержит backend или frontend, либо флаг needs_rebuild">
+ssh sma-spare 'docker image prune -af'
 ssh sma-spare 'cd /opt/sma-beta &amp;&amp; RELEASE_SHA=$(git rev-parse HEAD) &amp;&amp; SMA_RELEASE_ENFORCE=true SMA_RELEASE_COMMIT_SHA="$RELEASE_SHA" SMA_RELEASE_ENVIRONMENT=beta docker compose -p sma-service -f /opt/sma-beta/docker-compose.stage.yml -f /etc/servicemanager-ai/docker-compose.stage.override.yml build --build-arg SMA_RELEASE_ENFORCE=true --build-arg SMA_RELEASE_COMMIT_SHA="$RELEASE_SHA" --build-arg SMA_RELEASE_ENVIRONMENT=beta &lt;сервисы по области&gt;'
 </rebuild>
 <rebuild if="область только infra">не требуется, образы не затронуты</rebuild>
@@ -378,8 +379,15 @@ ssh sma-spare 'cd /opt/sma-beta &amp;&amp; RELEASE_SHA=$(git rev-parse HEAD) &am
 </service_map_scope>
 <always>
 ssh sma-spare 'docker compose -p sma-service -f /opt/sma-beta/docker-compose.stage.yml -f /etc/servicemanager-ai/docker-compose.stage.override.yml up -d --no-deps stage_backend stage_web'
+ssh sma-spare 'docker image prune -af'
 </always>
 <constraint>--no-deps обязателен: stage_postgres не пересоздавать.</constraint>
+<image_prune>
+Перед build команда снимает образы, на которые не ссылается ни один контейнер. Образ работающего и остановленного контейнера остаётся. Между build и up команду не ставить. Новый образ ещё никто не держит, и очистка сотрёт его до запуска.
+</image_prune>
+<constraint name="очистка образов">
+В шаг входит только docker image prune -af. docker system prune, docker volume prune и docker builder prune в шаг не входят. Том базы эта команда не трогает. Команда идёт по демону Docker целиком, не по проекту compose.
+</constraint>
 </step>
 
 <step id="9" name="применить миграции" if="has_migration">
