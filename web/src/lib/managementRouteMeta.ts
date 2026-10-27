@@ -115,6 +115,7 @@ export const MANAGEMENT_ROUTES: readonly ManagementRouteMeta[] = Object.freeze([
   { path: '/employees', section: 'workforce', pageLabel: 'Сотрудники', breadcrumbLabel: 'Сотрудники', parentPath: null, entity: null, primaryNav: true },
   { path: '/users', section: 'workforce', pageLabel: 'Сотрудники', breadcrumbLabel: 'Сотрудники', parentPath: null, entity: null, primaryNav: false },
   { path: '/workforce', section: 'workforce', pageLabel: 'Смены и трудозатраты', breadcrumbLabel: 'Смены и трудозатраты', parentPath: null, entity: null, primaryNav: true },
+  { path: '/on-site', section: 'workforce', pageLabel: 'На точках', breadcrumbLabel: 'На точках', parentPath: null, entity: null, primaryNav: true },
   { path: '/technician', section: 'workforce', pageLabel: 'Техник', breadcrumbLabel: 'Техник', parentPath: null, entity: null, primaryNav: false },
 
   // ── Аналитика ─────────────────────────────────────────────────────────────

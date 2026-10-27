@@ -5284,6 +5284,109 @@ export async function updateWorkforceSettings(shiftAutoCloseTime: string) {
   })
 }
 
+export type OnSiteArrivalState = 'no_coordinates' | 'not_arrived' | 'no_fresh' | 'arrived' | 'departed'
+
+export type OnSiteShiftFilter = 'open' | 'closed'
+
+export type OnSiteSort = 'state' | 'name' | 'lastPoint' | 'distance'
+
+export type OnSiteListParams = {
+  state?: OnSiteArrivalState
+  shift?: OnSiteShiftFilter
+  technician?: string
+  sort?: OnSiteSort
+}
+
+export type OnSiteLine = {
+  ticketId: string
+  ticketNumber: number
+  locationName: string
+  linkedClientCompanyId: string
+  ticketHref: string
+  state: OnSiteArrivalState
+  stateOrder: number
+  label: string
+  notes: string[]
+  text: string
+  distanceMeters: number | null
+  lastPointAt: string | null
+  arrivedAt: string | null
+  departedAt: string | null
+}
+
+export type OnSiteCard = {
+  userId: string
+  name: string
+  shiftOpen: boolean
+  lines: OnSiteLine[]
+}
+
+export type OnSiteEmptyReason = 'no_assignments' | 'filtered_out'
+
+export type OnSiteListResponse = {
+  sort: OnSiteSort
+  emptyReason: OnSiteEmptyReason | null
+  items: OnSiteCard[]
+}
+
+export type OnSiteTicketResponse = {
+  userId: string
+  name: string
+  shiftOpen: boolean
+  line: OnSiteLine
+}
+
+export type OnSiteCorrectionInput = {
+  reason: string
+  correctedArrivedAt: string | null
+  correctedDepartedAt: string | null
+}
+
+export type OnSiteCorrectionRecord = {
+  id: string
+  reason: string
+  correctedArrivedAt: string | null
+  correctedDepartedAt: string | null
+  createdAt: string
+  correctedByUserId?: string | null
+  correctedByName?: string | null
+}
+
+export type OnSiteCorrectionsResponse = {
+  ticketId: string
+  userId: string
+  items: OnSiteCorrectionRecord[]
+}
+
+function onSiteListSearch(params: OnSiteListParams): string {
+  const search = new URLSearchParams()
+  if (params.state) search.set('state', params.state)
+  if (params.shift) search.set('shift', params.shift)
+  if (params.technician) search.set('technician', params.technician)
+  search.set('sort', params.sort || 'state')
+  const suffix = search.toString()
+  return suffix ? `?${suffix}` : ''
+}
+
+export async function listOnSite(params: OnSiteListParams = {}): Promise<OnSiteListResponse> {
+  return request<OnSiteListResponse>(`/workforce/on-site${onSiteListSearch(params)}`)
+}
+
+export async function getOnSiteTicket(ticketId: string): Promise<OnSiteTicketResponse> {
+  return request<OnSiteTicketResponse>(`/workforce/on-site/tickets/${encodeURIComponent(ticketId)}`)
+}
+
+export async function createOnSiteCorrection(ticketId: string, input: OnSiteCorrectionInput): Promise<OnSiteCorrectionRecord> {
+  return request<OnSiteCorrectionRecord>(`/workforce/on-site/tickets/${encodeURIComponent(ticketId)}/corrections`, {
+    method: 'POST',
+    body: input,
+  })
+}
+
+export async function listOnSiteCorrections(ticketId: string): Promise<OnSiteCorrectionsResponse> {
+  return request<OnSiteCorrectionsResponse>(`/workforce/on-site/tickets/${encodeURIComponent(ticketId)}/corrections`)
+}
+
 // ─── Центр обновлений (SMA-UPDATES-CENTER-V1) ───────────────────────────────
 
 export type ProductUpdateStatus = 'DRAFT' | 'PUBLISHED'

@@ -101,6 +101,7 @@ const PermissionsPage = lazyExport(() => import('./pages/platform/PermissionsPag
 const ManagementV2StubPage = lazyExport(() => import('./views/v2/ManagementV2StubPage'), 'ManagementV2StubPage')
 const ContractorsRoutePage = lazyExport(() => import('./views/v2/ContractorsRoutePage'), 'ContractorsRoutePage')
 const WorkforcePage = lazyExport(() => import('./views/WorkforcePage'), 'WorkforcePage')
+const OnSitePage = lazyExport(() => import('./views/OnSitePage'), 'OnSitePage')
 const MobileShell = lazyExport(() => import('./mobile/MobileShell'), 'MobileShell')
 const MobileHome = lazyExport(() => import('./mobile/MobileHome'), 'MobileHome')
 const MobileCreateTicket = lazyExport(() => import('./mobile/MobileCreateTicket'), 'MobileCreateTicket')
@@ -123,6 +124,7 @@ const MobileInspectionStartPage = lazyExport(() => import('./mobile/MobileInspec
 const MobileInspectionTodayPage = lazyExport(() => import('./mobile/MobileInspectionTodayPage'), 'MobileInspectionTodayPage')
 const MobileShiftPage = lazyExport(() => import('./mobile/MobileShiftPage'), 'MobileShiftPage')
 const MobileWorkforcePage = lazyExport(() => import('./mobile/MobileWorkforcePage'), 'MobileWorkforcePage')
+const MobileOnSitePage = lazyExport(() => import('./mobile/MobileOnSitePage'), 'MobileOnSitePage')
 const MaxApp = lazyExport(() => import('./max/MaxApp'), 'MaxApp')
 
 function MobileMoreRedirect() {
@@ -328,6 +330,7 @@ export function AppRoutes() {
         <Route path="updates" element={<LazyRoute component={MobileUpdatesPage} />} />
         <Route path="shift" element={<LazyRoute component={MobileShiftPage} />} />
         <Route path="workforce" element={<LazyRoute component={MobileWorkforcePage} />} />
+        <Route path="on-site" element={<LazyRoute component={MobileOnSitePage} />} />
         <Route path="chats" element={<LazyRoute component={MobileChatsPage} />} />
         <Route path="chats/:ticketId" element={<LazyRoute component={MobileChatsPage} />} />
         <Route path="tickets/create-subtask" element={<LazyRoute component={MobileCreateTicket} />} />
@@ -377,6 +380,7 @@ export function AppRoutes() {
         <Route path="failure-causes" element={<LazyRoute component={FailureCausesPage} />} />
         <Route path="analytics" element={<LazyRoute component={AnalyticsPage} />} />
         <Route path="workforce" element={<LazyRoute component={WorkforcePage} />} />
+        <Route path="on-site" element={<LazyRoute component={OnSitePage} />} />
         <Route path="analytics/locations" element={<LazyRoute component={LocationAnalyticsPage} />} />
         <Route path="settings" element={<LazyRoute component={SettingsPage} />} />
         <Route path="updates" element={<LazyRoute component={UpdatesCenterPage} />} />
@@ -413,6 +417,7 @@ export function AppRoutes() {
         <Route path="updates" element={<LazyRoute component={MobileUpdatesPage} />} />
           <Route path="shift" element={<LazyRoute component={MobileShiftPage} />} />
           <Route path="workforce" element={<LazyRoute component={MobileWorkforcePage} />} />
+          <Route path="on-site" element={<LazyRoute component={MobileOnSitePage} />} />
           <Route path="chats" element={<LazyRoute component={MobileChatsPage} />} />
           <Route path="chats/:ticketId" element={<LazyRoute component={MobileChatsPage} />} />
           <Route path="tickets/create-subtask" element={<LazyRoute component={MobileCreateTicket} />} />

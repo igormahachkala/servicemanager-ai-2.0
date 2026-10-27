@@ -88,6 +88,17 @@ enum WorkLogStatus {
   AUTO_STOPPED
 }
 
+enum TechnicianArrivalSide {
+  INSIDE
+  OUTSIDE
+}
+
+enum TechnicianArrivalEventKind {
+  ARRIVED
+  DEPARTED
+  CORRECTION
+}
+
 enum PublicRequestType {
   REPAIR
   NOTE
@@ -242,6 +253,9 @@ model Company {
   workShifts                   WorkShift[]
   idempotencyRecords           IdempotencyRecord[]
   workShiftCorrections         WorkShiftCorrection[]
+  technicianArrivals           TechnicianArrival[]
+  technicianArrivalEvents      TechnicianArrivalEvent[]
+  technicianArrivalCorrections TechnicianArrivalCorrection[]
   workLogs                     WorkLog[]
   serviceContractLocations     ServiceContractLocation[]
   maxUserBindings              MaxUserBinding[]
@@ -297,6 +311,8 @@ model User {
   workShifts                  WorkShift[]
   idempotencyRecords          IdempotencyRecord[]
   workShiftCorrections        WorkShiftCorrection[]  @relation("WorkShiftCorrectionAuthor")
+  technicianArrivals          TechnicianArrival[]    @relation("TechnicianArrivalUser")
+  technicianArrivalCorrections TechnicianArrivalCorrection[] @relation("TechnicianArrivalCorrectionAuthor")
   workLogs                    WorkLog[]
   maxUserBindings             MaxUserBinding[]
   notificationPreferencesV2    UserNotificationPreference[]
@@ -893,6 +909,7 @@ model Ticket {
   partsRemoved      InstalledPart[]       @relation("InstalledPartRemovedTicket")
   inspectionRunItem InspectionRunItem?
   workLogs          WorkLog[]
+  technicianArrivals TechnicianArrival[]
   materialMovements MaterialMovement[]
 
   slaMinutes    Int?
@@ -1024,6 +1041,73 @@ model WorkShiftCorrection {
   correctedBy User      @relation("WorkShiftCorrectionAuthor", fields: [correctedByUserId], references: [id], onDelete: Restrict)
 
   @@index([shiftId, createdAt])
+  @@index([companyId, createdAt])
+}
+
+/// Факт прибытия исполнителя на точку заявки.
+/// companyId — компания провайдера, та же, что WorkShift.companyId.
+/// Ticket.companyId сюда не копируется. У заявки это компания клиента.
+/// arrivedAt и departedAt пишет только автомат приёма точки. Правка дописывает
+/// TechnicianArrivalCorrection и событие CORRECTION, эти колонки она не меняет.
+model TechnicianArrival {
+  id                 String                 @id @default(uuid())
+  companyId          String
+  ticketId           String
+  userId             String
+  arrivedAt          DateTime?
+  departedAt         DateTime?
+  lastDistanceMeters Float?
+  lastCheckedAt      DateTime?
+  candidateSide      TechnicianArrivalSide?
+  candidateStreak    Int                    @default(0)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  company     Company                       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ticket      Ticket                        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user        User                          @relation("TechnicianArrivalUser", fields: [userId], references: [id], onDelete: Restrict)
+  events      TechnicianArrivalEvent[]
+  corrections TechnicianArrivalCorrection[]
+
+  @@unique([ticketId, userId])
+  @@index([companyId, userId])
+  @@index([userId])
+}
+
+/// Переход автомата или правка. Широту и долготу телефона не хранит.
+model TechnicianArrivalEvent {
+  id             String                     @id @default(uuid())
+  companyId      String
+  arrivalId      String
+  kind           TechnicianArrivalEventKind
+  occurredAt     DateTime
+  distanceMeters Float?
+  createdAt      DateTime                   @default(now())
+
+  company Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  arrival TechnicianArrival @relation(fields: [arrivalId], references: [id], onDelete: Cascade)
+
+  @@index([arrivalId, createdAt])
+  @@index([companyId, createdAt])
+}
+
+/// Строка правки. Не обновляется и не удаляется. Следующая правка дописывает новую строку.
+/// Пустое время значит, что этого факта не было. Обе пустые отметки допустимы.
+model TechnicianArrivalCorrection {
+  id                  String    @id @default(uuid())
+  companyId           String
+  arrivalId           String
+  correctedByUserId   String
+  correctedArrivedAt  DateTime?
+  correctedDepartedAt DateTime?
+  reason              String
+  createdAt           DateTime  @default(now())
+
+  company     Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  arrival     TechnicianArrival @relation(fields: [arrivalId], references: [id], onDelete: Cascade)
+  correctedBy User              @relation("TechnicianArrivalCorrectionAuthor", fields: [correctedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([arrivalId, createdAt])
   @@index([companyId, createdAt])
 }
 

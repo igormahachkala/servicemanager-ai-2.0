@@ -1,4 +1,4 @@
-import type { Role } from './api'
+import type { CompanyType, Role } from './api'
 import { canViewITCompany } from '../it-company/access'
 
 export type NavItem = {
@@ -89,6 +89,7 @@ export const managementRailSections: RailSection[] = [
       { id: 'inspectionRuns', label: 'Обходы', to: '/inspection/runs' },
       { id: 'inspectionTemplates', label: 'Шаблоны обходов', to: '/inspection/templates' },
       { id: 'workforce', label: 'Смены и трудозатраты', to: '/workforce' },
+      { id: 'onSite', label: 'На точках', to: '/on-site' },
     ],
   },
   {
@@ -196,6 +197,23 @@ export function railSectionIdForPath(pathname?: string | null): string | null {
 export type NavVisibilityContext = {
   role?: Role | null
   canAccessEngineeringAgent?: boolean
+  /** Company.type из api.company(). Неизвестный тип пункт «На точках» прячет. */
+  companyType?: CompanyType | null
+}
+
+/*
+ * «На точках» (/on-site).
+ *
+ * MASTER, DISPATCHER и ADMIN, и только при Company.type = PROVIDER.
+ * ADMIN_PROVIDER — фронтовый алиас ADMIN и сам по себе тип компании не заменяет.
+ * Набор R.workforce сюда не копируется. В нём есть CLIENT_ADMIN, NETWORK_DIRECTOR,
+ * TERRITORIAL_MANAGER и PLATFORM_ADMIN.
+ */
+const ON_SITE_ROLES = new Set<Role>(['MASTER', 'DISPATCHER', 'ADMIN', 'ADMIN_PROVIDER'])
+
+export function canSeeOnSiteNav(role?: Role | null, companyType?: CompanyType | null): boolean {
+  if (companyType !== 'PROVIDER') return false
+  return !!role && ON_SITE_ROLES.has(role)
 }
 
 const R = {
@@ -274,6 +292,9 @@ export function isManagementNavItemVisible(to: string, ctx: NavVisibilityContext
 
     case '/workforce':
       return has(R.workforce, role)
+
+    case '/on-site':
+      return canSeeOnSiteNav(role, ctx.companyType)
 
     case '/work-calendar':
       return has(R.workCalendar, role)

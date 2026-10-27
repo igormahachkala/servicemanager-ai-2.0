@@ -44,7 +44,7 @@ describe('Rail: утверждённая информационная архит
     expect(objects.items?.map((i) => i.to)).toEqual(['/locations', '/equipment', '/map'])
   })
 
-  it('Работы: Календарь работ/План обходов/Обходы/Шаблоны/Смены', () => {
+  it('Работы: Календарь работ/План обходов/Обходы/Шаблоны/Смены/На точках', () => {
     const works = managementRailSections.find((s) => s.id === 'works')!
     expect(works.items?.map((i) => i.to)).toEqual([
       '/work-calendar',
@@ -52,6 +52,7 @@ describe('Rail: утверждённая информационная архит
       '/inspection/runs',
       '/inspection/templates',
       '/workforce',
+      '/on-site',
     ])
   })
 
@@ -144,6 +145,18 @@ describe('Видимость: fail-closed', () => {
     expect(isManagementNavItemVisible('/access-constructor', { role: 'CLIENT_ADMIN' })).toBe(false)
   })
 
+  it('На точках виден только MASTER, DISPATCHER и ADMIN компании провайдера', () => {
+    for (const role of ['MASTER', 'DISPATCHER', 'ADMIN'] as Role[]) {
+      expect(isManagementNavItemVisible('/on-site', { role, companyType: 'PROVIDER' })).toBe(true)
+    }
+    for (const role of ['TECHNICIAN', 'CLIENT', 'CLIENT_ADMIN', 'PLATFORM_ADMIN'] as Role[]) {
+      expect(isManagementNavItemVisible('/on-site', { role, companyType: 'PROVIDER' })).toBe(false)
+    }
+    expect(isManagementNavItemVisible('/on-site', { role: 'ADMIN', companyType: 'CLIENT' })).toBe(false)
+    expect(isManagementNavItemVisible('/on-site', { role: 'MASTER' })).toBe(false)
+    expect(isManagementNavItemVisible('/workforce', { role: 'CLIENT_ADMIN' })).toBe(true)
+  })
+
   it('План обходов и Шаблоны — roundsManage', () => {
     for (const to of ['/inspection/schedules', '/inspection/templates']) {
       expect(isManagementNavItemVisible(to, { role: 'DISPATCHER' })).toBe(true)
@@ -196,6 +209,7 @@ describe('Активный раздел Rail по пути (railSectionIdForPath
     expect(railSectionIdForPath('/inspection/schedules')).toBe('works')
     expect(railSectionIdForPath('/inspection/runs')).toBe('works')
     expect(railSectionIdForPath('/workforce')).toBe('works')
+    expect(railSectionIdForPath('/on-site')).toBe('works')
     expect(railSectionIdForPath('/analytics')).toBe('analytics')
     expect(railSectionIdForPath('/analytics/locations')).toBe('analytics')
     expect(railSectionIdForPath('/employees')).toBe('more')
