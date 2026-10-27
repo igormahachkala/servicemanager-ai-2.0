@@ -28,7 +28,6 @@ stage-ok при живом замке stage-busy. Код в beta без замк
 Искать по имени блока: номера строк тут не приводятся, они сдвигаются
 при каждой правке.
 
-  шаг 0   восстановить инвариант beta ⊇ prod. Отказ push защитой ветки пропускает шаг
   шаг 1   определить область изменения, скрипт area-map.sh
   шаг 2   опубликовать ветку
   шаг 3   создать PR в beta, precheck на уже открытый
@@ -65,48 +64,8 @@ contour-lock, prerequisites и secrets — до начала работы. На�
 <ref file="skills/_shared/contour-lock.md">Замок контура: проверка, постановка, снятие. Прочитать до шага 7, он занимает контур.</ref>
 <ref file="skills/sma-deploy-stage/references/rollback.md">Откат указателя beta. Читать, только когда пользователь выбрал откат.</ref>
 
-<ref file="skills/_shared/prerequisites.md">Условия допуска к работе. Прочитать и выполнить до шага 0. Пункты с contour="stage" относятся к этому скилу.</ref>
+<ref file="skills/_shared/prerequisites.md">Условия допуска к работе. Прочитать и выполнить до шага 1. Пункты с contour="stage" относятся к этому скилу.</ref>
 <ref file="skills/_shared/secrets.md">Обращение с секретами и переменными окружения. Прочитать до первой команды, затрагивающей сервер: этого требует блок prerequisites.</ref>
-
-<step id="0" name="восстановить инвариант beta ⊇ prod">
-<command>
-git fetch origin
-git merge-base --is-ancestor origin/prod origin/beta
-</command>
-<on_failure>
-beta отстаёт от prod. Восстановить:
-test -z "$(git status --porcelain)"     # копия чистая, иначе switch откажет
-git switch -C beta origin/beta          # локальная beta может отставать или отсутствовать
-git merge origin/prod
-git push origin beta
-git switch &lt;ветка задачи&gt;
-</on_failure>
-<on_branch_busy>
-Отказ 'fatal: beta is already used by worktree at &lt;путь&gt;' — ветку держит
-рабочее дерево другой сессии. Переключаться не нужно, тот же результат даёт
-работа на отсоединённом состоянии: блок beta_without_switch
-в sma-code-delivery.
-</on_branch_busy>
-<on_push_rejected>
-Отказ non-fast-forward означает, что инвариант уже восстановил другой агент:
-при 4-6 агентах после релиза отставание обнаруживают все сразу.
-Это не ошибка. Перечитать состояние — git fetch origin — и повторить проверку
-merge-base. Прошла — идти дальше, ничего не делая.
-</on_push_rejected>
-<skip name="защита ветки">
-Отказ push с GH006, protected branch или Changes must be made through a pull request означает, что git не принимает прямую запись в beta. Шаг пропустить и идти дальше. PR в beta ради этого инварианта не открывать.
-</skip>
-<allowed_exception>
-Это одна из двух служебных операций, разрешённых напрямую в beta,
-см. branch_status в sma-code-delivery. Запрет на прямой push
-относится к коду задач, здесь в beta добавляется только код,
-уже работающий в Production.
-</allowed_exception>
-<rationale>
-После релиза в beta нет коммита слияния, ушедшего в prod. Без восстановления
-проверка пойдёт на базе без последней выложенной задачи.
-</rationale>
-</step>
 
 <step id="1" name="определить область изменения">
 <run script="skills/_shared/scripts/area-map.sh">
@@ -808,7 +767,7 @@ git branch -f beta origin/prod
 git push --force-with-lease origin beta
 </command>
 <allowed_exception>
-Вторая из двух служебных операций, разрешённых напрямую в beta,
+Сброс beta = prod — служебная операция, разрешённая напрямую в beta,
 см. branch_status в sma-code-delivery. Через PR force push не делается.
 </allowed_exception>
 </beta_reset>

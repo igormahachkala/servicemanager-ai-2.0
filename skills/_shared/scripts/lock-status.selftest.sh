@@ -59,7 +59,6 @@ OUT=$(bash "$SCRIPT" --remote "$REMOTE" 2>&1); rc_is "S1 both absent" 0 $?
 has "$OUT" "Stage       : FREE" "S1 Stage FREE"
 has "$OUT" "Production  : FREE" "S1 Production FREE"
 has "$OUT" "FREE.*means only that no lock" "S1 FREE≠authorization caveat present"
-has "$OUT" "OK (prod" "S1 beta ⊇ prod OK"
 has "$OUT" "Stale thresholds     : stage=4h, production=2h" "S1 protocol stale thresholds"
 
 # S2 stage lock present
@@ -109,7 +108,7 @@ printf '%s' "$OUT" | grep -q "stage-busy(3h)" && no "S6b stage incorrectly stale
 OUT=$(bash "$SCRIPT" --remote "$REMOTE" --stage-stale-hours 3 --prod-stale-hours 1 2>&1)
 has "$OUT" "Stale thresholds     : stage=3h, production=1h" "S6c custom per-lane thresholds"
 
-# S7 beta NOT containing prod (fresh fixture where prod has a commit beta lacks)
+# S7 prod ahead of beta does not order a merge into beta
 SRC2="$TMP/src2"; BARE2="$TMP/remote2.git"
 git init -q "$SRC2"; ( cd "$SRC2" || exit 1
   git config user.email a@b.c; git config user.name t
@@ -119,8 +118,9 @@ git init -q "$SRC2"; ( cd "$SRC2" || exit 1
   git branch -M prod
 )
 git clone -q --bare "$SRC2" "$BARE2"
-OUT=$(bash "$SCRIPT" --remote "$BARE2" 2>&1)
-has "$OUT" "VIOLATED" "S7 beta ⊉ prod → VIOLATED"
+OUT=$(bash "$SCRIPT" --remote "$BARE2" 2>&1); rc_is "S7 prod ahead of beta" 0 $?
+printf '%s' "$OUT" | grep -q "restore before release" && no "S7 orders restore" || ok "S7 does not order restore"
+printf '%s' "$OUT" | grep -q "beta ⊇ prod" && no "S7 ancestry invariant gone" || ok "S7 ancestry invariant gone"
 
 # S8 git/network failure
 bash "$SCRIPT" --remote "$TMP/does-not-exist.git" >/dev/null 2>&1; rc_is "S8 remote unreadable" 3 $?
