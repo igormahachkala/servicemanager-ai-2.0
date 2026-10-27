@@ -16,6 +16,12 @@ import {
 import * as bcrypt from 'bcrypt'
 
 import { PERMISSION_BLOCKS, ROLE_GRANTS } from '../src/common/permissions-matrix'
+import {
+  seedCanonicalStageGaps,
+  STAGE_QA_GAP_FIXTURES,
+  validateCanonicalStageGapsPlan,
+  type StageQaGapsSeedResult,
+} from './seed-stage-qa-gaps'
 
 const PASSWORD_ENV = 'STAGE_CANONICAL_PASSWORD'
 const SEED_CONFIRM_ENV = 'STAGE_CANONICAL_SEED_CONFIRM'
@@ -646,6 +652,7 @@ export type CanonicalStageSeedResult = {
   permissionBlocks: number
   rolePermissions: number
   providerDelegation: 'not_supported_by_current_schema'
+  gaps: StageQaGapsSeedResult
 }
 
 function lowerEmail(email: string) {
@@ -908,6 +915,24 @@ export function validateCanonicalStageSeedPlan() {
       throw new Error(`[seed-stage-canonical] missing acceptance fixture ${key}`)
     }
   }
+
+  validateCanonicalStageGapsPlan({
+    mainClientCompanyId: CANONICAL_STAGE_SEED.companies.find((row) => row.key === 'client')!.id,
+    secondaryProviderCompanyId: CANONICAL_STAGE_SEED.companies.find(
+      (row) => row.key === 'secondaryProvider',
+    )!.id,
+    clientAdminUserId: CANONICAL_STAGE_SEED.users.find((row) => row.key === 'clientAdmin')!.id,
+    secondaryTechnicianUserId: CANONICAL_STAGE_SEED.users.find(
+      (row) => row.key === 'secondaryTechnician',
+    )!.id,
+    mobileTechnicianUserId: CANONICAL_STAGE_SEED.users.find(
+      (row) => row.key === 'mobileTechnician',
+    )!.id,
+    primaryLocationId: CANONICAL_STAGE_SEED.locations.find((row) => row.key === 'primary')!.id,
+    hvacCategoryId: CANONICAL_STAGE_SEED.categories.find((row) => row.key === 'hvac')!.id,
+    canonicalUserEmails: CANONICAL_STAGE_SEED.users.map((row) => row.email),
+    canonicalTicketNumbers: CANONICAL_STAGE_SEED.tickets.map((row) => row.ticketNumber),
+  })
 }
 
 async function seedPermissions(prisma: PrismaClient) {
@@ -1786,6 +1811,18 @@ export async function runCanonicalStageSeed(
   await seedPushPreferences(prisma, Object.values(ids.users))
   const tickets = await seedTickets(prisma, ids)
 
+  const gaps = await seedCanonicalStageGaps(prisma, passwordHash, {
+    mainClientCompanyId: ids.companies.client,
+    secondaryProviderCompanyId: ids.companies.secondaryProvider,
+    clientAdminUserId: ids.users.clientAdmin,
+    secondaryTechnicianUserId: ids.users.secondaryTechnician,
+    mobileTechnicianUserId: ids.users.mobileTechnician,
+    primaryLocationId: ids.locations.primary,
+    hvacCategoryId: ids.categories.hvac,
+    canonicalUserEmails: CANONICAL_STAGE_SEED.users.map((row) => row.email),
+    canonicalTicketNumbers: CANONICAL_STAGE_SEED.tickets.map((row) => row.ticketNumber),
+  })
+
   const [permissionBlocks, rolePermissions] = await Promise.all([
     prisma.permissionBlock.count(),
     prisma.rolePermission.count(),
@@ -1802,6 +1839,7 @@ export async function runCanonicalStageSeed(
     permissionBlocks,
     rolePermissions,
     providerDelegation: 'not_supported_by_current_schema',
+    gaps,
   }
 }
 
@@ -1822,6 +1860,9 @@ export async function printCanonicalStageSeedDryRun(
   console.log(`[seed-stage-canonical] contracts: ${CANONICAL_STAGE_SEED.contracts.length}`)
   console.log(`[seed-stage-canonical] tickets: ${CANONICAL_STAGE_SEED.tickets.length}`)
   console.log(`[seed-stage-canonical] statuses: ${statuses.join(', ')}`)
+  console.log(
+    `[seed-stage-canonical] gaps: PLATFORM_ADMIN=${STAGE_QA_GAP_FIXTURES.platformAdminEmail}, CANCELED=#${STAGE_QA_GAP_FIXTURES.canceledTicketNumber}, FOREIGN=#${STAGE_QA_GAP_FIXTURES.foreignTicketNumber}, MaxUserBinding=2`,
+  )
   console.log('[seed-stage-canonical] providerDelegation: not supported by current schema')
 }
 
@@ -1853,6 +1894,9 @@ async function main() {
         `[seed-stage-canonical] fixture ${ticket.key}: #${ticket.ticketNumber} ${ticket.status} — ${ticket.purpose}`,
       )
     }
+    console.log(
+      `[seed-stage-canonical] gaps: PLATFORM_ADMIN=${result.gaps.platformAdminEmail}, CANCELED=${result.gaps.canceledTicketId}, FOREIGN=${result.gaps.foreignTicketId}, MaxUserBinding=${result.gaps.maxUserBindings}, inactiveContracts=${result.gaps.inactiveContracts}`,
+    )
     console.log('[seed-stage-canonical] providerDelegation: not supported by current schema')
   } finally {
     await prisma.$disconnect()
