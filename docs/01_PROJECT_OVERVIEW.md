@@ -84,7 +84,7 @@ Frontend modules live under `web/src/`:
 
 ## Technology Stack
 
-- Runtime - Node.js 20 or newer.
+- Runtime - Node.js 22.23.4.
 - Backend - NestJS, TypeScript, Prisma Client, PostgreSQL, JWT authentication, Jest.
 - Frontend - React, TypeScript, Vite, React Router, TanStack Query.
 - Realtime and notifications - WebSocket/realtime service, web push, notification service, MAX bot integration.

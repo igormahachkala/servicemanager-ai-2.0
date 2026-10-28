@@ -59,7 +59,9 @@ Docker backend URL:
 
 ## Node version
 
-Normal WSL dev shells must use Node 20 by default.
+Use Node.js 22.23.4.
+
+This is a stable release of the Node.js 22 line. It includes the security fixes from the Node.js security bulletin of 21 October 2026. The Node.js 20 line did not receive those fixes.
 
 Check:
 

@@ -5,7 +5,10 @@
   "description": "MVP executor for ServiceManager.AI Engineering Agent — read-only analysis worker (HTTP API only).",
   "license": "UNLICENSED",
   "engines": {
-    "node": ">=18"
+    "node": "22.23.4"
+  },
+  "volta": {
+    "node": "22.23.4"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -15,7 +18,7 @@
     "live": "node dist/index.js --live"
   },
   "devDependencies": {
-    "@types/node": "^20.11.0",
-    "typescript": "^5.4.0"
+    "@types/node": "20.19.43",
+    "typescript": "5.9.3"
   }
 }
