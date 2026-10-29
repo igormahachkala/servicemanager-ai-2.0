@@ -48,6 +48,8 @@ export type BoardQueryInput = {
   locationId?: string;
   equipmentId?: string;
   includeArchived?: boolean;
+  /** Только незакрытые заявки старше стольких суток, board-stale-tickets.ts. */
+  olderThanDays?: number;
 };
 
 export type BoardQuery = {

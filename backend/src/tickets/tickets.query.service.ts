@@ -35,6 +35,7 @@ import { resolveClaimCapabilitiesForVisibleTickets } from './ticket-claim-eligib
 import { TICKET_ASSIGNMENT_REQUESTED_ENTITY, TICKET_ASSIGNMENT_REQUESTED_EVENT } from './ticket-domain-event.types'
 import { isExecutorCapableRole } from '../common/executor.utils'
 import { loadBoardImageAttachmentSummaries } from './board-attachment-summary'
+import { buildStaleTicketWhere } from './board-stale-tickets'
 import { ShiftPolicyService } from '../workforce/shift-policy.service'
 import { loadUnresolvedDescendants } from './ticket-close-tree'
 
@@ -530,11 +531,17 @@ export class TicketsQueryService {
       whereAfterSecondary,
       input.includeArchived,
     )
+    const olderThanDays = input.olderThanDays
+    const whereWithStaleFilter = olderThanDays
+      ? (this.normalizeAnd(whereWithArchiveFilter, [
+          buildStaleTicketWhere(new Date(), olderThanDays),
+        ]) as Prisma.TicketWhereInput)
+      : whereWithArchiveFilter
 
     const nowMs = Date.now()
     const atRiskThresholdMs = decision.meta.atRiskThresholdMinutes * 60_000
 
-    let prismaWhere = whereWithArchiveFilter as any
+    let prismaWhere = whereWithStaleFilter as any
     if (
       prismaWhere &&
       typeof prismaWhere === 'object' &&
@@ -550,6 +557,11 @@ export class TicketsQueryService {
           : {}
     }
     const safeBoardWhere = this.safeTicketWhereOrNull(prismaWhere)
+    // Счётчик карточки «старше 10 дней» — точный, а не по срезу последних take.
+    const matchingTotalPromise =
+      olderThanDays && safeBoardWhere
+        ? this.prisma.ticket.count({ where: safeBoardWhere })
+        : Promise.resolve(olderThanDays ? 0 : undefined)
     const tickets = safeBoardWhere
       ? await this.prisma.ticket.findMany({
           where: safeBoardWhere,
@@ -606,10 +618,13 @@ export class TicketsQueryService {
         })
       : []
 
-    const imageAttachmentSummaries = await loadBoardImageAttachmentSummaries(
-      this.prisma,
-      tickets.map((ticket) => ticket.id),
-    )
+    const [imageAttachmentSummaries, matchingTotal] = await Promise.all([
+      loadBoardImageAttachmentSummaries(
+        this.prisma,
+        tickets.map((ticket) => ticket.id),
+      ),
+      matchingTotalPromise,
+    ])
 
     const candidateTickets = tickets.filter((t) => t.status === TicketStatus.NEW && !t.assignedTechnician)
     const candidateIds = candidateTickets.map((t) => t.id)
@@ -758,6 +773,7 @@ export class TicketsQueryService {
         limitedToLast: decision.meta.limitedToLast,
         scopeCompanyId: scope.scopeCompanyId,
         visibilityMode: scope.visibilityMode,
+        ...(matchingTotal === undefined ? {} : { matchingTotal }),
       },
     }
   }
