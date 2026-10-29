@@ -7173,3 +7173,8 @@ button.mobileNavItem {
   white-space: normal;
   cursor: pointer;
 }
+
+/* TUX-04: откуда открыта карточка заявки. */
+.mobileTicketOrigin {
+  margin: 0 2px 8px;
+}

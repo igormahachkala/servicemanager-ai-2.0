@@ -1093,14 +1093,14 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
         ),
       )
 
+    // UserAccessLocationMode больше не содержит ALL_LOCATIONS: без режима
+    // (null) доступ по всем объектам, SELECTED_LOCATIONS — по привязкам.
     const locationAllowed =
       locationMode === null ||
-      locationMode === UserAccessLocationMode.ALL_LOCATIONS ||
       (locationMode === UserAccessLocationMode.SELECTED_LOCATIONS &&
         bindingLocationIds.includes(ticketLocationId))
     const targetLocationAllowed =
       locationMode === null ||
-      locationMode === UserAccessLocationMode.ALL_LOCATIONS ||
       (locationMode === UserAccessLocationMode.SELECTED_LOCATIONS &&
         targetBindingLocationIds.includes(ticketLocationId))
     const targetSpecializationAllowed =

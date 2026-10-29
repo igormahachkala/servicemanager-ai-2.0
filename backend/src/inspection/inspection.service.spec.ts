@@ -10,6 +10,7 @@ import {
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { ActiveShiftRequiredException } from '../workforce/shift-policy.service'
 
+import { InspectionRunItemStatusDto } from './dto/update-run-item.dto';
 import { InspectionService } from './inspection.service'
 
 const USER = {
@@ -59,9 +60,12 @@ function makeService(overrides: Record<string, any> = {}, deps: { shiftPolicy?: 
     inspectionRunItemAttachment: {
       create: jest.fn(),
     },
+    $transaction: jest.fn(),
     ...overrides,
   }
-  ;(prisma as any).$transaction = jest.fn(async (handler: any) => handler(prisma))
+  prisma.$transaction.mockImplementation(
+    async (handler: (tx: typeof prisma) => unknown) => handler(prisma),
+  );
   const tickets = {
     create: jest.fn().mockResolvedValue({
       ticket: { id: 'ticket-1', ticketNumber: 101 },
@@ -451,7 +455,7 @@ describe('InspectionService round zone/checkpoint foundation', () => {
     })
 
     await service.updateRunItem(USER, 'run-1', 'run-item-1', {
-      status: InspectionRunItemStatus.OK,
+      status: InspectionRunItemStatusDto.OK,
       numberValue: 15,
       comment: 'Completed on V1',
     })

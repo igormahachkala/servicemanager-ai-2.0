@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { Role } from '../lib/api'
+import type { CompanyType, Role } from '../lib/api'
 import { mobileNavSectionForPath, ticketsSlotLabel } from './mobileBottomNav'
 import { getMobileMoreEntries } from './mobileMoreEntries'
 
@@ -27,8 +27,8 @@ describe('Активная секция нижней навигации', () => 
     expect(mobileNavSectionForPath('/m/inspection/351')).toBe('inspection')
     expect(mobileNavSectionForPath('/max/inspection/today')).toBe('inspection')
   })
-  it('more-кластер: more/materials/equipment/shift/analytics/profile/settings/workforce', () => {
-    for (const suf of ['/more', '/materials', '/equipment', '/equipment/eq-1', '/shift', '/analytics', '/analytics/locations', '/profile', '/settings', '/workforce', '/push-settings', '/offline-queue', '/notifications']) {
+  it('more-кластер: more/materials/equipment/shift/analytics/profile/settings/workforce/on-site', () => {
+    for (const suf of ['/more', '/materials', '/equipment', '/equipment/eq-1', '/shift', '/analytics', '/analytics/locations', '/profile', '/settings', '/workforce', '/on-site', '/push-settings', '/offline-queue', '/notifications']) {
       expect(mobileNavSectionForPath(`/m${suf}`)).toBe('more')
     }
     expect(mobileNavSectionForPath('/max/more')).toBe('more')
@@ -125,6 +125,29 @@ describe('«Ещё» — видимость по ролям (negative controls)'
     for (const r of ['TECHNICIAN', 'CLIENT', 'CLIENT_ADMIN', 'TERRITORIAL_MANAGER', 'STAFF'] as Role[]) {
       expect(ids({ role: r, canAccessManagementSurface: true })).not.toContain('analytics')
     }
+  })
+
+  it('«На точках» в «Ещё» только у MASTER, DISPATCHER и ADMIN провайдера', () => {
+    const withType = (role: Role, companyType?: CompanyType | null) =>
+      ids({ role, canAccessManagementSurface: true, companyType })
+
+    for (const role of ['MASTER', 'DISPATCHER', 'ADMIN'] as Role[]) {
+      expect(withType(role, 'PROVIDER')).toContain('onSite')
+    }
+    const dispatcher = getMobileMoreEntries({ role: 'DISPATCHER', canAccessManagementSurface: true, companyType: 'PROVIDER' }, '/m')
+    expect(dispatcher.map((entry) => entry.id)).not.toContain('shift')
+    expect(dispatcher.find((entry) => entry.id === 'onSite')?.label).toBe('На точках')
+    expect(dispatcher.find((entry) => entry.id === 'onSite')?.to).toBe('/m/on-site')
+
+    const master = getMobileMoreEntries({ role: 'MASTER', canAccessManagementSurface: true, companyType: 'PROVIDER' }, '/m').map((entry) => entry.id)
+    expect(master.indexOf('onSite')).toBe(master.indexOf('shift') + 1)
+
+    for (const role of ['TECHNICIAN', 'CLIENT', 'CLIENT_ADMIN', 'PLATFORM_ADMIN'] as Role[]) {
+      expect(withType(role, 'PROVIDER')).not.toContain('onSite')
+    }
+    expect(withType('ADMIN', 'CLIENT')).not.toContain('onSite')
+    expect(ids({ role: 'MASTER', canAccessManagementSurface: true })).not.toContain('onSite')
+    expect(getMobileMoreEntries({ role: 'ADMIN', canAccessManagementSurface: true, companyType: 'PROVIDER' }, '/max').find((entry) => entry.id === 'onSite')?.to).toBe('/max/on-site')
   })
 
   it('/max: материалы отсутствуют (вход /m-only), прочие по роли', () => {

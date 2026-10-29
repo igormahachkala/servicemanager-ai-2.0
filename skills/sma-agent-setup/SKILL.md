@@ -1,6 +1,6 @@
 ---
 name: sma-agent-setup
-description: "Подготовка машины агента к работе с проектом: доступ к серверу по ssh под учётной записью deploy, авторизация gh classic-токеном с областями repo, read:org, workflow, проверка того, что переменные окружения дошли до контейнеров. Обязательно применять, когда команда ssh или gh отказывает, когда пользователь просит настроить доступ к серверу, подключиться к серверу, авторизовать gh, разобраться с токеном или правами на pull request, а также при первой на этой машине попытке развёртывания. Выполняется один раз на машину и на агента. Без этого sma-deploy-stage и sma-deploy-prod не работают."
+description: "Подготовка машины агента к работе с проектом: доступ к серверу по ssh под учётной записью deploy, авторизация gh classic-токеном в диалоге gh auth login с протоколом SSH, проверка того, что переменные окружения дошли до контейнеров. Обязательно применять, когда команда ssh или gh отказывает, когда пользователь просит настроить доступ к серверу, подключиться к серверу, авторизовать gh, разобраться с токеном или правами на pull request, а также при первой на этой машине попытке развёртывания. Выполняется один раз на машину и на агента. Без этого sma-deploy-stage и sma-deploy-prod не работают."
 ---
 
 <purpose>
@@ -28,7 +28,7 @@ gh для работы с PR. Выполняется один раз для ка
           шаг 5  проверить доступ
   part C  gh — работа с Pull Request
           шаг 1  установить
-          шаг 2  авторизовать, требования к токену
+          шаг 2  авторизовать токеном в диалоге, протокол SSH
           шаг 3  проверить право на PR
   part D  отзыв доступа к серверу
   part E  проверка обнаружения скилов
@@ -39,13 +39,13 @@ gh для работы с PR. Выполняется один раз для ка
 </contents>
 
 <server contour="production">
-<host>194.67.101.37</host>
+<host>151.248.123.88</host>
 <user>deploy</user>
 <alias>sma</alias>
 </server>
 
 <server contour="stage">
-<host>194.67.92.186</host>
+<host>91.197.98.14</host>
 <user>deploy</user>
 <alias>sma-spare</alias>
 </server>
@@ -170,6 +170,7 @@ cut -d= -f1 отрезает значения: в вывод попадают т
 <d symptom="permission denied на каталоге развёртывания">Каталог не принадлежит deploy. initial_setup, строка chown.</d>
 <d symptom="env file not found при docker compose up">Файл окружения недоступен пользователю deploy. Проверка «файлы окружения читаются» в verify_server, лечение — initial_setup, строки chgrp и chmod. Работающий контейнер этого не покажет: переменные у него с прошлого запуска.</d>
 <d symptom="отказ записи в /var/backups/sma при снятии дампа">Каталог не создан либо принадлежит не deploy. initial_setup на Production-машине, строки mkdir, chown, chmod.</d>
+<d symptom="Connection refused или timeout при ssh sma или ssh sma-spare">Алиас указывает не на текущую машину или не на её порт. Часть B шаг 2, заменить HostName и Port, затем шаг 3.</d>
 <d symptom="Host key verification failed">Ключ хоста не в known_hosts либо изменился. Часть B шаг 3, сверить отпечаток заново для того IP, куда идёт ssh.</d>
 </diagnostics>
 
@@ -239,17 +240,22 @@ ssh-keygen -t ed25519 -f ~/.ssh/sma_deploy -N "" -C "&lt;кто&gt;@sma"
 </step>
 
 <step id="2" name="добавить алиасы">
-<action>Дописать в ~/.ssh/config. Блок Host sma не менять, если он уже есть.</action>
+<action>
+Проверить ~/.ssh/config.
+Блоков Host sma и Host sma-spare нет. Дописать оба из образца ниже.
+Блоки уже есть. Заменить в них HostName и Port. У Host sma адрес 151.248.123.88 и порт 22. У Host sma-spare адрес 91.197.98.14 и порт 22009. User, IdentityFile и IdentitiesOnly не менять.
+После замены адреса выполнить шаг 3 для новых адресов, затем шаг 5.
+</action>
 <content>
 Host sma
-  HostName 194.67.101.37
-  Port 22009
+  HostName 151.248.123.88
+  Port 22
   User deploy
   IdentityFile ~/.ssh/sma_deploy
   IdentitiesOnly yes
 
 Host sma-spare
-  HostName 194.67.92.186
+  HostName 91.197.98.14
   Port 22009
   User deploy
   IdentityFile ~/.ssh/sma_deploy
@@ -281,7 +287,7 @@ sma-deploy-stage обращается к Stage-машине как ssh sma-spare
 ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 
 и передать две полученные строки, с пометкой какая Production-машина
-(194.67.101.37), какая Stage-машина (194.67.92.186). Канал передачи —
+(151.248.123.88), какая Stage-машина (91.197.98.14). Канал передачи —
 любой, кроме этого же ssh-подключения: смысл сверки в том, что источник
 независим.
 </action>
@@ -289,10 +295,10 @@ ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 
 <substep id="3.2" name="снять ключ Production-машины и сверить">
 <command>
-ssh-keyscan -p 22009 -t ed25519 194.67.101.37 &gt; /tmp/sma_host_key
+ssh-keyscan -p 22 -t ed25519 151.248.123.88 &gt; /tmp/sma_host_key
 ssh-keygen -lf /tmp/sma_host_key
 </command>
-<expect>Отпечаток совпадает с полученным на шаге 3.1 для 194.67.101.37 посимвольно.</expect>
+<expect>Отпечаток совпадает с полученным на шаге 3.1 для 151.248.123.88 посимвольно.</expect>
 <on_failure>
 Не совпал — остановиться, в known_hosts не записывать, сообщить пользователю.
 Возможные причины: ключ хоста на сервере переустанавливали, либо соединение
@@ -309,10 +315,10 @@ cat /tmp/sma_host_key &gt;&gt; ~/.ssh/known_hosts
 
 <substep id="3.4" name="снять ключ Stage-машины и сверить">
 <command>
-ssh-keyscan -p 22009 -t ed25519 194.67.92.186 &gt; /tmp/sma_spare_host_key
+ssh-keyscan -p 22009 -t ed25519 91.197.98.14 &gt; /tmp/sma_spare_host_key
 ssh-keygen -lf /tmp/sma_spare_host_key
 </command>
-<expect>Отпечаток совпадает с полученным на шаге 3.1 для 194.67.92.186 посимвольно.</expect>
+<expect>Отпечаток совпадает с полученным на шаге 3.1 для 91.197.98.14 посимвольно.</expect>
 <on_failure>
 Не совпал — остановиться, в known_hosts не записывать, сообщить пользователю.
 Возможные причины: ключ хоста на сервере переустанавливали, либо соединение
@@ -349,7 +355,7 @@ ssh -o BatchMode=yes sma-spare 'whoami; id; docker ps --format "{{.Names}}" | he
 <expect>whoami на обоих хостах возвращает deploy. В группах присутствует docker. docker ps выводит контейнеры.</expect>
 <on_failure>
 Permission denied — ключ не добавлен на ту машину, куда идёт ssh, либо добавлен не тому пользователю.
-Connection refused или timeout — недоступен порт 22009.
+Connection refused или timeout — недоступен порт. У Production это 22, у Stage это 22009.
 Отказ docker ps — пользователь не в группе docker.
 </on_failure>
 </step>
@@ -385,10 +391,15 @@ cat /etc/os-release 2&gt;/dev/null | head -2
 </step>
 
 <step id="2" name="авторизовать">
-<command>gh auth login --with-token</command>
+<command>gh auth login</command>
 <action>
-Токен вставить из буфера в приглашение ввода. Не передавать аргументом
-командной строки — попадёт в историю.
+Ответы в диалоге:
+  Where do you use GitHub? → GitHub.com
+  How would you like to authenticate GitHub CLI? → Paste an authentication token
+  Preferred protocol for Git operations → SSH
+  Upload your SSH public key → Skip
+  Paste your authentication token → вставить токен и Enter
+Дождаться строки Logged in as &lt;учётка&gt;.
 </action>
 <token_requirements>
 Токен classic. Создаётся в GitHub: Settings → Developer settings
@@ -402,33 +413,17 @@ cat /etc/os-release 2&gt;/dev/null | head -2
 
 Остальное не отмечать.
 </token_requirements>
-<why_classic>
-Установлено 2026-08-31 на практике.
-
-Fine-grained токен не годится тому, кто не владеет репозиторием: он работает
-только с репозиториями выпустившего его аккаунта, и соавтор в списке
-репозиториев чужого владельца их не увидит. Вариант «Public repositories»
-в fine-grained даёт доступ только на чтение — push и создание PR им не сделать.
-
-Владелец репозитория может выпустить fine-grained, но порядок держится один
-для всех: classic работает и у владельца, и у соавторов.
-</why_classic>
-<why_three_scopes>
-gh при входе проверяет ровно три области: repo, read:org, workflow. Без любой
-из них gh auth login отказывает с сообщением
-error validating token: missing required scope.
-
-read:org и workflow самому потоку доставки не нужны, это требование gh.
-</why_three_scopes>
-<note_private>
-Область repo, а не public_repo: репозиторий планируется перевести в закрытый.
-С public_repo токен в день перевода перестанет работать, и отказ будет
-выглядеть как 404, будто репозитория нет.
-</note_private>
-<note_scope>
-Classic-токен действует на все репозитории, к которым у выпустившего есть
-доступ. Выбор одного репозитория в нём не предусмотрен.
-</note_scope>
+<forbidden>
+Не использовать gh auth login --with-token.
+На Windows в Git Bash эта форма молчит без приглашения.
+Вставка токена попадает в историю оболочки.
+Не выбирать HTTPS и не выбирать Login with a web browser.
+</forbidden>
+<why_dialog>
+Установлено 2026-10-27 на Windows.
+Диалог gh auth login показывает приглашение Paste your authentication token.
+Протокол SSH совпадает с git remote по ssh.
+</why_dialog>
 </step>
 
 <step id="3" name="проверить">

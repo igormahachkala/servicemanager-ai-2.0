@@ -2,6 +2,9 @@ import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { postMyShiftGeoQuietly } from '../lib/shiftGeoApi'
+import { OnSiteTicketLine } from '../components/on-site/OnSiteTicketLine'
+import { useCanSeeOnSite } from '../components/on-site/useCanSeeOnSite'
 import {
   mobileTicketAttachmentReadScopes,
   mobileTicketCategoryLocationFromDetail,
@@ -45,6 +48,8 @@ import { ONLINE_ONLY_ACTION_MESSAGE, OFFLINE_TICKET_NOT_CACHED_MESSAGE } from '.
 import { formatMobileMutationError } from './mobileActionErrors'
 import { getMobileRouteRoot, mobilePath } from './mobileRoute'
 import { childTicketCreatePath } from '../lib/childTicketCreatePath'
+import { stripTicketNav, withTicketNav } from '../lib/ticketNavContext'
+import { useTicketNavBack } from '../lib/useTicketNav'
 import { isChildTicket, roleCanCreateChildTicket, roleCanDetachChildTicket } from '../lib/ticketIsChild'
 import { MobileParentCloseChildrenSheet } from './MobileParentCloseChildrenSheet'
 import { useParentCloseDialog } from '../hooks/useParentCloseDialog'
@@ -75,6 +80,7 @@ import { ProtectedUploadAnchor } from '../ui/ProtectedUploadMedia'
 import { useProtectedUploadSrcs } from '../ui/useProtectedUploadSrc'
 import { MobileTicketPhotoGallery } from './MobileTicketPhotoGallery'
 import { MobileTicketActionsSheet, type TicketSheetAction } from './MobileTicketActionsSheet'
+import { resolveTicketPageScope } from '../lib/ticketPageScope'
 import { MobileModalBackdrop } from './MobileModalBackdrop'
 import { TicketMaterialsPanel } from '../components/tickets/TicketMaterialsPanel'
 import { compactIdentityLabel, identityLines, presentActorIdentity, presentTicketAssignee, presentTicketCreator } from '../lib/ticketActorIdentity'
@@ -351,6 +357,7 @@ export function MobileTicketPage() {
     [location.search],
   )
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const showOnSiteLine = useCanSeeOnSite()
   const queryClient = useQueryClient()
 
   const [operationalToast, setOperationalToast] = useState('')
@@ -402,10 +409,18 @@ export function MobileTicketPage() {
     }
   }, [rejectModal?.previewUrl])
 
-  const observerCompanyId = useMemo(
-    () => (searchParams.get('companyId') || api.getObserverCompanyId(meQ.data)).trim(),
+  const pageScope = useMemo(
+    () =>
+      resolveTicketPageScope({
+        urlCompanyId: searchParams.get('companyId'),
+        urlLinkedClientCompanyId: searchParams.get('linkedClientCompanyId'),
+        persistedCompanyId: api.getObserverCompanyId(meQ.data),
+        persistedLinkedClientCompanyId: api.getLinkedClientCompanyId(meQ.data),
+        role: meQ.data?.role || api.getUserRole() || undefined,
+      }),
     [searchParams, meQ.data],
   )
+  const observerCompanyId = pageScope.companyId
 
   const ownCompanyQ = useQuery({
     queryKey: ['mobile-own-company'],
@@ -413,11 +428,7 @@ export function MobileTicketPage() {
     enabled: !observerCompanyId,
   })
 
-  const urlLinkedClientCompanyId = useMemo(() => {
-    const q = (searchParams.get('linkedClientCompanyId') || '').trim()
-    if (q) return q
-    return (api.getLinkedClientCompanyId(meQ.data) || '').trim()
-  }, [searchParams, meQ.data])
+  const urlLinkedClientCompanyId = pageScope.linkedClientCompanyId
 
   const navTicketOwnerCompanyId = (navState?.ticketOwnerCompanyId || '').trim()
 
@@ -487,7 +498,7 @@ export function MobileTicketPage() {
           stateTicketOwnerCompanyId: navTicketOwnerCompanyId,
           persistedCompanyId: persistedObs,
           persistedLinkedClientCompanyId: persistedLinked,
-          meRole: meQ.data?.role,
+          meRole: meQ.data?.role || api.getUserRole() || undefined,
         })
 
         let lastErr: unknown
@@ -1340,6 +1351,7 @@ export function MobileTicketPage() {
           ? mobilePath(location.pathname, '/notifications')
           : mobilePath(location.pathname, '')
   const backHref = api.appendScopeToPath(backPath, scopeNorm, meQ.data)
+  const ticketBack = useTicketNavBack({ to: backHref, state: stripTicketNav(navState ?? undefined) })
   const boardTabLabel = navState?.homeBoardTab ? MOBILE_HOME_TAB_LABELS[navState.homeBoardTab] : ''
   const boardChipLabels = useMemo(() => {
     const chips = navState?.homeBoardChips
@@ -1636,6 +1648,7 @@ export function MobileTicketPage() {
     }
 
     if (!ticket) return
+    postMyShiftGeoQuietly()
     const delivery = await deliverTicketStatus({
       reportedOnline: liveApiAllowed,
       queueInput: {
@@ -1826,10 +1839,11 @@ export function MobileTicketPage() {
       />
       <div className="mobileTicketDetailsToolbar">
         <Link
-          to={backHref}
-          state={(location.state as MobileTicketNavState | null | undefined) ?? undefined}
+          to={ticketBack.to}
+          state={ticketBack.state}
+          onClick={ticketBack.onClick}
           className="mobileTicketBackBtn"
-          aria-label="Назад"
+          aria-label={ticketBack.label ? `Назад: ${ticketBack.label}` : 'Назад'}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <polyline points="15 18 9 12 15 6" />
@@ -1871,6 +1885,12 @@ export function MobileTicketPage() {
           </button>
         ) : null}
       </div>
+
+      {ticketBack.caption ? (
+        <div className="mobileMeta mobileTicketOrigin" data-testid="ticket-origin">
+          {ticketBack.caption}
+        </div>
+      ) : null}
 
       {hasBoardContext ? (
         <div className="mobileCard" style={{ marginBottom: 8 }}>
@@ -2045,6 +2065,7 @@ export function MobileTicketPage() {
                 <span className="mobileDetailRowLabel"><RowIcon name="user-check" />Исполнитель</span>
                 <span className="mobileDetailRowValue" style={{ whiteSpace: 'pre-line' }}>{executorLine}</span>
               </div>
+              {showOnSiteLine ? <OnSiteTicketLine ticketId={ticket.id} /> : null}
               <div className="mobileDetailRow">
                 <span className="mobileDetailRowLabel"><RowIcon name="user" />Создал заявку</span>
                 <span className="mobileDetailRowValue" style={{ whiteSpace: 'pre-line' }}>{creatorLine}</span>
@@ -2157,12 +2178,16 @@ export function MobileTicketPage() {
                   <Link
                     key={ch.id}
                     to={childHref(ch.id)}
-                    state={mobileTicketNavState(
-                      listOrigin,
-                      [navState?.ticketOwnerCompanyId, ticketCompanyId, urlLinkedClientCompanyId, ticket?.companyId]
-                        .map((x) => (x || '').trim())
-                        .find((x) => x.length > 0),
-                    )}
+                    state={(() => {
+                      const childState = mobileTicketNavState(
+                        listOrigin,
+                        [navState?.ticketOwnerCompanyId, ticketCompanyId, urlLinkedClientCompanyId, ticket?.companyId]
+                          .map((x) => (x || '').trim())
+                          .find((x) => x.length > 0),
+                      )
+                      // Подзадача открыта из того же списка: «Назад» ведёт туда же.
+                      return ticketBack.ctx ? withTicketNav(childState, ticketBack.ctx) : childState
+                    })()}
                     className={`mobileCard mobileTicketCard mobileTicketCard--${ch.status} mobileCardClickable`}
                     style={{ display: 'block', padding: 12 }}
                   >

@@ -79,6 +79,7 @@ const LocationAnalyticsPage = lazyExport(() => import('./views/LocationAnalytics
 const SettingsPage = lazyExport(() => import('./views/SettingsPage'), 'SettingsPage')
 const MaterialsPage = lazyExport(() => import('./views/MaterialsPage'), 'MaterialsPage')
 const UpdatesCenterPage = lazyExport(() => import('./views/UpdatesCenterPage'), 'UpdatesCenterPage')
+const WorkCalendarPage = lazyExport(() => import('./views/WorkCalendarPage'), 'WorkCalendarPage')
 const FailureCausesPage = lazyExport(() => import('./views/FailureCausesPage'), 'FailureCausesPage')
 const ProblemCategoriesPage = lazyExport(() => import('./views/ProblemCategoriesPage'), 'ProblemCategoriesPage')
 const SpecializationsPage = lazyExport(() => import('./views/SpecializationsPage'), 'SpecializationsPage')
@@ -97,9 +98,11 @@ const InspectionQuickPage = lazyExport(() => import('./views/InspectionQuickPage
 const MapPage = lazyExport(() => import('./pages/MapPage'), 'MapPage')
 const AccessConstructorPage = lazyExport(() => import('./pages/platform/AccessConstructorPage'), 'AccessConstructorPage')
 const PermissionsPage = lazyExport(() => import('./pages/platform/PermissionsPage'), 'PermissionsPage')
+const GeoAccuracyPage = lazyExport(() => import('./views/GeoAccuracyPage'), 'GeoAccuracyPage')
 const ManagementV2StubPage = lazyExport(() => import('./views/v2/ManagementV2StubPage'), 'ManagementV2StubPage')
 const ContractorsRoutePage = lazyExport(() => import('./views/v2/ContractorsRoutePage'), 'ContractorsRoutePage')
 const WorkforcePage = lazyExport(() => import('./views/WorkforcePage'), 'WorkforcePage')
+const OnSitePage = lazyExport(() => import('./views/OnSitePage'), 'OnSitePage')
 const MobileShell = lazyExport(() => import('./mobile/MobileShell'), 'MobileShell')
 const MobileHome = lazyExport(() => import('./mobile/MobileHome'), 'MobileHome')
 const MobileCreateTicket = lazyExport(() => import('./mobile/MobileCreateTicket'), 'MobileCreateTicket')
@@ -122,6 +125,7 @@ const MobileInspectionStartPage = lazyExport(() => import('./mobile/MobileInspec
 const MobileInspectionTodayPage = lazyExport(() => import('./mobile/MobileInspectionTodayPage'), 'MobileInspectionTodayPage')
 const MobileShiftPage = lazyExport(() => import('./mobile/MobileShiftPage'), 'MobileShiftPage')
 const MobileWorkforcePage = lazyExport(() => import('./mobile/MobileWorkforcePage'), 'MobileWorkforcePage')
+const MobileOnSitePage = lazyExport(() => import('./mobile/MobileOnSitePage'), 'MobileOnSitePage')
 const MaxApp = lazyExport(() => import('./max/MaxApp'), 'MaxApp')
 
 function MobileMoreRedirect() {
@@ -327,6 +331,7 @@ export function AppRoutes() {
         <Route path="updates" element={<LazyRoute component={MobileUpdatesPage} />} />
         <Route path="shift" element={<LazyRoute component={MobileShiftPage} />} />
         <Route path="workforce" element={<LazyRoute component={MobileWorkforcePage} />} />
+        <Route path="on-site" element={<LazyRoute component={MobileOnSitePage} />} />
         <Route path="chats" element={<LazyRoute component={MobileChatsPage} />} />
         <Route path="chats/:ticketId" element={<LazyRoute component={MobileChatsPage} />} />
         <Route path="tickets/create-subtask" element={<LazyRoute component={MobileCreateTicket} />} />
@@ -376,11 +381,13 @@ export function AppRoutes() {
         <Route path="failure-causes" element={<LazyRoute component={FailureCausesPage} />} />
         <Route path="analytics" element={<LazyRoute component={AnalyticsPage} />} />
         <Route path="workforce" element={<LazyRoute component={WorkforcePage} />} />
+        <Route path="on-site" element={<LazyRoute component={OnSitePage} />} />
         <Route path="analytics/locations" element={<LazyRoute component={LocationAnalyticsPage} />} />
         <Route path="settings" element={<LazyRoute component={SettingsPage} />} />
         <Route path="updates" element={<LazyRoute component={UpdatesCenterPage} />} />
         <Route path="company" element={<LazyRoute component={CompanyPage} />} />
         <Route path="platform/permissions" element={<LazyRoute component={PermissionsPage} />} />
+        <Route path="platform/geo-accuracy" element={<LazyRoute component={GeoAccuracyPage} />} />
         <Route path="platform/access-constructor" element={<LazyRoute component={AccessConstructorPage} />} />
         <Route path="technician" element={<LazyRoute component={TechnicianPage} />} />
         <Route path="map" element={<LazyRoute component={MapPage} />} />
@@ -388,6 +395,7 @@ export function AppRoutes() {
         <Route path="inspection/templates" element={<LazyRoute component={InspectionTemplatesPage} />} />
         <Route path="inspection/runs" element={<LazyRoute component={InspectionRunsPage} />} />
         <Route path="inspection/schedules" element={<LazyRoute component={InspectionSchedulesPage} />} />
+        <Route path="work-calendar" element={<LazyRoute component={WorkCalendarPage} />} />
         <Route path="inspection/runs/:id" element={<LazyRoute component={InspectionRunPage} />} />
         <Route path="inspection/quick/:runId" element={<LazyRoute component={InspectionQuickPage} />} />
         <Route path="inspection/runs/:id/report" element={<LazyRoute component={InspectionRunReportPage} />} />
@@ -411,6 +419,7 @@ export function AppRoutes() {
         <Route path="updates" element={<LazyRoute component={MobileUpdatesPage} />} />
           <Route path="shift" element={<LazyRoute component={MobileShiftPage} />} />
           <Route path="workforce" element={<LazyRoute component={MobileWorkforcePage} />} />
+          <Route path="on-site" element={<LazyRoute component={MobileOnSitePage} />} />
           <Route path="chats" element={<LazyRoute component={MobileChatsPage} />} />
           <Route path="chats/:ticketId" element={<LazyRoute component={MobileChatsPage} />} />
           <Route path="tickets/create-subtask" element={<LazyRoute component={MobileCreateTicket} />} />

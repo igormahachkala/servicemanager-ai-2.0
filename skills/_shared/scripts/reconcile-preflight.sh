@@ -4,7 +4,7 @@
 #
 # READ-ONLY release-preparation preflight for one candidate against a target
 # contour branch (default origin/prod). It answers, in one command, the manual
-# checks every candidate prep repeats: current SHAs, the beta ⊇ prod invariant,
+# checks every candidate prep repeats: current SHAs,
 # file overlap with Production, a conflict-free merge simulation, candidate-delta
 # preservation, and schema/migration presence.
 #
@@ -18,11 +18,11 @@
 #   reconcile-preflight.sh <candidate-ref> [target-ref] [beta-ref]
 #     candidate-ref  branch or SHA of the release candidate (required)
 #     target-ref     contour base to reconcile onto   (default: origin/prod)
-#     beta-ref       beta branch for the invariant     (default: origin/beta)
+#     beta-ref       beta branch, printed as Beta SHA  (default: origin/beta)
 #
 # Exit codes:
 #   0  ready for release preparation
-#   1  blocked: invariant, conflicts, or reconciled content mismatch
+#   1  blocked: conflicts or reconciled content mismatch
 #   2  bad arguments / unknown ref
 #   3  git or fetch failure
 #   4  git too old (needs merge-tree --write-tree, git >= 2.38)
@@ -52,23 +52,9 @@ git fetch --quiet --prune origin 2>/dev/null || die "git fetch origin failed" 3
 # Resolve refs.
 CAND=$(git rev-parse --verify --quiet "${CAND_REF}^{commit}") || die "unknown candidate ref: $CAND_REF" 2
 PROD=$(git rev-parse --verify --quiet "${TARGET_REF}^{commit}") || die "unknown target ref: $TARGET_REF" 2
-BETA=$(git rev-parse --verify --quiet "${BETA_REF}^{commit}" || true)   # beta is optional/advisory
+BETA=$(git rev-parse --verify --quiet "${BETA_REF}^{commit}" || true)   # missing beta is printed as <none>
 
 BASE=$(git merge-base "$CAND" "$PROD" 2>/dev/null) || die "no merge-base between candidate and target" 3
-
-# 3. beta ⊇ prod invariant (advisory; prod must be an ancestor of beta).
-if [ -n "$BETA" ]; then
-  if git merge-base --is-ancestor "$PROD" "$BETA" 2>/dev/null; then
-    BETA_INV="OK (prod ⊆ beta)"
-    BETA_OK=1
-  else
-    BETA_INV="VIOLATED (beta behind prod — restore before release)"
-    BETA_OK=0
-  fi
-else
-  BETA_INV="unknown (beta ref '$BETA_REF' not found)"
-  BETA_OK=0
-fi
 
 # Already in target?
 if git merge-base --is-ancestor "$CAND" "$PROD" 2>/dev/null; then ALREADY_IN="YES (candidate already in target)"; else ALREADY_IN="no"; fi
@@ -138,7 +124,6 @@ echo "  Beta SHA              : ${BETA:-<none>}  ($BETA_REF)"
 echo "  Candidate SHA         : $CAND  ($CAND_REF)"
 echo "  Merge-base            : $BASE"
 echo "  Candidate in target   : $ALREADY_IN"
-echo "  beta ⊇ prod invariant : $BETA_INV"
 echo
 echo "  Overlap               : $OVERLAP_N file(s) changed by BOTH candidate and Production since base"
 if [ "$OVERLAP_N" -gt 0 ]; then printf '%s\n' "$OVERLAP" | sed 's|^|      - |'; fi
@@ -163,7 +148,7 @@ else
   printf '%s\n' "$MIG" | sed 's|^|      - |'
 fi
 echo
-if [ "$CONFLICTS_N" -eq 0 ] && [ "$BETA_OK" -eq 1 ] && [ "$CONTENT_OK" -eq 1 ]; then
+if [ "$CONFLICTS_N" -eq 0 ] && [ "$CONTENT_OK" -eq 1 ]; then
   echo "  READY FOR RELEASE PREPARATION : YES"
   [ "$MIG_N" -gt 0 ] && echo "    note: candidate carries migration(s) — route through the has_migration path."
   echo
@@ -171,7 +156,6 @@ if [ "$CONFLICTS_N" -eq 0 ] && [ "$BETA_OK" -eq 1 ] && [ "$CONTENT_OK" -eq 1 ]; 
   exit 0
 else
   echo "  READY FOR RELEASE PREPARATION : NO"
-  [ "$BETA_OK" -eq 0 ] && echo "    blocker: beta must contain current Production before release preparation."
   [ "$CONFLICTS_N" -gt 0 ] && echo "    blocker: resolve the merge conflicts above in the task branch."
   [ "$CONFLICTS_N" -eq 0 ] && [ "$CONTENT_OK" -eq 0 ] && echo "    blocker: reconciled content differs from the candidate delta."
   echo

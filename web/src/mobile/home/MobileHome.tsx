@@ -46,6 +46,8 @@ import { HomeChips } from './HomeChips'
 import { HomeList } from './HomeList'
 import { HomeQuickCards, type MobileHomeQuickFilter } from './HomeQuickCards'
 import { HomeUrgentCard } from './HomeUrgentCard'
+import { withTicketNav } from '../../lib/ticketNavContext'
+import { useTicketNavSource } from '../../lib/useTicketNav'
 import { HomeNextObjectCard } from './HomeNextObjectCard'
 import { HomeShiftStatus } from './HomeShiftStatus'
 import { selectHomeUrgentTickets } from './homeUrgent'
@@ -55,6 +57,8 @@ import { useMobileHomeTicketCloseModal } from './MobileHomeTicketCloseModal'
 import { MobileParentCloseChildrenSheet } from '../MobileParentCloseChildrenSheet'
 import { useParentCloseDialog } from '../../hooks/useParentCloseDialog'
 import type { ChildCloseDraftItem } from '../../lib/ticketParentClose'
+
+const MOBILE_HOME_QUICK_FILTERS: readonly MobileHomeQuickFilter[] = ['urgent', 'awaiting', 'myaction', 'rework']
 
 export function MobileHome() {
   const location = useLocation()
@@ -87,6 +91,22 @@ export function MobileHome() {
   const [filtersExpanded, setFiltersExpanded] = useState(false)
   // E3: быстрая карта персистится (как tab+chips) — вернулся из заявки → карта осталась активной; сброс её гасит.
   const [quickFilter, setQuickFilter] = useState<MobileHomeQuickFilter>(persistedBoardUi.quickFilter)
+  const ticketNav = useTicketNavSource({
+    source: quickFilter === 'awaiting' ? 'acceptance' : 'home',
+    screen: 'mobile-home',
+    restore: { tab: boardTab, chips: [...activeChips], search: searchQuery, quickFilter },
+    onRestore: (raw) => {
+      const r = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+      if (isMobileHomeBoardFilterTab(r.tab)) setBoardTab(r.tab)
+      if (Array.isArray(r.chips)) {
+        setActiveChips(new Set(r.chips.filter((c): c is MobileHomeBoardChipId => MOBILE_HOME_BOARD_CHIP_IDS.includes(c as MobileHomeBoardChipId))))
+      }
+      if (typeof r.search === 'string') setSearchQuery(r.search.slice(0, 240))
+      if (r.quickFilter === null || MOBILE_HOME_QUICK_FILTERS.includes(r.quickFilter as MobileHomeQuickFilter)) {
+        setQuickFilter(r.quickFilter as MobileHomeQuickFilter)
+      }
+    },
+  })
 
   const providerContextKnown =
     !meQ.data || meQ.data.role === 'CLIENT' || meQ.data.role === 'TECHNICIAN' || companyQ.isSuccess || companyQ.isError
@@ -541,7 +561,8 @@ export function MobileHome() {
     const linkScope = scopeForMobileTicketLink(meQ.data, pageScope, ticket)
     return api.appendScopeToPath(mobilePath(location.pathname, `/tickets/${ticket.id}`), compactTicketScope(linkScope), meQ.data)
   }
-  const ticketLinkState = (ticket: api.TicketCard) => mobileTicketNavState('home', ticket.companyId, { tab: boardTab, chips: [...activeChips], search: searchQuery.trim() || undefined })
+  const ticketLinkState = (ticket: api.TicketCard) =>
+    withTicketNav(mobileTicketNavState('home', ticket.companyId, { tab: boardTab, chips: [...activeChips], search: searchQuery.trim() || undefined }), ticketNav)
 
   const techWillRedirectForScope = techNoLinked && techBoundDefaultsQ.isSuccess && (techBoundDefaultsQ.data?.length ?? 0) > 0
   const technicianScopeGateReady = !techNoLinked || techBoundDefaultsQ.isFetched || techBoundDefaultsQ.isError
@@ -587,7 +608,7 @@ export function MobileHome() {
       />
       <HomeShiftStatus role={meQ.data?.role} />
       <HomeUrgentCard tickets={urgentTickets} ticketHref={ticketHref} ticketLinkState={ticketLinkState} onViewAll={() => activateQuickFilter('urgent')} />
-      <HomeNextObjectCard role={meQ.data?.role} isOnline={isOnline} me={meQ.data} pageScope={pageScope} />
+      <HomeNextObjectCard role={meQ.data?.role} isOnline={isOnline} me={meQ.data} pageScope={pageScope} ticketNav={ticketNav} />
       {materialsHomeCard}
       {showMobileHomeTicketBoard ? (
         <>

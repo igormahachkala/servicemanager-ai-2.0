@@ -198,8 +198,8 @@ describe('TicketsStatusService.updateStatus', () => {
   })
 
   it.each([
-    [UserRole.MASTER, 'MASTER'],
-    [UserRole.DISPATCHER, 'DISPATCHER'],
+    [UserRole.MASTER],
+    [UserRole.DISPATCHER],
   ])('%s executor changes ASSIGNED→IN_PROGRESS on own ticket', async (role) => {
     const txTicket = makeTxTicket({ companyId: PROVIDER_ID, assignedTechnicianId: USER_ID })
     const { svc, tx, notifications } = makeSetup({ isExecutor: true, txTicket })

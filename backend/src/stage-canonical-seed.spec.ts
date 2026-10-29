@@ -7,6 +7,7 @@ import {
   formatStageQaSeedTargetIdentity,
   printCanonicalStageSeedDryRun,
   runCanonicalStageSeed,
+  SEED_TARGETS,
   STAGE_QA_SEED_GUARD,
   validateCanonicalStageSeedPlan,
 } from '../scripts/seed-stage-qa'
@@ -27,7 +28,7 @@ function stageGuardEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
 
 function evaluateGuard(
   env: NodeJS.ProcessEnv,
-  connectedDatabase = STAGE_QA_SEED_GUARD.expectedDatabase,
+  connectedDatabase: string = STAGE_QA_SEED_GUARD.expectedDatabase,
 ) {
   return evaluateStageQaSeedTargetGuard({
     env,
@@ -330,5 +331,89 @@ describe('canonical Stage seed Production guard', () => {
     expect(text).not.toContain('prod_user')
     expect(text).not.toContain('super-secret-password')
     expect(text).not.toContain('postgresql://')
+  })
+})
+
+describe('canonical seed CI target guard', () => {
+  const ciDatabaseUrl = `postgresql://sma:sma@localhost:5432/${SEED_TARGETS.ci.database}?schema=public`
+
+  function ciGuardEnv(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+    return {
+      [STAGE_QA_SEED_GUARD.confirmEnv]: SEED_TARGETS.ci.confirm,
+      [STAGE_QA_SEED_GUARD.releaseEnv]: SEED_TARGETS.ci.releaseEnvironment,
+      NODE_ENV: 'test',
+      DATABASE_URL: ciDatabaseUrl,
+      ...overrides,
+    }
+  }
+
+  function evaluateCi(env: NodeJS.ProcessEnv, connectedDatabase: string) {
+    return evaluateStageQaSeedTargetGuard({
+      env,
+      connectedDatabase,
+      connectedDatabaseStatus: 'checked',
+    })
+  }
+
+  it('allows the CI database', () => {
+    const result = evaluateCi(ciGuardEnv(), SEED_TARGETS.ci.database)
+
+    expect(result.allowed).toBe(true)
+    expect(result.failures).toEqual([])
+  })
+
+  it('denies the Stage database under the CI target', () => {
+    const result = evaluateCi(ciGuardEnv({ DATABASE_URL: stageDatabaseUrl }), SEED_TARGETS.stage.database)
+
+    expect(result.allowed).toBe(false)
+    expect(result.failures).toEqual(
+      expect.arrayContaining([
+        `DATABASE_URL database must be "${SEED_TARGETS.ci.database}"`,
+        `connected database must be "${SEED_TARGETS.ci.database}"`,
+      ]),
+    )
+  })
+
+  it('denies a CI URL that is connected to another database', () => {
+    const result = evaluateCi(ciGuardEnv(), 'sma_db')
+
+    expect(result.allowed).toBe(false)
+    expect(result.failures).toEqual(
+      expect.arrayContaining([
+        `connected database must be "${SEED_TARGETS.ci.database}"`,
+        'DATABASE_URL database and connected database identity disagree',
+      ]),
+    )
+  })
+
+  it('denies the Stage confirmation under the CI target', () => {
+    const result = evaluateCi(
+      ciGuardEnv({ [STAGE_QA_SEED_GUARD.confirmEnv]: SEED_TARGETS.stage.confirm }),
+      SEED_TARGETS.ci.database,
+    )
+
+    expect(result.allowed).toBe(false)
+    expect(result.failures).toContain(
+      `${STAGE_QA_SEED_GUARD.confirmEnv} must be set to "${SEED_TARGETS.ci.confirm}"`,
+    )
+  })
+
+  it('denies the CI database under the Stage target', () => {
+    const result = evaluateCi(stageGuardEnv({ DATABASE_URL: ciDatabaseUrl }), SEED_TARGETS.ci.database)
+
+    expect(result.allowed).toBe(false)
+    expect(result.failures).toEqual(
+      expect.arrayContaining([
+        `DATABASE_URL database must be "${SEED_TARGETS.stage.database}"`,
+        `connected database must be "${SEED_TARGETS.stage.database}"`,
+      ]),
+    )
+  })
+
+  it('denies NODE_ENV=production under the CI target', () => {
+    const result = evaluateCi(ciGuardEnv({ NODE_ENV: 'production' }), SEED_TARGETS.ci.database)
+
+    expect(result.allowed).toBe(false)
+    expect(result.failures).toContain('NODE_ENV=production is forbidden for the Stage QA seed')
   })
 })

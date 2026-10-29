@@ -44,13 +44,15 @@ describe('Rail: утверждённая информационная архит
     expect(objects.items?.map((i) => i.to)).toEqual(['/locations', '/equipment', '/map'])
   })
 
-  it('Работы: План обходов/Обходы/Шаблоны/Смены', () => {
+  it('Работы: Календарь работ/План обходов/Обходы/Шаблоны/Смены/На точках', () => {
     const works = managementRailSections.find((s) => s.id === 'works')!
     expect(works.items?.map((i) => i.to)).toEqual([
+      '/work-calendar',
       '/inspection/schedules',
       '/inspection/runs',
       '/inspection/templates',
       '/workforce',
+      '/on-site',
     ])
   })
 
@@ -76,7 +78,7 @@ describe('Rail: утверждённая информационная архит
     const p = managementRailSections.find((s) => s.id === 'platform')!
     expect(p.platformOnly).toBe(true)
     expect(p.items?.map((i) => i.to)).toEqual(
-      expect.arrayContaining(['/companies', '/platform/permissions', '/it']),
+      expect.arrayContaining(['/companies', '/platform/permissions', '/platform/geo-accuracy', '/it']),
     )
   })
 })
@@ -91,6 +93,14 @@ describe('Видимость: fail-closed', () => {
 
   it('без роли всё скрыто', () => {
     expect(isManagementNavItemVisible('/board', { role: null })).toBe(false)
+  })
+
+  it('Точность геолокации видна только PLATFORM_ADMIN', () => {
+    expect(isManagementNavItemVisible('/platform/geo-accuracy', { role: 'PLATFORM_ADMIN' })).toBe(true)
+    const roles: Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'CLIENT_ADMIN', 'TERRITORIAL_MANAGER', 'CLIENT', 'TECHNICIAN', 'STAFF']
+    for (const role of roles) {
+      expect(isManagementNavItemVisible('/platform/geo-accuracy', { role })).toBe(false)
+    }
   })
 
   it('платформенные пункты видит только PLATFORM_ADMIN', () => {
@@ -141,6 +151,18 @@ describe('Видимость: fail-closed', () => {
     // Но не получает управленческие/write-поверхности — видимость ≠ capability.
     expect(isManagementNavItemVisible('/employees', { role: 'CLIENT_ADMIN' })).toBe(false)
     expect(isManagementNavItemVisible('/access-constructor', { role: 'CLIENT_ADMIN' })).toBe(false)
+  })
+
+  it('На точках виден только MASTER, DISPATCHER и ADMIN компании провайдера', () => {
+    for (const role of ['MASTER', 'DISPATCHER', 'ADMIN'] as Role[]) {
+      expect(isManagementNavItemVisible('/on-site', { role, companyType: 'PROVIDER' })).toBe(true)
+    }
+    for (const role of ['TECHNICIAN', 'CLIENT', 'CLIENT_ADMIN', 'PLATFORM_ADMIN'] as Role[]) {
+      expect(isManagementNavItemVisible('/on-site', { role, companyType: 'PROVIDER' })).toBe(false)
+    }
+    expect(isManagementNavItemVisible('/on-site', { role: 'ADMIN', companyType: 'CLIENT' })).toBe(false)
+    expect(isManagementNavItemVisible('/on-site', { role: 'MASTER' })).toBe(false)
+    expect(isManagementNavItemVisible('/workforce', { role: 'CLIENT_ADMIN' })).toBe(true)
   })
 
   it('План обходов и Шаблоны — roundsManage', () => {
@@ -195,6 +217,7 @@ describe('Активный раздел Rail по пути (railSectionIdForPath
     expect(railSectionIdForPath('/inspection/schedules')).toBe('works')
     expect(railSectionIdForPath('/inspection/runs')).toBe('works')
     expect(railSectionIdForPath('/workforce')).toBe('works')
+    expect(railSectionIdForPath('/on-site')).toBe('works')
     expect(railSectionIdForPath('/analytics')).toBe('analytics')
     expect(railSectionIdForPath('/analytics/locations')).toBe('analytics')
     expect(railSectionIdForPath('/employees')).toBe('more')

@@ -2319,17 +2319,39 @@ test('старт. checking не пишет Нет сети, чтение дос�
 
 test('узкие места 1–4. экраны на deliver* и liveApiAllowed', async () => {
   const { readFileSync } = await import('node:fs')
-  const ticketPage = readFileSync(new URL('../../../src/mobile/MobileTicketPage.tsx', import.meta.url), 'utf8')
-  const home = readFileSync(new URL('../../../src/mobile/home/MobileHome.tsx', import.meta.url), 'utf8')
-  const chats = readFileSync(new URL('../../../src/mobile/MobileChatsPage.tsx', import.meta.url), 'utf8')
-  const runPage = readFileSync(new URL('../../../src/mobile/MobileInspectionRunPage.tsx', import.meta.url), 'utf8')
-  const runtime = readFileSync(new URL('../../../src/mobile/offline/runtime.ts', import.meta.url), 'utf8')
+  const read = (path: string) => readFileSync(new URL(`../../../src/mobile/${path}`, import.meta.url), 'utf8')
+  const ticketPage = read('MobileTicketPage.tsx')
+  const home = read('home/MobileHome.tsx')
+  const homeActions = read('home/MobileHomeTicketCloseModal.tsx')
+  const homeList = read('home/HomeList.tsx')
+  const chats = read('MobileChatsPage.tsx')
+  const runPage = read('MobileInspectionRunPage.tsx')
+  const runtime = read('offline/runtime.ts')
 
   assert.match(ticketPage, /deliverTicketStatus/)
   assert.match(ticketPage, /startQueuedLocally/)
   assert.match(ticketPage, /В работе · на устройстве/)
-  assert.match(home, /deliverTicketStatus/)
-  assert.match(home, /startQueuedIds/)
+
+  // Главная: «Начать работу» с карточки уходит через deliverTicketStatus.
+  // Действия главной живут в хуке useMobileHomeTicketCloseModal; проверяется
+  // вся цепочка: кнопка → handlePrimaryAction → deliver → отметка «на
+  // устройстве» → карточка списка.
+  assert.match(homeActions, /import \{ deliverTicketStatus \} from '\.\.\/offline\/statusDelivery'/)
+  assert.match(
+    homeActions,
+    /async function handlePrimaryAction\(ticket: api\.TicketCard\) \{[\s\S]*?if \(ticket\.status === 'ASSIGNED'\) \{[\s\S]*?const delivery = await deliverTicketStatus\(\{\s*reportedOnline: liveApiAllowed,[\s\S]*?send: async \(\) => api\.updateTicketStatus\(ticket\.id, \{ status: 'IN_PROGRESS' \}, pageScope\),\s*enqueue: queueOffline,[\s\S]*?if \(delivery\.kind === 'queued'\) \{[\s\S]*?setStartQueuedIds\(\(prev\) => new Set\(prev\)\.add\(ticket\.id\)\)[\s\S]*?return\s*\}\s*actionM\.mutate\(ticket\)\s*\}/,
+    'ASSIGNED обрабатывается через deliver до общего actionM',
+  )
+  // Обойти deliver нельзя: actionM.mutate зовётся только из handlePrimaryAction,
+  // а кнопка карточки ведёт в handlePrimaryAction.
+  assert.equal(homeActions.match(/actionM\.mutate\(/g)?.length, 1)
+  assert.equal(home.match(/actionM\.mutate\(/g), null)
+  assert.match(homeActions, /return \{\s*startQueuedIds,/)
+  assert.match(home, /const \{\s*startQueuedIds,[\s\S]*?\} = useMobileHomeTicketCloseModal\(/)
+  assert.match(home, /<HomeList[\s\S]*?onAction=\{handlePrimaryAction\}[\s\S]*?startQueuedIds=\{startQueuedIds\}/)
+  assert.match(homeList, /const startQueued = !!startQueuedIds\?\.has\(ticket\.id\)/)
+  assert.match(homeList, /statusLabelOverride=\{startQueued && ticket\.status === 'ASSIGNED' \? 'В работе · на устройстве' : null\}/)
+
   assert.match(chats, /deliverTicketComment/)
   assert.match(chats, /pushToast/)
   assert.match(runPage, /deliverCheckpointUpdate/)

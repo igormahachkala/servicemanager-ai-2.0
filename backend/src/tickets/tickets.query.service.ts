@@ -28,6 +28,7 @@ import {
   resolveReadableTicketAccess,
   resolveTechnicianOperationalScope,
   resolveTicketReadScope,
+  type TicketVisibilityMode,
 } from './ticket-access.utils'
 import { TicketMetaBuilder } from './ticket-meta.builder'
 import { resolveClaimCapabilitiesForVisibleTickets } from './ticket-claim-eligibility'
@@ -1186,6 +1187,62 @@ export class TicketsQueryService {
     linkedClientCompanyId?: string,
     observerCompanyId?: string,
   ) {
+    const { where: safeListWhere } = await this.resolveListWhere(
+      companyId,
+      userId,
+      role,
+      status,
+      accessFlags,
+      linkedClientCompanyId,
+      observerCompanyId,
+    );
+    if (!safeListWhere) {
+      return [];
+    }
+    return this.prisma.ticket.findMany({
+      where: safeListWhere,
+      orderBy: { createdAt: 'desc' },
+      include: {
+        company: { select: companyIdentitySelect },
+        createdByUser: { select: userIdentitySelect },
+        location: {
+          select: {
+            id: true,
+            name: true,
+            platformCode: true,
+            externalCode: true,
+            city: true,
+            region: true,
+            address: true,
+          },
+        },
+        problemCategory: { select: { id: true, name: true } },
+        assignedTechnician: { select: assignedTechnicianIdentitySelect },
+      },
+    });
+  }
+
+  /**
+   * WHERE видимости списка заявок — тот же, по которому отдаёт GET /tickets.
+   *
+   * SMA-WORK-CALENDAR-V1: вынесено из list() без изменений, чтобы календарь
+   * накладывал свой диапазон и фильтры поверх действующего scope, а не
+   * собирал второй. where = null — актору не видно ничего.
+   */
+  async resolveListWhere(
+    companyId: string,
+    userId: string,
+    role: UserRole,
+    status?: TicketStatus,
+    accessFlags?: AccessFlags,
+    linkedClientCompanyId?: string,
+    observerCompanyId?: string,
+  ): Promise<{
+    where: Prisma.TicketWhereInput | null;
+    scopeCompanyId: string;
+    visibilityMode: TicketVisibilityMode;
+    technicianCompanyIds: string[] | null;
+  }> {
     const technicianScope =
       role === UserRole.TECHNICIAN && !observerCompanyId
         ? await resolveTechnicianOperationalScope({
@@ -1307,30 +1364,12 @@ export class TicketsQueryService {
         ? { AND: [whereWithLocationScope, secondaryOperationalWhere] }
         : whereWithLocationScope
     const safeListWhere = this.safeTicketWhereOrNull(whereAfterSecondary)
-    if (!safeListWhere) {
-      return []
+    return {
+      where: safeListWhere as Prisma.TicketWhereInput | null,
+      scopeCompanyId: scope.scopeCompanyId,
+      visibilityMode: scope.visibilityMode,
+      technicianCompanyIds: technicianScope ? technicianScope.companyIds : null,
     }
-    return this.prisma.ticket.findMany({
-      where: safeListWhere,
-      orderBy: { createdAt: 'desc' },
-      include: {
-        company: { select: companyIdentitySelect },
-        createdByUser: { select: userIdentitySelect },
-        location: {
-          select: {
-            id: true,
-            name: true,
-            platformCode: true,
-            externalCode: true,
-            city: true,
-            region: true,
-            address: true,
-          },
-        },
-        problemCategory: { select: { id: true, name: true } },
-        assignedTechnician: { select: assignedTechnicianIdentitySelect },
-      },
-    })
   }
 
   async getOne(

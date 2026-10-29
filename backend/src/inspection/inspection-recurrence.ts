@@ -113,7 +113,7 @@ export function isScheduleOverdue(
 
 // ── местное время без зависимостей ──────────────────────────────────────────
 
-type Parts = {
+export type Parts = {
   year: number;
   month: number;
   day: number;
@@ -133,7 +133,7 @@ function safeTimeZone(timeZone?: string | null): string {
   }
 }
 
-function zonedParts(instant: Date, timeZone: string): Parts {
+export function zonedParts(instant: Date, timeZone: string): Parts {
   const values: Record<string, number> = {};
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone,
@@ -179,7 +179,7 @@ function shift(anchor: Parts, step: Step, k: number): Parts {
 }
 
 /** Местное время зоны → момент UTC. Две итерации покрывают смену смещения. */
-function zonedInstant(parts: Parts, timeZone: string): Date {
+export function zonedInstant(parts: Parts, timeZone: string): Date {
   const wall = Date.UTC(
     parts.year,
     parts.month - 1,

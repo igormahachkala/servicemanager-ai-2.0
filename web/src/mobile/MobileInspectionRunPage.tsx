@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { withTicketNav } from '../lib/ticketNavContext'
+import { useTicketNavSource } from '../lib/useTicketNav'
 import * as api from '../lib/api'
 import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
@@ -91,6 +93,8 @@ export function MobileInspectionRunPage() {
   const runId = params.runId || ''
   const location = useLocation()
   const queryClient = useQueryClient()
+  // Заявка, созданная по пункту обхода, возвращает в этот же обход, а не на главную.
+  const ticketNav = useTicketNavSource({ source: 'rounds' })
 
   const [busyItemIds, setBusyItemIds] = useState<Set<string>>(new Set())
   const [editingItemId, setEditingItemId] = useState<string | null>(null)
@@ -754,7 +758,7 @@ export function MobileInspectionRunPage() {
                         <div className="mobilePatrolItemActions">
                           <Link
                             to={linkedTicketHref(`${LOCAL_ID_PREFIX}${runId}:${item.id}`)}
-                            state={mobileTicketNavState('home', targetClientCompanyId || run?.companyId)}
+                            state={withTicketNav(mobileTicketNavState('home', targetClientCompanyId || run?.companyId), ticketNav)}
                             className="mobileBtn mobileBtnSecondary"
                             style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
                           >
@@ -944,7 +948,7 @@ export function MobileInspectionRunPage() {
                       <div className="mobilePatrolItemActions">
                         <Link
                           to={linkedTicketHref(createdTicketId)}
-                          state={mobileTicketNavState('home', targetClientCompanyId || run?.companyId)}
+                          state={withTicketNav(mobileTicketNavState('home', targetClientCompanyId || run?.companyId), ticketNav)}
                           className="mobileBtn mobileBtnSecondary"
                           style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
                         >

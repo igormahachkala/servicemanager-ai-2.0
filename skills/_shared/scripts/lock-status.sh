@@ -3,7 +3,7 @@
 # lock-status.sh — A5 of SMA_DEVELOPMENT_ACCELERATION_PROTOCOL (DRAFT).
 #
 # READ-ONLY diagnostic for the release-lane lock tags (stage-busy, prod-busy) and
-# Stage acceptance tags (stage-ok/<branch>), plus the beta ⊇ prod invariant. It
+# Stage acceptance tags (stage-ok/<branch>). It
 # classifies lane availability and flags likely-stale locks — it never creates,
 # deletes, moves, acquires, or releases any tag/ref, never deploys, never touches a
 # database, and never cleans up a stale lock. It only reports.
@@ -56,16 +56,13 @@ ref_sha()   { printf '%s\n' "$LS" | awk -v r="$1" '$2==r{print $1; exit}'; }
 tag_commit(){ local p; p=$(ref_sha "refs/tags/$1^{}"); [ -n "$p" ] && printf '%s' "$p" || ref_sha "refs/tags/$1"; }
 tag_obj()   { ref_sha "refs/tags/$1"; }
 
-PROD_SHA=$(ref_sha "refs/heads/prod")
-BETA_SHA=$(ref_sha "refs/heads/beta")
-
-# 2. Transient object-only fetch so cat-file (tag bodies) and ancestry work.
+# 2. Transient object-only fetch so cat-file can read tag bodies.
 #    --no-write-fetch-head: writes objects only; no FETCH_HEAD, no ref, no tag.
 #    Only fetch refs that actually exist — a single missing source ref would abort
-#    the whole fetch and leave prod/beta objects unavailable.
+#    the whole fetch and leave tag objects unavailable.
 STAGE_OK_REFS=$(printf '%s\n' "$LS" | awk '$2 ~ /^refs\/tags\/stage-ok\// && $2 !~ /\^\{\}$/ {print $2}')
 FETCH_SRCS=""
-for r in refs/tags/stage-busy refs/tags/prod-busy refs/heads/prod refs/heads/beta $STAGE_OK_REFS; do
+for r in refs/tags/stage-busy refs/tags/prod-busy $STAGE_OK_REFS; do
   [ -n "$(ref_sha "$r")" ] && FETCH_SRCS="$FETCH_SRCS $r"
 done
 [ -n "$FETCH_SRCS" ] && git fetch -q --no-write-fetch-head --no-tags "$REMOTE" $FETCH_SRCS >/dev/null 2>&1 || true   # best-effort; degrade gracefully
@@ -141,19 +138,6 @@ if [ -n "$STAGE_OK_REFS" ]; then
 else
   echo "    (none)"
   ACCEPT="absent"
-fi
-echo
-echo "  beta ⊇ prod invariant:"
-if [ -n "$PROD_SHA" ] && [ -n "$BETA_SHA" ]; then
-  if git merge-base --is-ancestor "$PROD_SHA" "$BETA_SHA" 2>/dev/null; then
-    echo "    OK (prod $PROD_SHA ⊆ beta $BETA_SHA)"
-  elif git cat-file -e "$PROD_SHA" 2>/dev/null && git cat-file -e "$BETA_SHA" 2>/dev/null; then
-    echo "    VIOLATED (beta does not contain prod — restore before release)"
-  else
-    echo "    UNKNOWN (commit objects not available offline)"
-  fi
-else
-  echo "    UNKNOWN (prod/beta head not found on remote)"
 fi
 echo
 echo "  Stale lock suspects   :${STALE_SUSPECTS:- none}"

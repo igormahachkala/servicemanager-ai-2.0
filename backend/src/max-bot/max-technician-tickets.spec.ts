@@ -261,7 +261,7 @@ describe('max-technician-tickets', () => {
     const prompt = renderCommentPromptMessage(ID_OLD, 12);
     expect(prompt.text).toBe('Введите комментарий к заявке #12');
     expect(buttonsOf(prompt).map((button) => button.text)).toEqual(['Отмена', 'Сообщить об ошибке', 'Меню']);
-    expect(buttonsOf(prompt)[0].payload).toBe(`tk:${ID_OLD}`);
+    expect(buttonsOf(prompt)[0]).toMatchObject({ payload: `tk:${ID_OLD}` });
 
     const saved = renderCommentSavedMessage(ID_OLD, 12);
     expect(saved.text).toBe('Комментарий добавлен к #12');

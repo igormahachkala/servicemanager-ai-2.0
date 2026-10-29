@@ -1921,3 +1921,122 @@ describe('TicketsQueryService.getOne', () => {
     ).rejects.toBeInstanceOf(NotFoundException)
   })
 })
+
+/**
+ * SMA-WORK-CALENDAR-V1: календарь берёт заявки через resolveListWhere, а для
+ * CLIENT_ADMIN действующий маршрут чтения — board. Здесь scope не подменяется:
+ * проверяется, что для этой роли resolveListWhere даёт ровно контур board и не
+ * шире — своя компания, без чужого контура, с привязками к объектам.
+ */
+describe('TicketsQueryService.resolveListWhere — CLIENT_ADMIN', () => {
+  const CLIENT_ADMIN_ID = 'client-admin-1';
+  const rows = [
+    {
+      id: 'own-1',
+      companyId: CLIENT_ID,
+      locationId: 'loc-own-1',
+      status: TicketStatus.NEW,
+    },
+    {
+      id: 'own-2',
+      companyId: CLIENT_ID,
+      locationId: 'loc-own-2',
+      status: TicketStatus.ASSIGNED,
+    },
+    {
+      id: 'foreign',
+      companyId: 'client-2',
+      locationId: 'loc-foreign',
+      status: TicketStatus.NEW,
+    },
+  ];
+  const visible = (where: unknown) =>
+    rows.filter((row) => ticketMatchesWhere(where, row)).map((row) => row.id);
+
+  afterEach(() => jest.restoreAllMocks());
+
+  it('свой tenant: только заявки своей компании, тот же контур, что у board', async () => {
+    const svc = makeService(makePrisma());
+
+    const listScope = await svc.resolveListWhere(
+      CLIENT_ID,
+      CLIENT_ADMIN_ID,
+      UserRole.CLIENT_ADMIN,
+    );
+
+    expect(listScope).toMatchObject({
+      scopeCompanyId: CLIENT_ID,
+      visibilityMode: 'tenant',
+      technicianCompanyIds: null,
+    });
+    expect(visible(listScope.where)).toEqual(['own-1', 'own-2']);
+  });
+
+  it('чужой tenant через linkedClientCompanyId — отказ роли, контракт даже не спрашивается', async () => {
+    const getLinkedClientAccess = jest
+      .fn()
+      .mockResolvedValue({ role: ServiceContractRole.PRIMARY });
+    const svc = makeService(makePrisma(), { getLinkedClientAccess });
+
+    await expect(
+      svc.resolveListWhere(
+        CLIENT_ID,
+        CLIENT_ADMIN_ID,
+        UserRole.CLIENT_ADMIN,
+        undefined,
+        undefined,
+        'client-2',
+      ),
+    ).rejects.toThrow('Role cannot access linked client tickets');
+    expect(getLinkedClientAccess).not.toHaveBeenCalled();
+  });
+
+  it('companyId наблюдателя для CLIENT_ADMIN игнорируется: остаётся своя компания', async () => {
+    const svc = makeService(makePrisma());
+
+    const listScope = await svc.resolveListWhere(
+      CLIENT_ID,
+      CLIENT_ADMIN_ID,
+      UserRole.CLIENT_ADMIN,
+      undefined,
+      undefined,
+      undefined,
+      'client-2',
+    );
+
+    expect(listScope.visibilityMode).toBe('tenant');
+    expect(visible(listScope.where)).toEqual(['own-1', 'own-2']);
+  });
+
+  it('restricted-empty: CLIENT_ADMIN без доступа к объектам не видит ни одной заявки', async () => {
+    const prisma = {
+      ...(makePrisma() as object),
+      userAccessScope: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ locationMode: 'RESTRICTED_EMPTY' }),
+      },
+    };
+    const svc = makeService(prisma);
+
+    const listScope = await svc.resolveListWhere(
+      CLIENT_ID,
+      CLIENT_ADMIN_ID,
+      UserRole.CLIENT_ADMIN,
+    );
+
+    expect(visible(listScope.where)).toEqual([]);
+  });
+
+  it('привязки к объектам сужают заявки CLIENT_ADMIN', async () => {
+    const svc = makeService(makePrisma({ boundLocationIds: ['loc-own-2'] }));
+
+    const listScope = await svc.resolveListWhere(
+      CLIENT_ID,
+      CLIENT_ADMIN_ID,
+      UserRole.CLIENT_ADMIN,
+    );
+
+    expect(visible(listScope.where)).toEqual(['own-2']);
+  });
+});

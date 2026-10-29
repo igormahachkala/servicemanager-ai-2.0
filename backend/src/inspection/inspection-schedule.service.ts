@@ -81,6 +81,85 @@ export class InspectionScheduleService {
     return visible.map((schedule) => withLastRun(schedule, now));
   }
 
+  /**
+   * SMA-WORK-CALENDAR-V1 — активные планы со сроком визита в [from, to).
+   *
+   * Видимость та же, что у list(): компания актора, техник — только свои
+   * планы (сужение до фильтров вызывающего), площадка — в действующем
+   * договоре. Отличаются граница диапазона (полуоткрытая, как у календаря)
+   * и лимит: вызывающий получает take + 1 строк до фильтра площадок и сам
+   * решает, обрезан ли ответ.
+   */
+  async listForCalendar(
+    user: InspectionUserCtx,
+    params: {
+      from: Date;
+      to: Date;
+      assignedToUserIds?: string[];
+      /** assigned — только с исполнителем, unassigned — только без него. */
+      assigned?: 'assigned' | 'unassigned';
+      locationIds?: string[];
+      take: number;
+    },
+  ) {
+    assertAllowed(this.policy.canViewSchedules(user));
+
+    const where: Prisma.InspectionScheduleWhereInput = {
+      companyId: user.companyId,
+      isActive: true,
+      nextDueAt: { gte: params.from, lt: params.to },
+    };
+
+    if (!this.policy.canManageSchedule(user).allowed) {
+      where.assignedToUserId = user.id;
+      if (
+        params.assigned === 'unassigned' ||
+        (params.assignedToUserIds &&
+          !params.assignedToUserIds.includes(user.id))
+      ) {
+        return { rows: [], fetched: 0 };
+      }
+    } else if (params.assignedToUserIds) {
+      if (params.assigned === 'unassigned') return { rows: [], fetched: 0 };
+      where.assignedToUserId = { in: params.assignedToUserIds };
+    } else if (params.assigned === 'assigned') {
+      where.assignedToUserId = { not: null };
+    } else if (params.assigned === 'unassigned') {
+      where.assignedToUserId = null;
+    }
+
+    if (params.locationIds) where.locationId = { in: params.locationIds };
+
+    const schedules = await this.prisma.inspectionSchedule.findMany({
+      where,
+      orderBy: [{ nextDueAt: 'asc' }, { id: 'asc' }],
+      take: params.take + 1,
+      select: {
+        ...scheduleSelect(),
+        assignedToUserId: true,
+        // Календарю нужны признаки исполнителя для строки сотрудника, email — нет.
+        assignedTo: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+            isActive: true,
+            isExecutor: true,
+          },
+        },
+        company: { select: { timezone: true } },
+      },
+    });
+
+    const visible = await this.filterByLocationScope(user, schedules);
+    const now = new Date();
+    return {
+      rows: visible.map((schedule) => withLastRun(schedule, now)),
+      fetched: schedules.length,
+    };
+  }
+
   async listAssignableTechnicians(user: InspectionUserCtx, locationId: string) {
     assertAllowed(this.policy.canManageSchedule(user))
     if (!locationId) throw new BadRequestException('locationId is required')

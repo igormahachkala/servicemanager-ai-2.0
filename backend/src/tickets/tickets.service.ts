@@ -27,7 +27,7 @@ function normalizeScopeId(value?: string): string | undefined {
   return normalized
 }
 
-function scopeForClient(
+export function scopeForClient(
   role: UserRole,
   linkedClientCompanyId?: string,
   observerCompanyId?: string,

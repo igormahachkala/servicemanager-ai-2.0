@@ -23,7 +23,7 @@ sma-deploy-stage. Тег stage-ok — допуск, а не команда ка�
 <project>sma-service</project>
 <compose_file>/opt/sma-prod/docker-compose.yml</compose_file>
 <compose_file>/etc/servicemanager-ai/docker-compose.production.override.yml</compose_file>
-<service area="backend">backend</service>
+<service area="backend">backend migrate</service>
 <service area="frontend">web</service>
 <never_touch>postgres</never_touch>
 <url>https://servicemanagerai.ru</url>
@@ -52,12 +52,10 @@ sma-deploy-stage. Тег stage-ok — допуск, а не команда ка�
   шаг 7   занять контур замком и слить PR, скрипт lock-acquire.sh.
           Перед слиянием отчёт, не вопрос
   шаг 8   развернуть; для none, scripts, skills, nginx контейнеры
-          не поднимаются, блок skip_deploy, но git pull обязателен
+          не поднимаются, блок skip_deploy, но git pull обязателен.
+          При has_migration до подъёма запуск сервиса migrate, блок migrate
   шаг 9   сверка после развёртывания
   шаг 10  проверка критерия приёмки в Production
-  шаг 11  восстановить инвариант beta ⊇ prod слиянием prod в beta.
-          Отказ push защитой ветки пропускает шаг.
-          Сброс beta сюда не относится, блок reset_is_not_here
   шаг 12  закрытие задачи: снять prod-busy и stage-busy, снять stage-ok
           без вопроса. Ветку не удалять и не спрашивать. Тег keep не снимать
 
@@ -551,6 +549,7 @@ Fetch, checkout и pull ниже выполняются отдельными в�
 </why_prune_tags>
 
 <rebuild if="область содержит backend или frontend, либо флаг needs_rebuild">
+ssh sma 'docker image prune -af'
 ssh sma 'cd /opt/sma-prod &amp;&amp; RELEASE_SHA=$(git rev-parse HEAD) &amp;&amp; SMA_RELEASE_ENFORCE=true SMA_RELEASE_COMMIT_SHA="$RELEASE_SHA" SMA_RELEASE_ENVIRONMENT=prod docker compose -p sma-service -f /opt/sma-prod/docker-compose.yml -f /etc/servicemanager-ai/docker-compose.production.override.yml build --build-arg SMA_RELEASE_ENFORCE=true --build-arg SMA_RELEASE_COMMIT_SHA="$RELEASE_SHA" --build-arg SMA_RELEASE_ENVIRONMENT=prod &lt;сервисы по области&gt;'
 </rebuild>
 <rebuild if="область только infra">не требуется, образы не затронуты</rebuild>
@@ -563,16 +562,55 @@ ssh sma 'cd /opt/sma-prod &amp;&amp; RELEASE_SHA=$(git rev-parse HEAD) &amp;&amp
 Поднимать оба безопаснее: изменение общего файла окружения затрагивает
 обе стороны, и обе должны перезапуститься.
 Не «наводить порядок», подставляя сюда сервисы по области.
+Сервис migrate в подъём не входит. Он запускается блоком migrate.
 </service_map_scope>
+<migrate if="флаг has_migration">
+<precondition>Дамп шага 6 снят и прошёл проверки.</precondition>
+<command>
+ssh sma 'docker compose -p sma-service -f /opt/sma-prod/docker-compose.yml -f /etc/servicemanager-ai/docker-compose.production.override.yml run --rm --no-deps migrate'
+</command>
+<expect>
+Код возврата 0. В выводе prisma перечислены применённые миграции
+либо строка No pending migrations to apply.
+</expect>
+<on_failure>
+Код не 0, миграция не прошла. Подъём ниже не выполнять: работающие
+контейнеры остаются на прежней версии. Миграцию не повторять.
+Сохранить вывод команды, сообщить пользователю и перейти к блоку
+rollback, фаза 1. Замки не снимать. Запись о неудачной миграции
+в _prisma_migrations разбирает человек.
+</on_failure>
+<why>
+Миграцию выполняет отдельный сервис migrate из docker-compose.yml,
+у backend в depends_on стоит его успешное завершение. Подъём ниже идёт
+с --no-deps и migrate не запускает. Поэтому migrate запускается здесь,
+отдельно и до подъёма. run ждёт окончания и возвращает код миграции,
+--no-deps не трогает postgres, --rm убирает одноразовый контейнер.
+restart: "no" у migrate исключает повтор упавшей миграции.
+</why>
+<image>
+Образ migrate собирается шагом rebuild вместе с backend, карта сервисов
+блока contour. Флаг --build здесь не ставить: compose соберёт образ
+без аргументов выпуска, и проверка SMA_RELEASE_ENFORCE
+в backend/Dockerfile для migrate не сработает.
+</image>
+<skip>
+Без флага has_migration блок не выполняется: дампа нет, а миграция
+без дампа запрещена.
+</skip>
+</migrate>
 <always>
 ssh sma 'docker compose -p sma-service -f /opt/sma-prod/docker-compose.yml -f /etc/servicemanager-ai/docker-compose.production.override.yml up -d --no-deps backend web'
+ssh sma 'docker image prune -af'
 </always>
 <constraint>--no-deps обязателен: postgres не пересоздавать.</constraint>
-<fact>
-Миграции в Production применяются автоматически при старте контейнера:
-command: sh -lc "npx prisma migrate deploy &amp;&amp; npm run start:prod"
-Отдельный шаг не нужен, статус проверяется после запуска.
-</fact>
+<image_prune>
+Перед build команда снимает образы, на которые не ссылается ни один контейнер. Образ работающего и остановленного контейнера остаётся. Между build и up команду не ставить. Новый образ ещё никто не держит, и очистка сотрёт его до запуска.
+Перед run migrate команду не ставить. Образ migrate собирается в rebuild и нужен команде run --rm. После up контейнер migrate уже удалён, вторая очистка снимет и его образ. Следующая выкладка собирает его снова в rebuild, до migrate. Если миграция не прошла и up не выполняется, вторая очистка не запускается.
+</image_prune>
+<constraint name="очистка образов">
+В шаг входит только docker image prune -af. docker system prune, docker volume prune и docker builder prune в шаг не входят. Том базы эта команда не трогает. Команда идёт по демону Docker целиком, не по проекту compose.
+</constraint>
 </step>
 
 <step id="9" name="сверка после развёртывания">
@@ -658,88 +696,6 @@ ssh sma 'docker inspect sma_backend sma_web --format "{{.Name}} {{.State.Started
 </precondition>
 <action>Проверить в Production критерий, зафиксированный в sma-code-delivery шаг 1.</action>
 <on_failure>Откат по блоку rollback.</on_failure>
-</step>
-
-<step id="11" name="восстановить инвариант beta ⊇ prod">
-<command>
-git fetch origin
-git merge-base --is-ancestor origin/prod origin/beta
-</command>
-<on_failure>
-beta не содержит prod. Восстановить:
-test -z "$(git status --porcelain)"
-git switch -C beta origin/beta
-git merge origin/prod
-git push origin beta
-git switch &lt;ветка задачи&gt;
-</on_failure>
-<on_branch_busy>
-Отказ 'fatal: beta is already used by worktree at &lt;путь&gt;' — ветку держит
-рабочее дерево другой сессии. Переключаться не нужно, тот же результат даёт
-работа на отсоединённом состоянии: блок beta_without_switch
-в sma-code-delivery.
-</on_branch_busy>
-<why_switch_C>
-Флаг -C ставит локальную beta ровно на origin/beta: локальная может
-отсутствовать на свежем клоне либо отставать, и тогда слияние пойдёт
-от устаревшего основания.
-</why_switch_C>
-<on_push_rejected>
-Отказ non-fast-forward — инвариант уже восстановил другой агент.
-Перечитать состояние и повторить проверку merge-base. Прошла — идти дальше.
-</on_push_rejected>
-<skip name="защита ветки">
-Отказ push с GH006, protected branch или Changes must be made through a pull request означает, что git не принимает прямую запись в beta. Шаг пропустить и идти дальше. PR в beta ради этого инварианта не открывать.
-</skip>
-<allowed_exception>
-Это одна из двух служебных операций, разрешённых напрямую в beta,
-см. branch_status в sma-code-delivery. Запрет на прямой push
-относится к коду задач, здесь в beta добавляется только код,
-уже работающий в Production.
-</allowed_exception>
-<rationale>
-Иначе следующая проверка на Stage пойдёт на базе без развёрнутой задачи.
-</rationale>
-<main_path>
-Инвариант восстанавливается слиянием prod в beta. Отказ push защитой ветки пропускает шаг, блок skip.
-
-Слияние ничего не переписывает: оно добавляет в beta то, что уже работает
-в Production, и оставляет на месте чужие задачи, которые проходят приёмку
-прямо сейчас.
-</main_path>
-<reset_is_not_here>
-Сброс beta = prod к релизу не относится. Это отдельная операция уборки,
-она убирает из beta всё, что не доехало до Production, и выполняется
-по решению пользователя, а не по ходу выкатки.
-
-Прежняя редакция этого блока предписывала сброс как основной путь, если
-предусловие его разрешает. Это было неверно: предусловие смотрит теги
-stage-ok, а задача, находящаяся в приёмке, тега ещё не имеет, и сброс
-сносил её молча. Замок контура закрыл эту дыру только наполовину — он
-защищает того, кто занял контур, но не того, чья задача уже принята
-и ждёт своего круга в Production.
-</reset_is_not_here>
-<when_reset>
-Сброс делается тогда, когда пользователь решил прибрать beta, и все три
-условия выполнены одновременно:
-
-  нет тегов stage-ok, чей коммит не влит в prod;
-  нет живых замков stage-busy;
-  различие деревьев prod и beta пусто, либо пользователь согласился
-  со списком того, что уйдёт.
-
-Первые два проверяются предусловиями блока beta_reset в sma-deploy-stage.
-Третье закрывает случай, когда формальных блокировок нет, а содержимое
-в beta есть: список печатает skills/_shared/scripts/beta-audit.sh,
-и решение по нему принимает пользователь.
-</when_reset>
-<why_third_condition>
-Тег stage-ok и замок отвечают только за задачи, идущие принятым потоком.
-Содержимое могло попасть в beta иначе: прямым коммитом, слиянием без
-приёмки, откаченной задачей, к которой ещё не решили, возвращаться или нет.
-Ни тегов, ни замков у такого содержимого нет, и без третьего условия сброс
-унёс бы его, не спросив.
-</why_third_condition>
 </step>
 
 <step id="12" name="закрытие задачи">

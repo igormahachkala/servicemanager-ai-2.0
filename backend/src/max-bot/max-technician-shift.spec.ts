@@ -25,7 +25,11 @@ describe('renderCloseShiftConfirmMessage', () => {
   it('asks before closing', () => {
     const res = renderCloseShiftConfirmMessage();
     expect(res.text).toBe('Закрыть смену?');
-    expect(res.attachments?.[0]?.payload.buttons.flat().map((button) => button.payload)).toEqual([
+    expect(
+      res.attachments?.[0]?.payload.buttons
+        .flat()
+        .map((button) => ('payload' in button ? button.payload : undefined)),
+    ).toEqual([
       'shift_yes',
       'shift_no',
       'report:error',
