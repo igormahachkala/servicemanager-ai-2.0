@@ -3,7 +3,15 @@ import { Prisma, TechnicianArrivalEventKind, TicketStatus } from '@prisma/client
 
 import { PrismaService } from '../prisma/prisma.service'
 import { haversineMeters } from '../tickets/ticket-route.service'
-import { confirmsTransition, hasFiniteCoordinates, pointSide, presenceOf } from './workforce-on-site.rules'
+import { PLATFORM_ARRIVAL_SETTINGS_ID } from './geo-accuracy.constants'
+import {
+  ArrivalThresholds,
+  confirmsTransition,
+  hasFiniteCoordinates,
+  pointSide,
+  presenceOf,
+  toArrivalThresholds,
+} from './workforce-on-site.rules'
 
 export type OnSiteGeoPoint = {
   companyId: string
@@ -29,10 +37,23 @@ export class WorkforceOnSiteService {
   constructor(private readonly prisma: PrismaService) {}
 
   async onGeoPoint(point: OnSiteGeoPoint): Promise<void> {
-    await this.prisma.$transaction((tx) => this.applyPoint(tx, point))
+    const thresholds = await this.readThresholds()
+    await this.prisma.$transaction((tx) => this.applyPoint(tx, point, thresholds))
   }
 
-  private async applyPoint(tx: Prisma.TransactionClient, point: OnSiteGeoPoint): Promise<void> {
+  private async readThresholds(): Promise<ArrivalThresholds> {
+    const row = await this.prisma.platformArrivalSettings.findUnique({
+      where: { id: PLATFORM_ARRIVAL_SETTINGS_ID },
+      select: { accuracyMeters: true, freshnessMinutes: true, radiusMeters: true },
+    })
+    return toArrivalThresholds(row)
+  }
+
+  private async applyPoint(
+    tx: Prisma.TransactionClient,
+    point: OnSiteGeoPoint,
+    thresholds: ArrivalThresholds,
+  ): Promise<void> {
     const tickets = await tx.ticket.findMany({
       where: {
         assignedTechnicianId: point.userId,
@@ -45,7 +66,7 @@ export class WorkforceOnSiteService {
     })
 
     for (const ticket of tickets) {
-      await this.applyTicket(tx, point, ticket)
+      await this.applyTicket(tx, point, ticket, thresholds)
     }
   }
 
@@ -53,6 +74,7 @@ export class WorkforceOnSiteService {
     tx: Prisma.TransactionClient,
     point: OnSiteGeoPoint,
     ticket: ArrivalTicket,
+    thresholds: ArrivalThresholds,
   ): Promise<void> {
     const latitude = ticket.location?.latitude
     const longitude = ticket.location?.longitude
@@ -66,7 +88,7 @@ export class WorkforceOnSiteService {
       where: { ticketId_userId: { ticketId: ticket.id, userId: point.userId } },
     })
 
-    if (!confirmsTransition(point.accuracy, point.capturedAt, point.receivedAt)) {
+    if (!confirmsTransition(point.accuracy, point.capturedAt, point.receivedAt, thresholds)) {
       if (!existing) return
       await tx.technicianArrival.update({
         where: { id: existing.id },
@@ -78,7 +100,7 @@ export class WorkforceOnSiteService {
       return
     }
 
-    const side = pointSide(distanceMeters)
+    const side = pointSide(distanceMeters, thresholds.radiusMeters)
     const streak =
       existing && existing.candidateSide === side && existing.candidateStreak > 0
         ? existing.candidateStreak + 1

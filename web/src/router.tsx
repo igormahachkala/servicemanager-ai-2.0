@@ -98,6 +98,7 @@ const InspectionQuickPage = lazyExport(() => import('./views/InspectionQuickPage
 const MapPage = lazyExport(() => import('./pages/MapPage'), 'MapPage')
 const AccessConstructorPage = lazyExport(() => import('./pages/platform/AccessConstructorPage'), 'AccessConstructorPage')
 const PermissionsPage = lazyExport(() => import('./pages/platform/PermissionsPage'), 'PermissionsPage')
+const GeoAccuracyPage = lazyExport(() => import('./views/GeoAccuracyPage'), 'GeoAccuracyPage')
 const ManagementV2StubPage = lazyExport(() => import('./views/v2/ManagementV2StubPage'), 'ManagementV2StubPage')
 const ContractorsRoutePage = lazyExport(() => import('./views/v2/ContractorsRoutePage'), 'ContractorsRoutePage')
 const WorkforcePage = lazyExport(() => import('./views/WorkforcePage'), 'WorkforcePage')
@@ -386,6 +387,7 @@ export function AppRoutes() {
         <Route path="updates" element={<LazyRoute component={UpdatesCenterPage} />} />
         <Route path="company" element={<LazyRoute component={CompanyPage} />} />
         <Route path="platform/permissions" element={<LazyRoute component={PermissionsPage} />} />
+        <Route path="platform/geo-accuracy" element={<LazyRoute component={GeoAccuracyPage} />} />
         <Route path="platform/access-constructor" element={<LazyRoute component={AccessConstructorPage} />} />
         <Route path="technician" element={<LazyRoute component={TechnicianPage} />} />
         <Route path="map" element={<LazyRoute component={MapPage} />} />

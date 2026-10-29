@@ -36,6 +36,7 @@ const LINK_GROUP: Record<string, SettingsGroupId> = {
   desktop: 'manage',
   companies: 'manage',
   permissions: 'manage',
+  geoAccuracy: 'manage',
   company: 'manage',
   employees: 'manage',
   locations: 'manage',
@@ -126,7 +127,7 @@ function ManagementIcon({ id }: { id: string }) {
       </svg>
     )
   }
-  if (id === 'locations' || id === 'categories' || id === 'specializations') {
+  if (id === 'locations' || id === 'categories' || id === 'specializations' || id === 'geoAccuracy') {
     return (
       <svg {...common}>
         <path d="M12 21s-6 -5.33 -6 -10a6 6 0 1 1 12 0c0 4.67 -6 10 -6 10z" />
@@ -212,6 +213,12 @@ export function MobileSettingsPage() {
         label: 'Роли и права',
         hint: 'Матрица разрешений платформы',
         to: scoped('/platform/permissions'),
+      })
+      links.push({
+        id: 'geoAccuracy',
+        label: 'Точность геолокации',
+        hint: 'Диапазоны точности и пороги прибытия',
+        to: scoped('/platform/geo-accuracy'),
       })
     }
     if (canOpenCompanySettings(role)) {

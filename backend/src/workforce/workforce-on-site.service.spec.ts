@@ -47,6 +47,7 @@ function makeHarness(tickets: TicketFixture[]) {
   const arrivals: any[] = []
   const events: any[] = []
   let seq = 0
+  let settings: { accuracyMeters: number; freshnessMinutes: number; radiusMeters: number } | null = null
   const prisma = {
     ticket: {
       findMany: jest.fn(async ({ where }: any) => {
@@ -97,10 +98,21 @@ function makeHarness(tickets: TicketFixture[]) {
         return row
       }),
     },
+    platformArrivalSettings: {
+      findUnique: jest.fn(async () => settings),
+    },
     $transaction: jest.fn(async (fn: any) => fn(prisma)),
   }
   const service = new WorkforceOnSiteService(prisma as any)
-  return { prisma, arrivals, events, service }
+  return {
+    prisma,
+    arrivals,
+    events,
+    service,
+    setSettings(next: typeof settings) {
+      settings = next
+    },
+  }
 }
 
 function point(
@@ -271,6 +283,9 @@ describe('WorkforceOnSiteService automaton', () => {
         findFirst: jest.fn().mockResolvedValue(null),
         update: jest.fn(),
       },
+      geoAccuracyBucket: { upsert: jest.fn() },
+      geoAccuracySample: { create: jest.fn() },
+      $transaction: jest.fn(),
       technicianArrival: {
         update: jest.fn(),
         delete: jest.fn(),
@@ -297,5 +312,61 @@ describe('WorkforceOnSiteService automaton', () => {
     expect(prisma.technicianArrival.update).not.toHaveBeenCalled()
     expect(prisma.technicianArrival.delete).not.toHaveBeenCalled()
     expect(prisma.technicianArrival.deleteMany).not.toHaveBeenCalled()
+    expect(prisma.geoAccuracySample.create).not.toHaveBeenCalled()
+    expect(prisma.geoAccuracyBucket.upsert).not.toHaveBeenCalled()
+  })
+
+  it('stays on 100 m, 10 minutes and 100 m when PlatformArrivalSettings is absent', async () => {
+    const { service, arrivals, prisma } = makeHarness([ticket()])
+
+    await service.onGeoPoint(point(EDGE.inside, '2026-10-27T07:00:00.000Z', 100))
+    await service.onGeoPoint(point(EDGE.inside, '2026-10-27T07:01:00.000Z', 100))
+
+    expect(prisma.platformArrivalSettings.findUnique).toHaveBeenCalledWith({
+      where: { id: 'platform' },
+      select: { accuracyMeters: true, freshnessMinutes: true, radiusMeters: true },
+    })
+    expect(arrivals[0].arrivedAt).toEqual(new Date('2026-10-27T07:01:00.000Z'))
+
+    const receivedAt = new Date('2026-10-27T07:20:00.000Z')
+    const capturedAt = new Date(receivedAt.getTime() - 11 * 60 * 1000)
+    await service.onGeoPoint(point(EDGE.outside, capturedAt.toISOString(), 10, receivedAt))
+
+    expect(arrivals[0].arrivedAt).toEqual(new Date('2026-10-27T07:01:00.000Z'))
+    expect(arrivals[0].departedAt).toBeNull()
+  })
+
+  it('reads radius, freshness and accuracy from the settings row and does not rewrite arrivedAt', async () => {
+    const strict = makeHarness([ticket()])
+    strict.setSettings({ accuracyMeters: 40, freshnessMinutes: 10, radiusMeters: 100 })
+    const atSite = { latitude: SITE.lat, longitude: SITE.lon }
+
+    await strict.service.onGeoPoint(point(atSite, '2026-10-27T07:00:00.000Z', 40))
+    await strict.service.onGeoPoint(point(atSite, '2026-10-27T07:01:00.000Z', 40))
+    expect(strict.arrivals[0].arrivedAt).toEqual(new Date('2026-10-27T07:01:00.000Z'))
+
+    await strict.service.onGeoPoint(point(atSite, '2026-10-27T07:02:00.000Z', 40.1))
+    expect(strict.arrivals[0].arrivedAt).toEqual(new Date('2026-10-27T07:01:00.000Z'))
+    expect(strict.arrivals[0].departedAt).toBeNull()
+
+    const narrow = makeHarness([ticket()])
+    narrow.setSettings({ accuracyMeters: 100, freshnessMinutes: 10, radiusMeters: 50 })
+    await narrow.service.onGeoPoint(point(EDGE.inside, '2026-10-27T07:00:00.000Z', 10))
+    await narrow.service.onGeoPoint(point(EDGE.inside, '2026-10-27T07:01:00.000Z', 10))
+    expect(narrow.arrivals[0].candidateSide).toBe('OUTSIDE')
+    expect(narrow.arrivals[0].arrivedAt).toBeNull()
+
+    const longer = makeHarness([ticket()])
+    longer.setSettings({ accuracyMeters: 100, freshnessMinutes: 30, radiusMeters: 100 })
+    await longer.service.onGeoPoint(point(atSite, '2026-10-27T07:00:00.000Z', 10))
+    await longer.service.onGeoPoint(point(atSite, '2026-10-27T07:01:00.000Z', 10))
+    const staleReceived = new Date('2026-10-27T08:00:00.000Z')
+    const staleCaptured = new Date(staleReceived.getTime() - 11 * 60 * 1000)
+    const staleReceived2 = new Date(staleReceived.getTime() + 60_000)
+    const staleCaptured2 = new Date(staleReceived2.getTime() - 11 * 60 * 1000)
+    await longer.service.onGeoPoint(point(EDGE.outside, staleCaptured.toISOString(), 10, staleReceived))
+    await longer.service.onGeoPoint(point(EDGE.outside, staleCaptured2.toISOString(), 10, staleReceived2))
+    expect(longer.arrivals[0].arrivedAt).toEqual(new Date('2026-10-27T07:01:00.000Z'))
+    expect(longer.arrivals[0].departedAt).toEqual(staleCaptured2)
   })
 })

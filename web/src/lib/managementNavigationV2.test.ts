@@ -78,7 +78,7 @@ describe('Rail: утверждённая информационная архит
     const p = managementRailSections.find((s) => s.id === 'platform')!
     expect(p.platformOnly).toBe(true)
     expect(p.items?.map((i) => i.to)).toEqual(
-      expect.arrayContaining(['/companies', '/platform/permissions', '/it']),
+      expect.arrayContaining(['/companies', '/platform/permissions', '/platform/geo-accuracy', '/it']),
     )
   })
 })
@@ -93,6 +93,14 @@ describe('Видимость: fail-closed', () => {
 
   it('без роли всё скрыто', () => {
     expect(isManagementNavItemVisible('/board', { role: null })).toBe(false)
+  })
+
+  it('Точность геолокации видна только PLATFORM_ADMIN', () => {
+    expect(isManagementNavItemVisible('/platform/geo-accuracy', { role: 'PLATFORM_ADMIN' })).toBe(true)
+    const roles: Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'CLIENT_ADMIN', 'TERRITORIAL_MANAGER', 'CLIENT', 'TECHNICIAN', 'STAFF']
+    for (const role of roles) {
+      expect(isManagementNavItemVisible('/platform/geo-accuracy', { role })).toBe(false)
+    }
   })
 
   it('платформенные пункты видит только PLATFORM_ADMIN', () => {

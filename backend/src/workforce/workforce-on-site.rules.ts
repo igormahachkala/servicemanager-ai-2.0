@@ -12,6 +12,36 @@ export const ON_SITE_FRESH_MS = 10 * 60 * 1000
  */
 export const ON_SITE_ACCURACY_M = 100
 
+export type ArrivalThresholds = {
+  accuracyMeters: number
+  freshnessMs: number
+  radiusMeters: number
+}
+
+export const DEFAULT_ARRIVAL_THRESHOLDS: ArrivalThresholds = {
+  accuracyMeters: ON_SITE_ACCURACY_M,
+  freshnessMs: ON_SITE_FRESH_MS,
+  radiusMeters: ON_SITE_RADIUS_M,
+}
+
+/** Нет строки PlatformArrivalSettings. Автомат остаётся на 100 м, 10 минутах и 100 м. */
+export function toArrivalThresholds(
+  row: { accuracyMeters: number; freshnessMinutes: number; radiusMeters: number } | null,
+): ArrivalThresholds {
+  if (!row) {
+    return {
+      accuracyMeters: ON_SITE_ACCURACY_M,
+      freshnessMs: ON_SITE_FRESH_MS,
+      radiusMeters: ON_SITE_RADIUS_M,
+    }
+  }
+  return {
+    accuracyMeters: row.accuracyMeters,
+    freshnessMs: row.freshnessMinutes * 60_000,
+    radiusMeters: row.radiusMeters,
+  }
+}
+
 export const ON_SITE_OUTCOMES = [
   'no_coordinates',
   'not_arrived',
@@ -85,16 +115,22 @@ export function confirmsTransition(
   accuracy: number | null | undefined,
   capturedAt: Date,
   receivedAt: Date,
+  thresholds: ArrivalThresholds = DEFAULT_ARRIVAL_THRESHOLDS,
 ): boolean {
-  if (accuracy == null || !Number.isFinite(accuracy) || accuracy < 0 || accuracy > ON_SITE_ACCURACY_M) {
+  if (
+    accuracy == null ||
+    !Number.isFinite(accuracy) ||
+    accuracy < 0 ||
+    accuracy > thresholds.accuracyMeters
+  ) {
     return false
   }
   if (!Number.isFinite(capturedAt.getTime()) || !Number.isFinite(receivedAt.getTime())) return false
-  return receivedAt.getTime() - capturedAt.getTime() <= ON_SITE_FRESH_MS
+  return receivedAt.getTime() - capturedAt.getTime() <= thresholds.freshnessMs
 }
 
-export function pointSide(distanceMeters: number): 'INSIDE' | 'OUTSIDE' {
-  return distanceMeters <= ON_SITE_RADIUS_M ? 'INSIDE' : 'OUTSIDE'
+export function pointSide(distanceMeters: number, radiusMeters: number = ON_SITE_RADIUS_M): 'INSIDE' | 'OUTSIDE' {
+  return distanceMeters <= radiusMeters ? 'INSIDE' : 'OUTSIDE'
 }
 
 export function presenceOf(

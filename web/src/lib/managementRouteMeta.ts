@@ -140,6 +140,7 @@ export const MANAGEMENT_ROUTES: readonly ManagementRouteMeta[] = Object.freeze([
   // ── Платформа: только существующие маршруты ───────────────────────────────
   { path: '/companies', section: 'platform', pageLabel: 'Компании', breadcrumbLabel: 'Компании', parentPath: null, entity: null, primaryNav: true },
   { path: '/platform/permissions', section: 'platform', pageLabel: 'Роли и права', breadcrumbLabel: 'Роли и права', parentPath: null, entity: null, primaryNav: true },
+  { path: '/platform/geo-accuracy', section: 'platform', pageLabel: 'Точность геолокации', breadcrumbLabel: 'Точность геолокации', parentPath: null, entity: null, primaryNav: true },
   { path: '/platform/access-constructor', section: 'platform', pageLabel: 'Конструктор доступа', breadcrumbLabel: 'Конструктор доступа', parentPath: null, entity: null, primaryNav: false },
   { path: '/agents/engineering', section: 'platform', pageLabel: 'Инженерный агент', breadcrumbLabel: 'Инженерный агент', parentPath: null, entity: null, primaryNav: false },
 

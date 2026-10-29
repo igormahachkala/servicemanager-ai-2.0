@@ -142,6 +142,7 @@ export const managementRailSections: RailSection[] = [
     items: [
       { id: 'companies', label: 'Компании', to: '/companies' },
       { id: 'permissions', label: 'Роли и права', to: '/platform/permissions' },
+      { id: 'geoAccuracy', label: 'Точность геолокации', to: '/platform/geo-accuracy' },
       { id: 'itCompany', label: 'ИТ-компания', to: '/it' },
       // Скрытый owner-only модуль — показывается только при canAccessEngineeringAgent.
       { id: 'engineeringAgent', label: 'Инженерный агент', to: '/agents/engineering' },
@@ -270,7 +271,7 @@ export function isManagementNavItemVisible(to: string, ctx: NavVisibilityContext
 
   // Платформенные пункты — только PLATFORM_ADMIN. Даже платформа идёт через
   // явный список ниже: неизвестный маршрут остаётся fail-closed.
-  if (to === '/companies' || to === '/platform/permissions') return role === 'PLATFORM_ADMIN'
+  if (to === '/companies' || to === '/platform/permissions' || to === '/platform/geo-accuracy') return role === 'PLATFORM_ADMIN'
 
   if (role === 'CLIENT') return CLIENT_ALLOWED.has(to)
 

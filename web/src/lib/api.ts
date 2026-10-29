@@ -5464,3 +5464,60 @@ export async function unpublishProductUpdate(id: string): Promise<ProductUpdate>
 export async function deleteProductUpdateDraft(id: string): Promise<{ ok: boolean }> {
   return request<{ ok: boolean }>(`/product-updates/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
+
+/** Счётчик диапазона. key — ключ корзины, в том числе MISSING. count — число отправок. Поля label нет. */
+export type GeoAccuracyBucket = {
+  key: string
+  count: number
+}
+
+/** Ответ GET /platform/geo-accuracy/buckets. */
+export type GeoAccuracyBucketsResponse = {
+  buckets: GeoAccuracyBucket[]
+}
+
+/** Клетка 100 м. Границы в градусах на самой клетке. buckets — счётчики диапазонов этой клетки, включая MISSING. */
+export type GeoAccuracyCell = {
+  south: number
+  north: number
+  west: number
+  east: number
+  buckets: GeoAccuracyBucket[]
+}
+
+/** Ответ GET /platform/geo-accuracy/cells. */
+export type GeoAccuracyCellsResponse = {
+  companyId: string | null
+  cellMeters: number
+  cells: GeoAccuracyCell[]
+}
+
+/** Пороги фиксации прибытия. Одни на платформу. */
+export type GeoAccuracySettings = {
+  accuracyMeters: number
+  freshnessMinutes: number
+  radiusMeters: number
+}
+
+export async function geoAccuracyBuckets(): Promise<GeoAccuracyBucketsResponse> {
+  return request<GeoAccuracyBucketsResponse>('/platform/geo-accuracy/buckets')
+}
+
+export async function geoAccuracyCells(companyId: string): Promise<GeoAccuracyCellsResponse> {
+  return request<GeoAccuracyCellsResponse>('/platform/geo-accuracy/cells?companyId=' + encodeURIComponent(companyId))
+}
+
+export async function geoAccuracySettings(): Promise<GeoAccuracySettings> {
+  return request<GeoAccuracySettings>('/platform/geo-accuracy/settings')
+}
+
+export async function updateGeoAccuracySettings(input: GeoAccuracySettings): Promise<GeoAccuracySettings> {
+  return request<GeoAccuracySettings>('/platform/geo-accuracy/settings', {
+    method: 'PATCH',
+    body: {
+      accuracyMeters: input.accuracyMeters,
+      freshnessMinutes: input.freshnessMinutes,
+      radiusMeters: input.radiusMeters,
+    },
+  })
+}

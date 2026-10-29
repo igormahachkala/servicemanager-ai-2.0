@@ -5,6 +5,8 @@ import { ServiceContractsModule } from '../service-contracts/service-contracts.m
 import { ShiftPolicyService } from './shift-policy.service'
 import { WorkforceAutoCloseService } from './workforce-auto-close.service'
 import { WorkforceController } from './workforce.controller'
+import { GeoAccuracyController } from './geo-accuracy.controller'
+import { GeoAccuracyService } from './geo-accuracy.service'
 import { WorkforceGeoService } from './workforce-geo.service'
 import { WorkforceOnSiteCorrectionService } from './workforce-on-site-correction.service'
 import { WorkforceOnSiteReadService } from './workforce-on-site-read.service'
@@ -13,7 +15,7 @@ import { WorkforceService } from './workforce.service'
 
 @Module({
   imports: [PrismaModule, ServiceContractsModule],
-  controllers: [WorkforceController],
+  controllers: [WorkforceController, GeoAccuracyController],
   providers: [
     WorkforceService,
     WorkforceAutoCloseService,
@@ -22,6 +24,7 @@ import { WorkforceService } from './workforce.service'
     WorkforceOnSiteReadService,
     WorkforceOnSiteCorrectionService,
     WorkforceGeoService,
+    GeoAccuracyService,
   ],
   // ShiftPolicyService is exported so 079 can enforce the policy from the tickets
   // module without re-implementing it. It is the only shift-policy authority.
