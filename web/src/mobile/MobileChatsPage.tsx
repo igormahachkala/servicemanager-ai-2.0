@@ -22,11 +22,13 @@ import { MobileTicketPhotoGallery } from './MobileTicketPhotoGallery'
 import { FullscreenPhotoViewer, type PhotoViewerItem } from '../components/FullscreenPhotoViewer'
 import { useProtectedUploadSrcs } from '../ui/useProtectedUploadSrc'
 import { toChatMessages } from '../lib/ticketChat'
+import { useTicketChatReadMark } from '../hooks/useTicketChatReadMark'
 import { ticketChatParentFromGet } from '../lib/ticketChatLink'
 import { pushToast } from '../lib/appToast'
 import { buildOfflineTicketCommentPayload } from '../lib/ticketReplyUi'
 import { queueOffline, useOfflineStatus } from './offline/useOffline'
 import { deliverTicketComment } from './offline/ticketCommentDelivery'
+import { TicketUnreadChatBadge } from '../ui/TicketUnreadChatBadge'
 
 type ChatsFilter = 'all' | 'mine' | 'active' | 'with_photo'
 type ChatsView = 'active' | 'archive'
@@ -49,6 +51,7 @@ type ChatsObjectTicket = {
   companyId?: string
   categoryTitle: string
   preview: string
+  hasUnreadChat: boolean
 }
 
 type ChatsObjectItem = {
@@ -368,6 +371,7 @@ export function MobileChatsPage() {
             companyId: (ticket.companyId || '').trim() || undefined,
             categoryTitle: ticketCategoryTitle,
             preview: ticketPreview,
+            hasUnreadChat: !!ticket.hasUnreadChat,
           },
         ],
         iconTone: nextTone,
@@ -546,6 +550,12 @@ export function MobileChatsPage() {
       timelineItems,
     ],
   )
+  useTicketChatReadMark({
+    ticketId,
+    messages: timelineQ.isSuccess ? chatMessages : [],
+    scope: ticketResourceScope,
+    active: !!ticketResourceScope && activeTab === 'chat',
+  })
   const photoAttachments = useMemo(
     () => (attachmentsQ.data || []).filter((a) => (a.mimeType || '').toLowerCase().startsWith('image/')),
     [attachmentsQ.data],
@@ -997,7 +1007,10 @@ export function MobileChatsPage() {
                   <div className="mobileChatsItemBody">
                     <div className="mobileChatsItemTop">
                       <div className="mobileChatsItemTopLeft">
-                        <div className="mobileChatsItemTitle">{mobileTicketNumberTitle(ticket.ticketNumber)}</div>
+                        <div className="mobileChatsItemTitle">
+                          {mobileTicketNumberTitle(ticket.ticketNumber)}
+                          <TicketUnreadChatBadge ticket={ticket} />
+                        </div>
                         <span className={`mobileChatsIndicator mobileChatsIndicator--${ticket.status}`} aria-hidden="true" />
                       </div>
                       <div className="mobileChatsItemTime">{formatLastActivity(ticket.lastActivityAt)}</div>
@@ -1088,7 +1101,10 @@ export function MobileChatsPage() {
                           <Link key={t.id} className="mobileChatsObjectTicketRow" to={t.href} state={withTicketNav(mobileTicketNavState('chat', t.companyId), ticketNav)}>
                             <span className={`mobileChatsIndicator mobileChatsIndicator--${t.status}`} />
                             <div className="mobileChatsObjectTicketBody">
-                              <span className="mobileChatsObjectTicketTitle">{mobileTicketNumberTitle(t.ticketNumber)}</span>
+                              <span className="mobileChatsObjectTicketTitle">
+                                {mobileTicketNumberTitle(t.ticketNumber)}
+                                <TicketUnreadChatBadge ticket={t} />
+                              </span>
                               <span className="mobileChatsObjectTicketCategory">{t.categoryTitle}</span>
                               <span className="mobileChatsObjectTicketPreview">{t.preview}</span>
                             </div>

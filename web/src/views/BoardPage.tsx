@@ -19,6 +19,7 @@ import { pushToast } from '../lib/appToast'
 import { logTicketActionError, mapTicketActionError } from '../lib/ticketOperationalErrors'
 import { canOfferTicketClaimAction } from '../lib/ticketActionCapabilities'
 import { OperationsViewSwitcher, type OperationsViewMode } from '../components/operations/OperationsViewSwitcher'
+import { TicketUnreadChatBadge } from '../ui/TicketUnreadChatBadge'
 import { compactTicketAssigneeLabel, compactTicketCreatorLabel } from '../lib/ticketActorIdentity'
 import { boardEquipmentOptions, boardFilterReconciliation } from '../lib/equipmentCard'
 
@@ -1170,7 +1171,10 @@ export function BoardPage() {
                         state={buildTicketLinkState()}
                         style={{ textDecoration: 'none', flex: 1, minWidth: 0 }}
                       >
-                        <div className="ticketTitle">{ticket.title}</div>
+                        <div className="ticketTitle">
+                          {ticket.title}
+                          <TicketUnreadChatBadge ticket={ticket} />
+                        </div>
                       </Link>
                     </div>
                       {compactServiceContext(ticket) ? (

@@ -13,6 +13,7 @@ import { MobileBoardClaimFallbackHint, MobileClaimReasonHintBox } from '../Mobil
 import { compactTicketCreatorLabel } from '../../lib/ticketActorIdentity'
 import { assignedTechnicianDisplay, type HomePrimaryActionLabel } from './utils'
 import type { TicketDetailCacheState } from '../offline/ticketDetailCache'
+import { TicketUnreadChatBadge } from '../../ui/TicketUnreadChatBadge'
 
 type Props = {
   ticket: api.TicketCard
@@ -142,6 +143,7 @@ export function TicketCard({
                 {ticket.category?.name ? (
                   <span className="mobileTicketCardV2Cat"> · {ticket.category.name}</span>
                 ) : null}
+                <TicketUnreadChatBadge ticket={ticket} />
               </span>
               {timeText ? <span className="mobileTicketCardV2Time">{timeText}</span> : null}
             </div>

@@ -64,6 +64,7 @@ import { MobileBoardClaimFallbackHint, MobileClaimReasonHintBox } from './Mobile
 import { TicketCloseModal, type TicketCloseModalState } from './home/MobileHomeTicketCloseModal'
 import { MobileAttachmentThumb, mobileAttachmentLabel } from './MobileAttachmentThumb'
 import { toChatMessages, ticketChatParentFromGet, type ChatMessage } from '../lib/ticketChat'
+import { useTicketChatReadMark } from '../hooks/useTicketChatReadMark'
 import {
   buildAddTicketCommentOptions,
   buildOfflineTicketCommentPayload,
@@ -1419,6 +1420,13 @@ export function MobileTicketPage() {
       ticket?.title,
     ],
   )
+
+  useTicketChatReadMark({
+    ticketId,
+    messages: timelineQ.isSuccess ? chatMessages : [],
+    scope: ticketResourceScope,
+    active: detailTab === 'chat' && !isLocalId(ticketId),
+  })
 
   // Автоскролл ленты чата к последнему сообщению (при новых сообщениях / открытии вкладки).
   const chatMessagesEndRef = useRef<HTMLDivElement | null>(null)
