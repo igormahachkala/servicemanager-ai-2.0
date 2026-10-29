@@ -182,7 +182,8 @@ export function MobileHome() {
         take: 500,
         olderThanDays: STALE_TICKET_AGE_DAYS,
       }),
-    enabled: boardEnabled && isOnline,
+    // Как основная доска: в сеть, пока связь не признана пропавшей; «проверяем связь» не ждём.
+    enabled: boardEnabled && offline.connectivity !== 'offline',
   })
 
   const linkedClientsQ = useQuery({
