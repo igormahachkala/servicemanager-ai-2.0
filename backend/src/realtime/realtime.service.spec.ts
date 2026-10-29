@@ -102,3 +102,55 @@ describe('RealtimeService heartbeat auth', () => {
     expect(client.closed).toBe(true);
   });
 });
+
+describe('RealtimeService chat read', () => {
+  function makeChatReadService(rows: unknown[]) {
+    const prisma = {
+      user: { findMany: jest.fn(), findFirst: jest.fn() },
+      ticketChatRead: { findMany: jest.fn().mockResolvedValue(rows) },
+    } as any;
+    return new RealtimeService(prisma, { verifyAsync: jest.fn() } as any);
+  }
+
+  const row = {
+    id: 'read-1',
+    userId: 'user-1',
+    ticketId: 'ticket-1',
+    updatedAt: new Date(Date.now() + 1000),
+  };
+
+  it('sends chat.read only to sessions of the reader', async () => {
+    const service = makeChatReadService([row]);
+    const own = stubClient({ id: 'own' });
+    const otherDevice = stubClient({ id: 'own-2' });
+    const colleague = stubClient({
+      id: 'colleague',
+      user: { id: 'user-2', email: 'x@y.z', companyId: 'company-a', role: UserRole.ADMIN },
+    });
+    const unauthenticated = stubClient({ id: 'anon', user: null });
+    for (const c of [own, otherDevice, colleague, unauthenticated]) (service as any).clients.set(c.id, c);
+
+    await (service as any).pollChatReads();
+
+    const expected = [{ type: 'chat.read', targets: ['tickets'], ticketId: 'ticket-1', createdAt: row.updatedAt.toISOString() }];
+    expect(textFrames(own.socket)).toEqual(expected);
+    expect(textFrames(otherDevice.socket)).toEqual(expected);
+    expect(textFrames(colleague.socket)).toEqual([]);
+    expect(textFrames(unauthenticated.socket)).toEqual([]);
+  });
+
+  it('does not resend the same mark but resends after it moves', async () => {
+    const service = makeChatReadService([row]);
+    const own = stubClient();
+    (service as any).clients.set(own.id, own);
+
+    await (service as any).pollChatReads();
+    await (service as any).pollChatReads();
+    expect(textFrames(own.socket)).toHaveLength(1);
+
+    const moved = { ...row, updatedAt: new Date(row.updatedAt.getTime() + 5000) };
+    (service as any).prisma.ticketChatRead.findMany.mockResolvedValue([row, moved]);
+    await (service as any).pollChatReads();
+    expect(textFrames(own.socket)).toHaveLength(2);
+  });
+});

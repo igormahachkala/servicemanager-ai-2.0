@@ -2,6 +2,9 @@ import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { postMyShiftGeoQuietly } from '../lib/shiftGeoApi'
+import { OnSiteTicketLine } from '../components/on-site/OnSiteTicketLine'
+import { useCanSeeOnSite } from '../components/on-site/useCanSeeOnSite'
 import {
   mobileTicketAttachmentReadScopes,
   mobileTicketCategoryLocationFromDetail,
@@ -64,6 +67,7 @@ import { MobileBoardClaimFallbackHint, MobileClaimReasonHintBox } from './Mobile
 import { TicketCloseModal, type TicketCloseModalState } from './home/MobileHomeTicketCloseModal'
 import { MobileAttachmentThumb, mobileAttachmentLabel } from './MobileAttachmentThumb'
 import { toChatMessages, ticketChatParentFromGet, type ChatMessage } from '../lib/ticketChat'
+import { useTicketChatReadMark } from '../hooks/useTicketChatReadMark'
 import {
   buildAddTicketCommentOptions,
   buildOfflineTicketCommentPayload,
@@ -354,6 +358,7 @@ export function MobileTicketPage() {
     [location.search],
   )
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const showOnSiteLine = useCanSeeOnSite()
   const queryClient = useQueryClient()
 
   const [operationalToast, setOperationalToast] = useState('')
@@ -1420,6 +1425,13 @@ export function MobileTicketPage() {
     ],
   )
 
+  useTicketChatReadMark({
+    ticketId,
+    messages: timelineQ.isSuccess ? chatMessages : [],
+    scope: ticketResourceScope,
+    active: detailTab === 'chat' && !isLocalId(ticketId),
+  })
+
   // Автоскролл ленты чата к последнему сообщению (при новых сообщениях / открытии вкладки).
   const chatMessagesEndRef = useRef<HTMLDivElement | null>(null)
   useEffect(() => {
@@ -1644,6 +1656,7 @@ export function MobileTicketPage() {
     }
 
     if (!ticket) return
+    postMyShiftGeoQuietly()
     const delivery = await deliverTicketStatus({
       reportedOnline: liveApiAllowed,
       queueInput: {
@@ -2060,6 +2073,7 @@ export function MobileTicketPage() {
                 <span className="mobileDetailRowLabel"><RowIcon name="user-check" />Исполнитель</span>
                 <span className="mobileDetailRowValue" style={{ whiteSpace: 'pre-line' }}>{executorLine}</span>
               </div>
+              {showOnSiteLine ? <OnSiteTicketLine ticketId={ticket.id} /> : null}
               <div className="mobileDetailRow">
                 <span className="mobileDetailRowLabel"><RowIcon name="user" />Создал заявку</span>
                 <span className="mobileDetailRowValue" style={{ whiteSpace: 'pre-line' }}>{creatorLine}</span>

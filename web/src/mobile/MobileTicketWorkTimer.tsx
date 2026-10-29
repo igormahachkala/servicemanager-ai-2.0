@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { postMyShiftGeoQuietly } from '../lib/shiftGeoApi'
 import { mobilePath } from './mobileRoute'
 import { mobileReturnToState } from './mobileReturnTo'
 
@@ -84,7 +85,16 @@ export function MobileTicketWorkTimer(props: {
           Сейчас идёт учёт по заявке #{running.ticket.ticketNumber}. Сначала завершите его в той заявке.
         </div>
       ) : (
-        <button type="button" className="mobileBtn mobileBtn--start" style={{ width: '100%', marginTop: 10 }} disabled={busy} onClick={() => startM.mutate()}>
+        <button
+          type="button"
+          className="mobileBtn mobileBtn--start"
+          style={{ width: '100%', marginTop: 10 }}
+          disabled={busy}
+          onClick={() => {
+            postMyShiftGeoQuietly()
+            startM.mutate()
+          }}
+        >
           {startM.isPending ? 'Запускаем…' : `Начать учёт по заявке #${props.ticketNumber || ''}`}
         </button>
       )}

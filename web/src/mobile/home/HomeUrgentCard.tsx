@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import type { TicketCard } from '../../lib/api'
 import { mobileTicketCategoryLocationFromCard, mobileTicketNumberTitle, type MobileTicketNavState } from '../mobileTicketDisplay'
 import { formatTicketAgeShort, HOME_URGENT_PREVIEW_MAX } from './homeUrgent'
+import { TicketUnreadChatBadge } from '../../ui/TicketUnreadChatBadge'
 
 type Props = {
   tickets: TicketCard[]
@@ -45,7 +46,10 @@ export function HomeUrgentCard({ tickets, ticketHref, ticketLinkState, onViewAll
           return (
             <Link key={ticket.id} to={ticketHref(ticket)} state={ticketLinkState(ticket)} className="mobileHomeUrgentRow">
               <span className="mobileHomeUrgentRowMain">
-                <span className="mobileHomeUrgentRowNo">{mobileTicketNumberTitle(ticket.ticketNumber)}</span>
+                <span className="mobileHomeUrgentRowNo">
+                  {mobileTicketNumberTitle(ticket.ticketNumber)}
+                  <TicketUnreadChatBadge ticket={ticket} />
+                </span>
                 <span className="mobileHomeUrgentRowText">{mobileTicketCategoryLocationFromCard(ticket)}</span>
               </span>
               {age ? <span className="mobileHomeUrgentRowAge">{age}</span> : null}

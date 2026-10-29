@@ -726,6 +726,8 @@ export type TicketCard = {
   attachmentPreviewUrl?: string | null
   /** Количество image-вложений на заявке. */
   imageAttachmentCount?: number
+  /** В чате есть сообщения других участников, которые текущий пользователь не открывал. */
+  hasUnreadChat?: boolean
 }
 
 export type LinkedClientSummary = ServiceContractItem & {
@@ -3486,6 +3488,17 @@ export async function getTicket(id: string, scope?: string | TicketScopeParams):
 export async function ticketTimeline(id: string, scope?: string | TicketScopeParams): Promise<TimelineResponse> {
   return request<TimelineResponse>(`/timeline/tickets/${id}${buildTicketScopeSuffix(scope)}`)
 }
+/** Отметить чат прочитанным до времени последнего показанного сообщения. */
+export async function markTicketChatRead(
+  id: string,
+  upTo: string | null,
+  scope?: string | TicketScopeParams,
+): Promise<{ ok: boolean; ticketId: string }> {
+  return request<{ ok: boolean; ticketId: string }>(`/timeline/tickets/${id}/read${buildTicketScopeSuffix(scope)}`, {
+    method: 'POST',
+    body: upTo ? { upTo } : {},
+  })
+}
 export async function timeline(id: string, scope?: string | TicketScopeParams): Promise<TimelineResponse> {
   return ticketTimeline(id, scope)
 }
@@ -5291,6 +5304,109 @@ export async function updateWorkforceSettings(shiftAutoCloseTime: string) {
   })
 }
 
+export type OnSiteArrivalState = 'no_coordinates' | 'not_arrived' | 'no_fresh' | 'arrived' | 'departed'
+
+export type OnSiteShiftFilter = 'open' | 'closed'
+
+export type OnSiteSort = 'state' | 'name' | 'lastPoint' | 'distance'
+
+export type OnSiteListParams = {
+  state?: OnSiteArrivalState
+  shift?: OnSiteShiftFilter
+  technician?: string
+  sort?: OnSiteSort
+}
+
+export type OnSiteLine = {
+  ticketId: string
+  ticketNumber: number
+  locationName: string
+  linkedClientCompanyId: string
+  ticketHref: string
+  state: OnSiteArrivalState
+  stateOrder: number
+  label: string
+  notes: string[]
+  text: string
+  distanceMeters: number | null
+  lastPointAt: string | null
+  arrivedAt: string | null
+  departedAt: string | null
+}
+
+export type OnSiteCard = {
+  userId: string
+  name: string
+  shiftOpen: boolean
+  lines: OnSiteLine[]
+}
+
+export type OnSiteEmptyReason = 'no_assignments' | 'filtered_out'
+
+export type OnSiteListResponse = {
+  sort: OnSiteSort
+  emptyReason: OnSiteEmptyReason | null
+  items: OnSiteCard[]
+}
+
+export type OnSiteTicketResponse = {
+  userId: string
+  name: string
+  shiftOpen: boolean
+  line: OnSiteLine
+}
+
+export type OnSiteCorrectionInput = {
+  reason: string
+  correctedArrivedAt: string | null
+  correctedDepartedAt: string | null
+}
+
+export type OnSiteCorrectionRecord = {
+  id: string
+  reason: string
+  correctedArrivedAt: string | null
+  correctedDepartedAt: string | null
+  createdAt: string
+  correctedByUserId?: string | null
+  correctedByName?: string | null
+}
+
+export type OnSiteCorrectionsResponse = {
+  ticketId: string
+  userId: string
+  items: OnSiteCorrectionRecord[]
+}
+
+function onSiteListSearch(params: OnSiteListParams): string {
+  const search = new URLSearchParams()
+  if (params.state) search.set('state', params.state)
+  if (params.shift) search.set('shift', params.shift)
+  if (params.technician) search.set('technician', params.technician)
+  search.set('sort', params.sort || 'state')
+  const suffix = search.toString()
+  return suffix ? `?${suffix}` : ''
+}
+
+export async function listOnSite(params: OnSiteListParams = {}): Promise<OnSiteListResponse> {
+  return request<OnSiteListResponse>(`/workforce/on-site${onSiteListSearch(params)}`)
+}
+
+export async function getOnSiteTicket(ticketId: string): Promise<OnSiteTicketResponse> {
+  return request<OnSiteTicketResponse>(`/workforce/on-site/tickets/${encodeURIComponent(ticketId)}`)
+}
+
+export async function createOnSiteCorrection(ticketId: string, input: OnSiteCorrectionInput): Promise<OnSiteCorrectionRecord> {
+  return request<OnSiteCorrectionRecord>(`/workforce/on-site/tickets/${encodeURIComponent(ticketId)}/corrections`, {
+    method: 'POST',
+    body: input,
+  })
+}
+
+export async function listOnSiteCorrections(ticketId: string): Promise<OnSiteCorrectionsResponse> {
+  return request<OnSiteCorrectionsResponse>(`/workforce/on-site/tickets/${encodeURIComponent(ticketId)}/corrections`)
+}
+
 // ─── Центр обновлений (SMA-UPDATES-CENTER-V1) ───────────────────────────────
 
 export type ProductUpdateStatus = 'DRAFT' | 'PUBLISHED'
@@ -5367,4 +5483,61 @@ export async function unpublishProductUpdate(id: string): Promise<ProductUpdate>
 
 export async function deleteProductUpdateDraft(id: string): Promise<{ ok: boolean }> {
   return request<{ ok: boolean }>(`/product-updates/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
+/** Счётчик диапазона. key — ключ корзины, в том числе MISSING. count — число отправок. Поля label нет. */
+export type GeoAccuracyBucket = {
+  key: string
+  count: number
+}
+
+/** Ответ GET /platform/geo-accuracy/buckets. */
+export type GeoAccuracyBucketsResponse = {
+  buckets: GeoAccuracyBucket[]
+}
+
+/** Клетка 100 м. Границы в градусах на самой клетке. buckets — счётчики диапазонов этой клетки, включая MISSING. */
+export type GeoAccuracyCell = {
+  south: number
+  north: number
+  west: number
+  east: number
+  buckets: GeoAccuracyBucket[]
+}
+
+/** Ответ GET /platform/geo-accuracy/cells. */
+export type GeoAccuracyCellsResponse = {
+  companyId: string | null
+  cellMeters: number
+  cells: GeoAccuracyCell[]
+}
+
+/** Пороги фиксации прибытия. Одни на платформу. */
+export type GeoAccuracySettings = {
+  accuracyMeters: number
+  freshnessMinutes: number
+  radiusMeters: number
+}
+
+export async function geoAccuracyBuckets(): Promise<GeoAccuracyBucketsResponse> {
+  return request<GeoAccuracyBucketsResponse>('/platform/geo-accuracy/buckets')
+}
+
+export async function geoAccuracyCells(companyId: string): Promise<GeoAccuracyCellsResponse> {
+  return request<GeoAccuracyCellsResponse>('/platform/geo-accuracy/cells?companyId=' + encodeURIComponent(companyId))
+}
+
+export async function geoAccuracySettings(): Promise<GeoAccuracySettings> {
+  return request<GeoAccuracySettings>('/platform/geo-accuracy/settings')
+}
+
+export async function updateGeoAccuracySettings(input: GeoAccuracySettings): Promise<GeoAccuracySettings> {
+  return request<GeoAccuracySettings>('/platform/geo-accuracy/settings', {
+    method: 'PATCH',
+    body: {
+      accuracyMeters: input.accuracyMeters,
+      freshnessMinutes: input.freshnessMinutes,
+      radiusMeters: input.radiusMeters,
+    },
+  })
 }

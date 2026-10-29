@@ -6,6 +6,7 @@ import * as api from '../lib/api'
 import { useLinkedBoardScope } from '../hooks/useLinkedBoardScope'
 import { archiveStatusLabel, archiveTicketCount, selectArchiveColumns } from '../lib/ticketArchive'
 import { compactTicketAssigneeLabel } from '../lib/ticketActorIdentity'
+import { TicketUnreadChatBadge } from '../ui/TicketUnreadChatBadge'
 
 function fmt(dt?: string | null) {
   if (!dt) return '—'
@@ -127,7 +128,10 @@ export function ArchivePage() {
                 {col.cards.map((ticket) => (
                   <div key={ticket.id} className="ticket">
                     <Link to={buildTicketLink(ticket)} style={{ textDecoration: 'none' }}>
-                      <div className="ticketTitle">{ticket.title}</div>
+                      <div className="ticketTitle">
+                        {ticket.title}
+                        <TicketUnreadChatBadge ticket={ticket} />
+                      </div>
                     </Link>
                     {compactServiceContext(ticket) ? (
                       <div className="muted small" style={{ marginTop: 4, marginBottom: 2 }}>

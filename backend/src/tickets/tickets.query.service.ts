@@ -36,6 +36,7 @@ import { TICKET_ASSIGNMENT_REQUESTED_ENTITY, TICKET_ASSIGNMENT_REQUESTED_EVENT }
 import { isExecutorCapableRole } from '../common/executor.utils'
 import { loadBoardImageAttachmentSummaries } from './board-attachment-summary'
 import { buildStaleTicketWhere } from './board-stale-tickets'
+import { loadUnreadChatTicketIds } from './board-chat-unread'
 import { ShiftPolicyService } from '../workforce/shift-policy.service'
 import { loadUnresolvedDescendants } from './ticket-close-tree'
 
@@ -618,11 +619,10 @@ export class TicketsQueryService {
         })
       : []
 
-    const [imageAttachmentSummaries, matchingTotal] = await Promise.all([
-      loadBoardImageAttachmentSummaries(
-        this.prisma,
-        tickets.map((ticket) => ticket.id),
-      ),
+    const boardTicketIds = tickets.map((ticket) => ticket.id)
+    const [imageAttachmentSummaries, unreadChatTicketIds, matchingTotal] = await Promise.all([
+      loadBoardImageAttachmentSummaries(this.prisma, boardTicketIds),
+      loadUnreadChatTicketIds(this.prisma, userId, boardTicketIds),
       matchingTotalPromise,
     ])
 
@@ -731,6 +731,7 @@ export class TicketsQueryService {
           assignedTechnician: t.assignedTechnician,
           attachmentPreviewUrl: attachmentSummary?.previewUrl ?? null,
           imageAttachmentCount: attachmentSummary?.imageCount ?? 0,
+          hasUnreadChat: unreadChatTicketIds.has(t.id),
         }
         if (t.status === TicketStatus.NEW && !t.assignedTechnician) {
           const capability = claimCapabilityByTicketId.get(t.id)

@@ -10,10 +10,13 @@ import { Roles } from '../common/roles.decorator'
 import { RolesGuard } from '../common/roles.guard'
 import { ManagementSurface } from '../common/management-surface-access'
 import { CloseWorkShiftDto } from './dto/close-work-shift.dto'
+import { CreateArrivalCorrectionDto } from './dto/create-arrival-correction.dto'
 import { CreateShiftCorrectionDto } from './dto/create-shift-correction.dto'
 import { UpdateShiftGeoDto } from './dto/update-shift-geo.dto'
 import { UpdateWorkforceSettingsDto } from './dto/update-workforce-settings.dto'
 import { WorkforceGeoService } from './workforce-geo.service'
+import { WorkforceOnSiteCorrectionService } from './workforce-on-site-correction.service'
+import { WorkforceOnSiteReadService } from './workforce-on-site-read.service'
 import { WorkforceService } from './workforce.service'
 
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsContextGuard, PermissionsGuard)
@@ -22,6 +25,8 @@ export class WorkforceController {
   constructor(
     private readonly workforce: WorkforceService,
     private readonly workforceGeo: WorkforceGeoService,
+    private readonly onSiteRead: WorkforceOnSiteReadService,
+    private readonly onSiteCorrection: WorkforceOnSiteCorrectionService,
   ) {}
 
   @Get('me')
@@ -36,6 +41,40 @@ export class WorkforceController {
   @RequirePermission(PERMISSIONS.WORKFORCE_SHIFT_USE)
   updateMyGeo(@Req() req: any, @Body() dto: UpdateShiftGeoDto) {
     return this.workforceGeo.updateMyPoint(this.actor(req), dto)
+  }
+
+  @Get('on-site')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
+  listOnSite(
+    @Req() req: any,
+    @Query('state') state?: string,
+    @Query('shift') shift?: string,
+    @Query('technician') technician?: string,
+    @Query('sort') sort?: string,
+  ) {
+    return this.onSiteRead.list(this.actor(req), { state, shift, technician, sort })
+  }
+
+  @Get('on-site/tickets/:ticketId')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
+  getOnSiteTicket(@Req() req: any, @Param('ticketId') ticketId: string) {
+    return this.onSiteRead.getTicket(this.actor(req), ticketId)
+  }
+
+  @Post('on-site/tickets/:ticketId/corrections')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
+  createOnSiteCorrection(
+    @Req() req: any,
+    @Param('ticketId') ticketId: string,
+    @Body() dto: CreateArrivalCorrectionDto,
+  ) {
+    return this.onSiteCorrection.create(this.actor(req), ticketId, dto)
+  }
+
+  @Get('on-site/tickets/:ticketId/corrections')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
+  listOnSiteCorrections(@Req() req: any, @Param('ticketId') ticketId: string) {
+    return this.onSiteCorrection.list(this.actor(req), ticketId)
   }
 
   @Post('shifts/open')

@@ -1,6 +1,8 @@
 import { useEffect, useRef } from 'react'
 import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { applyChatReadToLists } from '../hooks/useTicketChatReadMark'
+import { clearUnreadChatInBoard } from '../lib/ticketChatUnread'
 import { pushToast } from '../lib/appToast'
 import type { WsNotifMsg } from '../lib/realtimeNotificationToast'
 import {
@@ -58,11 +60,16 @@ export function applyTicketInvalidation(qc: QueryClient, ticketId?: string) {
   qc.invalidateQueries({ queryKey: ['mobile-my-board'] })
   qc.invalidateQueries({ queryKey: ['mobile-home-stale-board'] })
   qc.invalidateQueries({ queryKey: ['dashboard-stale-board'] })
+  // Списки с 💬: новое сообщение должно зажечь индикатор без перезагрузки.
+  qc.invalidateQueries({ queryKey: ['archive-board'] })
+  qc.invalidateQueries({ queryKey: ['mobile-home-completed-board'] })
+  qc.invalidateQueries({ queryKey: ['mobile-chats-board'] })
 
   if (!ticketId) {
     qc.invalidateQueries({ queryKey: ['mobile-ticket-detail'] })
     qc.invalidateQueries({ queryKey: ['mobile-ticket-timeline'] })
     qc.invalidateQueries({ queryKey: ['mobile-ticket-attachments'] })
+    qc.invalidateQueries({ queryKey: ['mobile-chats-timeline'] })
     return
   }
 
@@ -71,6 +78,14 @@ export function applyTicketInvalidation(qc: QueryClient, ticketId?: string) {
   invalidateUnlessGone(qc, ['mobile-ticket-detail', ticketId])
   invalidateUnlessGone(qc, ['mobile-ticket-timeline', ticketId])
   invalidateUnlessGone(qc, ['mobile-ticket-attachments', ticketId])
+  invalidateUnlessGone(qc, ['mobile-chats-timeline', ticketId])
+}
+
+function applyChatReadToStaleLists(qc: QueryClient, ticketId: string) {
+  for (const queryKey of [['mobile-home-stale-board'], ['dashboard-stale-board']] as const) {
+    qc.setQueriesData({ queryKey }, (data: unknown) => clearUnreadChatInBoard(data, ticketId))
+    qc.invalidateQueries({ queryKey })
+  }
 }
 
 export function useWsInvalidation(scope?: WsBoardScope, opts?: UseWsInvalidationOpts) {
@@ -116,6 +131,12 @@ export function useWsInvalidation(scope?: WsBoardScope, opts?: UseWsInvalidation
 
         if (t === 'invalidate' && hasTarget(msg, 'notifications')) {
           qc.invalidateQueries({ queryKey: ['mobile-notifications'] })
+        }
+
+        // Прочтение на другом устройстве этого же пользователя.
+        if (t === 'chat.read' && typeof msg.ticketId === 'string') {
+          applyChatReadToLists(qc, msg.ticketId)
+          applyChatReadToStaleLists(qc, msg.ticketId)
         }
 
         if (t === 'notifications.invalidate') {

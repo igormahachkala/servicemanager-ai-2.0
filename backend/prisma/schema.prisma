@@ -88,6 +88,31 @@ enum WorkLogStatus {
   AUTO_STOPPED
 }
 
+enum TechnicianArrivalSide {
+  INSIDE
+  OUTSIDE
+}
+
+enum TechnicianArrivalEventKind {
+  ARRIVED
+  DEPARTED
+  CORRECTION
+}
+
+/// Диапазон точности в метрах. Нижняя граница включена, верхняя исключена.
+/// GT_100 забирает 100 м и всё что выше. MISSING — пустая, не число и меньше 0.
+enum GeoAccuracyBucketKey {
+  LT_10
+  FROM_10_20
+  FROM_20_30
+  FROM_30_40
+  FROM_40_50
+  FROM_50_60
+  FROM_60_100
+  GT_100
+  MISSING
+}
+
 enum PublicRequestType {
   REPAIR
   NOTE
@@ -242,6 +267,10 @@ model Company {
   workShifts                   WorkShift[]
   idempotencyRecords           IdempotencyRecord[]
   workShiftCorrections         WorkShiftCorrection[]
+  technicianArrivals           TechnicianArrival[]
+  technicianArrivalEvents      TechnicianArrivalEvent[]
+  technicianArrivalCorrections TechnicianArrivalCorrection[]
+  geoAccuracySamples           GeoAccuracySample[]
   workLogs                     WorkLog[]
   serviceContractLocations     ServiceContractLocation[]
   maxUserBindings              MaxUserBinding[]
@@ -267,10 +296,15 @@ model User {
   isExecutor Boolean   @default(false)
   phone      String?
   deletedAt  DateTime?
+  /// Сообщения чата заявки старше этой отметки считаются прочитанными, пока
+  /// у пользователя нет своей строки TicketChatRead. Существующим пользователям
+  /// миграция ставит время выкатки: прежняя переписка не загорается 💬 разом.
+  chatReadBaseline DateTime @default(now())
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  ticketChatReads             TicketChatRead[]
   ticketStatusChanges         TicketStatusHistory[]      @relation("TicketStatusChangedBy")
   ticketFailureCauseAssessments TicketFailureCauseAssessment[] @relation("TicketFailureCauseAssessmentActor")
   ticketComments              TicketComment[]            @relation("TicketCommentAuthor")
@@ -297,6 +331,8 @@ model User {
   workShifts                  WorkShift[]
   idempotencyRecords          IdempotencyRecord[]
   workShiftCorrections        WorkShiftCorrection[]  @relation("WorkShiftCorrectionAuthor")
+  technicianArrivals          TechnicianArrival[]    @relation("TechnicianArrivalUser")
+  technicianArrivalCorrections TechnicianArrivalCorrection[] @relation("TechnicianArrivalCorrectionAuthor")
   workLogs                    WorkLog[]
   maxUserBindings             MaxUserBinding[]
   notificationPreferencesV2    UserNotificationPreference[]
@@ -888,11 +924,13 @@ model Ticket {
   statusHistory     TicketStatusHistory[]
   failureCauseAssessments TicketFailureCauseAssessment[]
   comments          TicketComment[]
+  chatReads         TicketChatRead[]
   attachments       TicketAttachment[]
   partsInstalled    InstalledPart[]       @relation("InstalledPartInstalledTicket")
   partsRemoved      InstalledPart[]       @relation("InstalledPartRemovedTicket")
   inspectionRunItem InspectionRunItem?
   workLogs          WorkLog[]
+  technicianArrivals TechnicianArrival[]
   materialMovements MaterialMovement[]
 
   slaMinutes    Int?
@@ -1027,6 +1065,106 @@ model WorkShiftCorrection {
   @@index([companyId, createdAt])
 }
 
+/// Факт прибытия исполнителя на точку заявки.
+/// companyId — компания провайдера, та же, что WorkShift.companyId.
+/// Ticket.companyId сюда не копируется. У заявки это компания клиента.
+/// arrivedAt и departedAt пишет только автомат приёма точки. Правка дописывает
+/// TechnicianArrivalCorrection и событие CORRECTION, эти колонки она не меняет.
+model TechnicianArrival {
+  id                 String                 @id @default(uuid())
+  companyId          String
+  ticketId           String
+  userId             String
+  arrivedAt          DateTime?
+  departedAt         DateTime?
+  lastDistanceMeters Float?
+  lastCheckedAt      DateTime?
+  candidateSide      TechnicianArrivalSide?
+  candidateStreak    Int                    @default(0)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  company     Company                       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ticket      Ticket                        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user        User                          @relation("TechnicianArrivalUser", fields: [userId], references: [id], onDelete: Restrict)
+  events      TechnicianArrivalEvent[]
+  corrections TechnicianArrivalCorrection[]
+
+  @@unique([ticketId, userId])
+  @@index([companyId, userId])
+  @@index([userId])
+}
+
+/// Переход автомата или правка. Широту и долготу телефона не хранит.
+model TechnicianArrivalEvent {
+  id             String                     @id @default(uuid())
+  companyId      String
+  arrivalId      String
+  kind           TechnicianArrivalEventKind
+  occurredAt     DateTime
+  distanceMeters Float?
+  createdAt      DateTime                   @default(now())
+
+  company Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  arrival TechnicianArrival @relation(fields: [arrivalId], references: [id], onDelete: Cascade)
+
+  @@index([arrivalId, createdAt])
+  @@index([companyId, createdAt])
+}
+
+/// Строка правки. Не обновляется и не удаляется. Следующая правка дописывает новую строку.
+/// Пустое время значит, что этого факта не было. Обе пустые отметки допустимы.
+model TechnicianArrivalCorrection {
+  id                  String    @id @default(uuid())
+  companyId           String
+  arrivalId           String
+  correctedByUserId   String
+  correctedArrivedAt  DateTime?
+  correctedDepartedAt DateTime?
+  reason              String
+  createdAt           DateTime  @default(now())
+
+  company     Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  arrival     TechnicianArrival @relation(fields: [arrivalId], references: [id], onDelete: Cascade)
+  correctedBy User              @relation("TechnicianArrivalCorrectionAuthor", fields: [correctedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([arrivalId, createdAt])
+  @@index([companyId, createdAt])
+}
+
+/// Платформенный счётчик диапазона. companyId нет, одна шкала на всю платформу.
+model GeoAccuracyBucket {
+  key   GeoAccuracyBucketKey @id
+  count Int                  @default(0)
+}
+
+/// Строка принятой точки открытой смены.
+/// Срок хранения 90 суток. Удаление строк старше 90 суток этим срезом не делается.
+/// companyId — компания провайдера смены WorkShift.
+/// userId и идентификатор техника не хранятся.
+model GeoAccuracySample {
+  id         String   @id @default(uuid())
+  companyId  String
+  latitude   Float
+  longitude  Float
+  accuracy   Float?
+  recordedAt DateTime
+  createdAt  DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, recordedAt])
+}
+
+/// Одна запись на платформу. Пока строки нет, автомат видит 100 м, 10 минут и 100 м.
+model PlatformArrivalSettings {
+  id               String   @id
+  accuracyMeters   Int      @default(100)
+  freshnessMinutes Int      @default(10)
+  radiusMeters     Int      @default(100)
+  updatedAt        DateTime @updatedAt
+}
+
 model WorkLog {
   id              String        @id @default(uuid())
   companyId       String
@@ -1123,6 +1261,29 @@ model TicketComment {
   @@index([ticketId, createdAt])
   @@index([companyId, createdAt])
   @@index([replyToId])
+}
+
+/// Отметка прочтения чата заявки, своя у каждого пользователя.
+///
+/// Непрочитанным считается комментарий другого автора новее
+/// max(lastReadAt, User.chatReadBaseline). lastReadAt — время последнего
+/// сообщения, которое клиент показал, а не время запроса: сообщение,
+/// пришедшее между загрузкой ленты и отметкой, остаётся непрочитанным.
+model TicketChatRead {
+  id         String   @id @default(uuid())
+  userId     String
+  ticketId   String
+  lastReadAt DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, ticketId])
+  @@index([ticketId])
+  /// Realtime опрашивает свежие отметки, чтобы погасить 💬 на других устройствах.
+  @@index([updatedAt])
 }
 
 model PermissionBlock {

@@ -6,20 +6,34 @@ import { WorkforceGeoService } from './workforce-geo.service'
 const actor = { id: 'tech-1', companyId: 'provider-1', role: UserRole.TECHNICIAN }
 
 function makePrisma() {
-  return {
+  const prisma = {
     workShift: {
       findFirst: jest.fn().mockResolvedValue(null),
       update: jest.fn(),
     },
-  } as any
+    geoAccuracyBucket: {
+      upsert: jest.fn().mockResolvedValue({}),
+    },
+    geoAccuracySample: {
+      create: jest.fn().mockResolvedValue({}),
+    },
+    $transaction: jest.fn(async (fn: any) => fn(prisma)),
+  }
+  return prisma as any
+}
+
+function makeService(prisma: any) {
+  const onSite = { onGeoPoint: jest.fn().mockResolvedValue(undefined) }
+  const service = new WorkforceGeoService(prisma, onSite as any)
+  return { service, onSite }
 }
 
 describe('WorkforceGeoService', () => {
   beforeEach(() => jest.clearAllMocks())
 
-  it('updates last geo on the actor open shift', async () => {
+  it('updates last geo on the actor open shift and then runs the arrival automaton', async () => {
     const prisma = makePrisma()
-    const opened = { id: 'shift-open' }
+    const opened = { id: 'shift-open', companyId: actor.companyId }
     const updated = {
       id: 'shift-open',
       lastLatitude: 55.75,
@@ -28,12 +42,13 @@ describe('WorkforceGeoService', () => {
     }
     prisma.workShift.findFirst.mockResolvedValue(opened)
     prisma.workShift.update.mockResolvedValue(updated)
-    const service = new WorkforceGeoService(prisma)
+    const { service, onSite } = makeService(prisma)
 
     const result = await service.updateMyPoint(actor, {
       latitude: 55.75,
       longitude: 37.62,
       capturedAt: '2026-10-13T10:00:00.000Z',
+      accuracy: 12,
     })
 
     expect(prisma.workShift.findFirst).toHaveBeenCalledWith({
@@ -42,7 +57,7 @@ describe('WorkforceGeoService', () => {
         userId: actor.id,
         status: WorkShiftStatus.OPEN,
       },
-      select: { id: true },
+      select: { id: true, companyId: true },
     })
     expect(prisma.workShift.update).toHaveBeenCalledWith({
       where: { id: 'shift-open' },
@@ -52,12 +67,31 @@ describe('WorkforceGeoService', () => {
         lastGeoAt: new Date('2026-10-13T10:00:00.000Z'),
       },
     })
+    expect(prisma.geoAccuracySample.create).toHaveBeenCalledWith({
+      data: {
+        companyId: actor.companyId,
+        latitude: 55.75,
+        longitude: 37.62,
+        accuracy: 12,
+        recordedAt: new Date('2026-10-13T10:00:00.000Z'),
+      },
+    })
+    expect(prisma.geoAccuracySample.create.mock.calls[0][0].data.userId).toBeUndefined()
+    expect(onSite.onGeoPoint).toHaveBeenCalledWith({
+      companyId: actor.companyId,
+      userId: actor.id,
+      latitude: 55.75,
+      longitude: 37.62,
+      capturedAt: new Date('2026-10-13T10:00:00.000Z'),
+      accuracy: 12,
+      receivedAt: expect.any(Date),
+    })
     expect(result).toEqual(updated)
   })
 
-  it('rejects when the actor has no open shift', async () => {
+  it('rejects when the actor has no open shift and does not call the automaton', async () => {
     const prisma = makePrisma()
-    const service = new WorkforceGeoService(prisma)
+    const { service, onSite } = makeService(prisma)
 
     await expect(
       service.updateMyPoint(actor, { latitude: 55.75, longitude: 37.62 }),
@@ -66,13 +100,17 @@ describe('WorkforceGeoService', () => {
       service.updateMyPoint(actor, { latitude: 55.75, longitude: 37.62 }),
     ).rejects.toMatchObject({ message: 'Сначала откройте рабочую смену' })
     expect(prisma.workShift.update).not.toHaveBeenCalled()
+    expect(onSite.onGeoPoint).not.toHaveBeenCalled()
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+    expect(prisma.geoAccuracySample.create).not.toHaveBeenCalled()
+    expect(prisma.geoAccuracyBucket.upsert).not.toHaveBeenCalled()
   })
 
   it('cannot update by inventing shiftId — only the actor open shift is written', async () => {
     const prisma = makePrisma()
-    prisma.workShift.findFirst.mockResolvedValue({ id: 'shift-open' })
+    prisma.workShift.findFirst.mockResolvedValue({ id: 'shift-open', companyId: actor.companyId })
     prisma.workShift.update.mockResolvedValue({ id: 'shift-open' })
-    const service = new WorkforceGeoService(prisma)
+    const { service } = makeService(prisma)
 
     await service.updateMyPoint(actor, {
       latitude: 10,
