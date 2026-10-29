@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
-import { canAccessManagementDesktop, managementHomePath } from '../lib/navigation'
+import { canAccessManagementDesktop, canSeeOnSiteNav, managementHomePath } from '../lib/navigation'
 import { ClientContourCard } from './ClientContourCard'
 import { getMobileRouteRoot, mobilePath, supportsPersonalNotificationPreferences } from './mobileRoute'
 import { canUseManagementMaterials } from './mobileMaterialsEntry'
@@ -36,11 +36,13 @@ const LINK_GROUP: Record<string, SettingsGroupId> = {
   desktop: 'manage',
   companies: 'manage',
   permissions: 'manage',
+  geoAccuracy: 'manage',
   company: 'manage',
   employees: 'manage',
   locations: 'manage',
   access: 'manage',
   workforce: 'work',
+  onSite: 'work',
   materials: 'work',
   inspection: 'work',
   inspectionTemplates: 'work',
@@ -107,6 +109,14 @@ function ManagementIcon({ id }: { id: string }) {
       </svg>
     )
   }
+  if (id === 'onSite') {
+    return (
+      <svg {...common}>
+        <path d="M12 21s-6 -5.33 -6 -10a6 6 0 1 1 12 0c0 4.67 -6 10 -6 10z" />
+        <circle cx="12" cy="11" r="2" />
+      </svg>
+    )
+  }
   if (id === 'employees' || id === 'workforce') {
     return (
       <svg {...common}>
@@ -117,7 +127,7 @@ function ManagementIcon({ id }: { id: string }) {
       </svg>
     )
   }
-  if (id === 'locations' || id === 'categories' || id === 'specializations') {
+  if (id === 'locations' || id === 'categories' || id === 'specializations' || id === 'geoAccuracy') {
     return (
       <svg {...common}>
         <path d="M12 21s-6 -5.33 -6 -10a6 6 0 1 1 12 0c0 4.67 -6 10 -6 10z" />
@@ -158,6 +168,11 @@ function canOpenCompanySettings(role?: api.Role | null) {
 export function MobileSettingsPage() {
   const location = useLocation()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const companyQ = useQuery({
+    queryKey: ['company-own-context'],
+    queryFn: () => api.company(),
+    enabled: !!meQ.data && meQ.data.role !== 'PLATFORM_ADMIN',
+  })
   const showPersonalNotificationPreferences = supportsPersonalNotificationPreferences(location.pathname)
 
   const currentScope = useMemo(() => {
@@ -199,6 +214,12 @@ export function MobileSettingsPage() {
         hint: 'Матрица разрешений платформы',
         to: scoped('/platform/permissions'),
       })
+      links.push({
+        id: 'geoAccuracy',
+        label: 'Точность геолокации',
+        hint: 'Диапазоны точности и пороги прибытия',
+        to: scoped('/platform/geo-accuracy'),
+      })
     }
     if (canOpenCompanySettings(role)) {
       links.push({
@@ -236,6 +257,14 @@ export function MobileSettingsPage() {
         to: scoped(mobilePath(location.pathname, '/workforce')),
       })
     }
+    if (canSeeOnSiteNav(role, companyQ.data?.type)) {
+      links.push({
+        id: 'onSite',
+        label: 'На точках',
+        hint: 'Исполнители у точек активных заявок',
+        to: scoped(mobilePath(location.pathname, '/on-site')),
+      })
+    }
     // Materials visibility — ЕДИНЫЙ canonical-предикат canUseManagementMaterials
     // (тот же, что Home/«Ещё»/страница). Старый loose-check
     // (canAccessManagementSurface && role !== PLATFORM_ADMIN) показывал CLIENT_ADMIN
@@ -271,7 +300,7 @@ export function MobileSettingsPage() {
     }
 
     return links
-  }, [currentScope, location.pathname, meQ.data])
+  }, [companyQ.data?.type, currentScope, location.pathname, meQ.data])
 
   // Группы: только непустые. Порядок — Управление → Работа и обходы → Уведомления.
   const groups = useMemo(() => {

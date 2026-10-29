@@ -24,6 +24,9 @@ import {
 } from '../lib/boardNavigationContext'
 import { useTicketNavBack } from '../lib/useTicketNav'
 import { pushToast } from '../lib/appToast'
+import { postMyShiftGeoQuietly } from '../lib/shiftGeoApi'
+import { OnSiteTicketLine } from '../components/on-site/OnSiteTicketLine'
+import { useCanSeeOnSite } from '../components/on-site/useCanSeeOnSite'
 import { logTicketActionError, mapTicketActionError } from '../lib/ticketOperationalErrors'
 import { computePrimaryTicketAction } from '../lib/ticketOperationalModel'
 import { readBackendCanClaim } from '../lib/ticketActionCapabilities'
@@ -216,6 +219,7 @@ export function TicketPage() {
   const acceptanceFileInputRef = useRef<HTMLInputElement | null>(null)
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const showOnSiteLine = useCanSeeOnSite()
   const { companyId: observerCompanyId, linkedClientCompanyId } = resolveTicketPageScope({
     urlCompanyId: searchParams.get('companyId'),
     urlLinkedClientCompanyId: searchParams.get('linkedClientCompanyId'),
@@ -805,6 +809,7 @@ export function TicketPage() {
     if (input.status === 'CANCELED' && !input.childResolutions && ticket && parentClose.beginIfNeeded(ticket, 'CANCELED')) {
       return
     }
+    if (input.status === 'IN_PROGRESS') postMyShiftGeoQuietly()
     statusM.mutate(input)
   }
 
@@ -1218,6 +1223,8 @@ export function TicketPage() {
           ) : null}
         </div>
       ) : null}
+
+      {showOnSiteLine && ticket ? <OnSiteTicketLine ticketId={ticket.id} /> : null}
 
       {/*
         SMA-EQUIPMENT-V2-FOUNDATION: оборудование заявки видно и ведёт в карточку.

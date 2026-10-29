@@ -1,4 +1,5 @@
-import type { Role } from '../lib/api'
+import type { CompanyType, Role } from '../lib/api'
+import { canSeeOnSiteNav } from '../lib/navigation'
 import { mobilePath } from './mobileRoute'
 import { getMobileMaterialsEntry } from './mobileMaterialsEntry'
 import { isShiftGateSubjectRole } from './mobileShiftGate'
@@ -37,7 +38,7 @@ const PROVIDER_MANAGEMENT_ROLES: ReadonlySet<string> = new Set<string>([
 export type MobileMoreEntry = { id: string; label: string; hint: string; to: string }
 
 export function getMobileMoreEntries(
-  user: { role?: Role | null; canAccessManagementSurface?: boolean } | null | undefined,
+  user: { role?: Role | null; canAccessManagementSurface?: boolean; companyType?: CompanyType | null } | null | undefined,
   pathname?: string | null,
 ): MobileMoreEntry[] {
   const role = user?.role
@@ -67,6 +68,15 @@ export function getMobileMoreEntries(
   // Смена — субъекты смены (TECHNICIAN/MASTER, существующий canonical-хелпер).
   if (isShiftGateSubjectRole(role)) {
     out.push({ id: 'shift', label: 'Смена', hint: 'Открыть или закрыть рабочую смену', to: p('/shift') })
+  }
+
+  if (canSeeOnSiteNav(role, user?.companyType)) {
+    out.push({
+      id: 'onSite',
+      label: 'На точках',
+      hint: 'Исполнители у точек активных заявок',
+      to: p('/on-site'),
+    })
   }
 
   // Аналитика — перенесена из прайм-слота; только роли с реальным доступом.

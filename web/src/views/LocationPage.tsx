@@ -388,7 +388,18 @@ export function LocationPage() {
             </Link>
           </div>
         </div>
-      ) : null}
+      ) : (
+        <div className="panel" style={{ marginTop: 12 }}>
+          <div className="alert" role="status">
+            У точки нет координат. Прибытие техника на эту точку проверить нельзя.
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <Link to={backTo}>
+              <button className="ghost">К списку точек</button>
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/*
         Аналитика точки — существующий раздел «По объектам» с сужением до

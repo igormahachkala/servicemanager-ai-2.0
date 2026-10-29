@@ -17,4 +17,10 @@ export class UpdateShiftGeoDto {
   @IsOptional()
   @IsDateString()
   capturedAt?: string
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  accuracy?: number
 }

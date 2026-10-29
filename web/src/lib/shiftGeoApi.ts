@@ -4,6 +4,7 @@ export type ShiftGeoPoint = {
   latitude: number
   longitude: number
   capturedAt?: string
+  accuracy?: number
 }
 
 export async function postMyShiftGeo(point: ShiftGeoPoint): Promise<unknown> {
@@ -29,5 +30,28 @@ export async function postMyShiftGeo(point: ShiftGeoPoint): Promise<unknown> {
     return JSON.parse(text)
   } catch {
     return text
+  }
+}
+
+/** One GPS read and one POST. The caller does not wait, and a GPS refusal does not throw. */
+export function postMyShiftGeoQuietly(): void {
+  try {
+    const geo = typeof navigator === 'undefined' ? undefined : navigator.geolocation
+    if (!geo?.getCurrentPosition) return
+
+    geo.getCurrentPosition(
+      (position) => {
+        const accuracy = position.coords.accuracy
+        void postMyShiftGeo({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          capturedAt: new Date(position.timestamp).toISOString(),
+          ...(Number.isFinite(accuracy) ? { accuracy } : {}),
+        }).catch(() => undefined)
+      },
+      () => undefined,
+    )
+  } catch {
+    return
   }
 }
