@@ -74,6 +74,7 @@ describe('never-started schedule edit vs run start (PostgreSQL)', () => {
       await db.inspectionSchedule.deleteMany({ where: { companyId } });
       await db.inspectionTemplate.deleteMany({ where: { companyId } });
       await db.idempotencyRecord.deleteMany({ where: { companyId } });
+      await db.domainEvent.deleteMany({ where: { companyId } });
       await db.company.delete({ where: { id: companyId } });
     }
     await db.$disconnect();
@@ -103,6 +104,7 @@ describe('never-started schedule edit vs run start (PostgreSQL)', () => {
     beforeWrite?: (args: Write) => Promise<void> | void;
     afterWrite?: (args: Write) => Promise<void> | void;
     beforeRunCreate?: () => Promise<void> | void;
+    beforeEventCreate?: () => Promise<void> | void;
   };
 
   function instrumentTransactions(hooks: Hooks) {
@@ -131,6 +133,17 @@ describe('never-started schedule edit vs run start (PostgreSQL)', () => {
               get(delegate, method) {
                 if (method === 'create') return async (args: any) => {
                   await hooks.beforeRunCreate?.();
+                  return delegate.create(args);
+                };
+                return Reflect.get(delegate, method, delegate);
+              },
+            });
+          }
+          if (property === 'domainEvent') {
+            return new Proxy(target.domainEvent, {
+              get(delegate, method) {
+                if (method === 'create') return async (args: any) => {
+                  await hooks.beforeEventCreate?.();
                   return delegate.create(args);
                 };
                 return Reflect.get(delegate, method, delegate);
@@ -316,5 +329,337 @@ describe('never-started schedule edit vs run start (PostgreSQL)', () => {
     await expect(schedules.editNotStarted(admin, schedule.id, { ...draft, name: 'Stale overwrite' }))
       .rejects.toMatchObject({ response: { code: 'INSPECTION_SCHEDULE_NOT_EDITABLE' } });
     expect(await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } })).toEqual(before);
+  });
+
+  // All dates below are relative: these acceptance cases must remain future
+  // occurrences when CI runs months after this feature was introduced.
+  const DAY = 24 * 60 * 60 * 1000;
+  async function recurringPlanWithHistory() {
+    const anchor = new Date(Date.now() - 3 * DAY);
+    const created = await schedules.create(admin, {
+      templateId, locationId, name: 'Recurring plan with completed history',
+      frequency: InspectionFrequency.WEEKLY, startDate: anchor.toISOString(),
+      graceDays: 2,
+    });
+    const historicalRun = await db.inspectionRun.create({
+      data: {
+        companyId, templateId, locationId, scheduleId: created.id,
+        performedByUserId: admin.id, title: 'Completed historical fact',
+        status: InspectionRunStatus.COMPLETED, dueAt: anchor,
+        overdueAt: new Date(anchor.getTime() + 2 * DAY),
+        completedAt: new Date(anchor.getTime() + 60 * 60 * 1000),
+        reportNumber: `historic-${randomUUID()}`,
+      },
+    });
+    const schedule = await db.inspectionSchedule.update({
+      where: { id: created.id },
+      data: {
+        nextDueAt: new Date(anchor.getTime() + 7 * DAY),
+        lastRunId: historicalRun.id, lastGeneratedAt: historicalRun.createdAt,
+      },
+    });
+    return { schedule, historicalRun };
+  }
+
+  function moveInput(schedule: { updatedAt: Date; nextDueAt: Date }, target: Date) {
+    return {
+      nextDueAt: target.toISOString(),
+      expectedNextDueAt: schedule.nextDueAt.toISOString(),
+      expectedUpdatedAt: schedule.updatedAt.toISOString(),
+    };
+  }
+
+  const isMove = (args: Write) => !!args?.data && 'nextDueAt' in args.data && !isEdit(args);
+  const nextMoveConflict = { response: { code: 'INSPECTION_SCHEDULE_NEXT_OCCURRENCE_CONFLICT' } };
+
+  const moveEvents = (scheduleId: string) => db.domainEvent.findMany({
+    where: { companyId, entityType: 'InspectionSchedule', entityId: scheduleId, type: 'inspection.schedule_updated' },
+  });
+
+  async function expectSingleMoveAudit(
+    before: { id: string; nextDueAt: Date; updatedAt: Date }, target: Date, updatedAt: Date,
+  ) {
+    const events = await moveEvents(before.id);
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({
+      companyId, entityType: 'InspectionSchedule', entityId: before.id,
+      type: 'inspection.schedule_updated', actorUserId: admin.id,
+      payload: {
+        action: 'next_occurrence_rescheduled',
+        oldNextDueAt: before.nextDueAt.toISOString(), newNextDueAt: target.toISOString(),
+        expectedUpdatedAt: before.updatedAt.toISOString(), updatedAt: updatedAt.toISOString(),
+      },
+    });
+  }
+
+  it('next move wins the row lock: old start conflicts, fresh start uses the moved cursor', async () => {
+    const { schedule, historicalRun } = await recurringPlanWithHistory();
+    const target = new Date(schedule.nextDueAt.getTime() + DAY);
+    const moverHasLock = deferred();
+    const starterReachedWrite = deferred();
+    const releaseMover = deferred();
+    const spy = instrumentTransactions({
+      beforeWrite: (args) => {
+        if (args?.where?.id === schedule.id && !isMove(args)) starterReachedWrite.resolve();
+      },
+      afterWrite: async (args) => {
+        if (args?.where?.id === schedule.id && isMove(args)) {
+          moverHasLock.resolve();
+          await releaseMover.promise;
+        }
+      },
+    });
+    const moving = schedules.rescheduleNextOccurrence(admin, schedule.id, moveInput(schedule, target));
+    let starting: ReturnType<typeof start> | undefined;
+    try {
+      await reached(moverHasLock.promise, moving, 'next move lock');
+      starting = start(schedule.id);
+      const rejectedStart = expect(starting).rejects.toMatchObject({
+        response: { code: 'INSPECTION_SCHEDULE_CHANGED' },
+      });
+      await reached(starterReachedWrite.promise, starting, 'next start write');
+      releaseMover.resolve();
+      await moving;
+      await rejectedStart;
+    } finally {
+      releaseMover.resolve();
+      await Promise.allSettled([moving, ...(starting ? [starting] : [])]);
+      spy.mockRestore();
+    }
+    expect(await db.inspectionRun.count({ where: { scheduleId: schedule.id } })).toBe(1);
+    const freshRun = await start(schedule.id);
+    const storedRun = await db.inspectionRun.findUniqueOrThrow({ where: { id: freshRun.id } });
+    expect(storedRun.dueAt).toEqual(target);
+    expect(storedRun.overdueAt).toEqual(new Date(target.getTime() + 2 * DAY));
+    expect(await db.inspectionRun.findUniqueOrThrow({ where: { id: historicalRun.id } })).toEqual(historicalRun);
+    expect(await db.inspectionRun.count({ where: { scheduleId: schedule.id } })).toBe(2);
+  });
+
+  it('next start wins the row lock: move conflicts and never changes either run fact', async () => {
+    const { schedule, historicalRun } = await recurringPlanWithHistory();
+    const starterHasLock = deferred();
+    const moverReachedWrite = deferred();
+    const releaseStarter = deferred();
+    instrumentTransactions({
+      beforeWrite: (args) => {
+        if (args?.where?.id === schedule.id && isMove(args)) moverReachedWrite.resolve();
+      },
+      afterWrite: async (args) => {
+        if (args?.where?.id === schedule.id && !isMove(args)) {
+          starterHasLock.resolve();
+          await releaseStarter.promise;
+        }
+      },
+    });
+    const starting = start(schedule.id);
+    let moving: ReturnType<typeof schedules.rescheduleNextOccurrence> | undefined;
+    try {
+      await reached(starterHasLock.promise, starting, 'next start lock');
+      moving = schedules.rescheduleNextOccurrence(admin, schedule.id,
+        moveInput(schedule, new Date(schedule.nextDueAt.getTime() + DAY)));
+      const rejectedMove = expect(moving).rejects.toMatchObject(nextMoveConflict);
+      await reached(moverReachedWrite.promise, moving, 'next move write');
+      releaseStarter.resolve();
+      const run = await starting;
+      await rejectedMove;
+      const storedRun = await db.inspectionRun.findUniqueOrThrow({ where: { id: run.id } });
+      expect(storedRun.dueAt).toEqual(schedule.nextDueAt);
+      expect(storedRun.status).toBe(InspectionRunStatus.IN_PROGRESS);
+    } finally {
+      releaseStarter.resolve();
+      await Promise.allSettled([starting, ...(moving ? [moving] : [])]);
+    }
+    const stored = await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } });
+    expect(stored.startDate).toEqual(schedule.startDate);
+    expect(stored.nextDueAt).toEqual(schedule.nextDueAt);
+    expect(await db.inspectionRun.findUniqueOrThrow({ where: { id: historicalRun.id } })).toEqual(historicalRun);
+    expect(await db.inspectionRun.count({ where: { scheduleId: schedule.id } })).toBe(2);
+  });
+
+  it('serializes two next moves from the same snapshot: exactly one date is committed', async () => {
+    const { schedule } = await recurringPlanWithHistory();
+    const firstTarget = new Date(schedule.nextDueAt.getTime() + DAY);
+    const secondTarget = new Date(schedule.nextDueAt.getTime() + 2 * DAY);
+    const firstHasLock = deferred();
+    const secondReachedWrite = deferred();
+    const releaseFirst = deferred();
+    instrumentTransactions({
+      beforeWrite: (args) => {
+        if (args?.where?.id === schedule.id && isMove(args) &&
+            args?.data?.nextDueAt instanceof Date && args.data.nextDueAt.getTime() === secondTarget.getTime()) {
+          secondReachedWrite.resolve();
+        }
+      },
+      afterWrite: async (args) => {
+        if (args?.where?.id === schedule.id && isMove(args) &&
+            args?.data?.nextDueAt instanceof Date && args.data.nextDueAt.getTime() === firstTarget.getTime()) {
+          firstHasLock.resolve();
+          await releaseFirst.promise;
+        }
+      },
+    });
+    const first = schedules.rescheduleNextOccurrence(admin, schedule.id, moveInput(schedule, firstTarget));
+    let second: ReturnType<typeof schedules.rescheduleNextOccurrence> | undefined;
+    try {
+      await reached(firstHasLock.promise, first, 'first move lock');
+      second = schedules.rescheduleNextOccurrence(admin, schedule.id, moveInput(schedule, secondTarget));
+      const rejectedSecond = expect(second).rejects.toMatchObject(nextMoveConflict);
+      await reached(secondReachedWrite.promise, second, 'second move write');
+      releaseFirst.resolve();
+      await first;
+      await rejectedSecond;
+    } finally {
+      releaseFirst.resolve();
+      await Promise.allSettled([first, ...(second ? [second] : [])]);
+    }
+    const stored = await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } });
+    expect(stored.nextDueAt).toEqual(firstTarget);
+    expect(stored.updatedAt.getTime()).toBeGreaterThan(schedule.updatedAt.getTime());
+    await expectSingleMoveAudit(schedule, firstTarget, stored.updatedAt);
+    expect(await db.inspectionRun.count({ where: { scheduleId: schedule.id } })).toBe(1);
+  });
+
+  it('rolls back the next date and revision after a failed move transaction, then accepts the same draft', async () => {
+    const { schedule, historicalRun } = await recurringPlanWithHistory();
+    const draft = moveInput(schedule, new Date(schedule.nextDueAt.getTime() + DAY));
+    const spy = instrumentTransactions({
+      afterWrite: (args) => {
+        if (args?.where?.id === schedule.id && isMove(args)) throw new Error('Injected next move failure');
+      },
+    });
+    await expect(schedules.rescheduleNextOccurrence(admin, schedule.id, draft))
+      .rejects.toThrow('Injected next move failure');
+    spy.mockRestore();
+    expect(await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } })).toEqual(schedule);
+    expect(await db.inspectionRun.findUniqueOrThrow({ where: { id: historicalRun.id } })).toEqual(historicalRun);
+    expect(await moveEvents(schedule.id)).toHaveLength(0);
+    await schedules.rescheduleNextOccurrence(admin, schedule.id, draft);
+    const stored = await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } });
+    expect(stored.nextDueAt).toEqual(new Date(draft.nextDueAt));
+    expect(stored.updatedAt.getTime()).toBeGreaterThan(schedule.updatedAt.getTime());
+    await expectSingleMoveAudit(schedule, new Date(draft.nextDueAt), stored.updatedAt);
+  });
+
+  it('allows a new draft to move forward then back while rejecting stale revision and stale cursor independently', async () => {
+    const { schedule, historicalRun } = await recurringPlanWithHistory();
+    const farTarget = new Date(schedule.nextDueAt.getTime() + 9 * DAY);
+    const oldDraft = moveInput(schedule, farTarget);
+    await schedules.rescheduleNextOccurrence(admin, schedule.id, oldDraft);
+    const moved = await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } });
+    const backTarget = new Date(schedule.nextDueAt.getTime() - DAY);
+    await expect(schedules.rescheduleNextOccurrence(admin, schedule.id, {
+      ...moveInput(moved, backTarget), expectedUpdatedAt: schedule.updatedAt.toISOString(),
+    })).rejects.toMatchObject(nextMoveConflict);
+    await expect(schedules.rescheduleNextOccurrence(admin, schedule.id, {
+      ...moveInput(moved, backTarget), expectedNextDueAt: schedule.nextDueAt.toISOString(),
+    })).rejects.toMatchObject(nextMoveConflict);
+    expect(await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } })).toEqual(moved);
+    await schedules.rescheduleNextOccurrence(admin, schedule.id, moveInput(moved, backTarget));
+    const returned = await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } });
+    expect(returned.nextDueAt).toEqual(backTarget);
+    expect(returned.updatedAt.getTime()).toBeGreaterThan(moved.updatedAt.getTime());
+    expect(await moveEvents(schedule.id)).toHaveLength(2);
+    // A move is not a new anchor, a synthetic run or a history rewrite.
+    expect({ ...returned, nextDueAt: schedule.nextDueAt, updatedAt: schedule.updatedAt }).toEqual(schedule);
+    expect(await db.inspectionRun.findUniqueOrThrow({ where: { id: historicalRun.id } })).toEqual(historicalRun);
+    expect(await db.inspectionRun.count({ where: { scheduleId: schedule.id } })).toBe(1);
+  });
+
+  it('cannot move an active occurrence or replay a completed historical date', async () => {
+    const { schedule, historicalRun } = await recurringPlanWithHistory();
+    await expect(schedules.rescheduleNextOccurrence(admin, schedule.id,
+      moveInput(schedule, historicalRun.dueAt!))).rejects.toThrow();
+    expect(await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } })).toEqual(schedule);
+    const run = await start(schedule.id);
+    const started = await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } });
+    const beforeRun = await db.inspectionRun.findUniqueOrThrow({ where: { id: run.id } });
+    await expect(schedules.rescheduleNextOccurrence(admin, schedule.id,
+      moveInput(started, new Date(schedule.nextDueAt.getTime() + DAY)))).rejects.toMatchObject(nextMoveConflict);
+    expect(await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } })).toEqual(started);
+    expect(await db.inspectionRun.findUniqueOrThrow({ where: { id: run.id } })).toEqual(beforeRun);
+    expect(await db.inspectionRun.findUniqueOrThrow({ where: { id: historicalRun.id } })).toEqual(historicalRun);
+  });
+
+  it('completes a moved cross-period occurrence on the original anchored grid without regenerating skipped runs', async () => {
+    const { schedule, historicalRun } = await recurringPlanWithHistory();
+    const target = new Date(schedule.nextDueAt.getTime() + 9 * DAY);
+    await schedules.rescheduleNextOccurrence(admin, schedule.id, moveInput(schedule, target));
+    const run = await start(schedule.id);
+    await runs.completeRun(admin, run.id);
+    const completed = await db.inspectionRun.findUniqueOrThrow({ where: { id: run.id } });
+    const after = await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } });
+    expect(completed.dueAt).toEqual(target);
+    expect(completed.status).toBe(InspectionRunStatus.COMPLETED);
+    expect(after.startDate).toEqual(schedule.startDate);
+    expect(after.frequency).toBe(InspectionFrequency.WEEKLY);
+    expect(after.nextDueAt).toEqual(new Date(schedule.nextDueAt.getTime() + 14 * DAY));
+    expect(await db.inspectionRun.findUniqueOrThrow({ where: { id: historicalRun.id } })).toEqual(historicalRun);
+    expect(await db.inspectionRun.count({ where: { scheduleId: schedule.id } })).toBe(2);
+  });
+
+
+  it('blocks any older in-progress run even when lastRunId points to a completed run at another date', async () => {
+    const { schedule, historicalRun } = await recurringPlanWithHistory();
+    const olderActive = await db.inspectionRun.create({
+      data: {
+        companyId, templateId, locationId, scheduleId: schedule.id,
+        title: 'Older unfinished occurrence', status: InspectionRunStatus.IN_PROGRESS,
+        dueAt: new Date(schedule.startDate.getTime() - 7 * DAY),
+        createdAt: new Date(schedule.startDate.getTime() - 7 * DAY),
+      },
+    });
+    expect(schedule.lastRunId).toBe(historicalRun.id);
+    await expect(schedules.rescheduleNextOccurrence(admin, schedule.id,
+      moveInput(schedule, new Date(schedule.nextDueAt.getTime() + DAY)))).rejects.toMatchObject(nextMoveConflict);
+    expect(await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } })).toEqual(schedule);
+    expect(await db.inspectionRun.findUniqueOrThrow({ where: { id: olderActive.id } })).toEqual(olderActive);
+    expect(await db.inspectionRun.findUniqueOrThrow({ where: { id: historicalRun.id } })).toEqual(historicalRun);
+    expect(await db.inspectionRun.count({ where: { scheduleId: schedule.id } })).toBe(2);
+  });
+
+
+  it('rolls back the guarded write when a future target would replay an already completed future-due fact', async () => {
+    const { schedule, historicalRun } = await recurringPlanWithHistory();
+    // Completion can happen early. A merely "future" target is not enough:
+    // the fact's original planned due date must remain a closed boundary.
+    const completedDueAt = new Date(schedule.nextDueAt.getTime() + DAY);
+    const futureFact = await db.inspectionRun.update({
+      where: { id: historicalRun.id }, data: { dueAt: completedDueAt },
+    });
+    const before = await db.inspectionSchedule.update({
+      where: { id: schedule.id }, data: { nextDueAt: new Date(completedDueAt.getTime() + 7 * DAY) },
+    });
+    let reachedGuardedWrite = false;
+    instrumentTransactions({
+      afterWrite: (args) => {
+        if (args?.where?.id === schedule.id && isMove(args)) reachedGuardedWrite = true;
+      },
+    });
+    await expect(schedules.rescheduleNextOccurrence(admin, schedule.id,
+      moveInput(before, completedDueAt))).rejects.toThrow();
+    expect(reachedGuardedWrite).toBe(true);
+    expect(await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } })).toEqual(before);
+    expect(await db.inspectionRun.findUniqueOrThrow({ where: { id: historicalRun.id } })).toEqual(futureFact);
+    expect(await db.inspectionRun.count({ where: { scheduleId: schedule.id } })).toBe(1);
+  });
+
+
+  it('requires durable audit to commit: an event insertion failure rolls back date and revision', async () => {
+    const { schedule, historicalRun } = await recurringPlanWithHistory();
+    const target = new Date(schedule.nextDueAt.getTime() + DAY);
+    const draft = moveInput(schedule, target);
+    const spy = instrumentTransactions({
+      beforeEventCreate: () => { throw new Error('Injected schedule audit failure'); },
+    });
+    await expect(schedules.rescheduleNextOccurrence(admin, schedule.id, draft))
+      .rejects.toThrow('Injected schedule audit failure');
+    spy.mockRestore();
+    expect(await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } })).toEqual(schedule);
+    expect(await db.inspectionRun.findUniqueOrThrow({ where: { id: historicalRun.id } })).toEqual(historicalRun);
+    expect(await moveEvents(schedule.id)).toHaveLength(0);
+    await schedules.rescheduleNextOccurrence(admin, schedule.id, draft);
+    const stored = await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } });
+    expect(stored.nextDueAt).toEqual(target);
+    await expectSingleMoveAudit(schedule, target, stored.updatedAt);
   });
 });

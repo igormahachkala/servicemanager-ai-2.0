@@ -4915,6 +4915,13 @@ export type EditNotStartedInspectionScheduleInput = {
   startDate: string
 }
 
+/** Only the next unstarted occurrence moves; the recurring anchor and facts stay intact. */
+export type RescheduleNextInspectionOccurrenceInput = {
+  nextDueAt: string
+  expectedNextDueAt: string
+  expectedUpdatedAt: string
+}
+
 /** SMA-098: фильтры планирования. Все необязательные — вызов без аргументов не изменился. */
 export type InspectionScheduleFilters = {
   /** Нижняя граница ближайшего срока (nextDueAt), ISO. */
@@ -4979,6 +4986,16 @@ export async function editNotStartedInspectionSchedule(
   input: EditNotStartedInspectionScheduleInput,
 ): Promise<InspectionSchedule> {
   return request<InspectionSchedule>('/inspection/schedules/' + id + '/not-started', {
+    method: 'PATCH',
+    body: input,
+  })
+}
+
+export async function rescheduleNextInspectionOccurrence(
+  id: string,
+  input: RescheduleNextInspectionOccurrenceInput,
+): Promise<InspectionSchedule> {
+  return request<InspectionSchedule>('/inspection/schedules/' + id + '/next-occurrence', {
     method: 'PATCH',
     body: input,
   })

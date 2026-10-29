@@ -12,6 +12,8 @@ import { CreateScheduleDto } from './dto/create-schedule.dto'
 import { ListSchedulesDto } from './dto/list-schedules.dto'
 import { UpdateScheduleDto } from './dto/update-schedule.dto'
 import { EditNotStartedScheduleDto } from './dto/edit-not-started-schedule.dto'
+import { RescheduleNextOccurrenceDto } from './dto/reschedule-next-occurrence.dto'
+import { moveNextOccurrence, nextOccurrenceConflict } from './inspection-schedule-reschedule'
 import {
   assertInspectionLocationAccess,
   resolveInspectionLocationAccess,
@@ -385,6 +387,19 @@ export class InspectionScheduleService {
     })
   }
 
+  /** A used recurring plan keeps its anchor and all execution facts. */
+  async rescheduleNextOccurrence(user: InspectionUserCtx, scheduleId: string, dto: RescheduleNextOccurrenceDto) {
+    assertAllowed(this.policy.canManageSchedule(user))
+    const current = await this.requireManagedSchedule(user, scheduleId)
+    return moveNextOccurrence(this.prisma, user.companyId, user.id, current, dto, async (tx) => {
+      const updated = await tx.inspectionSchedule.findFirst({
+        where: { id: current.id, companyId: user.companyId }, select: scheduleSelect(),
+      })
+      if (!updated) throw nextOccurrenceConflict()
+      return withLastRun(updated)
+    })
+  }
+
   private notStartedEditConflict() {
     return new ConflictException({
       code: 'INSPECTION_SCHEDULE_NOT_EDITABLE',
@@ -528,6 +543,8 @@ export class InspectionScheduleService {
         id: true,
         frequency: true,
         intervalDays: true,
+        startDate: true,
+        nextDueAt: true,
         lastGeneratedAt: true,
         lastRunId: true,
         isActive: true,

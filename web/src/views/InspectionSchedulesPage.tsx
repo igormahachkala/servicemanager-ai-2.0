@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 
 import { InspectionScheduleEditAction } from '../components/InspectionScheduleEditor'
+import { InspectionScheduleRescheduleAction } from '../components/InspectionScheduleRescheduler'
 import * as api from '../lib/api'
 import {
   clearLocationFilterPath,
@@ -377,7 +378,10 @@ export function InspectionSchedulesPage() {
                 </div>
               </div>
               {canManage ? (
-                <InspectionScheduleEditAction key={`${routerLocation.key}-${s.id}`} schedule={s} />
+                <>
+                  <InspectionScheduleEditAction key={`${routerLocation.key}-${s.id}`} schedule={s} />
+                  <InspectionScheduleRescheduleAction key={`${routerLocation.key}-next-${s.id}`} schedule={s} />
+                </>
               ) : null}
             </div>
           ))}
