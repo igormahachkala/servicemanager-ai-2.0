@@ -170,7 +170,7 @@ cut -d= -f1 отрезает значения: в вывод попадают т
 <d symptom="permission denied на каталоге развёртывания">Каталог не принадлежит deploy. initial_setup, строка chown.</d>
 <d symptom="env file not found при docker compose up">Файл окружения недоступен пользователю deploy. Проверка «файлы окружения читаются» в verify_server, лечение — initial_setup, строки chgrp и chmod. Работающий контейнер этого не покажет: переменные у него с прошлого запуска.</d>
 <d symptom="отказ записи в /var/backups/sma при снятии дампа">Каталог не создан либо принадлежит не deploy. initial_setup на Production-машине, строки mkdir, chown, chmod.</d>
-<d symptom="Connection refused или timeout при ssh sma или ssh sma-spare">Алиас указывает не на текущую машину. Часть B шаг 2, заменить HostName, затем шаг 3.</d>
+<d symptom="Connection refused или timeout при ssh sma или ssh sma-spare">Алиас указывает не на текущую машину или не на её порт. Часть B шаг 2, заменить HostName и Port, затем шаг 3.</d>
 <d symptom="Host key verification failed">Ключ хоста не в known_hosts либо изменился. Часть B шаг 3, сверить отпечаток заново для того IP, куда идёт ssh.</d>
 </diagnostics>
 
@@ -243,13 +243,13 @@ ssh-keygen -t ed25519 -f ~/.ssh/sma_deploy -N "" -C "&lt;кто&gt;@sma"
 <action>
 Проверить ~/.ssh/config.
 Блоков Host sma и Host sma-spare нет. Дописать оба из образца ниже.
-Блоки уже есть. Заменить в них только HostName. У Host sma адрес 151.248.123.88, у Host sma-spare адрес 91.197.98.14. Port, User, IdentityFile и IdentitiesOnly не менять.
+Блоки уже есть. Заменить в них HostName и Port. У Host sma адрес 151.248.123.88 и порт 22. У Host sma-spare адрес 91.197.98.14 и порт 22009. User, IdentityFile и IdentitiesOnly не менять.
 После замены адреса выполнить шаг 3 для новых адресов, затем шаг 5.
 </action>
 <content>
 Host sma
   HostName 151.248.123.88
-  Port 22009
+  Port 22
   User deploy
   IdentityFile ~/.ssh/sma_deploy
   IdentitiesOnly yes
@@ -295,7 +295,7 @@ ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 
 <substep id="3.2" name="снять ключ Production-машины и сверить">
 <command>
-ssh-keyscan -p 22009 -t ed25519 151.248.123.88 &gt; /tmp/sma_host_key
+ssh-keyscan -p 22 -t ed25519 151.248.123.88 &gt; /tmp/sma_host_key
 ssh-keygen -lf /tmp/sma_host_key
 </command>
 <expect>Отпечаток совпадает с полученным на шаге 3.1 для 151.248.123.88 посимвольно.</expect>
@@ -355,7 +355,7 @@ ssh -o BatchMode=yes sma-spare 'whoami; id; docker ps --format "{{.Names}}" | he
 <expect>whoami на обоих хостах возвращает deploy. В группах присутствует docker. docker ps выводит контейнеры.</expect>
 <on_failure>
 Permission denied — ключ не добавлен на ту машину, куда идёт ssh, либо добавлен не тому пользователю.
-Connection refused или timeout — недоступен порт 22009.
+Connection refused или timeout — недоступен порт. У Production это 22, у Stage это 22009.
 Отказ docker ps — пользователь не в группе docker.
 </on_failure>
 </step>
