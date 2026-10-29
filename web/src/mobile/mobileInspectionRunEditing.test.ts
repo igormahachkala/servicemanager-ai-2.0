@@ -330,6 +330,7 @@ describe('120W source contract', () => {
       'deleteDraftTicketAttachment',
       'deleteTicketAttachment',
       'detachTicketFromParent',
+      'markTicketChatRead',
       'requestTicketAssignment',
       'smartAssignTicket',
       'startTicketWorkLog',

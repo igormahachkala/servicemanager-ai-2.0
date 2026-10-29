@@ -31,6 +31,7 @@ import { logTicketActionError, mapTicketActionError } from '../lib/ticketOperati
 import { computePrimaryTicketAction } from '../lib/ticketOperationalModel'
 import { readBackendCanClaim } from '../lib/ticketActionCapabilities'
 import { toChatMessages, ticketChatParentFromGet } from '../lib/ticketChat'
+import { useElementInViewport, useTicketChatReadMark } from '../hooks/useTicketChatReadMark'
 import { dateTimeLocalToIso, formatPlannedDueAt, isoToDateTimeLocalValue } from '../lib/plannedDueAt'
 import { PlannedDueAtInput } from '../components/tickets/PlannedDueAtInput'
 import { orderProblemCategories } from '../lib/problemCategoryOrdering'
@@ -978,6 +979,15 @@ export function TicketPage() {
       ticket?.title,
     ],
   )
+
+  const chatPanelRef = useRef<HTMLDivElement | null>(null)
+  const chatPanelInViewport = useElementInViewport(chatPanelRef, !!ticket)
+  useTicketChatReadMark({
+    ticketId,
+    messages: timelineQ.isSuccess ? chatMessages : [],
+    scope: effectiveTicketScope,
+    active: !!ticket && chatPanelInViewport,
+  })
   const shortProblemText = useMemo(() => {
     const text = ticket?.problemText || ''
     if (text.length <= 180) return text
@@ -1602,15 +1612,17 @@ export function TicketPage() {
             renderStatusPill={(status) => <StatusPill status={status} />}
           />
 
-          <TicketChatPanel
-            messages={chatMessages}
-            loading={timelineQ.isLoading}
-            canSend={canMutateTicket}
-            onSend={async (text, options) => {
-              await api.addTicketComment(ticketId, text, effectiveTicketScope, options)
-              await refreshAll()
-            }}
-          />
+          <div ref={chatPanelRef}>
+            <TicketChatPanel
+              messages={chatMessages}
+              loading={timelineQ.isLoading}
+              canSend={canMutateTicket}
+              onSend={async (text, options) => {
+                await api.addTicketComment(ticketId, text, effectiveTicketScope, options)
+                await refreshAll()
+              }}
+            />
+          </div>
 
           <TicketTimelinePanel
             loading={timelineQ.isLoading}

@@ -726,6 +726,8 @@ export type TicketCard = {
   attachmentPreviewUrl?: string | null
   /** Количество image-вложений на заявке. */
   imageAttachmentCount?: number
+  /** В чате есть сообщения других участников, которые текущий пользователь не открывал. */
+  hasUnreadChat?: boolean
 }
 
 export type LinkedClientSummary = ServiceContractItem & {
@@ -3478,6 +3480,17 @@ export async function getTicket(id: string, scope?: string | TicketScopeParams):
 
 export async function ticketTimeline(id: string, scope?: string | TicketScopeParams): Promise<TimelineResponse> {
   return request<TimelineResponse>(`/timeline/tickets/${id}${buildTicketScopeSuffix(scope)}`)
+}
+/** Отметить чат прочитанным до времени последнего показанного сообщения. */
+export async function markTicketChatRead(
+  id: string,
+  upTo: string | null,
+  scope?: string | TicketScopeParams,
+): Promise<{ ok: boolean; ticketId: string }> {
+  return request<{ ok: boolean; ticketId: string }>(`/timeline/tickets/${id}/read${buildTicketScopeSuffix(scope)}`, {
+    method: 'POST',
+    body: upTo ? { upTo } : {},
+  })
 }
 export async function timeline(id: string, scope?: string | TicketScopeParams): Promise<TimelineResponse> {
   return ticketTimeline(id, scope)

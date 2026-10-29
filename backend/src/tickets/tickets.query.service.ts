@@ -35,6 +35,7 @@ import { resolveClaimCapabilitiesForVisibleTickets } from './ticket-claim-eligib
 import { TICKET_ASSIGNMENT_REQUESTED_ENTITY, TICKET_ASSIGNMENT_REQUESTED_EVENT } from './ticket-domain-event.types'
 import { isExecutorCapableRole } from '../common/executor.utils'
 import { loadBoardImageAttachmentSummaries } from './board-attachment-summary'
+import { loadUnreadChatTicketIds } from './board-chat-unread'
 import { ShiftPolicyService } from '../workforce/shift-policy.service'
 import { loadUnresolvedDescendants } from './ticket-close-tree'
 
@@ -606,10 +607,11 @@ export class TicketsQueryService {
         })
       : []
 
-    const imageAttachmentSummaries = await loadBoardImageAttachmentSummaries(
-      this.prisma,
-      tickets.map((ticket) => ticket.id),
-    )
+    const boardTicketIds = tickets.map((ticket) => ticket.id)
+    const [imageAttachmentSummaries, unreadChatTicketIds] = await Promise.all([
+      loadBoardImageAttachmentSummaries(this.prisma, boardTicketIds),
+      loadUnreadChatTicketIds(this.prisma, userId, boardTicketIds),
+    ])
 
     const candidateTickets = tickets.filter((t) => t.status === TicketStatus.NEW && !t.assignedTechnician)
     const candidateIds = candidateTickets.map((t) => t.id)
@@ -716,6 +718,7 @@ export class TicketsQueryService {
           assignedTechnician: t.assignedTechnician,
           attachmentPreviewUrl: attachmentSummary?.previewUrl ?? null,
           imageAttachmentCount: attachmentSummary?.imageCount ?? 0,
+          hasUnreadChat: unreadChatTicketIds.has(t.id),
         }
         if (t.status === TicketStatus.NEW && !t.assignedTechnician) {
           const capability = claimCapabilityByTicketId.get(t.id)

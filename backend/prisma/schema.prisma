@@ -296,10 +296,15 @@ model User {
   isExecutor Boolean   @default(false)
   phone      String?
   deletedAt  DateTime?
+  /// Сообщения чата заявки старше этой отметки считаются прочитанными, пока
+  /// у пользователя нет своей строки TicketChatRead. Существующим пользователям
+  /// миграция ставит время выкатки: прежняя переписка не загорается 💬 разом.
+  chatReadBaseline DateTime @default(now())
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  ticketChatReads             TicketChatRead[]
   ticketStatusChanges         TicketStatusHistory[]      @relation("TicketStatusChangedBy")
   ticketFailureCauseAssessments TicketFailureCauseAssessment[] @relation("TicketFailureCauseAssessmentActor")
   ticketComments              TicketComment[]            @relation("TicketCommentAuthor")
@@ -919,6 +924,7 @@ model Ticket {
   statusHistory     TicketStatusHistory[]
   failureCauseAssessments TicketFailureCauseAssessment[]
   comments          TicketComment[]
+  chatReads         TicketChatRead[]
   attachments       TicketAttachment[]
   partsInstalled    InstalledPart[]       @relation("InstalledPartInstalledTicket")
   partsRemoved      InstalledPart[]       @relation("InstalledPartRemovedTicket")
@@ -1255,6 +1261,29 @@ model TicketComment {
   @@index([ticketId, createdAt])
   @@index([companyId, createdAt])
   @@index([replyToId])
+}
+
+/// Отметка прочтения чата заявки, своя у каждого пользователя.
+///
+/// Непрочитанным считается комментарий другого автора новее
+/// max(lastReadAt, User.chatReadBaseline). lastReadAt — время последнего
+/// сообщения, которое клиент показал, а не время запроса: сообщение,
+/// пришедшее между загрузкой ленты и отметкой, остаётся непрочитанным.
+model TicketChatRead {
+  id         String   @id @default(uuid())
+  userId     String
+  ticketId   String
+  lastReadAt DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, ticketId])
+  @@index([ticketId])
+  /// Realtime опрашивает свежие отметки, чтобы погасить 💬 на других устройствах.
+  @@index([updatedAt])
 }
 
 model PermissionBlock {

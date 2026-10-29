@@ -2,13 +2,14 @@
 import { PrismaModule } from '../prisma/prisma.module';
 import { ServiceContractsModule } from '../service-contracts/service-contracts.module';
 
+import { TicketChatReadService } from './ticket-chat-read.service';
 import { TimelineService } from './timeline.service';
 import { TimelineController } from './timeline.controller';
 
 @Module({
   imports: [PrismaModule, ServiceContractsModule],
   controllers: [TimelineController],
-  providers: [TimelineService],
+  providers: [TimelineService, TicketChatReadService],
   exports: [TimelineService],
 })
 export class TimelineModule {}
