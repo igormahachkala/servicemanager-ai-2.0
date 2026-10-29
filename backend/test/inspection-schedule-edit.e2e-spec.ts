@@ -240,9 +240,12 @@ describe('never-started schedule edit vs run start (PostgreSQL)', () => {
       releaseStarter.resolve();
       const run = await starting;
       await rejectedEdit;
-      expect(run.dueAt).toEqual(dueAt);
-      expect(run.templateId).toBe(templateId);
-      expect(run.locationId).toBe(locationId);
+      // The start response intentionally omits dueAt; verify the committed row,
+      // not an expanded API projection, to prove the original snapshot survived.
+      const storedRun = await db.inspectionRun.findUniqueOrThrow({ where: { id: run.id } });
+      expect(storedRun.dueAt).toEqual(dueAt);
+      expect(storedRun.templateId).toBe(templateId);
+      expect(storedRun.locationId).toBe(locationId);
     } finally {
       releaseStarter.resolve();
       await Promise.allSettled([starting, ...(editing ? [editing] : [])]);
@@ -274,7 +277,8 @@ describe('never-started schedule edit vs run start (PostgreSQL)', () => {
 
     await schedules.editNotStarted(admin, schedule.id, editInput(schedule));
     const run = await start(schedule.id);
-    expect(run.dueAt).toEqual(changedDueAt);
+    const storedRun = await db.inspectionRun.findUniqueOrThrow({ where: { id: run.id } });
+    expect(storedRun.dueAt).toEqual(changedDueAt);
     expect(await db.inspectionRun.count({ where: { scheduleId: schedule.id } })).toBe(1);
   });
 
