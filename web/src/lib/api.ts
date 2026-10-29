@@ -4853,6 +4853,7 @@ export type InspectionSchedule = {
   template: { id: string; name: string }
   location: {
     id: string
+    clientCompanyId?: string
     name: string
     city?: string | null
     address?: string | null
@@ -4900,6 +4901,19 @@ export type UpdateInspectionScheduleInput = Partial<{
   graceDays: number
   isActive: boolean
 }>
+
+/** Only a never-started plan can be edited through this guarded action. */
+export type EditNotStartedInspectionScheduleInput = {
+  expectedUpdatedAt: string
+  templateId: string
+  locationId: string
+  equipmentId: string | null
+  assignedToUserId: string | null
+  name: string
+  frequency: InspectionFrequency
+  intervalDays: number | null
+  startDate: string
+}
 
 /** SMA-098: фильтры планирования. Все необязательные — вызов без аргументов не изменился. */
 export type InspectionScheduleFilters = {
@@ -4958,6 +4972,16 @@ export async function updateInspectionSchedule(
   input: UpdateInspectionScheduleInput,
 ): Promise<InspectionSchedule> {
   return request<InspectionSchedule>('/inspection/schedules/' + id, { method: 'PATCH', body: input })
+}
+
+export async function editNotStartedInspectionSchedule(
+  id: string,
+  input: EditNotStartedInspectionScheduleInput,
+): Promise<InspectionSchedule> {
+  return request<InspectionSchedule>('/inspection/schedules/' + id + '/not-started', {
+    method: 'PATCH',
+    body: input,
+  })
 }
 
 /**

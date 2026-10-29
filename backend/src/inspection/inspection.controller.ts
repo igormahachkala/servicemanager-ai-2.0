@@ -34,6 +34,7 @@ import { UpdateTemplateDto } from './dto/update-template.dto'
 import { CreateScheduleDto } from './dto/create-schedule.dto'
 import { ListSchedulesDto } from './dto/list-schedules.dto'
 import { UpdateScheduleDto } from './dto/update-schedule.dto'
+import { EditNotStartedScheduleDto } from './dto/edit-not-started-schedule.dto'
 import { ListRunsDto } from './dto/list-runs.dto'
 import { StartRunDto } from './dto/start-run.dto'
 import { UpdateRunItemDto } from './dto/update-run-item.dto'
@@ -96,6 +97,14 @@ export class InspectionController {
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   updateSchedule(@Req() req: any, @Param('id') scheduleId: string, @Body() dto: UpdateScheduleDto) {
     return this.schedules.update(this.userFromRequest(req), scheduleId, dto)
+  }
+
+  @Patch('schedules/:id/not-started')
+  @ManagementSurface()
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
+  @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
+  editNotStartedSchedule(@Req() req: any, @Param('id') scheduleId: string, @Body() dto: EditNotStartedScheduleDto) {
+    return this.schedules.editNotStarted(this.userFromRequest(req), scheduleId, dto)
   }
 
   @Delete('schedules/:id')

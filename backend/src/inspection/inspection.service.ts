@@ -58,10 +58,9 @@ import { advanceScheduleAfterRun } from './inspection-schedule-advance';
  * Чего этот ключ не закрывает: запись идемпотентности уникальна в пределах
  * (companyId, userId, operationType, key), то есть защищает одного актора.
  * Одновременный запуск двумя разными акторами (техник и менеджер) ключами не
- * пересекается; его ловит проверка незакрытого обхода внутри транзакции, но
- * полностью закрыть эту гонку без частичного уникального индекса в БД нельзя.
- * Такой миграции в этой задаче намеренно нет — она относится к слайсу
- * генератора, где столкновение акторов становится вероятным.
+ * пересекается. Запись по версии плана в createScheduledRun сериализует
+ * запуски и безопасное редактирование на одной строке; проверка незакрытого
+ * обхода по-прежнему возвращает уже начатый обход вместо второго запуска.
  */
 function scheduledStartKey(schedule: { id: string; lastRunId: string | null }): string {
   return `${schedule.id}:${schedule.lastRunId ?? 'initial'}`
@@ -435,7 +434,7 @@ export class InspectionService {
    */
   private async createScheduledRun(
     user: InspectionUserCtx,
-    schedule: { id: string; nextDueAt: Date; graceDays: number },
+    schedule: { id: string; nextDueAt: Date; graceDays: number; updatedAt: Date },
     data: Prisma.InspectionRunUncheckedCreateInput,
     resolved: { templateId: string; locationId: string; equipmentId: string | null },
   ) {
@@ -445,6 +444,42 @@ export class InspectionService {
      * оставалось окно, в которое помещался второй обход того же визита.
      */
     const { run, dueAt } = await this.prisma.$transaction(async (tx) => {
+      // The schedule was resolved before this transaction. Reserve that exact
+      // revision before inserting a run so a concurrent not-started edit cannot
+      // commit while this run still uses an older template/site/due date.
+      const { count } = await tx.inspectionSchedule.updateMany({
+        where: {
+          id: schedule.id,
+          companyId: user.companyId,
+          isActive: true,
+          updatedAt: schedule.updatedAt,
+        },
+        data: {
+          updatedAt: new Date(Math.max(Date.now(), schedule.updatedAt.getTime() + 1)),
+        },
+      })
+      if (count !== 1) {
+        const started = await tx.inspectionRun.findFirst({
+          where: {
+            scheduleId: schedule.id,
+            companyId: user.companyId,
+            status: InspectionRunStatus.IN_PROGRESS,
+          },
+          select: { id: true },
+        })
+        if (started) {
+          throw new ConflictException({
+            code: 'INSPECTION_SCHEDULE_RUN_IN_PROGRESS',
+            message: 'Обход по этому плану уже начат.',
+            runId: started.id,
+          })
+        }
+        throw new ConflictException({
+          code: 'INSPECTION_SCHEDULE_CHANGED',
+          message: 'План изменён. Обновите его перед запуском обхода.',
+        })
+      }
+
       /**
        * SMA-ROUNDS-RECURRENCE-FIX: кроме незакрытого обхода визит занимает и уже
        * завершённый обход того же срока. Такое бывает в двух случаях: план
@@ -569,6 +604,7 @@ export class InspectionService {
         assignedToUserId: true,
         nextDueAt: true,
         graceDays: true,
+        updatedAt: true,
         /** 119T: отметка предыдущего визита — по ней строится ключ идемпотентности. */
         lastRunId: true,
       },

@@ -11,6 +11,7 @@ import {
   readOutboundScopeFromSearch,
 } from '../lib/locationCardSections'
 import { locationCardPath } from '../lib/equipmentCard'
+import { InspectionScheduleEditAction } from '../components/InspectionScheduleEditor'
 
 /**
  * SMA-ROUNDS-V1-SCHEDULE-CRUD-098 — минимальный экран планирования обходов.
@@ -331,7 +332,7 @@ export function InspectionSchedulesPage() {
 
         <div style={{ display: 'grid', gap: 12 }}>
           {schedules.map((s) => (
-            <div key={s.id} className="card" style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 14 }}>
+            <div key={s.id} id={`schedule-${s.id}`} className="card" style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 14 }}>
               <div className="row" style={{ marginBottom: 8 }}>
                 <div>
                   <div style={{ fontWeight: 700 }}>{s.name}</div>
@@ -375,6 +376,9 @@ export function InspectionSchedulesPage() {
                   <div>{s.frequency === 'CUSTOM' && s.intervalDays ? `${s.intervalDays} дн.` : '—'}</div>
                 </div>
               </div>
+              {canManage ? (
+                <InspectionScheduleEditAction key={`${routerLocation.key}-${s.id}`} schedule={s} />
+              ) : null}
             </div>
           ))}
         </div>

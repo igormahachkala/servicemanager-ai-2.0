@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import {
   InspectionFrequency,
   InspectionRunStatus,
@@ -117,12 +117,23 @@ function makeSuite(options: { contracts?: any[]; schedules?: any[] } = {}) {
           }),
       ),
       delete: jest.fn(async ({ where }: any) => ({ id: where.id })),
+      updateMany: jest.fn(async ({ where, data }: any) => {
+        const row = scheduleRows.find((s) =>
+          s.id === where.id && s.companyId === where.companyId && s.isActive &&
+          s.updatedAt.getTime() === where.updatedAt.getTime() &&
+          !s.lastGeneratedAt && !s.lastRunId && s._count.runs === 0,
+        )
+        if (!row) return { count: 0 }
+        Object.assign(row, data)
+        return { count: 1 }
+      }),
       findMany: jest.fn(async () => scheduleRows),
       findFirst: jest.fn(async ({ where }: any) =>
         scheduleRows.find((s) => s.id === where.id && s.companyId === where.companyId) ?? null,
       ),
     },
   } as any
+  prisma.$transaction = jest.fn(async (fn: any) => fn(prisma))
 
   const assignmentEligibility = {
     listLocationAssignableExecutors: jest.fn(async () =>
@@ -150,6 +161,8 @@ function scheduleRow(overrides: any = {}) {
     frequency: InspectionFrequency.MONTHLY,
     intervalDays: null,
     lastGeneratedAt: null,
+    lastRunId: null,
+    updatedAt: new Date('2026-09-01T00:00:00.000Z'),
     isActive: true,
     nextDueAt: new Date('2026-10-01T09:00:00.000Z'),
     graceDays: 0,
@@ -937,3 +950,126 @@ describe('SMA-WORK-CALENDAR-V1 выборка планов для календа
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
+
+// This editor is intentionally narrower than update(): no execution history at all.
+describe('safe not-started schedule editor', () => {
+  const draft = {
+    name: 'План после правки', templateId: 'tpl-2', locationId: LOC_A.id,
+    assignedToUserId: technician.id, equipmentId: null,
+    frequency: InspectionFrequency.WEEKLY, intervalDays: null,
+    startDate: VALID_START, expectedUpdatedAt: '2026-09-01T00:00:00.000Z',
+  }
+
+  it('edits an unstarted plan and moves its first due date atomically', async () => {
+    const { svc, prisma } = makeSuite({ schedules: [scheduleRow()] })
+    const result = await svc.editNotStarted(admin, 'sched-1', draft)
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1)
+    const write = prisma.inspectionSchedule.updateMany.mock.calls[0][0]
+    expect(write.where).toEqual({
+      id: 'sched-1', companyId: PROVIDER_ID, isActive: true,
+      updatedAt: new Date(draft.expectedUpdatedAt), lastGeneratedAt: null,
+      lastRunId: null, runs: { none: {} },
+    })
+    expect(write.data).toMatchObject({
+      name: draft.name, templateId: draft.templateId, locationId: LOC_A.id,
+      equipmentId: null, assignedToUserId: technician.id,
+      startDate: new Date(VALID_START), nextDueAt: new Date(VALID_START),
+      frequency: InspectionFrequency.WEEKLY, intervalDays: null,
+    })
+    for (const key of ['isActive', 'leadTimeDays', 'graceDays', 'lastGeneratedAt', 'lastRunId']) {
+      expect(write.data).not.toHaveProperty(key)
+    }
+    expect(result.nextDueAt).toEqual(new Date(VALID_START))
+    expect(prisma.inspectionSchedule.update).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { isActive: false }, { lastGeneratedAt: new Date() }, { lastRunId: 'old-run' },
+    { _count: { runs: 1 } }, { _count: { runs: 2 }, lastGeneratedAt: null, lastRunId: null },
+  ])('rejects retired/started/history state %p before any mutation', async (state) => {
+    const row = scheduleRow(state)
+    const before = structuredClone(row)
+    const { svc, prisma } = makeSuite({ schedules: [row] })
+    await expect(svc.editNotStarted(admin, row.id, draft)).rejects.toThrow(ConflictException)
+    expect(row).toEqual(before)
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('rejects an old editor revision instead of overwriting newer work', async () => {
+    const { svc, prisma } = makeSuite({ schedules: [scheduleRow()] })
+    await expect(svc.editNotStarted(admin, 'sched-1', {
+      ...draft, expectedUpdatedAt: '2026-08-31T00:00:00.000Z',
+    })).rejects.toMatchObject({ response: { code: 'INSPECTION_SCHEDULE_NOT_EDITABLE' } })
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('rejects when a run starts after the initial eligibility check', async () => {
+    const row = scheduleRow()
+    const { svc, prisma } = makeSuite({ schedules: [row] })
+    prisma.inspectionTemplate.findFirst.mockImplementationOnce(async () => {
+      row.lastGeneratedAt = new Date()
+      row.lastRunId = 'run-started-concurrently'
+      row._count.runs = 1
+      return { id: draft.templateId, name: 'ТО' }
+    })
+    await expect(svc.editNotStarted(admin, row.id, draft)).rejects.toThrow(ConflictException)
+    expect(row.name).toBe('ТО ежемесячное')
+    expect(row.nextDueAt).toEqual(new Date('2026-10-01T09:00:00.000Z'))
+    expect(row.lastRunId).toBe('run-started-concurrently')
+  })
+
+  it('prevents two editors saving one revision, including same-millisecond edits', async () => {
+    const row = scheduleRow({ updatedAt: new Date('2099-01-01T00:00:00.000Z') })
+    const { svc } = makeSuite({ schedules: [row] })
+    const input = { ...draft, expectedUpdatedAt: row.updatedAt.toISOString() }
+    await svc.editNotStarted(admin, row.id, input)
+    expect(row.updatedAt.toISOString()).toBe('2099-01-01T00:00:00.001Z')
+    await expect(svc.editNotStarted(admin, row.id, input)).rejects.toThrow(ConflictException)
+  })
+
+  it('allows optional equipment and assignee to be cleared', async () => {
+    const { svc, prisma } = makeSuite({ schedules: [scheduleRow()] })
+    await svc.editNotStarted(admin, 'sched-1', { ...draft, assignedToUserId: null })
+    expect(prisma.inspectionSchedule.updateMany.mock.calls[0][0].data).toMatchObject({
+      equipmentId: null, assignedToUserId: null,
+    })
+  })
+
+  it('checks equipment against the selected location and its owning company', async () => {
+    const { svc, prisma } = makeSuite({ schedules: [scheduleRow()] })
+    await svc.editNotStarted(admin, 'sched-1', { ...draft, equipmentId: 'eq-1' })
+    expect(prisma.equipment.findFirst).toHaveBeenCalledWith({
+      where: { id: 'eq-1', companyId: CLIENT_A, locationId: LOC_A.id }, select: { id: true },
+    })
+    await expect(svc.editNotStarted(admin, 'sched-1', {
+      ...draft, expectedUpdatedAt: prisma.inspectionSchedule.updateMany.mock.calls[0][0].data.updatedAt.toISOString(),
+      locationId: LOC_B.id, equipmentId: 'eq-1',
+    })).rejects.toThrow(NotFoundException)
+  })
+
+  it.each([
+    { name: '   ' }, { startDate: 'invalid' }, { expectedUpdatedAt: 'invalid' },
+    { frequency: InspectionFrequency.CUSTOM, intervalDays: null },
+    { frequency: InspectionFrequency.WEEKLY, intervalDays: 5 },
+    { assignedToUserId: 'u-not-executor' }, { assignedToUserId: 'u-foreign-tech' },
+    { locationId: LOC_UNCONTRACTED.id },
+  ])('validates editor changes %p without writing', async (changes) => {
+    const { svc, prisma } = makeSuite({ schedules: [scheduleRow()] })
+    await expect(svc.editNotStarted(admin, 'sched-1', { ...draft, ...changes })).rejects.toThrow()
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('keeps canonical management permissions and tenant scoping', async () => {
+    const { svc, prisma } = makeSuite({ schedules: [scheduleRow()] })
+    await expect(svc.editNotStarted(technician, 'sched-1', draft)).rejects.toThrow(ForbiddenException)
+    await expect(svc.editNotStarted({ ...admin, companyId: OTHER_PROVIDER_ID }, 'sched-1', draft))
+      .rejects.toThrow(NotFoundException)
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('requires access to the existing location, not just the destination', async () => {
+    const { svc, prisma } = makeSuite({ schedules: [scheduleRow({ location: LOC_UNCONTRACTED })] })
+    await expect(svc.editNotStarted(admin, 'sched-1', draft)).rejects.toThrow(NotFoundException)
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+})
