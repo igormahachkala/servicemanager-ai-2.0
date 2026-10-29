@@ -15,15 +15,19 @@ import {
 } from './mobileShiftGate'
 import {
   TODAY_COUNT_LABELS,
+  TODAY_SCHEDULE_LIMIT,
+  TODAY_SCHEDULE_LIMIT_NOTE,
+  groupTodaySchedules,
   groupOpenTicketCounts,
   resolveStartFailure,
+  previousVisitsUntil,
   todayWindow,
   toTodayVisitCards,
   type TodayVisitCard,
 } from './mobileInspectionToday'
 
 /**
- * SMA-PLANNER-V1-MOBILE-TODAY-120G — план визитов на сегодня.
+ * SMA-PLANNER-V1-MOBILE-TODAY-120G — сегодняшний план и незакрытые прошлые визиты.
  *
  * Экран читается без открытой смены: план — это информация, а не работа.
  * Смену требует только запуск обхода, и требует её бэкенд, а не эта страница.
@@ -70,7 +74,16 @@ export function MobileInspectionTodayPage() {
    */
   const schedulesQ = useQuery({
     queryKey: ['mobile-inspection-today', window.from, window.to],
+    staleTime: 0,
     queryFn: () => api.getInspectionSchedules({ from: window.from, to: window.to, active: true }),
+  })
+
+  // Отдельный лимит для прошлого периода сохраняет место сегодняшним визитам.
+  // Общий префикс ключа обновляет оба списка после запуска обхода.
+  const previousQ = useQuery({
+    queryKey: ['mobile-inspection-today', 'previous', window.from],
+    queryFn: () => api.getInspectionSchedules({ to: previousVisitsUntil(window), active: true }),
+    staleTime: 0,
   })
 
   /**
@@ -89,10 +102,13 @@ export function MobileInspectionTodayPage() {
     return groupOpenTicketCounts(cards)
   }, [boardQ.data])
 
-  const visits = useMemo(
-    () => toTodayVisitCards(schedulesQ.data, counts),
-    [schedulesQ.data, counts],
-  )
+  const visits = useMemo(() => {
+    const grouped = groupTodaySchedules(schedulesQ.data, previousQ.data, window)
+    return {
+      today: toTodayVisitCards(grouped.today, counts),
+      previous: toTodayVisitCards(grouped.previous, counts),
+    }
+  }, [schedulesQ.data, previousQ.data, window, counts])
 
   const startM = useMutation({
     mutationFn: api.startInspectionRun,
@@ -156,37 +172,10 @@ export function MobileInspectionTodayPage() {
     })
   }
 
-  const content = (() => {
-    if (schedulesQ.isLoading) {
-      return <div className="mobileCard mobileMeta">Загружаем план на сегодня…</div>
-    }
-    if (schedulesQ.isError) {
-      return (
-        <div className="mobileNotice mobileNoticeError">
-          Не удалось загрузить план на сегодня.{' '}
-          <button type="button" className="mobileBtn mobileBtnGhost" onClick={() => schedulesQ.refetch()}>
-            Повторить
-          </button>
-        </div>
-      )
-    }
-    if (visits.length === 0) {
-      return (
-        <div className="mobileCard mobileEmptyState" role="status">
-          <div className="mobileEmptyStateTitle">На сегодня обходов не запланировано</div>
-          <p className="mobileEmptyStateHint">
-            Внеплановый обход можно начать через «Начать обход».
-          </p>
-          <Link to={mobilePath(location.pathname, '/inspection/start')} className="mobileBtn mobileBtnGhost">
-            Начать обход
-          </Link>
-        </div>
-      )
-    }
-
+  function renderVisits(cards: TodayVisitCard[], previous: boolean) {
     return (
       <>
-        {visits.map((card) => {
+        {cards.map((card) => {
           const busy = startM.isPending && pendingScheduleId === card.scheduleId
           return (
             <div key={card.scheduleId} className="mobileCard mobilePatrolCard">
@@ -198,6 +187,14 @@ export function MobileInspectionTodayPage() {
                 ) : null}
               </div>
 
+              {previous ? (
+                <div className="mobilePatrolCardMeta">
+                  <span>Плановая дата: {card.plannedDate}</span>{' '}
+                  <span className={card.isOverdue ? 'mobilePatrolReportBadge mobilePatrolReportBadge--rejected' : undefined}>
+                    {card.previousStatusLabel}
+                  </span>
+                </div>
+              ) : null}
               {card.addressLine ? <div className="mobilePatrolCardMeta">{card.addressLine}</div> : null}
               <div className="mobilePatrolCardMeta">{card.templateName}</div>
 
@@ -238,7 +235,53 @@ export function MobileInspectionTodayPage() {
         })}
       </>
     )
-  })()
+  }
+
+  function renderPeriod(previous: boolean) {
+    const query = previous ? previousQ : schedulesQ
+    const cards = previous ? visits.previous : visits.today
+    return (
+      <section className="mobileSection" aria-label={previous ? 'Незавершённые прошлых дней' : 'На сегодня'}>
+        <h2 className="mobileSectionTitle">{previous ? 'Незавершённые прошлых дней' : 'На сегодня'}</h2>
+        {query.isLoading ? (
+          <div className="mobileCard mobileMeta">{previous ? 'Загружаем предыдущие визиты…' : 'Загружаем план на сегодня…'}</div>
+        ) : null}
+        {!offline.online && query.isPending && !query.data ? (
+          <div className="mobileCard mobileMeta">Нет сохранённых данных за этот период. Подключитесь к сети, чтобы загрузить план.</div>
+        ) : null}
+        {query.isError ? (
+          <div className="mobileNotice mobileNoticeError" role="alert">
+            {previous ? 'Не удалось загрузить предыдущие визиты.' : 'Не удалось загрузить план на сегодня.'}{' '}
+            {query.data ? 'Ниже показаны ранее загруженные данные. ' : ''}
+            <button type="button" className="mobileBtn mobileBtnGhost" onClick={() => query.refetch()}>
+              Повторить
+            </button>
+          </div>
+        ) : null}
+        {(query.data?.length || 0) >= TODAY_SCHEDULE_LIMIT ? (
+          <div className="mobileNotice" role="status">
+            Достигнут лимит {TODAY_SCHEDULE_LIMIT} планов за этот период. Другие визиты могут не отображаться.
+          </div>
+        ) : null}
+        {renderVisits(cards, previous)}
+        {!query.isPending && !query.isError && cards.length === 0 ? (
+          <div className="mobileCard mobileEmptyState" role="status">
+            <div className="mobileEmptyStateTitle">
+              {previous ? 'В загруженном списке нет незавершённых визитов прошлых дней' : 'В загруженном плане на сегодня нет визитов'}
+            </div>
+            {!previous ? (
+              <>
+                <p className="mobileEmptyStateHint">Внеплановый обход можно начать через «Начать обход».</p>
+                <Link to={mobilePath(location.pathname, '/inspection/start')} className="mobileBtn mobileBtnGhost">
+                  Начать обход
+                </Link>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+    )
+  }
 
   return (
     <div className="mobileSection">
@@ -254,12 +297,14 @@ export function MobileInspectionTodayPage() {
 
       {!offline.online ? (
         <div className="mobileNotice">
-          Нет сети: план показан по сохранённым данным. Начать новый обход можно только онлайн.
+          Нет сети. Доступны только ранее загруженные данные. Начать новый обход можно только онлайн.
         </div>
       ) : null}
       {notice ? <div className="mobileNotice mobileNoticeError">{notice}</div> : null}
 
-      {content}
+      <div className="mobileMeta">{TODAY_SCHEDULE_LIMIT_NOTE}</div>
+      {renderPeriod(true)}
+      {renderPeriod(false)}
     </div>
   )
 }
