@@ -80,7 +80,24 @@ describe('bounded linked service history', () => {
         orderBy: [{ createdAt: 'desc' }],
         select: expect.objectContaining({
           scheduleId: true,
-          items: { select: { status: true, ticketId: true } },
+          items: expect.objectContaining({
+            select: expect.objectContaining({
+              status: true,
+              ticketId: true,
+            }) as unknown,
+          }) as unknown,
+        }) as unknown,
+      }),
+    );
+    // Safe item metadata may be added without loading ticket relations/details.
+    expect(prisma.inspectionRun.findMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({
+          items: expect.objectContaining({
+            select: expect.objectContaining({
+              ticket: expect.anything() as unknown,
+            }) as unknown,
+          }) as unknown,
         }) as unknown,
       }),
     );
