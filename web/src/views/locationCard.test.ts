@@ -256,7 +256,8 @@ describe('098/8-12 объём среза не расширен', () => {
     ['8. контакты', ['Контакт', 'contacts', 'Contacts', 'phone', 'Телефон']],
     ['9. заметки', ['Заметк', 'notes', 'Notes', 'comment', 'Комментар']],
     ['10. вложения', ['Вложени', 'attachment', 'Attachment', 'upload', 'Файл']],
-    ['11. история', ['История', 'history', 'History', 'timeline', 'Timeline']],
+    // A4: scoped read-only round history is authorized; no second ticket journal.
+    ['отдельный журнал заявок', ['ticketTimeline', 'timelineTicket', 'EquipmentHistoryTab']],
     /*
      * L2 (SMA-LOCATION-CARD-L2-AGGREGATES-102) по решению владельца добавил
      * сводки по оборудованию, заявкам и обходам — их запрет снят здесь

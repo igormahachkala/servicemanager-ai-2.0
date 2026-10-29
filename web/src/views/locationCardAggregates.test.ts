@@ -309,7 +309,8 @@ describe('102/10 объём среза не расширен', () => {
     ['контакты', ['Контакт', 'contacts', 'phone', 'Телефон']],
     ['заметки', ['Заметк', 'notes', 'Notes']],
     ['вложения', ['Вложени', 'attachment', 'Attachment']],
-    ['история', ['История', 'history', 'History', 'timeline']],
+    // A4: scoped read-only round history is authorized; no second ticket journal.
+    ['отдельный журнал заявок', ['ticketTimeline', 'timelineTicket', 'EquipmentHistoryTab']],
     ['ответственные', ['Ответственн', 'locationBindings', 'responsible']],
   ]
 

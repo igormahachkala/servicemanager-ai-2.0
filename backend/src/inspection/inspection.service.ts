@@ -211,6 +211,7 @@ export class InspectionService {
       where: {
         companyId: user.companyId,
         ...(filters.locationId ? { locationId: filters.locationId } : {}),
+        ...(filters.equipmentId ? { equipmentId: filters.equipmentId } : {}),
         ...(filters.performedByUserId ? { performedByUserId: filters.performedByUserId } : {}),
         ...(filters.templateId ? { templateId: filters.templateId } : {}),
         ...(filters.status ? { status: filters.status } : {}),
@@ -1648,6 +1649,8 @@ function reportSelect() {
 function runListSelect() {
   return {
     id: true,
+    // Source reference only; plan details retain the schedule endpoint's own scope.
+    scheduleId: true,
     title: true,
     status: true,
     reportStatus: true,

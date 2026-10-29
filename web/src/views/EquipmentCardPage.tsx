@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { ServiceHistorySection } from '../components/history/ServiceHistorySection'
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
 import { EquipmentHistoryTab } from '../components/equipment/EquipmentHistoryTab'
 import { EquipmentPartsTab } from '../components/equipment/EquipmentPartsTab'
@@ -274,6 +275,8 @@ export function EquipmentCardPage() {
         <h3 style={{ marginBottom: 10 }}>История обслуживания</h3>
         <EquipmentHistoryTab equipmentId={item.id} scopeCompanyId={companyId || undefined} />
       </div>
+
+      <ServiceHistorySection key={`${item.id}:${companyId}`} target={{ equipmentId: item.id }} scope={createScope} />
 
       <div className="panel" style={{ marginTop: 12 }}>
         <h3 style={{ marginBottom: 10 }}>Установленные детали</h3>
