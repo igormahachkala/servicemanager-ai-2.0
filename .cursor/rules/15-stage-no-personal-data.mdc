@@ -1,0 +1,19 @@
+---
+description: На Stage не переносить базу и загрузки старого Stage
+alwaysApply: true
+---
+
+Текущая Stage-машина не аттестована по ФЗ-152. В базе старого Stage и в каталоге загрузок старого Stage лежат реальные данные.
+
+Эти данные на текущий Stage не переносятся. Stage заполняется сидерами `seed:stage-canonical` и `seed:max-bot-stage` (`backend/scripts/seed-stage-qa.ts`, `backend/scripts/seed-max-bot-stage.ts`). Оба сидера сами проверяют, что цель — база `sma_stage_db` и окружение `beta`.
+
+Нельзя:
+
+- снимать дамп базы старого Stage, чтобы залить его на текущий Stage
+- восстанавливать такой дамп в `sma_stage_postgres` или в любую другую базу Stage-окружения
+- копировать `/opt/sma-beta/uploads` со старого Stage
+- класть файлы из этого каталога в `uploads` текущего Stage
+
+Верно: пустая база Stage, затем сидер.
+Неверно: `pg_dump` со старого Stage и заливка в `sma_stage_postgres`.
+Неверно: `scp` каталога `/opt/sma-beta/uploads` со старого Stage на текущий.
