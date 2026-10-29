@@ -22,6 +22,13 @@ type DomainEventRow = {
   createdAt: Date;
 };
 
+type ChatReadRow = {
+  id: string;
+  userId: string;
+  ticketId: string;
+  updatedAt: Date;
+};
+
 type NotificationRow = {
   id: string;
   companyId: string;
@@ -45,6 +52,8 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
   private readonly seenDomainEventSet = new Set<string>();
   private readonly seenNotificationIds: string[] = [];
   private readonly seenNotificationSet = new Set<string>();
+  private readonly seenChatReadKeys: string[] = [];
+  private readonly seenChatReadSet = new Set<string>();
 
   private attachedServer: HttpServer | null = null;
   private pollTimer: NodeJS.Timeout | null = null;
@@ -52,6 +61,7 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
   private pollInFlight = false;
   private domainCursor = new Date(Date.now() - 1000);
   private notificationCursor = new Date(Date.now() - 1000);
+  private chatReadCursor = new Date(Date.now() - 1000);
 
   constructor(
     private readonly prisma: PrismaService,
@@ -523,7 +533,7 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
     this.pollInFlight = true;
 
     try {
-      await Promise.all([this.pollDomainEvents(), this.pollNotifications()]);
+      await Promise.all([this.pollDomainEvents(), this.pollNotifications(), this.pollChatReads()]);
     } catch (err) {
       this.logger.warn({ err }, 'realtime_poll_failed');
     } finally {
@@ -589,6 +599,48 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
       if (this.seenNotificationSet.has(notification.id)) continue;
       this.rememberNotification(notification.id);
       this.broadcastNotification(notification);
+    }
+  }
+
+  /**
+   * Отметка прочтения чата приходит из той же базы, что события и уведомления,
+   * поэтому доходит до сессий пользователя на любом экземпляре сервера:
+   * прочитал на телефоне — 💬 гаснет и на компьютере.
+   *
+   * Одна строка TicketChatRead сдвигается много раз, поэтому ключ повтора —
+   * пара id и updatedAt, а не один id.
+   */
+  private async pollChatReads() {
+    const since = new Date(this.chatReadCursor.getTime() - 1000);
+    const rows = await this.prisma.ticketChatRead.findMany({
+      where: { updatedAt: { gte: since } },
+      orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }],
+      take: 500,
+      select: { id: true, userId: true, ticketId: true, updatedAt: true },
+    });
+
+    for (const row of rows) {
+      if (row.updatedAt > this.chatReadCursor) {
+        this.chatReadCursor = row.updatedAt;
+      }
+      const key = `${row.id}:${row.updatedAt.getTime()}`;
+      if (this.seenChatReadSet.has(key)) continue;
+      this.rememberChatRead(key);
+      this.broadcastChatRead(row);
+    }
+  }
+
+  /** Только сессиям самого пользователя: прочтение личное, другим его не видно. */
+  private broadcastChatRead(row: ChatReadRow) {
+    const message = {
+      type: 'chat.read',
+      targets: ['tickets'],
+      ticketId: row.ticketId,
+      createdAt: row.updatedAt.toISOString(),
+    };
+    for (const client of this.clients.values()) {
+      if (!client.user || client.user.id !== row.userId) continue;
+      this.send(client, message);
     }
   }
 
@@ -760,6 +812,15 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
     while (this.seenDomainEventIds.length > 5000) {
       const removed = this.seenDomainEventIds.shift();
       if (removed) this.seenDomainEventSet.delete(removed);
+    }
+  }
+
+  private rememberChatRead(key: string) {
+    this.seenChatReadSet.add(key);
+    this.seenChatReadKeys.push(key);
+    while (this.seenChatReadKeys.length > 5000) {
+      const removed = this.seenChatReadKeys.shift();
+      if (removed) this.seenChatReadSet.delete(removed);
     }
   }
 

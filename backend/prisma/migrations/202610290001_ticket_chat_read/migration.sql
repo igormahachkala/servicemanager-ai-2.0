@@ -19,6 +19,9 @@ CREATE TABLE "TicketChatRead" (
 CREATE INDEX "TicketChatRead_ticketId_idx" ON "TicketChatRead"("ticketId");
 
 -- CreateIndex
+CREATE INDEX "TicketChatRead_updatedAt_idx" ON "TicketChatRead"("updatedAt");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "TicketChatRead_userId_ticketId_key" ON "TicketChatRead"("userId", "ticketId");
 
 -- AddForeignKey

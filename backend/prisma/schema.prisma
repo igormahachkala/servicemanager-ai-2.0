@@ -1150,6 +1150,8 @@ model TicketChatRead {
 
   @@unique([userId, ticketId])
   @@index([ticketId])
+  /// Realtime опрашивает свежие отметки, чтобы погасить 💬 на других устройствах.
+  @@index([updatedAt])
 }
 
 model PermissionBlock {
