@@ -59,6 +59,15 @@ const mobIds = (p) => p.locator('a[href*="/m/tickets/"]').evaluateAll((as) => [.
   check('телефон: карточка подсвечена как активный фильтр', await mob.page.locator('.mobileHomeQuickCard--slateActive').count() === 1)
   await mob.page.screenshot({ path: SHOTS + 'stale-mobile.png', fullPage: true })
 
+  await mob.page.locator('a[href*="/m/tickets/"]').first().click()
+  await mob.page.waitForURL(/\/m\/tickets\//)
+  await mob.page.waitForTimeout(800)
+  await mob.page.goBack()
+  w = await waitFor(() => mob.page.locator('.mobileHomeQuickCard--slateActive').count(), 1)
+  check('телефон: возврат из карточки заявки сохраняет фильтр', w.ok)
+  w = await waitFor(() => mobIds(mob.page).then((ids) => ids.join(',')), stale.join(','))
+  check('телефон: после возврата тот же список из трёх', w.ok, w.v)
+
   const mobStaleBefore = mob.staleRequests.length
   // Клиент принимает работу по заявке 3 (на приёмке): она закрывается и должна уйти из счёта.
   const accept = await j(`/tickets/${S3}/acceptance`, admin.tok, { method: 'POST', body: JSON.stringify({ decision: 'ACCEPT', comment: 'Принято' }) })
