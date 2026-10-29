@@ -50,12 +50,14 @@ function invalidateUnlessGone(qc: QueryClient, queryKey: unknown[]) {
   }
 }
 
-function applyTicketInvalidation(qc: QueryClient, ticketId?: string) {
+export function applyTicketInvalidation(qc: QueryClient, ticketId?: string) {
   qc.invalidateQueries({ queryKey: ['board'] })
   qc.invalidateQueries({ queryKey: ['tickets'] })
   qc.invalidateQueries({ queryKey: ['mobile-home-board'] })
   qc.invalidateQueries({ queryKey: ['mobile-home-available'] })
   qc.invalidateQueries({ queryKey: ['mobile-my-board'] })
+  qc.invalidateQueries({ queryKey: ['mobile-home-stale-board'] })
+  qc.invalidateQueries({ queryKey: ['dashboard-stale-board'] })
 
   if (!ticketId) {
     qc.invalidateQueries({ queryKey: ['mobile-ticket-detail'] })

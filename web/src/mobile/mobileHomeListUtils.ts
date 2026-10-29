@@ -13,7 +13,7 @@ import { isHomeUrgentTicket } from './home/homeUrgent'
 
 const LS_KEY = 'sma.mobileHome.boardUi.v1'
 
-const QUICK_FILTER_VALUES = ['urgent', 'awaiting', 'myaction', 'rework'] as const
+const QUICK_FILTER_VALUES = ['urgent', 'awaiting', 'stale', 'myaction', 'rework'] as const
 function readQuickFilter(v: unknown): MobileHomeQuickFilter {
   return typeof v === 'string' && (QUICK_FILTER_VALUES as readonly string[]).includes(v)
     ? (v as MobileHomeQuickFilter)

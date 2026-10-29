@@ -4,6 +4,7 @@ import {
   DashboardGrid,
   KpiCard,
   RecentEvents,
+  StaleTicketsCard,
   TeamLoadCard,
 } from '../components/dashboard'
 import { DASHBOARD_KPIS } from '../components/dashboard/mockData'
@@ -104,6 +105,7 @@ export function DashboardPage() {
       </header>
 
       <DashboardGrid>
+        <StaleTicketsCard />
         {DASHBOARD_KPIS.map((item) => (
           <KpiCard key={item.id} label={item.label} value={item.value} hint={item.hint} tone={item.tone} />
         ))}

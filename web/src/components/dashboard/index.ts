@@ -4,6 +4,7 @@ export { DashboardGrid } from './DashboardGrid'
 export { DashboardSection } from './DashboardSection'
 export { KpiCard } from './KpiCard'
 export { RecentEvents } from './RecentEvents'
+export { StaleTicketsCard } from './StaleTicketsCard'
 export { TeamLoadCard } from './TeamLoadCard'
 export type {
   DashboardActionItem,

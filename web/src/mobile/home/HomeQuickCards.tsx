@@ -1,26 +1,31 @@
 import { Link } from 'react-router-dom'
+import { STALE_TICKETS_TITLE } from '../../lib/staleTickets'
 
-export type MobileHomeQuickFilter = 'urgent' | 'awaiting' | 'myaction' | 'rework' | null
+export type MobileHomeQuickFilter = 'urgent' | 'awaiting' | 'stale' | 'myaction' | 'rework' | null
 
 type Props = {
   awaitingCount: number
+  staleCount: number
   myActionCount: number
   reworkCount: number
   activeQuickFilter: MobileHomeQuickFilter
   onToggleAwaiting: () => void
+  onToggleStale: () => void
   onToggleMyAction: () => void
   onToggleRework: () => void
   planningHref?: string | null
 }
 
-/** Быстрые карты главной (Figma HomeScreen): Требуют доработки / На приёмке / Требует действия / Планирование.
+/** Быстрые карты главной (Figma HomeScreen): Требуют доработки / На приёмке / Старше 10 дней / Требует действия / Планирование.
  *  «Срочные» вынесены в отдельную операционную карточку HomeUrgentCard (один urgent surface). */
 export function HomeQuickCards({
   awaitingCount,
+  staleCount,
   myActionCount,
   reworkCount,
   activeQuickFilter,
   onToggleAwaiting,
+  onToggleStale,
   onToggleMyAction,
   onToggleRework,
   planningHref,
@@ -67,6 +72,33 @@ export function HomeQuickCards({
           <span className="mobileHomeQuickCardBody">
             <span className="mobileHomeQuickCardTitle">На приёмке</span>
             <span className="mobileHomeQuickCardSub">{awaitingCount} заявок ожидают решения</span>
+          </span>
+          <span className="mobileHomeQuickCardChevron" aria-hidden>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+          </span>
+        </button>
+      ) : null}
+
+      {staleCount > 0 ? (
+        <button
+          type="button"
+          className={`mobileHomeQuickCard mobileHomeQuickCard--slate${activeQuickFilter === 'stale' ? ' mobileHomeQuickCard--slateActive' : ''}`}
+          onClick={onToggleStale}
+        >
+          <span className="mobileHomeQuickCardIcon" aria-hidden>
+            {/* Tabler hourglass */}
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6.5 7h11" />
+              <path d="M6.5 17h11" />
+              <path d="M6 20v-2a6 6 0 1 1 12 0v2a1 1 0 0 1 -1 1h-10a1 1 0 0 1 -1 -1z" />
+              <path d="M6 4v2a6 6 0 1 0 12 0v-2a1 1 0 0 0 -1 -1h-10a1 1 0 0 0 -1 1z" />
+            </svg>
+          </span>
+          <span className="mobileHomeQuickCardBody">
+            <span className="mobileHomeQuickCardTitle">{STALE_TICKETS_TITLE}</span>
+            <span className="mobileHomeQuickCardSub">{staleCount} незакрытых</span>
           </span>
           <span className="mobileHomeQuickCardChevron" aria-hidden>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

@@ -749,6 +749,8 @@ export type BoardResponse = {
     limitedToLast: number
     scopeCompanyId?: string
     visibilityMode?: 'tenant' | 'provider_primary' | 'platform_observer'
+    /** Только при olderThanDays: точный счёт заявок под фильтром, не урезанный take. */
+    matchingTotal?: number
   }
 }
 
@@ -3428,6 +3430,8 @@ export async function board(params?: {
   equipmentId?: string
   status?: TicketStatus
   includeArchived?: boolean
+  /** Незакрытые заявки старше стольких суток, lib/staleTickets.ts. */
+  olderThanDays?: number
 }): Promise<BoardResponse> {
   const search = new URLSearchParams()
 
@@ -3451,6 +3455,9 @@ export async function board(params?: {
   }
   if (params?.includeArchived) {
     search.set('includeArchived', 'true')
+  }
+  if (params?.olderThanDays) {
+    search.set('olderThanDays', String(params.olderThanDays))
   }
 
   const suffix = search.toString() ? `?${search.toString()}` : ''

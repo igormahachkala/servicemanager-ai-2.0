@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { readStaleBoardDays, STALE_BOARD_SEARCH_PARAM } from '../lib/staleTickets'
 import { mapReason } from '../lib/assignmentExplain'
 import {
   applyBoardNavigationContextToSearchParams,
@@ -197,6 +198,7 @@ export function BoardPage() {
     setSelectedEquipmentId('')
     setSelectedStatus('')
     setIncludeArchived(false)
+    if (olderThanDays) clearOlderThanDays()
   }
 
   const [selectedTicketIds, setSelectedTicketIds] = useState<string[]>([])
@@ -204,6 +206,14 @@ export function BoardPage() {
   const [bulkError, setBulkError] = useState('')
   const boardDataRef = useRef<{ scopeKey: string; data: api.BoardResponse } | null>(null)
   const autoSelectedPrimaryRef = useRef(false)
+  // Переход с карточки «Заявки старше 10 дней» главной: /board?olderThanDays=10.
+  const olderThanDays = readStaleBoardDays(location.search)
+  function clearOlderThanDays() {
+    const sp = new URLSearchParams(location.search)
+    sp.delete(STALE_BOARD_SEARCH_PARAM)
+    const query = sp.toString()
+    navigate(`${location.pathname}${query ? `?${query}` : ''}`, { replace: true })
+  }
   const activeOperationsView = useMemo<OperationsViewMode>(() => {
     const sp = new URLSearchParams(location.search)
     return normalizeOperationsViewMode(sp.get('boardTab')) ?? defaultOperationsViewMode(location.pathname)
@@ -362,9 +372,10 @@ export function BoardPage() {
       : 'tenant:self'
 
   const boardQ = useQuery({
-    queryKey: ['board', { take, observerCompanyId, effectiveLinkedClientCompanyId, selectedLocationId, selectedEquipmentId, selectedStatus, includeArchived }],
+    queryKey: ['board', { take, observerCompanyId, effectiveLinkedClientCompanyId, selectedLocationId, selectedEquipmentId, selectedStatus, includeArchived, olderThanDays }],
     queryFn: () =>
       api.board({
+        olderThanDays,
         take,
         linkedClientCompanyId: effectiveLinkedClientCompanyId || undefined,
         companyId: observerCompanyId || undefined,
@@ -1030,6 +1041,15 @@ export function BoardPage() {
               />
               Архив (DONE {'>'} 7 дней)
             </label>
+            {olderThanDays ? (
+              <span className="tag" data-testid="board-stale-filter" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                Старше {olderThanDays} дней
+                {typeof boardQ.data?.meta.matchingTotal === 'number' ? `: ${boardQ.data.meta.matchingTotal}` : ''}
+                <button className="ghost" type="button" onClick={clearOlderThanDays} aria-label="Убрать фильтр по возрасту" style={{ padding: '0 4px' }}>
+                  ✕
+                </button>
+              </span>
+            ) : null}
             <button className="ghost" type="button" onClick={resetBoardFilters}>
               Без фильтров
             </button>
