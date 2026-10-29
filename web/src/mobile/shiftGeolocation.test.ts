@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   haversineMeters,
+  SHIFT_GEO_INTERVAL_MS,
   shouldInvalidateRoutes,
   startOpenShiftGeolocation,
   type ShiftGeoPoint,
@@ -48,49 +49,30 @@ describe('shouldInvalidateRoutes', () => {
 })
 
 describe('startOpenShiftGeolocation', () => {
-  let visibility: DocumentVisibilityState
-  let listeners: Map<string, Set<() => void>>
+  let watchSuccess: PositionCallback | null
+  let clearWatch: ReturnType<typeof vi.fn>
+  let addEventListener: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     vi.useFakeTimers()
     vi.mocked(postMyShiftGeo).mockClear()
-    visibility = 'visible'
-    listeners = new Map()
+    watchSuccess = null
+    clearWatch = vi.fn()
+    addEventListener = vi.fn()
 
     vi.stubGlobal('document', {
-      get visibilityState() {
-        return visibility
-      },
-      addEventListener(type: string, handler: () => void) {
-        const set = listeners.get(type) ?? new Set()
-        set.add(handler)
-        listeners.set(type, set)
-      },
-      removeEventListener(type: string, handler: () => void) {
-        listeners.get(type)?.delete(handler)
-      },
-      dispatchEvent(event: { type: string }) {
-        for (const handler of listeners.get(event.type) ?? []) handler()
-        return true
-      },
+      visibilityState: 'hidden',
+      addEventListener,
+      removeEventListener: vi.fn(),
     })
 
     vi.stubGlobal('navigator', {
       geolocation: {
-        getCurrentPosition: (success: PositionCallback) => {
-          success({
-            coords: {
-              latitude: ORIGIN.latitude,
-              longitude: ORIGIN.longitude,
-              accuracy: 10,
-              altitude: null,
-              altitudeAccuracy: null,
-              heading: null,
-              speed: null,
-            },
-            timestamp: Date.now(),
-          } as GeolocationPosition)
+        watchPosition: (success: PositionCallback) => {
+          watchSuccess = success
+          return 7
         },
+        clearWatch,
       },
     })
 
@@ -105,22 +87,63 @@ describe('startOpenShiftGeolocation', () => {
     vi.unstubAllGlobals()
   })
 
-  it('does not post geo while the document is hidden', async () => {
-    visibility = 'hidden'
+  function emit(latitude: number, longitude: number, accuracy: number, timestamp: number) {
+    watchSuccess?.({
+      coords: {
+        latitude,
+        longitude,
+        accuracy,
+        altitude: null,
+        altitudeAccuracy: null,
+        heading: null,
+        speed: null,
+      },
+      timestamp,
+    } as GeolocationPosition)
+  }
 
-    const stop = startOpenShiftGeolocation()
+  it('posts the latest watched point with accuracy while the document stays hidden', async () => {
+    expect(SHIFT_GEO_INTERVAL_MS).toBe(3 * 60 * 1000)
+
+    const onPointSent = vi.fn()
+    const stop = startOpenShiftGeolocation(onPointSent)
+    const capturedAt = '2026-10-27T12:00:00.000Z'
+    const laterCapturedAt = '2026-10-27T12:03:00.000Z'
+
+    emit(ORIGIN.latitude, ORIGIN.longitude, 12, Date.parse(capturedAt))
     await Promise.resolve()
-    expect(postMyShiftGeo).not.toHaveBeenCalled()
 
-    vi.advanceTimersByTime(3 * 60 * 1000)
-    await Promise.resolve()
-    expect(postMyShiftGeo).not.toHaveBeenCalled()
+    expect(postMyShiftGeo).toHaveBeenCalledTimes(1)
+    expect(postMyShiftGeo).toHaveBeenCalledWith({
+      latitude: ORIGIN.latitude,
+      longitude: ORIGIN.longitude,
+      capturedAt,
+      accuracy: 12,
+    })
+    expect(onPointSent).toHaveBeenCalledWith(ORIGIN)
+    expect(addEventListener).not.toHaveBeenCalled()
 
-    visibility = 'visible'
-    document.dispatchEvent({ type: 'visibilitychange' } as Event)
+    emit(NEAR.latitude, NEAR.longitude, 40, Date.parse(laterCapturedAt))
     await Promise.resolve()
     expect(postMyShiftGeo).toHaveBeenCalledTimes(1)
 
+    vi.advanceTimersByTime(SHIFT_GEO_INTERVAL_MS)
+    await Promise.resolve()
+
+    expect(document.visibilityState).toBe('hidden')
+    expect(postMyShiftGeo).toHaveBeenCalledTimes(2)
+    expect(postMyShiftGeo).toHaveBeenLastCalledWith({
+      latitude: NEAR.latitude,
+      longitude: NEAR.longitude,
+      capturedAt: laterCapturedAt,
+      accuracy: 40,
+    })
+
     stop()
+    expect(clearWatch).toHaveBeenCalledWith(7)
+
+    vi.advanceTimersByTime(SHIFT_GEO_INTERVAL_MS)
+    await Promise.resolve()
+    expect(postMyShiftGeo).toHaveBeenCalledTimes(2)
   })
 })

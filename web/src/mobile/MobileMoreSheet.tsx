@@ -84,6 +84,11 @@ type Props = { onClose: () => void }
 export function MobileMoreSheet({ onClose }: Props) {
   const location = useLocation()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const companyQ = useQuery({
+    queryKey: ['company-own-context'],
+    queryFn: () => api.company(),
+    enabled: !!meQ.data && meQ.data.role !== 'PLATFORM_ADMIN',
+  })
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -101,7 +106,19 @@ export function MobileMoreSheet({ onClose }: Props) {
   }, [location.search, meQ.data])
 
   const scoped = (to: string) => api.appendScopeToPath(to, currentScope, meQ.data)
-  const entries = useMemo(() => getMobileMoreEntries(meQ.data, location.pathname), [meQ.data, location.pathname])
+  const entries = useMemo(
+    () => getMobileMoreEntries(
+      meQ.data
+        ? {
+            role: meQ.data.role,
+            canAccessManagementSurface: meQ.data.canAccessManagementSurface,
+            companyType: companyQ.data?.type,
+          }
+        : null,
+      location.pathname,
+    ),
+    [companyQ.data?.type, location.pathname, meQ.data],
+  )
   const returnState = mobileReturnToState(location.pathname, location.search)
 
   return (

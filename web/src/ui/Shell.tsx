@@ -114,10 +114,15 @@ function isActivePath(currentPath: string, targetPath: string) {
   return currentPath === targetPath
 }
 
-function isNavItemVisible(item: NavItem, role?: api.Role, canAccessEngineeringAgent?: boolean) {
+function isNavItemVisible(
+  item: NavItem,
+  role?: api.Role,
+  canAccessEngineeringAgent?: boolean,
+  companyType?: api.CompanyType | null,
+) {
   // SMA-MANAGEMENT-NAVIGATION-V2: единое fail-closed решение видимости живёт в
   // lib/navigation (чистая функция, покрыта тестами). Shell только применяет.
-  return isManagementNavItemVisible(item.to, { role, canAccessEngineeringAgent })
+  return isManagementNavItemVisible(item.to, { role, canAccessEngineeringAgent, companyType })
 }
 
 function readCollapsed(): boolean {
@@ -226,8 +231,8 @@ export function Shell() {
 
   /** Видимый лист раздела с учётом fail-closed видимости. */
   const leafVisible = useCallback(
-    (leaf: NavLeaf) => isManagementNavItemVisible(leaf.to, { role, canAccessEngineeringAgent }),
-    [role, canAccessEngineeringAgent],
+    (leaf: NavLeaf) => isManagementNavItemVisible(leaf.to, { role, canAccessEngineeringAgent, companyType: tenantCompanyType }),
+    [role, canAccessEngineeringAgent, tenantCompanyType],
   )
 
   /** Разделы Rail, у которых есть хотя бы один видимый пункт. */
@@ -369,11 +374,11 @@ export function Shell() {
         .map((section: NavSection) => ({
           ...section,
           items: section.items
-            .filter((item: NavItem) => isNavItemVisible(item, role, canAccessEngineeringAgent))
+            .filter((item: NavItem) => isNavItemVisible(item, role, canAccessEngineeringAgent, tenantCompanyType))
             .map((item: NavItem) => ({ ...item, active: isActivePath(loc.pathname, item.to) })),
         }))
         .filter((section) => section.items.length > 0),
-    [loc.pathname, navigation.sidebar, role, canAccessEngineeringAgent],
+    [loc.pathname, navigation.sidebar, role, canAccessEngineeringAgent, tenantCompanyType],
   )
 
   const renderFlyoutItem = (leaf: NavLeaf) => (

@@ -40,62 +40,58 @@ export function shouldInvalidateRoutes(
   return haversineMeters(lastRouteOrigin, next) >= thresholdMeters
 }
 
-function documentIsVisible(): boolean {
-  if (typeof document === 'undefined') return true
-  return document.visibilityState === 'visible'
+type WatchedShiftFix = {
+  latitude: number
+  longitude: number
+  capturedAt: string
+  accuracy?: number
 }
 
-function sendCurrentPoint(onPointSent?: (point: ShiftGeoPoint) => void) {
-  if (typeof navigator === 'undefined' || !navigator.geolocation?.getCurrentPosition) return
-
-  navigator.geolocation.getCurrentPosition(
-    (position) => {
-      const point: ShiftGeoPoint = {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-      }
-      void postMyShiftGeo({
-        latitude: point.latitude,
-        longitude: point.longitude,
-        capturedAt: new Date(position.timestamp).toISOString(),
-      })
-        .then(() => onPointSent?.(point))
-        .catch(() => undefined)
-    },
-    () => undefined,
-  )
+function fixFromPosition(position: GeolocationPosition): WatchedShiftFix {
+  const accuracy = position.coords.accuracy
+  const fix: WatchedShiftFix = {
+    latitude: position.coords.latitude,
+    longitude: position.coords.longitude,
+    capturedAt: new Date(position.timestamp).toISOString(),
+  }
+  if (Number.isFinite(accuracy)) fix.accuracy = accuracy
+  return fix
 }
 
 export function startOpenShiftGeolocation(
   onPointSent?: (point: ShiftGeoPoint) => void,
 ): () => void {
-  if (typeof navigator === 'undefined' || !navigator.geolocation?.getCurrentPosition) {
-    return () => undefined
-  }
+  const geo = typeof navigator === 'undefined' ? undefined : navigator.geolocation
+  if (!geo?.watchPosition) return () => undefined
 
   let stopped = false
+  let latest: WatchedShiftFix | null = null
+  let postedInitial = false
 
-  const tick = () => {
-    if (stopped) return
-    if (!documentIsVisible()) return
-    sendCurrentPoint(onPointSent)
+  const publish = () => {
+    if (stopped || !latest) return
+    const point = latest
+    void postMyShiftGeo(point)
+      .then(() => onPointSent?.({ latitude: point.latitude, longitude: point.longitude }))
+      .catch(() => undefined)
   }
 
-  tick()
-  const timer = window.setInterval(tick, SHIFT_GEO_INTERVAL_MS)
+  const watchId = geo.watchPosition(
+    (position) => {
+      if (stopped) return
+      latest = fixFromPosition(position)
+      if (postedInitial) return
+      postedInitial = true
+      publish()
+    },
+    () => undefined,
+  )
 
-  const onVisibility = () => {
-    if (document.visibilityState === 'visible') tick()
-  }
-  if (typeof document !== 'undefined') {
-    document.addEventListener('visibilitychange', onVisibility)
-  }
+  const timer = window.setInterval(publish, SHIFT_GEO_INTERVAL_MS)
 
   return () => {
     stopped = true
     window.clearInterval(timer)
-    if (typeof document !== 'undefined') {
-      document.removeEventListener('visibilitychange', onVisibility)
-    }
+    geo.clearWatch(watchId)
   }
 }

@@ -16,6 +16,7 @@ const MORE_PREFIXES = [
   '/shift',
   '/analytics',
   '/workforce',
+  '/on-site',
   '/profile',
   '/settings',
   '/push-settings',

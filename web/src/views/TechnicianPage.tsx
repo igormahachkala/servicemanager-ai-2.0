@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { postMyShiftGeoQuietly } from '../lib/shiftGeoApi'
 import { compactTicketAssigneeLabel } from '../lib/ticketActorIdentity'
 import { TechnicianMaterials } from '../components/materials/TechnicianMaterials'
 
@@ -249,7 +250,10 @@ export function TechnicianPage() {
                 ticket={ticket}
                 showStart
                 starting={startM.isPending}
-                onStart={() => startM.mutate(ticket.id)}
+                onStart={() => {
+                  postMyShiftGeoQuietly()
+                  startM.mutate(ticket.id)
+                }}
               />
             ))}
 

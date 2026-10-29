@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { Role } from './api'
+import type { CompanyType, Role } from './api'
 import { isManagementNavItemVisible } from './navigation'
 
 const vis = (to: string, role: Role) =>
@@ -20,6 +20,23 @@ describe('Workforce CLIENT_ADMIN read-only nav visibility', () => {
   it('hides /workforce from CLIENT / TECHNICIAN / STAFF', () => {
     for (const role of ['CLIENT', 'TECHNICIAN', 'STAFF'] as Role[]) {
       expect(vis('/workforce', role)).toBe(false)
+    }
+  })
+
+  it('показывает /on-site мастеру, диспетчеру и админу провайдера', () => {
+    for (const role of ['MASTER', 'DISPATCHER', 'ADMIN', 'ADMIN_PROVIDER'] as Role[]) {
+      expect(isManagementNavItemVisible('/on-site', { role, companyType: 'PROVIDER' })).toBe(true)
+    }
+  })
+
+  it('прячет /on-site у техника, клиента, CLIENT_ADMIN, PLATFORM_ADMIN и админа клиентской компании', () => {
+    for (const role of ['TECHNICIAN', 'CLIENT', 'CLIENT_ADMIN', 'PLATFORM_ADMIN', 'NETWORK_DIRECTOR', 'TERRITORIAL_MANAGER', 'STAFF'] as Role[]) {
+      expect(isManagementNavItemVisible('/on-site', { role, companyType: 'PROVIDER' })).toBe(false)
+    }
+    expect(isManagementNavItemVisible('/on-site', { role: 'ADMIN', companyType: 'CLIENT' })).toBe(false)
+    for (const companyType of [undefined, null] as Array<CompanyType | null | undefined>) {
+      expect(isManagementNavItemVisible('/on-site', { role: 'MASTER', companyType })).toBe(false)
+      expect(isManagementNavItemVisible('/on-site', { role: 'ADMIN', companyType })).toBe(false)
     }
   })
 

@@ -211,6 +211,44 @@ describe('098/6 координаты', () => {
       expect(locationPageCode, embed).not.toContain(embed)
     }
   })
+
+  function coordinatesMarkup(): string {
+    const start = locationPageCode.indexOf('{showCoordinates ? (')
+    const end = locationPageCode.indexOf('{sections.analytics', start)
+    return locationPageCode.slice(start, end)
+  }
+
+  it('6. пустая пара показывает баннер и ссылку на список точек', () => {
+    expect(shouldShowCoordinates({ latitude: null, longitude: null })).toBe(false)
+    expect(shouldShowCoordinates({})).toBe(false)
+
+    const block = coordinatesMarkup()
+    const bannerAt = block.indexOf(') : (')
+    const banner = block.slice(bannerAt)
+
+    expect(banner).toContain('У точки нет координат. Прибытие техника на эту точку проверить нельзя.')
+    expect(banner).toContain('<Link to={backTo}>')
+    expect(banner).toContain('К списку точек')
+    expect(locationPageCode).toContain('const backTo = locationsListPath(outboundScope)')
+    expect(banner).not.toContain('isManagementNavItemVisible')
+    expect(banner).not.toContain('/locations/')
+    expect(locationPageCode).not.toContain('LocationForm')
+  })
+
+  it('6. заполненная пара оставляет блок координат и ссылку на карту', () => {
+    expect(shouldShowCoordinates({ latitude: 55.75, longitude: 37.62 })).toBe(true)
+    expect(shouldShowCoordinates({ latitude: 0, longitude: 0 })).toBe(true)
+
+    const block = coordinatesMarkup()
+    const filled = block.slice(0, block.indexOf(') : ('))
+
+    expect(filled).toContain('Координаты')
+    expect(filled).toContain('location.latitude')
+    expect(filled).toContain('location.longitude')
+    expect(filled).toContain('<Link to="/map">')
+    expect(filled).toContain('Открыть карту')
+    expect(filled).not.toContain('У точки нет координат')
+  })
 })
 
 describe('098/7 404 ничего не выдаёт', () => {
