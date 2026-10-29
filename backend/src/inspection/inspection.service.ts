@@ -203,6 +203,10 @@ export class InspectionService {
      * Окно по времени берётся от createdAt — это и есть момент старта обхода,
      * отдельного startedAt в модели нет.
      */
+    const completedAt: Prisma.DateTimeFilter = {}
+    if (filters.completedFrom) completedAt.gte = new Date(filters.completedFrom)
+    if (filters.completedTo) completedAt.lte = new Date(filters.completedTo)
+
     const createdAt: Prisma.DateTimeFilter = {}
     if (filters.from) createdAt.gte = new Date(filters.from)
     if (filters.to) createdAt.lte = new Date(filters.to)
@@ -210,6 +214,7 @@ export class InspectionService {
     const runs = await this.prisma.inspectionRun.findMany({
       where: {
         companyId: user.companyId,
+        ...(Object.keys(completedAt).length ? { completedAt } : {}),
         ...(filters.locationId ? { locationId: filters.locationId } : {}),
         ...(filters.performedByUserId ? { performedByUserId: filters.performedByUserId } : {}),
         ...(filters.templateId ? { templateId: filters.templateId } : {}),
@@ -217,7 +222,9 @@ export class InspectionService {
         ...(filters.reportStatus ? { reportStatus: filters.reportStatus } : {}),
         ...(Object.keys(createdAt).length ? { createdAt } : {}),
       },
-      orderBy: [{ createdAt: 'desc' }],
+      orderBy: Object.keys(completedAt).length
+        ? [{ completedAt: 'desc' }, { id: 'desc' }]
+        : [{ createdAt: 'desc' }],
       take: filters.limit ?? 50,
       select: runListSelect(),
     })
@@ -1648,6 +1655,9 @@ function reportSelect() {
 function runListSelect() {
   return {
     id: true,
+    scheduleId: true,
+    dueAt: true,
+    overdueAt: true,
     title: true,
     status: true,
     reportStatus: true,
@@ -1666,12 +1676,19 @@ function runListSelect() {
      * а мобильная история до этого добирала те же числа отдельным запросом
      * на каждый обход — N+1 на клиенте. Поля узкие, строк на обход десятки.
      */
-    items: { select: { status: true, ticketId: true } },
+    items: { select: { id: true, title: true, status: true, ticketId: true } },
     _count: { select: { items: true } },
   } satisfies Prisma.InspectionRunSelect
 }
 
-type RunListRow = { items?: Array<{ status: InspectionRunItemStatus; ticketId: string | null }> | null }
+type RunListRow = {
+  items?: Array<{
+    id?: string
+    title?: string
+    status: InspectionRunItemStatus
+    ticketId: string | null
+  }> | null
+}
 
 /**
  * 116F: итог обхода считается из снимка пунктов самого обхода, а не из шаблона.
@@ -1684,6 +1701,14 @@ function summarizeRunItems<T extends RunListRow>(run: T) {
   const items = loaded ?? []
   return {
     ...rest,
+    // Только снимок пункта и ссылка. Номер/статус/текст заявки сюда не join-ятся:
+    // отдельный канонический GET заявки заново проверяет её доступность.
+    findings: items
+      .filter((item) => item.id && item.title && (
+        item.status === InspectionRunItemStatus.ISSUE ||
+        item.status === InspectionRunItemStatus.CRITICAL || item.ticketId
+      ))
+      .map((item) => ({ id: item.id!, title: item.title!, status: item.status, ticketId: item.ticketId })),
     summary: {
       totalItems: items.length,
       okCount: items.filter((item) => item.status === InspectionRunItemStatus.OK).length,

@@ -52,7 +52,7 @@ describe('round result and history source contract', () => {
     const block = apiLayer().slice(apiLayer().indexOf('export type InspectionRunsFilter'))
     const body = block.slice(0, block.indexOf('}'))
     const fields = [...body.matchAll(/^\s*(\w+)\?:/gm)].map((match) => match[1]).sort()
-    expect(fields).toEqual(['from', 'limit', 'locationId', 'performedByUserId', 'reportStatus', 'status', 'templateId', 'to'])
+    expect(fields).toEqual(['completedFrom', 'completedTo', 'from', 'limit', 'locationId', 'performedByUserId', 'reportStatus', 'status', 'templateId', 'to'])
   })
 
   it('keeps summary, duration and mobile review information without N+1 history calls', () => {

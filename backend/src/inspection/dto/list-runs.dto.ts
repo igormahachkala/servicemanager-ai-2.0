@@ -14,6 +14,15 @@ import { Type } from 'class-transformer'
  * companyId+status.
  */
 export class ListRunsDto {
+  /** План/факт: независимое окно по сохранённому времени завершения. */
+  @IsOptional()
+  @IsDateString()
+  completedFrom?: string
+
+  @IsOptional()
+  @IsDateString()
+  completedTo?: string
+
   /** Нижняя граница по времени начала обхода (createdAt), включительно. */
   @IsOptional()
   @IsDateString()
