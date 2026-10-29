@@ -120,7 +120,7 @@ describe('plan/fact additive run list contract', () => {
     expect(args.take).toBe(200);
     expect(args.orderBy).toEqual([{ completedAt: 'desc' }, { id: 'desc' }]);
     expect(row.createdAt).toEqual(historical.createdAt);
-    expect(row.performedBy.id).toBe('old-worker');
+    expect(row.performedBy?.id).toBe('old-worker');
     expect(row.dueAt).toEqual(historical.dueAt);
     expect(args.select.schedule).toBeUndefined();
     expect(args.select).toMatchObject({
