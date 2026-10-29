@@ -2,7 +2,6 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import {
   CompanyType,
   ServiceContractRole,
-  TicketAttachmentPurpose,
   TicketStatus,
   UserAccessLocationMode,
   UserRole,
@@ -210,16 +209,13 @@ describe('История оборудования', () => {
     expect(res.page.nextCursor).toBeNull();
   });
 
-  it('показывает связанную заявку целиком', async () => {
+  it('показывает только техническую проекцию обращения', async () => {
     const w = makeWorld({ tickets: [ticketRow()] });
     const [entry] = (await w.history.getHistory(...asClient, EQUIPMENT)).tickets;
 
-    expect(entry.ticketNumber).toBe(812);
-    expect(entry.category).toBe('Холодильное');
+    expect(entry.createdAt).toEqual(new Date('2026-09-04T08:00:00Z'));
     expect(entry.problem).toBe('Не морозит');
-    expect(entry.status).toBe(TicketStatus.DONE);
-    expect(entry.performedBy).toBe('Иванов Иван');
-    expect(entry.performedByCompany).toBe('ИП Ермаков');
+    expect(Object.keys(entry).sort()).toEqual(['ticketId', 'createdAt', 'problem', 'result', 'resultAt', 'workReports', 'partsInstalled', 'partsRemoved'].sort());
   });
 
   it('результат берётся из комментария приёмки, а не выдумывается из статуса', async () => {
@@ -236,14 +232,17 @@ describe('История оборудования', () => {
     expect(entry.result).toBeNull();
   });
 
-  it('отдаёт вложения отчёта о работах', async () => {
+  it('не выбирает и не возвращает вложения, автора, переписку и реквизиты заявки', async () => {
     const w = makeWorld({ tickets: [ticketRow()] });
-    const [entry] = (await w.history.getHistory(...asClient, EQUIPMENT)).tickets;
-    expect(entry.workReports).toHaveLength(1);
-    expect(entry.workReports[0].originalName).toBe('akt.jpg');
-    // Запрошены именно отчёты о работах, а не все вложения заявки.
-    const where = w.prisma.ticket.findMany.mock.calls[0][0].select.attachments.where;
-    expect(where.purpose).toBe(TicketAttachmentPurpose.WORK_REPORT);
+    const result = await w.history.getHistory(...asClient, EQUIPMENT);
+    const query = w.prisma.ticket.findMany.mock.calls[0][0];
+    expect(Object.keys(query.select).sort()).toEqual(['id', 'createdAt', 'problemText', 'statusHistory'].sort());
+    expect(Object.keys(query.select.statusHistory.select).sort()).toEqual(['toStatus', 'comment', 'createdAt'].sort());
+    expect(result.tickets[0].workReports).toEqual([]);
+    const json = JSON.stringify(result);
+    for (const hidden of ['assignedTechnician', 'performedBy', 'changedBy', 'attachments', 'originalName', 'mimeType', 'email', 'ticketNumber', 'closedAt', 'akt.jpg', 'ivanov@test.local']) {
+      expect(json).not.toContain(hidden);
+    }
   });
 
   it('состав работ по деталям берётся из InstalledPart, а не из текста', async () => {
@@ -266,6 +265,22 @@ describe('История оборудования', () => {
     const where = w.prisma.ticket.findMany.mock.calls[0][0].where;
     expect(where.equipmentId).toBe(EQUIPMENT);
     expect(where.companyId).toBe(CLIENT);
+  });
+
+  it('сохраняет equipment-level чтение технической истории для техника', async () => {
+    const w = makeWorld({ tickets: [ticketRow()] });
+    const result = await w.history.getHistory(CLIENT, 'actor-1', UserRole.TECHNICIAN, EQUIPMENT);
+    expect(result.tickets[0].problem).toBe('Не морозит');
+    // No ticket-detail resolver / assignee restriction is introduced by this projection.
+    expect(w.prisma.ticket.findFirst).not.toHaveBeenCalled();
+    expect(w.prisma.ticket.findMany.mock.calls[0][0].where).toEqual({ equipmentId: EQUIPMENT, companyId: CLIENT });
+  });
+
+  it('сохраняет equipment-level чтение технической истории для SECONDARY', async () => {
+    const w = makeWorld({ role: ServiceContractRole.SECONDARY, tickets: [ticketRow()] });
+    const result = await w.history.getHistory(...asProvider, EQUIPMENT, CLIENT);
+    expect(result.tickets[0].result).toBe('Заменил датчик температуры');
+    expect(w.prisma.ticket.findMany.mock.calls[0][0].where.companyId).toBe(CLIENT);
   });
 
   it('чужая единица не отдаёт историю', async () => {

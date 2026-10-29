@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { TicketAttachmentPurpose, TicketStatus, UserRole } from '@prisma/client';
+import { TicketStatus, UserRole } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { EquipmentService } from './equipment.service';
@@ -8,7 +8,8 @@ import { buildEquipmentHistory } from './equipment-history.model';
 /**
  * SMA-EQUIPMENT-HISTORY-PARTS-110B.
  *
- * История обслуживания единицы. Доступ не решается здесь: он целиком
+ * Техническая история обслуживания без карточек заявок, переписки, файлов
+ * и данных исполнителей. Доступ не решается здесь: он целиком
  * делегирован EquipmentService.findOne — тому же каноническому пути, которым
  * открывается карточка. Не видно карточку — не видно и историю, без второго
  * набора правил.
@@ -112,21 +113,8 @@ export class EquipmentHistoryService {
       },
       select: {
         id: true,
-        ticketNumber: true,
         createdAt: true,
-        closedAt: true,
-        status: true,
         problemText: true,
-        problemCategory: { select: { name: true } },
-        assignedTechnician: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            company: { select: { id: true, name: true } },
-          },
-        },
         statusHistory: {
           where: {
             toStatus: { in: [TicketStatus.AWAITING_ACCEPTANCE, TicketStatus.DONE] },
@@ -134,18 +122,6 @@ export class EquipmentHistoryService {
           select: {
             toStatus: true,
             comment: true,
-            createdAt: true,
-            changedBy: { select: { firstName: true, lastName: true, email: true } },
-          },
-          orderBy: { createdAt: 'asc' },
-        },
-        attachments: {
-          where: { purpose: TicketAttachmentPurpose.WORK_REPORT },
-          select: {
-            id: true,
-            url: true,
-            originalName: true,
-            mimeType: true,
             createdAt: true,
           },
           orderBy: { createdAt: 'asc' },
@@ -176,7 +152,6 @@ export class EquipmentHistoryService {
         ],
       },
       select: {
-        id: true,
         displayName: true,
         serialNumber: true,
         quantity: true,
@@ -193,7 +168,7 @@ export class EquipmentHistoryService {
         companyId: equipment.companyId,
         locationId: equipment.locationId,
       },
-      tickets: buildEquipmentHistory(tickets as any, parts as any),
+      tickets: buildEquipmentHistory(tickets, parts),
       page: {
         limit,
         hasMore,

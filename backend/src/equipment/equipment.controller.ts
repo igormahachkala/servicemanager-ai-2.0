@@ -112,8 +112,8 @@ export class EquipmentController {
 
   /**
    * SMA-EQUIPMENT-HISTORY-PARTS-110B.
-   * История обслуживания. Читается из канонических Ticket/StatusHistory/
-   * TicketAttachment; своей таблицы жизненного цикла модуль не заводит.
+   * Техническая история из Ticket/StatusHistory/InstalledPart. Без карточек
+   * заявок, переписки, вложений и исполнителей; доступ к заявкам не меняется.
    */
   @Get(':id/history')
   @Roles(

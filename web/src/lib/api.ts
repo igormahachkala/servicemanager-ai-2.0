@@ -4331,36 +4331,25 @@ export type CompleteInspectionRunResponse = {
  * История обслуживания и комплектующие. Складского здесь нет: остатки, цены
  * и резервы — будущий Stock, отдельная сущность.
  */
-export type EquipmentWorkReport = {
-  id: string
-  url: string
-  originalName: string
-  mimeType: string
-  createdAt: string
-}
-
 export type EquipmentHistoryPartRef = {
-  id: string
   name: string
-  serialNumber?: string | null
+  serialNumber: string | null
   quantity: string
 }
 
+/** Equipment-level technical history, not a ticket-detail response. */
 export type EquipmentHistoryEntry = {
+  /** Internal stable key / parts association; no ticket-detail link. */
   ticketId: string
-  ticketNumber: number
+  /** Request date, not the date the work was completed. */
   createdAt: string
-  closedAt?: string | null
-  status: TicketStatus
   problem: string
-  category?: string | null
-  performedBy?: string | null
-  performedByCompany?: string | null
-  /** Комментарий приёмки. Из текста заявки результат не выводится. */
-  result?: string | null
-  resultAt?: string | null
-  workReports: EquipmentWorkReport[]
-  /** Заполняется только из InstalledPart — не угадывается по тексту. */
+  /** Recorded completion/acceptance text; no inferred or automatic redaction. */
+  result: string | null
+  resultAt: string | null
+  /** @deprecated Always empty; compatibility for cached clients, never attachment data. */
+  workReports: []
+  /** Explicit InstalledPart operations, never guessed from text. */
   partsInstalled: EquipmentHistoryPartRef[]
   partsRemoved: EquipmentHistoryPartRef[]
 }
