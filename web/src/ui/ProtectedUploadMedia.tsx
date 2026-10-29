@@ -1,14 +1,22 @@
+import { useState } from 'react'
 import type { CSSProperties, ImgHTMLAttributes, ReactNode, VideoHTMLAttributes } from 'react'
-import { useProtectedUploadSrc } from './useProtectedUploadSrc'
+import { useProtectedUploadSource, useProtectedUploadSrc } from './useProtectedUploadSrc'
 
 type ImgProps = Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> & {
   url: string
+  loadingFallback?: ReactNode
+  errorFallback?: ReactNode
 }
 
-export function ProtectedUploadImg({ url, alt = '', ...rest }: ImgProps) {
-  const src = useProtectedUploadSrc(url)
-  if (!src) return null
-  return <img src={src} alt={alt} {...rest} />
+export function ProtectedUploadImg({ url, alt = '', loadingFallback, errorFallback, onError, ...rest }: ImgProps) {
+  const source = useProtectedUploadSource(url)
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
+  if (source.failed || failedUrl === url) return errorFallback ?? null
+  if (!source.src) return loadingFallback ?? null
+  return <img src={source.src} alt={alt} {...rest} onError={(event) => {
+    if (errorFallback !== undefined) setFailedUrl(url)
+    onError?.(event)
+  }} />
 }
 
 type VideoProps = Omit<VideoHTMLAttributes<HTMLVideoElement>, 'src'> & {

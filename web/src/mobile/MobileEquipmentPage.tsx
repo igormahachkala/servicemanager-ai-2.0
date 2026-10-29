@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
+import { EquipmentPhotoGallery } from '../components/equipment/EquipmentPhotoGallery'
 import * as api from '../lib/api'
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
 import { getMobileRouteRoot, mobilePath } from './mobileRoute'
@@ -259,13 +260,14 @@ export function MobileEquipmentPage() {
               </div>
             </div>
 
-            {item.mainPhoto?.url ? (
-              <ProtectedUploadImg
-                url={item.mainPhoto.url}
-                alt={item.name}
-                style={{ width: '100%', borderRadius: 16, objectFit: 'cover', maxHeight: 240 }}
+            <div className="mobileCard">
+              <EquipmentPhotoGallery
+                key={`${item.id}:${scopeCompanyId}`}
+                equipmentId={item.id}
+                scopeCompanyId={scopeCompanyId || undefined}
+                equipmentName={item.name}
               />
-            ) : null}
+            </div>
 
             <div style={{ display: 'flex', gap: 6 }}>
               {([['overview', 'Обзор'], ['history', 'История'], ['parts', 'Компоненты']] as const).map(([key, label]) => (

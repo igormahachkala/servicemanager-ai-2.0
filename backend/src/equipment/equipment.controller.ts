@@ -29,6 +29,7 @@ import { EquipmentHistoryService } from './equipment-history.service';
 import { EquipmentPartsService } from './equipment-parts.service';
 import { CreateEquipmentDto } from './dto/create-equipment.dto';
 import { UpdateEquipmentDto } from './dto/update-equipment.dto';
+import { SelectEquipmentCoverDto } from './dto/select-equipment-cover.dto';
 import {
   CorrectInstalledPartDto,
   CreatePartDefinitionDto,
@@ -107,6 +108,50 @@ export class EquipmentController {
       req.user.role as UserRole,
       id,
       file,
+    );
+  }
+
+  @Get(':id/photos')
+  @Roles(
+    UserRole.ADMIN,
+    UserRole.MASTER,
+    UserRole.DISPATCHER,
+    UserRole.NETWORK_DIRECTOR,
+    UserRole.TERRITORIAL_MANAGER,
+    UserRole.TECHNICIAN,
+    UserRole.CLIENT,
+    UserRole.PLATFORM_ADMIN,
+  )
+  @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
+  listPhotos(
+    @Req() req: { user: { companyId: string; id: string; role: UserRole } },
+    @Param('id') id: string,
+    @Query('companyId') companyId?: string,
+  ) {
+    return this.svc.listPhotos(
+      req.user.companyId,
+      req.user.id,
+      req.user.role,
+      id,
+      companyId,
+    );
+  }
+
+  @Patch(':id/photos/cover')
+  @ManagementSurface()
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
+  @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
+  selectCover(
+    @Req() req: { user: { companyId: string; id: string; role: UserRole } },
+    @Param('id') id: string,
+    @Body() dto: SelectEquipmentCoverDto,
+  ) {
+    return this.svc.selectCover(
+      req.user.companyId,
+      req.user.id,
+      req.user.role,
+      id,
+      dto,
     );
   }
 

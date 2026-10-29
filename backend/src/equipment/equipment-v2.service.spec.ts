@@ -56,6 +56,7 @@ function makePrisma(options: {
         .fn()
         .mockResolvedValue((options.locationIds ?? []).map((id) => ({ locationId: id }))),
     },
+    equipment: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
     equipmentAttachment: {
       findFirst: jest
         .fn()
@@ -319,20 +320,56 @@ describe('Equipment V2 — снимки', () => {
 
   it('первый снимок становится обложкой', async () => {
     const repo = makeRepo({ mainPhotoId: null });
-    const service = makeService(makePrisma(), repo, makeContracts());
+    const prisma = makePrisma() as { equipment: { updateMany: jest.Mock } };
+    const service = makeService(prisma, repo, makeContracts());
 
     await service.uploadPhoto(CLIENT, 'admin-1', UserRole.ADMIN, EQUIPMENT, PHOTO);
 
-    expect(repo.update).toHaveBeenCalledWith(EQUIPMENT, { mainPhotoId: 'att-new' });
+    expect(prisma.equipment.updateMany).toHaveBeenCalledWith({
+      where: { id: EQUIPMENT, companyId: CLIENT, mainPhotoId: null },
+      data: { mainPhotoId: 'att-new' },
+    });
   });
 
   it('следующий снимок обложку не подменяет', async () => {
     const repo = makeRepo({ mainPhotoId: 'att-existing' });
-    const service = makeService(makePrisma(), repo, makeContracts());
+    const prisma = makePrisma() as { equipment: { updateMany: jest.Mock } };
+    const service = makeService(prisma, repo, makeContracts());
 
     await service.uploadPhoto(CLIENT, 'admin-1', UserRole.ADMIN, EQUIPMENT, PHOTO);
 
-    expect(repo.update).not.toHaveBeenCalled();
+    expect(prisma.equipment.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('параллельные первые загрузки не перезаписывают уже установленную обложку', async () => {
+    const prisma = makePrisma() as {
+      equipment: { updateMany: jest.Mock };
+      equipmentAttachment: { create: jest.Mock };
+    };
+    prisma.equipmentAttachment.create
+      .mockResolvedValueOnce({ id: 'photo-first' })
+      .mockResolvedValueOnce({ id: 'photo-second' });
+    let cover: string | null = null;
+    prisma.equipment.updateMany.mockImplementation(
+      ({
+        where,
+        data,
+      }: {
+        where: { mainPhotoId: string | null };
+        data: { mainPhotoId: string };
+      }) => {
+        if (where.mainPhotoId !== cover) return Promise.resolve({ count: 0 });
+        cover = data.mainPhotoId;
+        return Promise.resolve({ count: 1 });
+      },
+    );
+    const service = makeService(prisma, makeRepo(), makeContracts());
+    await Promise.all([
+      service.uploadPhoto(CLIENT, 'admin-1', UserRole.ADMIN, EQUIPMENT, PHOTO),
+      service.uploadPhoto(CLIENT, 'admin-1', UserRole.ADMIN, EQUIPMENT, PHOTO),
+    ]);
+    expect(cover).toBe('photo-first');
+    expect(prisma.equipment.updateMany).toHaveBeenCalledTimes(2);
   });
 
   it('SECONDARY-провайдер снимок загрузить не может', async () => {

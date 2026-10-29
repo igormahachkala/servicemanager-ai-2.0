@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -20,6 +21,7 @@ import {
 import { EquipmentRepository } from './equipment.repository';
 import { CreateEquipmentDto } from './dto/create-equipment.dto';
 import { UpdateEquipmentDto } from './dto/update-equipment.dto';
+import { SelectEquipmentCoverDto } from './dto/select-equipment-cover.dto';
 
 /**
  * SMA-EQUIPMENT-V2-110A.
@@ -192,7 +194,9 @@ export class EquipmentService {
         uploadedByUserId: actorUserId,
         originalName: String(file.originalname || 'photo'),
         storageKey: stored.storageKey,
-        mimeType: String(file.mimetype || 'application/octet-stream'),
+        mimeType: String(
+          file.mimetype || 'application/octet-stream',
+        ).toLowerCase(),
         sizeBytes: Number(file.size || 0),
         url: stored.url,
       },
@@ -202,10 +206,128 @@ export class EquipmentService {
     // Первый снимок сразу становится обложкой: иначе карточка остаётся без фото,
     // пока пользователь отдельно её не выберет.
     if (!existing.mainPhotoId) {
-      await this.repo.update(equipmentId, { mainPhotoId: attachment.id });
+      await this.prisma.equipment.updateMany({
+        where: {
+          id: equipmentId,
+          companyId: existing.companyId,
+          mainPhotoId: null,
+        },
+        data: { mainPhotoId: attachment.id },
+      });
     }
 
     return attachment;
+  }
+
+  /** Photo-only metadata, after the same company/location gate as the passport. */
+  async listPhotos(
+    actorCompanyId: string,
+    actorUserId: string,
+    actorRole: UserRole,
+    equipmentId: string,
+    requestedCompanyId?: string,
+  ) {
+    const equipment = await this.findOne(
+      actorCompanyId,
+      actorUserId,
+      actorRole,
+      equipmentId,
+      requestedCompanyId,
+    );
+    return this.photoGallery(equipment);
+  }
+
+  private async photoGallery(equipment: {
+    id: string;
+    companyId: string;
+    mainPhotoId: string | null;
+    updatedAt: Date;
+  }) {
+    // EquipmentAttachment is the existing photo-only model (no document purpose).
+    const attachments = await this.prisma.equipmentAttachment.findMany({
+      where: {
+        equipmentId: equipment.id,
+        companyId: equipment.companyId,
+        mimeType: {
+          in: [...EquipmentService.ALLOWED_PHOTO_MIME_TYPES],
+          mode: 'insensitive' as const,
+        },
+      },
+      select: { id: true, storageKey: true, mimeType: true, createdAt: true },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+    return {
+      // Never expose a stale/foreign/non-image cover reference from legacy data.
+      mainPhotoId: attachments.some(
+        (photo) => photo.id === equipment.mainPhotoId,
+      )
+        ? equipment.mainPhotoId
+        : null,
+      version: equipment.updatedAt.toISOString(),
+      photos: attachments.map(({ storageKey, ...photo }) => ({
+        ...photo,
+        // Only the existing authenticated binary route; never a stored external URL.
+        url: `/uploads/equipment/${encodeURIComponent(storageKey)}`,
+      })),
+    };
+  }
+
+  async selectCover(
+    actorCompanyId: string,
+    actorUserId: string,
+    actorRole: UserRole,
+    equipmentId: string,
+    dto: SelectEquipmentCoverDto,
+  ) {
+    const equipment = await this.assertWritableEquipment(
+      actorCompanyId,
+      actorUserId,
+      actorRole,
+      equipmentId,
+    );
+    const photoWhere = {
+      id: dto.photoId,
+      equipmentId,
+      companyId: equipment.companyId,
+      mimeType: {
+        in: [...EquipmentService.ALLOWED_PHOTO_MIME_TYPES],
+        mode: 'insensitive' as const,
+      },
+    };
+    const photo = await this.prisma.equipmentAttachment.findFirst({
+      where: photoWhere,
+      select: { id: true },
+    });
+    if (!photo) throw new NotFoundException('Photo not found');
+
+    // A stale tab cannot overwrite a newer selection. The relation predicate also
+    // checks membership at write time, not only before the async lookup above.
+    const result = await this.prisma.equipment.updateMany({
+      where: {
+        id: equipmentId,
+        companyId: equipment.companyId,
+        updatedAt: new Date(dto.expectedVersion),
+        attachments: { some: photoWhere },
+      },
+      data: {
+        mainPhotoId: photo.id,
+        updatedAt: new Date(
+          Math.max(Date.now(), equipment.updatedAt.getTime() + 1),
+        ),
+      },
+    });
+    if (result.count !== 1) {
+      throw new ConflictException(
+        'Карточка или фотографии изменились. Обновите галерею и повторите выбор.',
+      );
+    }
+    const confirmed = await this.assertWritableEquipment(
+      actorCompanyId,
+      actorUserId,
+      actorRole,
+      equipmentId,
+    );
+    return this.photoGallery(confirmed);
   }
 
   private static readonly ALLOWED_PHOTO_MIME_TYPES = new Set([
@@ -402,7 +524,12 @@ export class EquipmentService {
     id: string,
     dto: UpdateEquipmentDto,
   ) {
-    await this.assertWritableEquipment(actorCompanyId, actorUserId, actorRole, id);
+    const equipment = await this.assertWritableEquipment(
+      actorCompanyId,
+      actorUserId,
+      actorRole,
+      id,
+    );
 
     if (dto.name !== undefined && !dto.name.trim()) {
       throw new BadRequestException('name cannot be empty');
@@ -437,7 +564,15 @@ export class EquipmentService {
         nextMainPhotoId = null;
       } else {
         const attachment = await this.prisma.equipmentAttachment.findFirst({
-          where: { id: requested, equipmentId: id },
+          where: {
+            id: requested,
+            equipmentId: id,
+            companyId: equipment.companyId,
+            mimeType: {
+              in: [...EquipmentService.ALLOWED_PHOTO_MIME_TYPES],
+              mode: 'insensitive' as const,
+            },
+          },
           select: { id: true },
         });
         if (!attachment) {
