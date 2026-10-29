@@ -324,6 +324,7 @@ describe('120W source contract', () => {
       'changeTicketCategory',
       'claimTicket',
       'createChildTicket',
+      'createOnSiteCorrection',
       'createTicket',
       'decideTicketAcceptance',
       'deleteDraftTicketAttachment',
