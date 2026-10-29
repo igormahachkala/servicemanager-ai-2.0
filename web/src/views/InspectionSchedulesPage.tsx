@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 
+import { InspectionScheduleEditAction } from '../components/InspectionScheduleEditor'
 import * as api from '../lib/api'
 import {
   clearLocationFilterPath,
@@ -11,7 +12,6 @@ import {
   readOutboundScopeFromSearch,
 } from '../lib/locationCardSections'
 import { locationCardPath } from '../lib/equipmentCard'
-import { InspectionScheduleEditAction } from '../components/InspectionScheduleEditor'
 
 /**
  * SMA-ROUNDS-V1-SCHEDULE-CRUD-098 — минимальный экран планирования обходов.
