@@ -3,6 +3,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { invalidateEquipmentPhotoQueries } from '../lib/equipmentPhotos'
 import {
   clearLocationFilterPath,
   locationFilterChipLabel,
@@ -296,10 +297,10 @@ export function EquipmentPage() {
   const photoM = useMutation({
     mutationFn: (params: { id: string; file: File }) =>
       api.uploadEquipmentPhoto(params.id, params.file),
-    onSuccess: async () => {
+    onSuccess: async (_photo, params) => {
       setErr(null)
       setSuccess('Снимок загружен')
-      await refreshList()
+      await invalidateEquipmentPhotoQueries(qc, params.id)
     },
     onError: (error: any) => {
       setSuccess(null)

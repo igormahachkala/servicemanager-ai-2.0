@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
-import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
+import { EquipmentPhotoGallery } from '../components/equipment/EquipmentPhotoGallery'
 import { EquipmentHistoryTab } from '../components/equipment/EquipmentHistoryTab'
 import { EquipmentPartsTab } from '../components/equipment/EquipmentPartsTab'
 import { PublicQrModalLazy } from '../components/public/PublicQrLazy'
@@ -20,7 +20,7 @@ import {
   isWarrantyExpired,
   locationCardPath,
 } from '../lib/equipmentCard'
-import { isManagementNavItemVisible } from '../lib/navigation'
+import { canAccessManagementDesktop, isManagementNavItemVisible } from '../lib/navigation'
 import { locationSectionLinks } from '../lib/locationCardSections'
 
 /**
@@ -255,16 +255,15 @@ export function EquipmentCardPage() {
         ) : null}
       </div>
 
-      {item.mainPhoto?.url ? (
-        <div className="panel" style={{ marginTop: 12 }}>
-          <h3 style={{ marginBottom: 10 }}>Фото</h3>
-          <ProtectedUploadImg
-            url={item.mainPhoto.url}
-            alt={item.name}
-            style={{ maxWidth: '100%', borderRadius: 8 }}
-          />
-        </div>
-      ) : null}
+      <div className="panel" style={{ marginTop: 12 }}>
+        <EquipmentPhotoGallery
+          key={`${item.id}:${companyId}`}
+          equipmentId={item.id}
+          scopeCompanyId={companyId || undefined}
+          equipmentName={item.name}
+          canManage={canAccessManagementDesktop(meQ.data) && EQUIPMENT_PARTS_MANAGER_ROLES.includes(String(meQ.data?.role || ''))}
+        />
+      </div>
 
       {/*
         История обслуживания и установленные детали переиспользуют
