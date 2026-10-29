@@ -15,10 +15,11 @@ describe('round schedule assignee scope', () => {
     expect(api).toMatch(/inspection\/schedules\/assignable-technicians/)
   })
 
-  it('clears a stale assignee when the selected location changes', () => {
+  it('clears a stale assignee synchronously when the selected location or client changes', () => {
     const page = read('src/views/InspectionSchedulesPage.tsx')
 
-    expect(page).toMatch(/setLocationId\(e\.target\.value\);\s*setAssignedToUserId\(''\)/)
+    expect(page).toMatch(/dispatchScope\(\{ type: 'location', value: e\.target\.value \}\)\s*setAssignedToUserId\(''\)/)
+    expect(page).toMatch(/dispatchScope\(\{ type: 'client', value: e\.target\.value \}\)\s*setAssignedToUserId\(''\)/)
     expect(page).toMatch(/executors\.some\(\(candidate\) => candidate\.id === assignedToUserId\)/)
   })
 
