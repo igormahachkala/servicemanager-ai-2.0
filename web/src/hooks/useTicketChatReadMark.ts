@@ -77,18 +77,29 @@ export function useTicketChatReadMark(params: {
 /**
  * Чат на карточке заявки компьютера стоит ниже фото и подзадач: открыть
  * заявку ещё не значит увидеть переписку. Истина, пока блок чата хоть
- * частично в окне. Без IntersectionObserver считаем блок видимым.
+ * частично в окне не меньше dwellMs подряд. Выдержка нужна, потому что
+ * при первой отрисовке фото и подзадачи ещё грузятся, страница короткая
+ * и чат на мгновение попадает в окно, а потом уезжает вниз.
+ * Без IntersectionObserver считаем блок видимым.
  */
-export function useElementInViewport<T extends Element>(ref: { current: T | null }, enabled = true) {
+export function useElementInViewport<T extends Element>(ref: { current: T | null }, enabled = true, dwellMs = 600) {
   const [inViewport, setInViewport] = useState(() => typeof IntersectionObserver === 'undefined')
   useEffect(() => {
     const element = ref.current
     if (!enabled || !element || typeof IntersectionObserver === 'undefined') return
+    let timer: ReturnType<typeof setTimeout> | null = null
     const observer = new IntersectionObserver((entries) => {
-      setInViewport(entries.some((entry) => entry.isIntersecting))
+      const intersecting = entries.some((entry) => entry.isIntersecting)
+      if (timer) clearTimeout(timer)
+      timer = null
+      if (intersecting) timer = setTimeout(() => setInViewport(true), dwellMs)
+      else setInViewport(false)
     })
     observer.observe(element)
-    return () => observer.disconnect()
-  }, [ref, enabled])
+    return () => {
+      if (timer) clearTimeout(timer)
+      observer.disconnect()
+    }
+  }, [ref, enabled, dwellMs])
   return inViewport
 }

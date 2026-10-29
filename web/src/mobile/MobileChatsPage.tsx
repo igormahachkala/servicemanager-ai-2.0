@@ -1083,7 +1083,10 @@ export function MobileChatsPage() {
                       </div>
                       <div className="mobileChatsItemBody">
                         <div className="mobileChatsItemTop">
-                          <div className="mobileChatsItemTitle">{item.title}</div>
+                          <div className="mobileChatsItemTitle">
+                            {item.title}
+                            <TicketUnreadChatBadge ticket={{ hasUnreadChat: item.tickets.some((t) => t.hasUnreadChat) }} />
+                          </div>
                           <div className="mobileChatsItemTime">
                             {item.timeLabel}
                             <span className="mobileChatsItemCount">{item.activeCount}</span>
