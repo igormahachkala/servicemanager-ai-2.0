@@ -34,6 +34,10 @@ import { CreateChildTicketDto } from './dto/create-child-ticket.dto'
 import { UpdateTicketDto } from './dto/update-ticket.dto'
 import { UpdateTicketStatusDto } from './dto/update-ticket-status.dto'
 import { BoardQueryDto } from './dto/board-query.dto'
+import {
+  LongTermTicketsCountQueryDto,
+  LongTermTicketsQueryDto,
+} from './dto/long-term-tickets-query.dto';
 import { AddTicketCommentDto } from './dto/add-ticket-comment.dto'
 import { TicketAcceptanceDto } from './dto/ticket-acceptance.dto'
 import { RequestAssignmentDto } from './dto/request-assignment.dto'
@@ -117,6 +121,85 @@ export class TicketsController {
       q.linkedClientCompanyId,
       q.companyId,
     )
+  }
+
+  /**
+   * SMA-MOBILE-LONG-TERM-TICKETS — карточка «Долгосрочные заявки» мобильной
+   * главной: точный total и страницы по всему контуру. Роли и право — как у
+   * board: это та же выборка, только без лимита в 500 строк.
+   */
+  @Get('long-term')
+  @Roles(
+    UserRole.ADMIN,
+    UserRole.CLIENT_ADMIN,
+    UserRole.MASTER,
+    UserRole.DISPATCHER,
+    UserRole.NETWORK_DIRECTOR,
+    UserRole.TECHNICIAN,
+    UserRole.CLIENT,
+    UserRole.TERRITORIAL_MANAGER,
+    UserRole.PLATFORM_ADMIN,
+  )
+  @RequirePermission(PERMISSIONS.TICKETS_VIEW)
+  @ApiForbiddenResponse({
+    description: 'Missing permission: TICKETS_VIEW',
+  })
+  longTerm(
+    @Req()
+    req: {
+      user: { companyId: string; id: string; role: UserRole };
+      accessFlags?: { canTechnicianViewAllCompanyTickets?: boolean };
+    },
+    @Query() q: LongTermTicketsQueryDto,
+  ) {
+    return this.svc.longTermTickets(
+      req.user.companyId,
+      req.user.id,
+      req.user.role,
+      { limit: q.limit, cursor: q.cursor },
+      req.accessFlags,
+      q.linkedClientCompanyId,
+      q.companyId,
+    );
+  }
+
+  /**
+   * SMA-MOBILE-LONG-TERM-TICKETS — только точное число для счётчика карточки:
+   * главная не грузит список, пока карточку не открыли. Роли и право — как у
+   * GET /tickets/long-term.
+   */
+  @Get('long-term/count')
+  @Roles(
+    UserRole.ADMIN,
+    UserRole.CLIENT_ADMIN,
+    UserRole.MASTER,
+    UserRole.DISPATCHER,
+    UserRole.NETWORK_DIRECTOR,
+    UserRole.TECHNICIAN,
+    UserRole.CLIENT,
+    UserRole.TERRITORIAL_MANAGER,
+    UserRole.PLATFORM_ADMIN,
+  )
+  @RequirePermission(PERMISSIONS.TICKETS_VIEW)
+  @ApiForbiddenResponse({
+    description: 'Missing permission: TICKETS_VIEW',
+  })
+  longTermCount(
+    @Req()
+    req: {
+      user: { companyId: string; id: string; role: UserRole };
+      accessFlags?: { canTechnicianViewAllCompanyTickets?: boolean };
+    },
+    @Query() q: LongTermTicketsCountQueryDto,
+  ) {
+    return this.svc.longTermTicketsTotal(
+      req.user.companyId,
+      req.user.id,
+      req.user.role,
+      req.accessFlags,
+      q.linkedClientCompanyId,
+      q.companyId,
+    );
   }
 
   @Get('analytics/context')

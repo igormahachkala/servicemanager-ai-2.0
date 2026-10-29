@@ -3,7 +3,9 @@ import { safeReadJson, safeWriteJson } from '../lib/browserStorage'
 import {
   dedupeBoardCards,
   filterTicketsForMobileHomeTab,
+  isAwaitingAcceptanceTicket,
   isMobileHomeBoardFilterTab,
+  ticketRequiresMyAction,
   type MobileHomeBoardChipId,
   type MobileHomeBoardFilterTab,
   MOBILE_HOME_BOARD_CHIP_IDS,
@@ -13,11 +15,100 @@ import { isHomeUrgentTicket } from './home/homeUrgent'
 
 const LS_KEY = 'sma.mobileHome.boardUi.v1'
 
-const QUICK_FILTER_VALUES = ['urgent', 'awaiting', 'myaction', 'rework'] as const
+const QUICK_FILTER_VALUES = ['urgent', 'awaiting', 'longterm', 'myaction', 'rework'] as const
 function readQuickFilter(v: unknown): MobileHomeQuickFilter {
   return typeof v === 'string' && (QUICK_FILTER_VALUES as readonly string[]).includes(v)
     ? (v as MobileHomeQuickFilter)
     : null
+}
+
+export const MOBILE_HOME_QUICK_FILTER_LABELS: Record<Exclude<MobileHomeQuickFilter, null>, string> = {
+  urgent: 'Срочные заявки',
+  awaiting: 'На приёмке',
+  longterm: 'Долгосрочные заявки',
+  myaction: 'Требует моего действия',
+  rework: 'Требуют доработки',
+}
+
+export type MobileHomeQuickFilterContext = {
+  meId: string | undefined
+  meRole: Role | undefined | null
+  canAssignProvider: boolean
+  reworkTicketIds: ReadonlySet<string>
+}
+
+/** Быстрые карты, которые считаются по board главной. */
+export type MobileHomeBoardQuickFilter = Exclude<MobileHomeQuickFilter, null | 'longterm'>
+
+/**
+ * Выборка быстрой карты главной по board. Счётчик карты и открытый по нажатию
+ * список считаются одной функцией по одному и тому же board, поэтому
+ * расходиться не могут, а board уже сужен backend'ом (tenant, контур, привязки).
+ *
+ * «Долгосрочные» сюда не входят: board — последние 500 заявок, а долгосрочная
+ * заявка бывает старой. Их выборку и точный total отдаёт GET /tickets/long-term.
+ */
+export function filterTicketsByQuickFilter(
+  cards: TicketCard[],
+  quickFilter: MobileHomeBoardQuickFilter,
+  ctx: MobileHomeQuickFilterContext,
+): TicketCard[] {
+  const list = dedupeBoardCards(cards)
+  switch (quickFilter) {
+    case 'urgent':
+      return list.filter(isHomeUrgentTicket)
+    case 'awaiting':
+      return list.filter(isAwaitingAcceptanceTicket)
+    case 'rework':
+      return list.filter((t) => t.status === 'IN_PROGRESS' && ctx.reworkTicketIds.has(t.id))
+    case 'myaction':
+      return list.filter((t) => ticketRequiresMyAction(t, ctx.meId, ctx.meRole, ctx.canAssignProvider))
+  }
+}
+
+/** Нажатие на быструю карту: открыть её выборку, повторное нажатие — закрыть. */
+export function toggleMobileHomeQuickFilter(
+  current: MobileHomeQuickFilter,
+  next: Exclude<MobileHomeQuickFilter, null>,
+): MobileHomeQuickFilter {
+  return current === next ? null : next
+}
+
+/**
+ * Страницы долгосрочных заявок → один список. Сервер отдаёт страницы по
+ * курсору без пересечений, но запрос мог повториться (refetch, двойной тап на
+ * «Показать ещё»), и одна заявка не должна показаться дважды.
+ */
+export function mergeLongTermTicketPages(pages: ReadonlyArray<{ items: TicketCard[] }> | undefined): TicketCard[] {
+  const seen = new Set<string>()
+  const out: TicketCard[] = []
+  for (const page of pages ?? []) {
+    for (const ticket of page.items) {
+      if (seen.has(ticket.id)) continue
+      seen.add(ticket.id)
+      out.push(ticket)
+    }
+  }
+  return out
+}
+
+/** «Показано N из total» в открытом списке — total страницы, не длина загруженного. */
+export function longTermTicketsTotal(pages: ReadonlyArray<{ total: number }> | undefined): number {
+  const first = pages?.[0]
+  return first && Number.isFinite(first.total) ? first.total : 0
+}
+
+/**
+ * Счётчик карточки на главной — ответ GET /tickets/long-term/count: один COUNT
+ * по всему контуру, без списка. Нет ответа или он битый — ноль, карточка скрыта.
+ */
+export function longTermCardCount(count: { total: number } | undefined): number {
+  return count && Number.isFinite(count.total) && count.total > 0 ? count.total : 0
+}
+
+/** Список долгосрочных грузится, только когда карточку открыли. */
+export function shouldLoadLongTermList(quickFilter: MobileHomeQuickFilter): boolean {
+  return quickFilter === 'longterm'
 }
 
 export function readPersistedMobileHomeBoardUi(): {
