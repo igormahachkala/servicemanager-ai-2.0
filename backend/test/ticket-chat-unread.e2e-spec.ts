@@ -233,6 +233,36 @@ describe('Ticket chat unread indicator (e2e)', () => {
     expect(await unread(clientEmail, ticketId)).toBe(false);
   });
 
+  it('два одновременных первых прочтения оставляют более позднюю отметку', async () => {
+    const userId = provider.user(UserRole.DISPATCHER).id;
+    const base = Date.now() - 600_000;
+    // Строки ещё нет: оба запроса идут на создание. Порядок отправки чередуется,
+    // чтобы победителем вставки бывал и ранний, и поздний.
+    for (let round = 0; round < 20; round++) {
+      await prisma.ticketChatRead.deleteMany({ where: { ticketId, userId } });
+      const early = new Date(base + round * 1_000).toISOString();
+      const late = new Date(base + round * 1_000 + 500).toISOString();
+      const pair = round % 2 === 0 ? [early, late] : [late, early];
+      const results = await Promise.all(
+        pair.map((upTo) => markRead(dispatcherEmail, ticketId, { upTo }, linked())),
+      );
+      expect(results.map((r) => r.status)).toEqual([200, 200]);
+      const rows = await prisma.ticketChatRead.findMany({ where: { ticketId, userId } });
+      expect(rows).toHaveLength(1);
+      expect(rows[0].lastReadAt.toISOString()).toBe(late);
+    }
+  });
+
+  it('одновременные прочтения не уменьшают уже сохранённую отметку', async () => {
+    const userId = provider.user(UserRole.DISPATCHER).id;
+    const row = await prisma.ticketChatRead.findFirstOrThrow({ where: { ticketId, userId } });
+    const stored = row.lastReadAt.getTime();
+    const earlier = [1, 2, 3, 4, 5].map((m) => new Date(stored - m * 60_000).toISOString());
+    await Promise.all(earlier.map((upTo) => markRead(dispatcherEmail, ticketId, { upTo }, linked())));
+    const after = await prisma.ticketChatRead.findFirstOrThrow({ where: { ticketId, userId } });
+    expect(after.lastReadAt.getTime()).toBe(stored);
+  });
+
   it('upTo из будущего обрезается временем сервера', async () => {
     const future = new Date(Date.now() + 3_600_000).toISOString();
     expect((await markRead(adminEmail, ticketId, { upTo: future })).status).toBe(200);

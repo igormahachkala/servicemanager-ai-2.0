@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto'
+
 import { Injectable } from '@nestjs/common'
 import { ServiceContractRole } from '@prisma/client'
 
@@ -29,9 +31,11 @@ export class TicketChatReadService {
    * чат, который пользователь вправе открыть.
    *
    * Отметка только растёт. Два параллельных запроса (компьютер и телефон,
-   * или старый ответ сети после нового) не откатывают её назад:
-   * updateMany сдвигает только более раннюю, createMany с skipDuplicates
-   * не перезаписывает строку, созданную соседним запросом.
+   * или старый ответ сети после нового) не откатывают её назад. Создание и
+   * сдвиг — один INSERT … ON CONFLICT: второй запрос ждёт строку первого и
+   * сдвигает её, только если его отметка позже. Пара updateMany + createMany
+   * при первом прочтении теряла более позднюю отметку: оба не находили
+   * строки, вставка второго молча пропускалась.
    */
   async markRead(
     user: UserCtx,
@@ -56,16 +60,13 @@ export class TicketChatReadService {
     })
 
     const lastReadAt = resolveChatReadAt(upTo, new Date())
-    const moved = await this.prisma.ticketChatRead.updateMany({
-      where: { userId: user.id, ticketId, lastReadAt: { lt: lastReadAt } },
-      data: { lastReadAt },
-    })
-    if (moved.count === 0) {
-      await this.prisma.ticketChatRead.createMany({
-        data: [{ userId: user.id, ticketId, lastReadAt }],
-        skipDuplicates: true,
-      })
-    }
+    await this.prisma.$executeRaw`
+      INSERT INTO "TicketChatRead" ("id", "userId", "ticketId", "lastReadAt", "updatedAt")
+      VALUES (${randomUUID()}, ${user.id}, ${ticketId}, ${lastReadAt}, CURRENT_TIMESTAMP)
+      ON CONFLICT ("userId", "ticketId") DO UPDATE
+        SET "lastReadAt" = EXCLUDED."lastReadAt", "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "TicketChatRead"."lastReadAt" < EXCLUDED."lastReadAt"
+    `
 
     return { ok: true, ticketId }
   }
