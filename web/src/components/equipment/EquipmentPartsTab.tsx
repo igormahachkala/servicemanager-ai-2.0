@@ -319,7 +319,7 @@ export function EquipmentPartsTab({
                 </option>
                 {tickets.map((t) => (
                   <option key={t.ticketId} value={t.ticketId}>
-                    №{t.ticketNumber} · {fmtDate(t.createdAt)} · {t.problem.slice(0, 40)}
+                    {fmtDate(t.createdAt)} · {t.problem.slice(0, 40)}
                   </option>
                 ))}
               </select>

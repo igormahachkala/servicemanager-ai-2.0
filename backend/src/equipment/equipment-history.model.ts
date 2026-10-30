@@ -9,9 +9,8 @@ import { TicketStatus } from '@prisma/client';
  * Своей таблицы жизненного цикла модуль не заводит. Всё берётся из того, что
  * уже ведёт система заявок:
  *
- *   Ticket               номер, дата, проблема, категория, статус, исполнитель
+ *   Ticket               дата обращения, описание предмета обращения
  *   TicketStatusHistory  комментарий приёмки — единственный надёжный «результат»
- *   TicketAttachment     вложения с purpose = WORK_REPORT
  *   InstalledPart        что именно поставили и сняли по этой заявке
  *
  * Ключевое ограничение, заданное постановкой: **что заменили, из текста
@@ -31,40 +30,16 @@ export type HistoryStatusRow = {
   toStatus: TicketStatus;
   comment: string | null;
   createdAt: Date;
-  changedBy?: { firstName: string | null; lastName: string | null; email: string } | null;
 };
-
-export type HistoryAttachmentRow = {
-  id: string;
-  url: string;
-  originalName: string;
-  mimeType: string;
-  createdAt: Date;
-};
-
-export type HistoryPersonRow = {
-  id: string;
-  firstName: string | null;
-  lastName: string | null;
-  email: string;
-  company?: { id: string; name: string } | null;
-} | null;
 
 export type HistoryTicketRow = {
   id: string;
-  ticketNumber: number;
   createdAt: Date;
-  closedAt: Date | null;
-  status: TicketStatus;
   problemText: string;
-  problemCategory?: { name: string } | null;
-  assignedTechnician?: HistoryPersonRow;
   statusHistory: HistoryStatusRow[];
-  attachments: HistoryAttachmentRow[];
 };
 
 export type HistoryPartRow = {
-  id: string;
   displayName: string;
   serialNumber: string | null;
   quantity: unknown;
@@ -72,30 +47,24 @@ export type HistoryPartRow = {
   removedTicketId: string | null;
 };
 
+/** Technical projection only; equipment visibility does not grant ticket-detail access.
+ * Free-form problem/result text is preserved as entered, not automatically redacted.
+ */
 export type HistoryEntry = {
+  /** Internal stable key / parts association, not a ticket-detail link. */
   ticketId: string;
-  ticketNumber: number;
+  /** Date the request was recorded, NOT a completion date. */
   createdAt: Date;
-  closedAt: Date | null;
-  status: TicketStatus;
   problem: string;
-  category: string | null;
-  performedBy: string | null;
-  performedByCompany: string | null;
   result: string | null;
+  /** Date the result was recorded; null does not imply work was completed. */
   resultAt: Date | null;
-  workReports: HistoryAttachmentRow[];
-  /** Заполняется только из InstalledPart, из текста заявки не выводится. */
-  partsInstalled: Array<{ id: string; name: string; serialNumber: string | null; quantity: string }>;
-  partsRemoved: Array<{ id: string; name: string; serialNumber: string | null; quantity: string }>;
+  /** @deprecated Empty compatibility sentinel for cached clients; never contains files. */
+  workReports: [];
+  /** Explicitly recorded InstalledPart operations, never inferred from text. */
+  partsInstalled: Array<{ name: string; serialNumber: string | null; quantity: string }>;
+  partsRemoved: Array<{ name: string; serialNumber: string | null; quantity: string }>;
 };
-
-/** Человекочитаемое имя: фамилия и имя, иначе почта. */
-export function personLabel(person: HistoryPersonRow): string | null {
-  if (!person) return null;
-  const name = [person.lastName, person.firstName].filter(Boolean).join(' ').trim();
-  return name || person.email;
-}
 
 /**
  * Результат работ. Берётся комментарий перехода в приёмку либо в закрытие —
@@ -116,7 +85,6 @@ export function resolveResult(rows: HistoryStatusRow[]): { text: string | null; 
 
 function partView(row: HistoryPartRow) {
   return {
-    id: row.id,
     name: row.displayName,
     serialNumber: row.serialNumber,
     quantity: String(row.quantity),
@@ -144,21 +112,16 @@ export function buildEquipmentHistory(
 
   return [...tickets]
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-    .map((ticket) => {
+    .map((ticket): HistoryEntry => {
       const result = resolveResult(ticket.statusHistory);
       return {
         ticketId: ticket.id,
-        ticketNumber: ticket.ticketNumber,
         createdAt: ticket.createdAt,
-        closedAt: ticket.closedAt,
-        status: ticket.status,
         problem: ticket.problemText,
-        category: ticket.problemCategory?.name ?? null,
-        performedBy: personLabel(ticket.assignedTechnician ?? null),
-        performedByCompany: ticket.assignedTechnician?.company?.name ?? null,
         result: result.text,
         resultAt: result.at,
-        workReports: ticket.attachments ?? [],
+        // Older clients read .length unconditionally. Never copy source attachments.
+        workReports: [],
         partsInstalled: (installedByTicket.get(ticket.id) ?? []).map(partView),
         partsRemoved: (removedByTicket.get(ticket.id) ?? []).map(partView),
       };

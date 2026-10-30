@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
-import { getMobileRouteRoot, mobilePath } from './mobileRoute'
+import { mobilePath } from './mobileRoute'
 import { MobileSectionBackLink } from './MobileSectionBackLink'
+import { EquipmentHistoryRecord } from '../components/equipment/EquipmentHistoryRecord'
 
 /**
  * SMA-EQUIPMENT-V2-110A.
@@ -59,86 +60,32 @@ function Row({ label, value }: { label: string; value: string }) {
  * знать, что стоит и что меняли; заводить записи с телефона, стоя у котла, —
  * не та задача, ради которой открывают приложение.
  */
-const TICKET_STATUS_LABELS: Record<string, string> = {
-  NEW: 'Новая',
-  ASSIGNED: 'Назначена',
-  IN_PROGRESS: 'В работе',
-  AWAITING_ACCEPTANCE: 'На приёмке',
-  DONE: 'Выполнена',
-  REJECTED: 'Отклонена',
-  CANCELLED: 'Отменена',
-}
-
-function MobileEquipmentHistory({
-  equipmentId,
-  scopeCompanyId,
-  scope,
-  mobileRoot,
-}: {
+export function MobileEquipmentHistory({ equipmentId, scopeCompanyId }: {
   equipmentId: string
   scopeCompanyId: string
-  scope: api.TicketScopeParams
-  mobileRoot: string
 }) {
-  // SMA-EQUIPMENT-PARTS-POLISH-110C: телефон тоже не тянет всю историю
-  // разом — страницы догружаются кнопкой.
-  const [cursor, setCursor] = useState<string | undefined>(undefined)
-  const [acc, setAcc] = useState<api.EquipmentHistoryEntry[]>([])
-  const q = useQuery({
-    queryKey: ['mobile-equipment-history', equipmentId, scopeCompanyId, cursor || ''],
-    queryFn: () => api.getEquipmentHistory(equipmentId, scopeCompanyId || undefined, { limit: 20, cursor }),
+  // Query-owned pages are isolated by equipment and company, not local accumulated state.
+  const q = useInfiniteQuery({
+    queryKey: ['mobile-equipment-history', equipmentId, scopeCompanyId],
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) => api.getEquipmentHistory(equipmentId, scopeCompanyId || undefined, { limit: 20, cursor: pageParam }),
+    getNextPageParam: (last) => last.page.nextCursor ?? undefined,
   })
-  useEffect(() => {
-    if (!q.data) return
-    setAcc((prev) => {
-      const seen = new Set(prev.map((e) => e.ticketId))
-      return [...prev, ...q.data!.tickets.filter((e) => !seen.has(e.ticketId))]
-    })
-  }, [q.data])
-  if (q.isLoading && acc.length === 0) return <div className="mobileCard mobileMeta">Загружаем историю…</div>
-  if (q.isError) return <div className="mobileNotice mobileNoticeError">{(q.error as any)?.message || String(q.error)}</div>
-  const entries = acc
+  if (q.isLoading) return <div className="mobileCard mobileMeta">Загружаем историю…</div>
+  if (q.isError) return <div className="mobileNotice mobileNoticeError">{q.error.message}</div>
+  const entries = (q.data?.pages || []).flatMap((page) => page.tickets)
   if (entries.length === 0) {
-    return (
-      <div className="mobileCard mobileEmptyState" role="status">
-        <div className="mobileEmptyStateTitle">Заявок по этой единице ещё не было</div>
-      </div>
-    )
+    return <div className="mobileCard mobileEmptyState" role="status">Записей в истории обслуживания пока нет.</div>
   }
   return (
     <>
-      {entries.map((e) => (
-        <div key={e.ticketId} className="mobileCard" style={{ display: 'grid', gap: 4 }}>
-          <div style={{ fontWeight: 600 }}>{fmtDate(e.createdAt)} · №{e.ticketNumber}</div>
-          <div className="mobileMeta">{[e.category, TICKET_STATUS_LABELS[e.status] || e.status].filter(Boolean).join(' · ')}</div>
-          <div>{e.problem}</div>
-          {e.performedBy ? <div className="mobileMeta">Исполнитель: {e.performedBy}</div> : null}
-          {e.result ? <div className="mobileMeta">Результат: {e.result}</div> : null}
-          {e.partsRemoved.length > 0 ? (
-            <div className="mobileMeta">Снято: {e.partsRemoved.map((p) => p.name).join(', ')}</div>
-          ) : null}
-          {e.partsInstalled.length > 0 ? (
-            <div className="mobileMeta">Установлено: {e.partsInstalled.map((p) => p.name).join(', ')}</div>
-          ) : null}
-          <Link
-            to={api.appendScopeToPath(`${mobileRoot}/tickets/${e.ticketId}`, scope)}
-            className="mobileBtn mobileBtnGhost"
-            style={{ textAlign: 'center', marginTop: 2 }}
-          >
-            Открыть заявку
-          </Link>
-        </div>
-      ))}
-      {q.data?.page?.nextCursor ? (
-        <button
-          type="button"
-          className="mobileBtn mobileBtnGhost"
-          onClick={() => setCursor(q.data!.page.nextCursor!)}
-          disabled={q.isFetching}
-        >
-          {q.isFetching ? 'Загрузка…' : 'Показать ещё'}
+      <div className="mobileMeta">История обращений и зафиксированных работ. Дата обращения не означает завершения ремонта.</div>
+      {entries.map((entry) => <EquipmentHistoryRecord key={entry.ticketId} entry={entry} mobile />)}
+      {q.hasNextPage ? (
+        <button type="button" className="mobileBtn mobileBtnGhost" onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage}>
+          {q.isFetchingNextPage ? 'Загрузка…' : 'Показать ещё'}
         </button>
-      ) : null}
+      ) : <div className="mobileMeta">История показана полностью. Записей: {entries.length}.</div>}
     </>
   )
 }
@@ -205,7 +152,6 @@ export function MobileEquipmentPage() {
     }
   }, [location.search, meQ.data])
   const scopeCompanyId = scope.linkedClientCompanyId || scope.companyId || ''
-  const mobileRoot = getMobileRouteRoot(location.pathname)
   const scopedPath = (path: string) => api.appendScopeToPath(mobilePath(location.pathname, path), scope)
 
   const [searchInput, setSearchInput] = useState('')
@@ -286,8 +232,6 @@ export function MobileEquipmentPage() {
                 key={`${item.id}:${scopeCompanyId}`}
                 equipmentId={item.id}
                 scopeCompanyId={scopeCompanyId}
-                scope={scope}
-                mobileRoot={mobileRoot}
               />
             ) : null}
             {tab === 'parts' ? <MobileEquipmentParts equipmentId={item.id} scopeCompanyId={scopeCompanyId} /> : null}

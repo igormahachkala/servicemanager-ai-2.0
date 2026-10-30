@@ -839,7 +839,7 @@ describe('V2 mobile linked-client scope', () => {
       'api.getEquipment(equipmentId, scopeCompanyId || undefined)',
     )
     expect(mobileEquipmentCode).toContain(
-      'api.getEquipmentHistory(equipmentId, scopeCompanyId || undefined, { limit: 20, cursor })',
+      'api.getEquipmentHistory(equipmentId, scopeCompanyId || undefined, { limit: 20, cursor: pageParam })',
     )
     expect(mobileEquipmentCode).toContain(
       'api.getEquipmentParts(equipmentId, scopeCompanyId || undefined)',
@@ -852,9 +852,8 @@ describe('V2 mobile linked-client scope', () => {
     )
     expect(mobileEquipmentCode).toContain("scopedPath('/equipment')")
     expect(mobileEquipmentCode).toContain('scopedPath(`/equipment/${item.id}`)')
-    expect(mobileEquipmentCode).toContain(
-      'api.appendScopeToPath(`${mobileRoot}/tickets/${e.ticketId}`, scope)',
-    )
+    // Technical history is not a ticket-detail shortcut.
+    expect(mobileEquipmentCode).not.toContain('/tickets/${e.ticketId}')
   })
 
   it('не вводит второй access resolver или frontend permission model', () => {

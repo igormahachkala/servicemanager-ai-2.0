@@ -427,7 +427,7 @@ describe('Пагинация истории', () => {
 
     const res = await w.history.getHistory(...asClient, EQUIPMENT, undefined, { limit: 2 });
 
-    expect(res.tickets.map((t) => t.ticketNumber)).toEqual([3, 2]);
+    expect(res.tickets.map((t) => t.ticketId)).toEqual(['tk-3', 'tk-2']);
     expect(res.page.hasMore).toBe(true);
     expect(res.page.nextCursor).toBeTruthy();
   });
@@ -493,6 +493,31 @@ describe('Пагинация истории', () => {
     const w = makeWorld({ tickets: [] });
     await w.history.getHistory(...asClient, EQUIPMENT);
     expect(w.prisma.installedPart.findMany).not.toHaveBeenCalled();
+  });
+
+  it('проходит все страницы со строгим курсором, включая совпадающие даты и новую вставку', async () => {
+    const rows = [5, 4, 3, 2, 1].map((n) => ticketRow(n, '2026-09-01'));
+    const w = makeWorld({ tickets: rows });
+    w.prisma.ticket.findMany.mockImplementation(async ({ where, take, orderBy }: any) => {
+      expect(where.companyId).toBe(CLIENT);
+      expect(where.equipmentId).toBe(EQUIPMENT);
+      expect(orderBy).toEqual([{ createdAt: 'desc' }, { id: 'desc' }]);
+      return rows.filter((r) => !where.OR ||
+        r.createdAt < where.OR[0].createdAt.lt ||
+        (r.createdAt.getTime() === where.OR[1].createdAt.getTime() && r.id < where.OR[1].id.lt)
+      ).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id.localeCompare(a.id)).slice(0, take);
+    });
+    const first = await w.history.getHistory(...asClient, EQUIPMENT, undefined, { limit: 2 });
+    expect(first.tickets.map((r) => r.ticketId)).toEqual(['tk-5', 'tk-4']);
+    expect(first.page.hasMore).toBe(true);
+    rows.push(ticketRow(6, '2026-09-02'));
+    const second = await w.history.getHistory(...asClient, EQUIPMENT, undefined, { limit: 2, cursor: first.page.nextCursor! });
+    expect(second.tickets.map((r) => r.ticketId)).toEqual(['tk-3', 'tk-2']);
+    expect(second.page.hasMore).toBe(true);
+    const last = await w.history.getHistory(...asClient, EQUIPMENT, undefined, { limit: 2, cursor: second.page.nextCursor! });
+    expect(last.tickets.map((r) => r.ticketId)).toEqual(['tk-1']);
+    expect(last.page).toEqual({ limit: 2, hasMore: false, nextCursor: null });
+    expect(new Set([...first.tickets, ...second.tickets, ...last.tickets].map((r) => r.ticketId)).size).toBe(5);
   });
 
   it('чужая единица не отдаёт страницу истории', async () => {

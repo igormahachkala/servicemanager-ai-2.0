@@ -161,6 +161,19 @@ No entity below should infer provider authority from a provider company alone.
 - Can read: client users in scope; provider users only through Contract Context
   for the equipment location and relevant operation.
 - Related services: `equipment`, `locations`, `tickets`, `inspection`.
+- Equipment history is a technical projection under the existing equipment read
+  scope, not ticket-detail authorization. It returns the request date and subject,
+  recorded result and its date, plus explicit installed/removed part names, serial
+  numbers and quantities. Ticket IDs remain internal keys for pagination/parts
+  association; the history UI does not link to ticket details.
+- History does not return ticket numbers/status, chat, attachments, performer or
+  author metadata. Request dates do not imply completed work; missing results
+  remain empty. Entered request/result text is preserved, not automatically
+  redacted. Direct ticket access and the separate parts workflow are unchanged.
+- Deprecated `workReports: []` is an always-empty compatibility sentinel: cached
+  clients read its length unconditionally. It must never be fetched or populated
+  from attachments. Deploy the backend and frontend together and refresh open
+  clients to replace old ticket labels/links; existing ticket rights still apply.
 
 ### Specialization
 

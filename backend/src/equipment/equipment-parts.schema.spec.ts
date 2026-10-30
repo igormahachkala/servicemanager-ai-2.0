@@ -3,7 +3,7 @@ import { join } from 'path';
 
 import { TicketStatus } from '@prisma/client';
 
-import { buildEquipmentHistory, personLabel, resolveResult } from './equipment-history.model';
+import { buildEquipmentHistory, resolveResult } from './equipment-history.model';
 
 /**
  * SMA-EQUIPMENT-HISTORY-PARTS-110B.
@@ -31,7 +31,7 @@ describe('Сборка истории', () => {
       { ...base, id: 'a', ticketNumber: 1, createdAt: new Date('2026-01-01') },
       { ...base, id: 'b', ticketNumber: 2, createdAt: new Date('2026-05-01') },
     ] as any);
-    expect(out.map((e) => e.ticketNumber)).toEqual([2, 1]);
+    expect(out.map((e) => e.ticketId)).toEqual(['b', 'a']);
   });
 
   it('результат — первый непустой комментарий завершения', () => {
@@ -57,12 +57,6 @@ describe('Сборка истории', () => {
     expect(resolveResult([]).at).toBeNull();
   });
 
-  it('исполнитель: фамилия и имя, иначе почта', () => {
-    expect(personLabel({ id: 'u', firstName: 'Иван', lastName: 'Иванов', email: 'a@b.c' })).toBe('Иванов Иван');
-    expect(personLabel({ id: 'u', firstName: null, lastName: null, email: 'a@b.c' })).toBe('a@b.c');
-    expect(personLabel(null)).toBeNull();
-  });
-
   it('неназначенная заявка не ломает сборку', () => {
     const out = buildEquipmentHistory([
       {
@@ -71,8 +65,8 @@ describe('Сборка истории', () => {
         assignedTechnician: null, statusHistory: [], attachments: [],
       },
     ] as any);
-    expect(out[0].performedBy).toBeNull();
-    expect(out[0].category).toBeNull();
+    expect(out[0].result).toBeNull();
+    expect(out[0].resultAt).toBeNull();
     expect(out[0].partsInstalled).toEqual([]);
   });
 });
