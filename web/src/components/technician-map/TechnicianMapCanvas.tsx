@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { MapContainer, Marker, TileLayer, useMap } from 'react-leaflet'
+import { AttributionControl, MapContainer, Marker, TileLayer, useMap } from 'react-leaflet'
 
 import './technicianMapPin.css'
 import { personDisplayName, type TechnicianMapPersonRow } from './technicianMapSelection'
@@ -45,7 +45,14 @@ function FitPeople({ people }: { people: TechnicianMapPersonRow[] }) {
 
 export function TechnicianMapCanvas({ people }: Props) {
   return (
-    <MapContainer center={defaultCenter} zoom={10} className="technician-map-canvas" scrollWheelZoom>
+    <MapContainer
+      center={defaultCenter}
+      zoom={10}
+      className="technician-map-canvas"
+      scrollWheelZoom
+      attributionControl={false}
+    >
+      <AttributionControl prefix={false} />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
