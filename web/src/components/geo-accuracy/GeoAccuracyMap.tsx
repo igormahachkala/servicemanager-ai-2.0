@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { MapContainer, Popup, Rectangle, TileLayer, Tooltip, useMap } from 'react-leaflet'
+import { AttributionControl, MapContainer, Popup, Rectangle, TileLayer, Tooltip, useMap } from 'react-leaflet'
 
 import {
   GEO_ACCURACY_BUCKET_KEYS,
@@ -63,7 +63,14 @@ export function GeoAccuracyMap({ companyId, cells, enabled, loading, failed, sel
         <h2 style={{ margin: 0, fontSize: 16 }}>Карта</h2>
         <div className="muted small">{mapStatus(companyId, visibleCells, loading, failed)}</div>
       </div>
-      <MapContainer center={defaultCenter} zoom={5} style={{ height: 480, width: '100%' }} scrollWheelZoom>
+      <MapContainer
+        center={defaultCenter}
+        zoom={5}
+        style={{ height: 480, width: '100%' }}
+        scrollWheelZoom
+        attributionControl={false}
+      >
+        <AttributionControl prefix={false} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
