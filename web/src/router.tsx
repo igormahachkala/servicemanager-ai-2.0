@@ -90,6 +90,7 @@ const ServiceContractsPage = lazyExport(() => import('./views/ServiceContractsPa
 const InspectionTemplatesPage = lazyExport(() => import('./views/InspectionTemplatesPage'), 'InspectionTemplatesPage')
 const EngineeringAgentPage = lazyExport(() => import('./views/EngineeringAgentPage'), 'EngineeringAgentPage')
 const DashboardPage = lazyExport(() => import('./views/DashboardPage'), 'DashboardPage')
+const InspectionPlanFactPage = lazyExport(() => import('./views/InspectionPlanFactPage'), 'InspectionPlanFactPage')
 const InspectionRunsPage = lazyExport(() => import('./views/InspectionRunsPage'), 'InspectionRunsPage')
 const InspectionSchedulesPage = lazyExport(() => import('./views/InspectionSchedulesPage'), 'InspectionSchedulesPage')
 const InspectionRunPage = lazyExport(() => import('./views/InspectionRunPage'), 'InspectionRunPage')
@@ -393,6 +394,7 @@ export function AppRoutes() {
         <Route path="map" element={<LazyRoute component={MapPage} />} />
         <Route path="problem-categories" element={<LazyRoute component={ProblemCategoriesPage} />} />
         <Route path="inspection/templates" element={<LazyRoute component={InspectionTemplatesPage} />} />
+        <Route path="inspection/plan-fact" element={<LazyRoute component={InspectionPlanFactPage} />} />
         <Route path="inspection/runs" element={<LazyRoute component={InspectionRunsPage} />} />
         <Route path="inspection/schedules" element={<LazyRoute component={InspectionSchedulesPage} />} />
         <Route path="work-calendar" element={<LazyRoute component={WorkCalendarPage} />} />

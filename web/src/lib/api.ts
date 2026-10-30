@@ -4142,6 +4142,11 @@ export type InspectionRunListSummary = {
 
 export type InspectionRunListItem = {
   id: string
+  /** Сохранённые сроки конкретного запуска, не текущий срок живого плана. */
+  scheduleId?: string | null
+  dueAt?: string | null
+  overdueAt?: string | null
+  findings?: Array<{ id: string; title: string; status: InspectionRunItemStatus; ticketId: string | null }>
   /**
    * Снимок названия обхода на момент запуска. Для исторических записей показывать
    * следует именно его: `template.name` — живая связь, и правка шаблона задним
@@ -4161,6 +4166,7 @@ export type InspectionRunListItem = {
   }
   location: {
     id: string
+    clientCompanyId?: string
     name: string
     city?: string | null
   }
@@ -4176,6 +4182,8 @@ export type InspectionRunListItem = {
 }
 
 export type InspectionRunsFilter = {
+  completedFrom?: string
+  completedTo?: string
   from?: string
   to?: string
   locationId?: string
@@ -4866,6 +4874,7 @@ export type InspectionSchedule = {
   template: { id: string; name: string }
   location: {
     id: string
+    clientCompanyId?: string
     name: string
     city?: string | null
     address?: string | null

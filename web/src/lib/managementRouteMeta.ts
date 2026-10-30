@@ -98,6 +98,7 @@ export const MANAGEMENT_ROUTES: readonly ManagementRouteMeta[] = Object.freeze([
   { path: '/work-calendar', section: 'rounds', pageLabel: 'Календарь работ', breadcrumbLabel: 'Календарь работ', parentPath: null, entity: null, primaryNav: true },
   { path: '/inspection/schedules', section: 'rounds', pageLabel: 'План обходов', breadcrumbLabel: 'План обходов', parentPath: null, entity: null, primaryNav: true },
   { path: '/inspection/templates', section: 'rounds', pageLabel: 'Шаблоны', breadcrumbLabel: 'Шаблоны', parentPath: null, entity: null, primaryNav: true },
+  { path: '/inspection/plan-fact', section: 'rounds', pageLabel: 'План/факт', breadcrumbLabel: 'План/факт', parentPath: '/inspection/runs', entity: null, primaryNav: false },
   { path: '/inspection/runs', section: 'rounds', pageLabel: 'История', breadcrumbLabel: 'История', parentPath: null, entity: null, primaryNav: true },
   { path: '/inspection/runs/:id', section: 'rounds', pageLabel: 'Обход', breadcrumbLabel: 'Обход', parentPath: '/inspection/runs', entity: 'run', primaryNav: false },
   { path: '/inspection/runs/:id/report', section: 'rounds', pageLabel: 'Акт', breadcrumbLabel: 'Акт', parentPath: '/inspection/runs/:id', entity: null, primaryNav: false },
