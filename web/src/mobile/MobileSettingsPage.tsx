@@ -43,6 +43,7 @@ const LINK_GROUP: Record<string, SettingsGroupId> = {
   access: 'manage',
   workforce: 'work',
   onSite: 'work',
+  technicianMap: 'work',
   materials: 'work',
   inspection: 'work',
   inspectionTemplates: 'work',
@@ -109,7 +110,7 @@ function ManagementIcon({ id }: { id: string }) {
       </svg>
     )
   }
-  if (id === 'onSite') {
+  if (id === 'onSite' || id === 'technicianMap') {
     return (
       <svg {...common}>
         <path d="M12 21s-6 -5.33 -6 -10a6 6 0 1 1 12 0c0 4.67 -6 10 -6 10z" />
@@ -263,6 +264,12 @@ export function MobileSettingsPage() {
         label: 'На точках',
         hint: 'Исполнители у точек активных заявок',
         to: scoped(mobilePath(location.pathname, '/on-site')),
+      })
+      links.push({
+        id: 'technicianMap',
+        label: 'Карта техников',
+        hint: 'Техники на открытой смене и время последней точки',
+        to: scoped(mobilePath(location.pathname, '/technician-map')),
       })
     }
     // Materials visibility — ЕДИНЫЙ canonical-предикат canUseManagementMaterials

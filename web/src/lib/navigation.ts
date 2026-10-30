@@ -90,6 +90,7 @@ export const managementRailSections: RailSection[] = [
       { id: 'inspectionTemplates', label: 'Шаблоны обходов', to: '/inspection/templates' },
       { id: 'workforce', label: 'Смены и трудозатраты', to: '/workforce' },
       { id: 'onSite', label: 'На точках', to: '/on-site' },
+      { id: 'technicianMap', label: 'Карта техников', to: '/technician-map' },
     ],
   },
   {
@@ -295,6 +296,7 @@ export function isManagementNavItemVisible(to: string, ctx: NavVisibilityContext
       return has(R.workforce, role)
 
     case '/on-site':
+    case '/technician-map':
       return canSeeOnSiteNav(role, ctx.companyType)
 
     case '/work-calendar':
