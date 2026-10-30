@@ -39,6 +39,7 @@ import { HomeChips } from './HomeChips'
 import { HomeList } from './HomeList'
 import { HomeQuickCards, type MobileHomeQuickFilter } from './HomeQuickCards'
 import { HomeUrgentCard } from './HomeUrgentCard'
+import { isStaleTicket, STALE_TICKET_AGE_DAYS, STALE_TICKETS_TITLE, staleBoardCards, staleBoardCount } from '../../lib/staleTickets'
 import { withTicketNav } from '../../lib/ticketNavContext'
 import { useTicketNavSource } from '../../lib/useTicketNav'
 import { HomeNextObjectCard } from './HomeNextObjectCard'
@@ -51,7 +52,7 @@ import { MobileParentCloseChildrenSheet } from '../MobileParentCloseChildrenShee
 import { useParentCloseDialog } from '../../hooks/useParentCloseDialog'
 import type { ChildCloseDraftItem } from '../../lib/ticketParentClose'
 
-const MOBILE_HOME_QUICK_FILTERS: readonly MobileHomeQuickFilter[] = ['urgent', 'awaiting', 'myaction', 'rework']
+const MOBILE_HOME_QUICK_FILTERS: readonly MobileHomeQuickFilter[] = ['urgent', 'awaiting', 'stale', 'myaction', 'rework']
 
 export function MobileHome() {
   const location = useLocation()
@@ -170,6 +171,21 @@ export function MobileHome() {
     enabled: boardEnabled && isOnline && boardTab === 'done',
   })
 
+  // «Заявки старше 10 дней» — свой запрос: старые заявки первыми выпадают из среза последних 500
+  // основной доски. Счёт — meta.matchingTotal сервера, видимость та же, что у доски.
+  const staleBoardQ = useQuery({
+    queryKey: ['mobile-home-stale-board', linkedClientCompanyId, companyId],
+    queryFn: () =>
+      api.board({
+        linkedClientCompanyId: pageScope.linkedClientCompanyId,
+        companyId: pageScope.companyId,
+        take: 500,
+        olderThanDays: STALE_TICKET_AGE_DAYS,
+      }),
+    // Как основная доска: в сеть, пока связь не признана пропавшей; «проверяем связь» не ждём.
+    enabled: boardEnabled && offline.connectivity !== 'offline',
+  })
+
   const linkedClientsQ = useQuery({
     queryKey: ['mobile-home-linked-clients'],
     queryFn: api.getLinkedClients,
@@ -259,6 +275,15 @@ export function MobileHome() {
 
   // Быстрые карты Figma HomeScreen: счётчики + эксклюзивный фильтр списка.
   const awaitingCount = useMemo(() => dedupeBoardCards(cards).filter(isAwaitingAcceptanceTicket).length, [cards])
+  // Без сети — по сохранённой доске, на момент её загрузки.
+  const staleTickets = useMemo(
+    () =>
+      staleBoardQ.data
+        ? staleBoardCards(staleBoardQ.data)
+        : dedupeBoardCards(baseCards).filter((t) => isStaleTicket(t, boardQ.dataUpdatedAt)),
+    [staleBoardQ.data, baseCards, boardQ.dataUpdatedAt],
+  )
+  const staleCount = staleBoardQ.data ? staleBoardCount(staleBoardQ.data) : staleTickets.length
   const myActionCount = useMemo(
     () => dedupeBoardCards(cards).filter((t) => ticketRequiresMyAction(t, meQ.data?.id, meQ.data?.role, canAssignProvider)).length,
     [cards, meQ.data?.id, meQ.data?.role, canAssignProvider],
@@ -272,11 +297,14 @@ export function MobileHome() {
     const list = dedupeBoardCards(cards)
     if (quickFilter === 'urgent') return list.filter(isHomeUrgentTicket)
     if (quickFilter === 'awaiting') return list.filter(isAwaitingAcceptanceTicket)
+    if (quickFilter === 'stale') return staleTickets
     if (quickFilter === 'rework') return list.filter((t) => t.status === 'IN_PROGRESS' && reworkTicketIds.has(t.id))
     return list.filter((t) => ticketRequiresMyAction(t, meQ.data?.id, meQ.data?.role, canAssignProvider))
-  }, [quickFilter, cards, meQ.data?.id, meQ.data?.role, canAssignProvider, reworkTicketIds])
+  }, [quickFilter, cards, meQ.data?.id, meQ.data?.role, canAssignProvider, reworkTicketIds, staleTickets])
+  const staleQuickFilterLabel =
+    staleCount > staleTickets.length ? `${STALE_TICKETS_TITLE} · показано ${staleTickets.length} из ${staleCount}` : STALE_TICKETS_TITLE
   const quickFilterLabel =
-    quickFilter === 'urgent' ? 'Срочные заявки' : quickFilter === 'awaiting' ? 'На приёмке' : quickFilter === 'myaction' ? 'Требует моего действия' : quickFilter === 'rework' ? 'Требуют доработки' : ''
+    quickFilter === 'urgent' ? 'Срочные заявки' : quickFilter === 'awaiting' ? 'На приёмке' : quickFilter === 'stale' ? staleQuickFilterLabel : quickFilter === 'myaction' ? 'Требует моего действия' : quickFilter === 'rework' ? 'Требуют доработки' : ''
   const renderedTickets = quickFilter ? quickTickets ?? [] : visibleTickets
   const homeListTickets = useMemo(
     () =>
@@ -580,10 +608,12 @@ export function MobileHome() {
         <>
           <HomeQuickCards
             awaitingCount={awaitingCount}
+            staleCount={staleCount}
             myActionCount={myActionCount}
             reworkCount={reworkCount}
             activeQuickFilter={quickFilter}
             onToggleAwaiting={() => activateQuickFilter('awaiting')}
+            onToggleStale={() => activateQuickFilter('stale')}
             onToggleMyAction={() => activateQuickFilter('myaction')}
             onToggleRework={() => activateQuickFilter('rework')}
             planningHref={planningHomeHref}

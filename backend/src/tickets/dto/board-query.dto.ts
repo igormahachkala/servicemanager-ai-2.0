@@ -88,4 +88,12 @@ export class BoardQueryDto {
   })
   @IsBoolean()
   includeArchived?: boolean
+
+  /** Карточка «Заявки старше 10 дней»: незакрытые, созданные раньше стольких суток назад. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(365)
+  olderThanDays?: number
 }
