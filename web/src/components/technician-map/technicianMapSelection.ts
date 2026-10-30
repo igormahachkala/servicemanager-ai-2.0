@@ -17,6 +17,7 @@ export type TechnicianMapPersonRow = {
   latitude: number | null
   longitude: number | null
   syncedAtLabel: string
+  shiftOpen: boolean
 }
 
 export type TechnicianMapTicketRow = {

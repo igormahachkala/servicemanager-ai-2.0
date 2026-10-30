@@ -6,6 +6,7 @@ export type TechnicianMapResponse = {
   tickets: TechnicianMapTicketRow[]
 }
 
-export function getTechnicianMap(): Promise<TechnicianMapResponse> {
-  return request<TechnicianMapResponse>('/workforce/technician-map')
+export function getTechnicianMap(includeClosed: boolean): Promise<TechnicianMapResponse> {
+  const query = includeClosed ? '?includeClosed=1' : ''
+  return request<TechnicianMapResponse>(`/workforce/technician-map${query}`)
 }

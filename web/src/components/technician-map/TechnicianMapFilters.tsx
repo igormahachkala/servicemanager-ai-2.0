@@ -20,19 +20,22 @@ type Props = {
   surface: 'desktop' | 'mobile'
   mode: TechnicianMapMode
   query: string
+  includeClosed: boolean
   technicianIds: IdSelection
   ticketIds: IdSelection
   people: TechnicianMapPersonRow[]
   tickets: TechnicianMapTicketRow[]
   onMode: (mode: TechnicianMapMode) => void
   onQuery: (query: string) => void
+  onIncludeClosed: (value: boolean) => void
   onTechnicianIds: (next: IdSelection) => void
   onTicketIds: (next: IdSelection) => void
 }
 
 function personLabel(person: TechnicianMapPersonRow): string {
   const name = `${person.lastName || ''} ${person.firstName || ''}`.trim()
-  return name || person.id
+  const base = name || person.id
+  return person.shiftOpen ? base : `${base} · смена закрыта`
 }
 
 function ticketLabel(ticket: TechnicianMapTicketRow): string {
@@ -43,12 +46,14 @@ export function TechnicianMapFilters({
   surface,
   mode,
   query,
+  includeClosed,
   technicianIds,
   ticketIds,
   people,
   tickets,
   onMode,
   onQuery,
+  onIncludeClosed,
   onTechnicianIds,
   onTicketIds,
 }: Props) {
@@ -109,6 +114,14 @@ export function TechnicianMapFilters({
         >
           По заявкам
         </button>
+        <label className="technician-map-filters-closed">
+          <input
+            type="checkbox"
+            checked={includeClosed}
+            onChange={(event) => onIncludeClosed(event.target.checked)}
+          />
+          <span>Закрытые смены</span>
+        </label>
       </div>
       <div className="technician-map-filters-row">
         <div className="technician-map-filters-picker" ref={pickerRef}>
