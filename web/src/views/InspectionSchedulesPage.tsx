@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useReducer, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
@@ -11,6 +11,12 @@ import {
   readOutboundScopeFromSearch,
 } from '../lib/locationCardSections'
 import { locationCardPath } from '../lib/equipmentCard'
+import {
+  inspectionScheduleEquipmentLabel,
+  inspectionScheduleEquipmentPayload,
+  inspectionScheduleScopeReducer,
+  type ScheduleEquipmentOption,
+} from '../lib/inspectionScheduleEquipment'
 
 /**
  * SMA-ROUNDS-V1-SCHEDULE-CRUD-098 — минимальный экран планирования обходов.
@@ -59,6 +65,47 @@ function toIsoStartDate(date: string, time: string) {
   return parsed.toISOString()
 }
 
+export function InspectionScheduleEquipmentPicker(props: {
+  locationId: string
+  equipmentId: string
+  items: readonly ScheduleEquipmentOption[]
+  loading: boolean
+  error: boolean
+  onChange: (value: string) => void
+  onRetry: () => void
+}) {
+  const { locationId, equipmentId, items, loading, error, onChange, onRetry } = props
+  const unavailableEquipment = !!equipmentId && !items.some((item) => item.id === equipmentId)
+  return (
+    <div>
+      <label>
+        <div className="muted small">Оборудование (необязательно)</div>
+        <select value={equipmentId} onChange={(e) => onChange(e.target.value)} disabled={!locationId || loading}>
+          <option value="">Вся точка (без привязки к оборудованию)</option>
+          {unavailableEquipment ? <option value={equipmentId} disabled>Выбранное оборудование недоступно</option> : null}
+          {items.map((item) => (
+            <option key={item.id} value={item.id}>{inspectionScheduleEquipmentLabel(item)}</option>
+          ))}
+        </select>
+      </label>
+      <div className="muted small" aria-live="polite">
+        {!locationId ? 'Сначала выберите точку' : loading ? (
+          'Загружаем оборудование…'
+        ) : error ? (
+          <>
+            Не удалось загрузить оборудование. Можно запланировать обход всей точки.{' '}
+            <button type="button" className="ghost" onClick={onRetry}>Повторить загрузку</button>
+          </>
+        ) : unavailableEquipment ? (
+          'Выберите оборудование заново или «Вся точка».'
+        ) : items.length === 0 ? (
+          'На этой точке нет оборудования. Можно запланировать обход всей точки.'
+        ) : 'Без выбора оборудования обход относится ко всей точке.'}
+      </div>
+    </div>
+  )
+}
+
 export function InspectionSchedulesPage() {
   const qc = useQueryClient()
 
@@ -80,9 +127,11 @@ export function InspectionSchedulesPage() {
   const templatesQ = useQuery({ queryKey: ['inspection-templates'], queryFn: api.getInspectionTemplates, enabled: canManage })
   const linkedClientsQ = useQuery({ queryKey: ['linked-clients'], queryFn: api.getLinkedClients, enabled: canManage })
 
-  const [clientCompanyId, setClientCompanyId] = useState('')
+  const [scope, dispatchScope] = useReducer(inspectionScheduleScopeReducer, {
+    clientCompanyId: '', locationId: '', equipmentId: '',
+  })
+  const { clientCompanyId, locationId, equipmentId } = scope
   const [templateId, setTemplateId] = useState('')
-  const [locationId, setLocationId] = useState('')
   const [assignedToUserId, setAssignedToUserId] = useState('')
   const [date, setDate] = useState('')
   const [time, setTime] = useState('09:00')
@@ -102,6 +151,17 @@ export function InspectionSchedulesPage() {
 
   const clients = linkedClientsQ.data || []
   const locations = locationsQ.data || []
+
+  const equipmentQ = useQuery({
+    queryKey: ['inspection-schedule-equipment', clientCompanyId, locationId],
+    queryFn: async () => ({
+      clientCompanyId,
+      locationId,
+      items: await api.equipmentByLocation(locationId, clientCompanyId || undefined),
+    }),
+    enabled: canManage && !!locationId,
+  })
+  const equipmentReady = equipmentQ.isSuccess && !equipmentQ.isFetching
 
   const candidatesQ = useQuery({
     queryKey: ['round-assignable-technicians', locationId],
@@ -129,6 +189,7 @@ export function InspectionSchedulesPage() {
       return api.createInspectionSchedule({
         templateId,
         locationId,
+        ...inspectionScheduleEquipmentPayload(scope, equipmentReady ? equipmentQ.data : undefined),
         assignedToUserId: assignedToUserId || undefined,
         frequency,
         intervalDays: frequency === 'CUSTOM' ? Number(intervalDays) : undefined,
@@ -138,7 +199,7 @@ export function InspectionSchedulesPage() {
     onSuccess: () => {
       setError('')
       setTemplateId('')
-      setLocationId('')
+      dispatchScope({ type: 'location', value: '' })
       setAssignedToUserId('')
       setDate('')
       setTime('09:00')
@@ -181,7 +242,7 @@ export function InspectionSchedulesPage() {
           <h2 style={{ marginBottom: 4 }}>Планирование обходов</h2>
           <div className="muted small">
             {canManage
-              ? 'Запланируйте обход: шаблон, точка, техник, дата и повторение.'
+              ? 'Запланируйте обход: шаблон, точка, оборудование при необходимости, техник, дата и повторение.'
               : 'Обходы, запланированные на вас.'}
           </div>
         </div>
@@ -218,8 +279,8 @@ export function InspectionSchedulesPage() {
                 <select
                   value={clientCompanyId}
                   onChange={(e) => {
-                    setClientCompanyId(e.target.value)
-                    setLocationId('')
+                    dispatchScope({ type: 'client', value: e.target.value })
+                    setAssignedToUserId('')
                   }}
                 >
                   <option value="">Своя компания</option>
@@ -244,7 +305,13 @@ export function InspectionSchedulesPage() {
 
             <label>
               <div className="muted small">Точка</div>
-              <select value={locationId} onChange={(e) => { setLocationId(e.target.value); setAssignedToUserId('') }}>
+              <select
+                value={locationId}
+                onChange={(e) => {
+                  dispatchScope({ type: 'location', value: e.target.value })
+                  setAssignedToUserId('')
+                }}
+              >
                 <option value="">Не выбрана</option>
                 {locations.map((l) => (
                   <option key={l.id} value={l.id}>
@@ -253,6 +320,16 @@ export function InspectionSchedulesPage() {
                 ))}
               </select>
             </label>
+
+            <InspectionScheduleEquipmentPicker
+              locationId={locationId}
+              equipmentId={equipmentId}
+              items={equipmentQ.isSuccess ? equipmentQ.data.items : []}
+              loading={equipmentQ.isPending || equipmentQ.isFetching}
+              error={equipmentQ.isError}
+              onChange={(value) => dispatchScope({ type: 'equipment', value })}
+              onRetry={() => equipmentQ.refetch()}
+            />
 
             <label>
               <div className="muted small">Техник</div>
@@ -340,6 +417,9 @@ export function InspectionSchedulesPage() {
                     {/* Phase 2: из обхода — обратно в карточку точки, с сохранением области. */}
                     <Link to={locationCardPath(s.location.id, outboundScope)}>{s.location.name}</Link>
                     {s.location.city ? ` · ${s.location.city}` : ''}
+                  </div>
+                  <div className="muted small">
+                    Оборудование: {s.equipment ? inspectionScheduleEquipmentLabel(s.equipment) : 'Вся точка'}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
