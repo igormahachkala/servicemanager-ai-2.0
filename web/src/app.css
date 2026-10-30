@@ -21,6 +21,15 @@
 
 * { box-sizing: border-box; }
 
+.leaflet-container {
+  isolation: isolate;
+  z-index: 0;
+}
+
+.leaflet-attribution-flag {
+  display: none !important;
+}
+
 .page {
   min-height: 100dvh;
   min-height: 100%;

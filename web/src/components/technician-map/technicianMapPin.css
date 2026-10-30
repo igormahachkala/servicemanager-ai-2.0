@@ -1,0 +1,27 @@
+.technician-map-canvas {
+  height: 480px;
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.technician-map-pin {
+  background: transparent;
+  border: 0;
+}
+
+.technician-map-pin-card {
+  width: max-content;
+  background: #fff;
+  border: 1px solid #c5c5c5;
+  border-radius: 6px;
+  padding: 4px 6px;
+  color: #1c1c1c;
+  font: 12px/1.3 sans-serif;
+  white-space: nowrap;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+
+.technician-map-pin-card div + div {
+  color: #333;
+}

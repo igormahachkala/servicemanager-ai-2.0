@@ -11,6 +11,7 @@ import { WorkforceGeoService } from './workforce-geo.service'
 import { WorkforceOnSiteCorrectionService } from './workforce-on-site-correction.service'
 import { WorkforceOnSiteReadService } from './workforce-on-site-read.service'
 import { WorkforceOnSiteService } from './workforce-on-site.service'
+import { WorkforceTechnicianMapService } from './workforce-technician-map.service'
 import { WorkforceService } from './workforce.service'
 
 @Module({
@@ -23,6 +24,7 @@ import { WorkforceService } from './workforce.service'
     WorkforceOnSiteService,
     WorkforceOnSiteReadService,
     WorkforceOnSiteCorrectionService,
+    WorkforceTechnicianMapService,
     WorkforceGeoService,
     GeoAccuracyService,
   ],

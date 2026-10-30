@@ -17,6 +17,7 @@ const MORE_PREFIXES = [
   '/analytics',
   '/workforce',
   '/on-site',
+  '/technician-map',
   '/profile',
   '/settings',
   '/push-settings',

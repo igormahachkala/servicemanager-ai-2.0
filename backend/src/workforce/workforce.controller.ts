@@ -17,6 +17,10 @@ import { UpdateWorkforceSettingsDto } from './dto/update-workforce-settings.dto'
 import { WorkforceGeoService } from './workforce-geo.service'
 import { WorkforceOnSiteCorrectionService } from './workforce-on-site-correction.service'
 import { WorkforceOnSiteReadService } from './workforce-on-site-read.service'
+import {
+  parseTechnicianMapIncludeClosed,
+  WorkforceTechnicianMapService,
+} from './workforce-technician-map.service'
 import { WorkforceService } from './workforce.service'
 
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsContextGuard, PermissionsGuard)
@@ -27,6 +31,7 @@ export class WorkforceController {
     private readonly workforceGeo: WorkforceGeoService,
     private readonly onSiteRead: WorkforceOnSiteReadService,
     private readonly onSiteCorrection: WorkforceOnSiteCorrectionService,
+    private readonly technicianMap: WorkforceTechnicianMapService,
   ) {}
 
   @Get('me')
@@ -75,6 +80,12 @@ export class WorkforceController {
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
   listOnSiteCorrections(@Req() req: any, @Param('ticketId') ticketId: string) {
     return this.onSiteCorrection.list(this.actor(req), ticketId)
+  }
+
+  @Get('technician-map')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
+  technicianMapList(@Req() req: any, @Query('includeClosed') includeClosed?: string) {
+    return this.technicianMap.list(this.actor(req), parseTechnicianMapIncludeClosed(includeClosed))
   }
 
   @Post('shifts/open')

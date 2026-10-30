@@ -26,17 +26,22 @@ describe('Workforce CLIENT_ADMIN read-only nav visibility', () => {
   it('показывает /on-site мастеру, диспетчеру и админу провайдера', () => {
     for (const role of ['MASTER', 'DISPATCHER', 'ADMIN', 'ADMIN_PROVIDER'] as Role[]) {
       expect(isManagementNavItemVisible('/on-site', { role, companyType: 'PROVIDER' })).toBe(true)
+      expect(isManagementNavItemVisible('/technician-map', { role, companyType: 'PROVIDER' })).toBe(true)
     }
   })
 
   it('прячет /on-site у техника, клиента, CLIENT_ADMIN, PLATFORM_ADMIN и админа клиентской компании', () => {
     for (const role of ['TECHNICIAN', 'CLIENT', 'CLIENT_ADMIN', 'PLATFORM_ADMIN', 'NETWORK_DIRECTOR', 'TERRITORIAL_MANAGER', 'STAFF'] as Role[]) {
       expect(isManagementNavItemVisible('/on-site', { role, companyType: 'PROVIDER' })).toBe(false)
+      expect(isManagementNavItemVisible('/technician-map', { role, companyType: 'PROVIDER' })).toBe(false)
     }
     expect(isManagementNavItemVisible('/on-site', { role: 'ADMIN', companyType: 'CLIENT' })).toBe(false)
+    expect(isManagementNavItemVisible('/technician-map', { role: 'ADMIN', companyType: 'CLIENT' })).toBe(false)
     for (const companyType of [undefined, null] as Array<CompanyType | null | undefined>) {
       expect(isManagementNavItemVisible('/on-site', { role: 'MASTER', companyType })).toBe(false)
+      expect(isManagementNavItemVisible('/technician-map', { role: 'MASTER', companyType })).toBe(false)
       expect(isManagementNavItemVisible('/on-site', { role: 'ADMIN', companyType })).toBe(false)
+      expect(isManagementNavItemVisible('/technician-map', { role: 'ADMIN', companyType })).toBe(false)
     }
   })
 

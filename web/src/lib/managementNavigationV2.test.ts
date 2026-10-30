@@ -53,6 +53,7 @@ describe('Rail: утверждённая информационная архит
       '/inspection/templates',
       '/workforce',
       '/on-site',
+      '/technician-map',
     ])
   })
 
@@ -156,6 +157,7 @@ describe('Видимость: fail-closed', () => {
   it('На точках виден только MASTER, DISPATCHER и ADMIN компании провайдера', () => {
     for (const role of ['MASTER', 'DISPATCHER', 'ADMIN'] as Role[]) {
       expect(isManagementNavItemVisible('/on-site', { role, companyType: 'PROVIDER' })).toBe(true)
+      expect(isManagementNavItemVisible('/technician-map', { role, companyType: 'PROVIDER' })).toBe(true)
     }
     for (const role of ['TECHNICIAN', 'CLIENT', 'CLIENT_ADMIN', 'PLATFORM_ADMIN'] as Role[]) {
       expect(isManagementNavItemVisible('/on-site', { role, companyType: 'PROVIDER' })).toBe(false)
@@ -218,6 +220,7 @@ describe('Активный раздел Rail по пути (railSectionIdForPath
     expect(railSectionIdForPath('/inspection/runs')).toBe('works')
     expect(railSectionIdForPath('/workforce')).toBe('works')
     expect(railSectionIdForPath('/on-site')).toBe('works')
+    expect(railSectionIdForPath('/technician-map')).toBe('works')
     expect(railSectionIdForPath('/analytics')).toBe('analytics')
     expect(railSectionIdForPath('/analytics/locations')).toBe('analytics')
     expect(railSectionIdForPath('/employees')).toBe('more')

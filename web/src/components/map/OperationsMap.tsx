@@ -1,6 +1,6 @@
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { MapContainer, Marker, TileLayer, Tooltip } from 'react-leaflet'
+import { AttributionControl, MapContainer, Marker, TileLayer, Tooltip } from 'react-leaflet'
 
 import * as api from '../../lib/api'
 
@@ -38,7 +38,14 @@ export function OperationsMap({ locations, selectedLocationId, onSelect }: Props
 
   return (
     <div className="panel" style={{ padding: 0, overflow: 'hidden', minHeight: 480 }}>
-      <MapContainer center={center} zoom={5} style={{ height: 480, width: '100%' }} scrollWheelZoom>
+      <MapContainer
+        center={center}
+        zoom={5}
+        style={{ height: 480, width: '100%' }}
+        scrollWheelZoom
+        attributionControl={false}
+      >
+        <AttributionControl prefix={false} />
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

@@ -77,6 +77,12 @@ export function getMobileMoreEntries(
       hint: 'Исполнители у точек активных заявок',
       to: p('/on-site'),
     })
+    out.push({
+      id: 'technicianMap',
+      label: 'Карта техников',
+      hint: 'Техники на открытой смене и время последней точки',
+      to: p('/technician-map'),
+    })
   }
 
   // Аналитика — перенесена из прайм-слота; только роли с реальным доступом.
