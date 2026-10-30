@@ -23,7 +23,13 @@ export type ScheduleAdvanceResult =
  *
  * Следующий срок — первый по сетке после max(срок визита, момент завершения).
  * Поздно закрытый визит не оставляет за собой хвост просроченных: пропущенные
- * сроки покрыты этим обходом, следующий — уже в будущем. Однократный план
+ * сроки покрыты этим обходом, следующий — уже в будущем.
+ *
+ * Перенесённый визит (replacedDueAt задан) закрывает слот сетки, который он
+ * заменил, а не тот, что ближе к новому сроку. Перенос раньше не возвращает
+ * план на тот же слот второй раз, перенос позже не перепрыгивает следующий.
+ *
+ * Однократный план
  * после своего визита выключается: следующего визита у него нет, а активный
  * план с прошедшим сроком навсегда числился бы просроченным.
  *
@@ -48,6 +54,7 @@ export async function advanceScheduleAfterRun(
       intervalDays: true,
       startDate: true,
       nextDueAt: true,
+      replacedDueAt: true,
       company: { select: { timezone: true } },
     },
   });
@@ -57,7 +64,11 @@ export async function advanceScheduleAfterRun(
   }
 
   const closedUntil = new Date(
-    Math.max(run.dueAt.getTime(), run.completedAt.getTime()),
+    Math.max(
+      run.dueAt.getTime(),
+      run.completedAt.getTime(),
+      schedule.replacedDueAt?.getTime() ?? -Infinity,
+    ),
   );
   const next = nextOccurrenceAfter(
     schedule,
@@ -67,7 +78,9 @@ export async function advanceScheduleAfterRun(
 
   const { count } = await tx.inspectionSchedule.updateMany({
     where: { id: schedule.id, companyId: run.companyId, nextDueAt: run.dueAt },
-    data: next ? { nextDueAt: next } : { isActive: false },
+    data: next
+      ? { nextDueAt: next, replacedDueAt: null }
+      : { isActive: false, replacedDueAt: null },
   });
   if (count === 0) return { outcome: 'skipped', reason: 'already_advanced' };
 

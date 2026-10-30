@@ -542,7 +542,7 @@ describe('never-started schedule edit vs run start (PostgreSQL)', () => {
 
   it('allows a new draft to move forward then back while rejecting stale revision and stale cursor independently', async () => {
     const { schedule, historicalRun } = await recurringPlanWithHistory();
-    const farTarget = new Date(schedule.nextDueAt.getTime() + 9 * DAY);
+    const farTarget = new Date(schedule.nextDueAt.getTime() + 5 * DAY);
     const oldDraft = moveInput(schedule, farTarget);
     await schedules.rescheduleNextOccurrence(admin, schedule.id, oldDraft);
     const moved = await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } });
@@ -559,8 +559,12 @@ describe('never-started schedule edit vs run start (PostgreSQL)', () => {
     expect(returned.nextDueAt).toEqual(backTarget);
     expect(returned.updatedAt.getTime()).toBeGreaterThan(moved.updatedAt.getTime());
     expect(await moveEvents(schedule.id)).toHaveLength(2);
+    // Both moves replace the same original slot.
+    expect(returned.replacedDueAt).toEqual(schedule.nextDueAt);
     // A move is not a new anchor, a synthetic run or a history rewrite.
-    expect({ ...returned, nextDueAt: schedule.nextDueAt, updatedAt: schedule.updatedAt }).toEqual(schedule);
+    expect({
+      ...returned, nextDueAt: schedule.nextDueAt, replacedDueAt: null, updatedAt: schedule.updatedAt,
+    }).toEqual(schedule);
     expect(await db.inspectionRun.findUniqueOrThrow({ where: { id: historicalRun.id } })).toEqual(historicalRun);
     expect(await db.inspectionRun.count({ where: { scheduleId: schedule.id } })).toBe(1);
   });
@@ -580,23 +584,70 @@ describe('never-started schedule edit vs run start (PostgreSQL)', () => {
     expect(await db.inspectionRun.findUniqueOrThrow({ where: { id: historicalRun.id } })).toEqual(historicalRun);
   });
 
-  it('completes a moved cross-period occurrence on the original anchored grid without regenerating skipped runs', async () => {
-    const { schedule, historicalRun } = await recurringPlanWithHistory();
-    const target = new Date(schedule.nextDueAt.getTime() + 9 * DAY);
-    await schedules.rescheduleNextOccurrence(admin, schedule.id, moveInput(schedule, target));
-    const run = await start(schedule.id);
+  async function completeCurrentVisit(scheduleId: string) {
+    const run = await start(scheduleId);
     await runs.completeRun(admin, run.id);
-    const completed = await db.inspectionRun.findUniqueOrThrow({ where: { id: run.id } });
-    const after = await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } });
+    return db.inspectionRun.findUniqueOrThrow({ where: { id: run.id } });
+  }
+
+  // Сетка фикстуры: еженедельно, исходный слот S = schedule.nextDueAt, следующий S + 7 дней.
+  it.each([
+    ['earlier', -2 * DAY],
+    ['later', 3 * DAY],
+  ])('a visit moved %s and completed continues with the slot after the replaced one', async (_label, shift) => {
+    const { schedule, historicalRun } = await recurringPlanWithHistory();
+    const target = new Date(schedule.nextDueAt.getTime() + shift);
+    await schedules.rescheduleNextOccurrence(admin, schedule.id, moveInput(schedule, target));
+    const moved = await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } });
+    expect(moved.replacedDueAt).toEqual(schedule.nextDueAt);
+
+    const completed = await completeCurrentVisit(schedule.id);
     expect(completed.dueAt).toEqual(target);
     expect(completed.status).toBe(InspectionRunStatus.COMPLETED);
+
+    const after = await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } });
+    // Ни лишнего визита на исходном слоте, ни пропуска следующего.
+    expect(after.nextDueAt).toEqual(new Date(schedule.nextDueAt.getTime() + 7 * DAY));
+    expect(after.replacedDueAt).toBeNull();
     expect(after.startDate).toEqual(schedule.startDate);
     expect(after.frequency).toBe(InspectionFrequency.WEEKLY);
-    expect(after.nextDueAt).toEqual(new Date(schedule.nextDueAt.getTime() + 14 * DAY));
     expect(await db.inspectionRun.findUniqueOrThrow({ where: { id: historicalRun.id } })).toEqual(historicalRun);
     expect(await db.inspectionRun.count({ where: { scheduleId: schedule.id } })).toBe(2);
   });
 
+  it('a visit moved later, then earlier, still replaces the original slot once', async () => {
+    const { schedule } = await recurringPlanWithHistory();
+    await schedules.rescheduleNextOccurrence(admin, schedule.id,
+      moveInput(schedule, new Date(schedule.nextDueAt.getTime() + 3 * DAY)));
+    const once = await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } });
+    const earlier = new Date(schedule.nextDueAt.getTime() - 2 * DAY);
+    await schedules.rescheduleNextOccurrence(admin, schedule.id, moveInput(once, earlier));
+    const twice = await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } });
+    expect(twice).toMatchObject({ nextDueAt: earlier, replacedDueAt: schedule.nextDueAt });
+
+    await completeCurrentVisit(schedule.id);
+    const after = await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } });
+    expect(after.nextDueAt).toEqual(new Date(schedule.nextDueAt.getTime() + 7 * DAY));
+    expect(after.replacedDueAt).toBeNull();
+  });
+
+  it.each([
+    ['the next grid slot', 7 * DAY],
+    ['past the next grid slot', 9 * DAY],
+    ['a far future date', Date.parse('2099-01-01T00:00:00.000Z')],
+  ])('rejects a move to %s without changing the plan or writing audit', async (_label, value) => {
+    const { schedule } = await recurringPlanWithHistory();
+    const target = value > 365 * DAY ? new Date(value) : new Date(schedule.nextDueAt.getTime() + value);
+    await expect(schedules.rescheduleNextOccurrence(admin, schedule.id, moveInput(schedule, target)))
+      .rejects.toMatchObject({
+        response: {
+          code: 'INSPECTION_SCHEDULE_NEXT_OCCURRENCE_TOO_LATE',
+          nextSlotDueAt: new Date(schedule.nextDueAt.getTime() + 7 * DAY).toISOString(),
+        },
+      });
+    expect(await db.inspectionSchedule.findUniqueOrThrow({ where: { id: schedule.id } })).toEqual(schedule);
+    expect(await moveEvents(schedule.id)).toHaveLength(0);
+  });
 
   it('blocks any older in-progress run even when lastRunId points to a completed run at another date', async () => {
     const { schedule, historicalRun } = await recurringPlanWithHistory();

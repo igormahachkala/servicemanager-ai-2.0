@@ -304,7 +304,10 @@ export class InspectionScheduleService {
        * generated from this schedule yet. Once a generator has produced runs, `nextDueAt` is
        * its cursor, and 098 has no business rewinding it.
        */
-      if (!current.lastGeneratedAt) data.nextDueAt = startDate
+      if (!current.lastGeneratedAt) {
+        data.nextDueAt = startDate
+        data.replacedDueAt = null
+      }
     }
 
     if (dto.leadTimeDays !== undefined) data.leadTimeDays = dto.leadTimeDays
@@ -372,6 +375,7 @@ export class InspectionScheduleService {
           intervalDays,
           startDate,
           nextDueAt: startDate,
+          replacedDueAt: null,
           // Ensure even edits in the same millisecond invalidate an older draft.
           updatedAt: new Date(Math.max(Date.now(), expectedUpdatedAt.getTime() + 1)),
         },
@@ -545,11 +549,13 @@ export class InspectionScheduleService {
         intervalDays: true,
         startDate: true,
         nextDueAt: true,
+        replacedDueAt: true,
         lastGeneratedAt: true,
         lastRunId: true,
         isActive: true,
         updatedAt: true,
         assignedToUserId: true,
+        company: { select: { timezone: true } },
         location: { select: { id: true, clientCompanyId: true } },
         _count: { select: { runs: true } },
       },

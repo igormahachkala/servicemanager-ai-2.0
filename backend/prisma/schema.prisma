@@ -1329,6 +1329,8 @@ model InspectionSchedule {
   intervalDays     Int?
   startDate        DateTime
   nextDueAt        DateTime
+  /// Срок по сетке, вместо которого стоит перенесённый nextDueAt. null — не переносили.
+  replacedDueAt    DateTime?
   leadTimeDays     Int                 @default(0)
   graceDays        Int                 @default(0)
   isActive         Boolean             @default(true)

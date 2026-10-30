@@ -28,7 +28,9 @@ function suite(changes: Record<string, unknown> = {}) {
     intervalDays: null,
     startDate: date(-3),
     nextDueAt: date(4),
+    replacedDueAt: null as Date | null,
     updatedAt: date(-1),
+    company: { timezone: 'UTC' },
     location: { id: 'site-1', clientCompanyId: admin.companyId },
     graceDays: 2,
     lastGeneratedAt: date(-3),
@@ -129,7 +131,7 @@ describe('next occurrence move (unit contracts; DB races are separate)', () => {
           some: { status: InspectionRunStatus.COMPLETED },
         },
       },
-      data: { nextDueAt: date(5), updatedAt: now },
+      data: { nextDueAt: date(5), replacedDueAt: date(4), updatedAt: now },
     });
     expect(s.tx.inspectionRun.aggregate).toHaveBeenCalledWith({
       where: { scheduleId: s.current.id, companyId: admin.companyId },
@@ -149,6 +151,7 @@ describe('next occurrence move (unit contracts; DB races are separate)', () => {
           action: 'next_occurrence_rescheduled',
           oldNextDueAt: s.input.expectedNextDueAt,
           newNextDueAt: s.input.nextDueAt,
+          replacedDueAt: date(4).toISOString(),
           expectedUpdatedAt: s.input.expectedUpdatedAt,
           updatedAt: now.toISOString(),
         },
@@ -156,11 +159,42 @@ describe('next occurrence move (unit contracts; DB races are separate)', () => {
     });
   });
 
-  it('allows moving a next occurrence earlier than its cursor, across future periods', async () => {
-    const s = suite({ nextDueAt: date(20) });
+  // Сетка фикстуры: еженедельно от date(-3) — слоты date(4), date(11), date(18).
+  it('moves earlier than the cursor and remembers the replaced grid slot', async () => {
+    const s = suite();
     await expect(
       s.move({ nextDueAt: date(1).toISOString() }),
-    ).resolves.toMatchObject({ nextDueAt: date(1) });
+    ).resolves.toMatchObject({ nextDueAt: date(1), replacedDueAt: date(4) });
+  });
+
+  it.each([
+    ['exactly the next grid slot', date(11)],
+    ['past the next grid slot', date(12)],
+    ['a far future date', new Date('2099-01-01T00:00:00.000Z')],
+  ])('rejects a move to %s before any write: it would skip a visit', async (_label, target) => {
+    const s = suite();
+    await expect(s.move({ nextDueAt: target.toISOString() })).rejects.toMatchObject({
+      response: {
+        code: 'INSPECTION_SCHEDULE_NEXT_OCCURRENCE_TOO_LATE',
+        nextSlotDueAt: date(11).toISOString(),
+      },
+    });
+    expect(s.prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('keeps the original replaced slot and its bound on a repeated move', async () => {
+    const s = suite({ nextDueAt: date(9), replacedDueAt: date(4) });
+    await expect(
+      s.move({ nextDueAt: date(11).toISOString() }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await s.move({ nextDueAt: date(2).toISOString() });
+    expect(s.row()).toMatchObject({ nextDueAt: date(2), replacedDueAt: date(4) });
+  });
+
+  it('clears the move when the visit returns to its original slot', async () => {
+    const s = suite({ nextDueAt: date(9), replacedDueAt: date(4) });
+    await s.move({ nextDueAt: date(4).toISOString() });
+    expect(s.row()).toMatchObject({ nextDueAt: date(4), replacedDueAt: null });
   });
 
   it.each([
@@ -367,6 +401,7 @@ describe('completion after a moved visit retains canonical company-timezone grid
         startDate: new Date(test.startDate),
         nextDueAt: new Date(test.dueAt),
         intervalDays: null,
+        replacedDueAt: null,
         company: { timezone: test.timezone },
       };
       const tx = {
@@ -387,8 +422,62 @@ describe('completion after a moved visit retains canonical company-timezone grid
           companyId: admin.companyId,
           nextDueAt: schedule.nextDueAt,
         },
-        data: { nextDueAt: new Date(test.expected) },
+        data: { nextDueAt: new Date(test.expected), replacedDueAt: null },
       });
     },
   );
+});
+
+describe('completion of a moved visit closes the slot it replaced', () => {
+  // Еженедельно по понедельникам 09:00 UTC от 2027-03-01: слоты 03-08, 03-15, 03-22.
+  const startDate = new Date('2027-03-01T09:00:00.000Z');
+  const slot = (week: number) => new Date(startDate.getTime() + week * 7 * DAY);
+
+  async function complete(dueAt: Date, completedAt: Date, replacedDueAt: Date | null) {
+    const tx = {
+      inspectionSchedule: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'schedule-1',
+          frequency: InspectionFrequency.WEEKLY,
+          intervalDays: null,
+          startDate,
+          nextDueAt: dueAt,
+          replacedDueAt,
+          company: { timezone: 'UTC' },
+        }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+    await advanceScheduleAfterRun(tx as never, {
+      scheduleId: 'schedule-1',
+      companyId: admin.companyId,
+      dueAt,
+      completedAt,
+    });
+    return tx.inspectionSchedule.updateMany.mock.calls[0][0].data;
+  }
+
+  it('earlier move: the next due is the slot after the replaced one, not the replaced one again', async () => {
+    const thursdayBefore = new Date(slot(2).getTime() - 4 * DAY);
+    expect(await complete(thursdayBefore, thursdayBefore, slot(2))).toEqual({
+      nextDueAt: slot(3),
+      replacedDueAt: null,
+    });
+    // Без запомненного слота тот же визит вернул бы план на slot(2) — второй раз за неделю.
+    expect((await complete(thursdayBefore, thursdayBefore, null)).nextDueAt).toEqual(slot(2));
+  });
+
+  it('later move: the next due is the very next slot, none is skipped', async () => {
+    const tuesdayAfter = new Date(slot(2).getTime() + DAY);
+    expect(await complete(tuesdayAfter, tuesdayAfter, slot(2))).toEqual({
+      nextDueAt: slot(3),
+      replacedDueAt: null,
+    });
+  });
+
+  it('a late completion still covers the slots it overran', async () => {
+    const tuesdayAfter = new Date(slot(2).getTime() + DAY);
+    const lateCompletion = new Date(slot(4).getTime() + DAY);
+    expect((await complete(tuesdayAfter, lateCompletion, slot(2))).nextDueAt).toEqual(slot(5));
+  });
 });
