@@ -28,7 +28,7 @@ describe('Активная секция нижней навигации', () => 
     expect(mobileNavSectionForPath('/max/inspection/today')).toBe('inspection')
   })
   it('more-кластер: more/materials/equipment/shift/analytics/profile/settings/workforce/on-site', () => {
-    for (const suf of ['/more', '/materials', '/equipment', '/equipment/eq-1', '/shift', '/analytics', '/analytics/locations', '/profile', '/settings', '/workforce', '/on-site', '/push-settings', '/offline-queue', '/notifications']) {
+    for (const suf of ['/more', '/materials', '/equipment', '/equipment/eq-1', '/shift', '/analytics', '/analytics/locations', '/profile', '/settings', '/workforce', '/on-site', '/technician-map', '/push-settings', '/offline-queue', '/notifications']) {
       expect(mobileNavSectionForPath(`/m${suf}`)).toBe('more')
     }
     expect(mobileNavSectionForPath('/max/more')).toBe('more')
@@ -138,15 +138,21 @@ describe('«Ещё» — видимость по ролям (negative controls)'
     expect(dispatcher.map((entry) => entry.id)).not.toContain('shift')
     expect(dispatcher.find((entry) => entry.id === 'onSite')?.label).toBe('На точках')
     expect(dispatcher.find((entry) => entry.id === 'onSite')?.to).toBe('/m/on-site')
+    expect(dispatcher.find((entry) => entry.id === 'technicianMap')?.label).toBe('Карта техников')
+    expect(dispatcher.find((entry) => entry.id === 'technicianMap')?.to).toBe('/m/technician-map')
 
     const master = getMobileMoreEntries({ role: 'MASTER', canAccessManagementSurface: true, companyType: 'PROVIDER' }, '/m').map((entry) => entry.id)
     expect(master.indexOf('onSite')).toBe(master.indexOf('shift') + 1)
+    expect(master.indexOf('technicianMap')).toBe(master.indexOf('onSite') + 1)
 
     for (const role of ['TECHNICIAN', 'CLIENT', 'CLIENT_ADMIN', 'PLATFORM_ADMIN'] as Role[]) {
       expect(withType(role, 'PROVIDER')).not.toContain('onSite')
+      expect(withType(role, 'PROVIDER')).not.toContain('technicianMap')
     }
     expect(withType('ADMIN', 'CLIENT')).not.toContain('onSite')
+    expect(withType('ADMIN', 'CLIENT')).not.toContain('technicianMap')
     expect(ids({ role: 'MASTER', canAccessManagementSurface: true })).not.toContain('onSite')
+    expect(ids({ role: 'MASTER', canAccessManagementSurface: true })).not.toContain('technicianMap')
     expect(getMobileMoreEntries({ role: 'ADMIN', canAccessManagementSurface: true, companyType: 'PROVIDER' }, '/max').find((entry) => entry.id === 'onSite')?.to).toBe('/max/on-site')
   })
 
