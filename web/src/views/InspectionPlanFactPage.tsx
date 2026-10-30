@@ -14,7 +14,7 @@ import {
   planFactOptions,
   planFactPeriod,
   planFactPerson,
-  planFactQueries,
+  loadPlanFact,
   scopePlanFact,
   type PlanFactData,
   type PlanFactFilter,
@@ -22,12 +22,16 @@ import {
 import { PlanFactTickets } from '../components/inspection/PlanFactTickets'
 import { refreshPlanFactData } from '../lib/inspectionPlanFactTickets'
 
-const EMPTY: PlanFactData = { schedules: [], completed: [], active: [] }
+const EMPTY: PlanFactData = {
+  schedules: [],
+  overdueSchedules: [],
+  completed: [],
+  active: [],
+}
 
 export function InspectionPlanFactResults(props: {
   data: PlanFactData
   filter: PlanFactFilter
-  now: number
   loading: boolean
   failed: boolean
   sourceAtLimit?: boolean
@@ -35,7 +39,7 @@ export function InspectionPlanFactResults(props: {
   outboundScope: api.TicketScopeParams
 }) {
   const [expanded, setExpanded] = useState('')
-  const model = buildPlanFact(props.data, props.filter, props.now)
+  const model = buildPlanFact(props.data, props.filter)
   const href = (path: string) =>
     api.appendScopeToPath(path, props.outboundScope)
   if (props.loading) return <p role="status">Загружаем план и факт…</p>
@@ -127,16 +131,17 @@ export function InspectionPlanFactResults(props: {
         </p>
       ) : null}
       <div className="panel">
-        <b>В показанной выборке:</b> текущих планов {model.plans.length}; с
-        просроченным незавершённым обходом {model.overdueCount}; срок прошёл,
-        факт не подтверждён {model.unconfirmedCount}; завершено в периоде{' '}
+        <b>В показанной выборке:</b> текущих планов {model.plans.length};
+        просрочено {model.overdueCount}, из них начато{' '}
+        {model.overdueStartedCount}; завершено в периоде{' '}
         {model.completed.length}, из них с подтверждённой просрочкой{' '}
         {model.lateCount}; незавершённых сейчас {model.active.length}.
       </div>
       <section className="panel" aria-label="Текущий план">
-        <h3>Текущий план — сроки в выбранном периоде</h3>
+        <h3>Текущий план — сроки в выбранном периоде и все просроченные</h3>
         <p className="muted small">
-          Только ближайший визит активного плана. Назначение сотрудника —
+          Только ближайший визит активного плана. Просроченный визит показан при
+          любом периоде, пока обход по нему не завершён. Назначение сотрудника —
           текущее, не исторический снимок.
         </p>
         <div style={{ display: 'grid', gap: 12 }}>
@@ -244,15 +249,7 @@ export function InspectionPlanFactPage() {
       filter,
     ],
     enabled: !!meQ.data && !invalid,
-    queryFn: async () => {
-      const requests = planFactQueries(filter)
-      const [schedules, completed, active] = await Promise.all([
-        api.getInspectionSchedules(requests.schedules),
-        api.getInspectionRuns(requests.completed),
-        api.getInspectionRuns(requests.active),
-      ])
-      return { schedules, completed, active }
-    },
+    queryFn: () => loadPlanFact(filter),
     retry: false,
   })
   const data = scopePlanFact(
@@ -408,7 +405,6 @@ export function InspectionPlanFactPage() {
           }
           data={data}
           filter={filter}
-          now={query.dataUpdatedAt || today.getTime()}
           loading={!meQ.isError && (meQ.isPending || query.isPending)}
           failed={meQ.isError || query.isError}
           me={meQ.data}

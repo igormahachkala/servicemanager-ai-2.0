@@ -5,13 +5,7 @@ import { describe, expect, it } from 'vitest'
 import { InspectionPlanFactResults } from './InspectionPlanFactPage'
 import { PlanFactTicketResults } from '../components/inspection/PlanFactTickets'
 import { PLAN_FACT_COVERAGE } from '../lib/inspectionPlanFact'
-import {
-  data,
-  FILTER,
-  NOW,
-  plan,
-  run,
-} from '../lib/inspectionPlanFact.fixtures'
+import { data, FILTER, plan } from '../lib/inspectionPlanFact.fixtures'
 function render(
   extra: Partial<Parameters<typeof InspectionPlanFactResults>[0]> = {},
 ) {
@@ -22,7 +16,6 @@ function render(
       createElement(InspectionPlanFactResults, {
         data: data(),
         filter: FILTER,
-        now: NOW,
         loading: false,
         failed: false,
         outboundScope: { linkedClientCompanyId: 'client-1' },
@@ -52,7 +45,14 @@ describe('plan/fact SSR', () => {
     expect(render({ failed: true })).not.toContain('Историческое название')
     expect(render({ loading: true })).toContain('Загружаем')
     expect(
-      render({ data: { schedules: [], completed: [], active: [] } }),
+      render({
+        data: {
+          schedules: [],
+          overdueSchedules: [],
+          completed: [],
+          active: [],
+        },
+      }),
     ).toContain('в загруженной выборке')
   })
   it('explicitly describes incomplete coverage without completion percentage', () => {
@@ -102,18 +102,23 @@ describe('plan/fact SSR', () => {
   })
 })
 
-it('does not render unconfirmed expired plans as confirmed overdue in the summary', () => {
+it('renders an unstarted overdue plan from an earlier month in the summary and the plan list', () => {
   const html = render({
     data: data({
-      schedules: [
-        plan({ nextDueAt: run().dueAt!, overdueAt: run().overdueAt! }),
+      overdueSchedules: [
+        plan({
+          id: 'plan-sept',
+          name: 'Сентябрьский визит',
+          nextDueAt: '2026-09-15T09:00:00Z',
+          overdueAt: '2026-09-15T09:00:00Z',
+          isOverdue: true,
+        }),
       ],
       completed: [],
     }),
-    filter: { ...FILTER, employeeId: 'worker-new' },
   })
-  expect(html).toContain('Срок прошёл · факт не подтверждён')
-  expect(html).toContain('с просроченным незавершённым обходом 0')
-  expect(html).toContain('срок прошёл, факт не подтверждён 1')
-  expect(html).not.toContain('>Просрочен<')
+  expect(html).toContain('Сентябрьский визит')
+  expect(html).toContain('>Просрочен<')
+  expect(html).toContain('просрочено 1, из них начато 0')
+  expect(html).not.toContain('факт не подтверждён 1')
 })

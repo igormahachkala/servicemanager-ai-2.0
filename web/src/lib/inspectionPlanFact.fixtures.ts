@@ -82,5 +82,11 @@ export function plan(
   }
 }
 export function data(overrides: Partial<PlanFactData> = {}): PlanFactData {
-  return { schedules: [plan()], completed: [run()], active: [], ...overrides }
+  return {
+    schedules: [plan()],
+    overdueSchedules: [],
+    completed: [run()],
+    active: [],
+    ...overrides,
+  }
 }

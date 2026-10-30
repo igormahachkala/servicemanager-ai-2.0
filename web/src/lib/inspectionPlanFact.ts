@@ -1,3 +1,4 @@
+import { getInspectionRuns, getInspectionSchedules } from './api'
 import type {
   InspectionRunListItem,
   InspectionRunPerson,
@@ -8,7 +9,7 @@ import type {
 
 export const PLAN_FACT_LIMIT = 200
 export const PLAN_FACT_COVERAGE =
-  'Наблюдаемый план/факт, не полный архив: до 200 записей в каждой выборке, доступ дополнительно ограничен сервером. Пропущенные незапущенные повторения не сохраняются и здесь не восстанавливаются. Процент выполнения не рассчитывается.'
+  'Наблюдаемый план/факт, не полный архив: до 200 записей в каждой выборке, доступ дополнительно ограничен сервером. Просроченные активные планы показываются при любом периоде. Пропущенные повторения сверх текущего срока плана не сохраняются и здесь не восстанавливаются. Процент выполнения не рассчитывается.'
 
 export type PlanFactFilter = {
   locationId: string
@@ -18,6 +19,8 @@ export type PlanFactFilter = {
 }
 export type PlanFactData = {
   schedules: InspectionSchedule[]
+  /** Активные планы со сроком не позже момента запроса — без окна периода. */
+  overdueSchedules: InspectionSchedule[]
   completed: InspectionRunListItem[]
   active: InspectionRunListItem[]
 }
@@ -51,8 +54,12 @@ export function planFactPeriod(from: string, to: string) {
   return { start, end, invalid }
 }
 
-export function planFactQueries(filter: PlanFactFilter): {
+export function planFactQueries(
+  filter: PlanFactFilter,
+  now: number,
+): {
   schedules: InspectionScheduleFilters
+  overdueSchedules: InspectionScheduleFilters
   completed: InspectionRunsFilter
   active: InspectionRunsFilter
 } {
@@ -72,6 +79,15 @@ export function planFactQueries(filter: PlanFactFilter): {
       from,
       to,
     },
+    // Срок плана сдвигается только завершением обхода, поэтому незакрытый визит
+    // прошлого месяца остаётся с прежним nextDueAt. Окно периода его бы скрыло.
+    // Просрочку решает сервер (isOverdue); здесь только верхняя граница срока.
+    overdueSchedules: {
+      active: true,
+      locationId,
+      assignedToUserId: performedByUserId,
+      to: new Date(now).toISOString(),
+    },
     completed: {
       status: 'COMPLETED',
       locationId,
@@ -87,6 +103,20 @@ export function planFactQueries(filter: PlanFactFilter): {
       limit: PLAN_FACT_LIMIT,
     },
   }
+}
+
+/** Граница просроченных планов — момент запроса, а не момент рендера. */
+export async function loadPlanFact(
+  filter: PlanFactFilter,
+): Promise<PlanFactData> {
+  const requests = planFactQueries(filter, Date.now())
+  const [schedules, overdueSchedules, completed, active] = await Promise.all([
+    getInspectionSchedules(requests.schedules),
+    getInspectionSchedules(requests.overdueSchedules),
+    getInspectionRuns(requests.completed),
+    getInspectionRuns(requests.active),
+  ])
+  return { schedules, overdueSchedules, completed, active }
 }
 
 function unique<T extends { id: string }>(rows: T[]): T[] {
@@ -120,6 +150,7 @@ export function scopePlanFact(
       : rows
   return {
     schedules: visible(data.schedules),
+    overdueSchedules: visible(data.overdueSchedules),
     completed: visible(data.completed),
     active: visible(data.active),
   }
@@ -128,9 +159,10 @@ export function scopePlanFact(
 export function planFactOptions(data: PlanFactData) {
   const locations = new Map<string, string>()
   const employees = new Map<string, string>()
-  for (const row of [...data.schedules, ...data.completed, ...data.active])
+  const schedules = [...data.schedules, ...data.overdueSchedules]
+  for (const row of [...schedules, ...data.completed, ...data.active])
     locations.set(row.location.id, row.location.name)
-  for (const row of data.schedules)
+  for (const row of schedules)
     if (row.assignedTo)
       employees.set(row.assignedTo.id, planFactPerson(row.assignedTo))
   for (const row of [...data.completed, ...data.active])
@@ -152,11 +184,7 @@ export function completedTiming(
   return completed > deadline ? 'late' : 'on-time'
 }
 
-export function buildPlanFact(
-  data: PlanFactData,
-  filter: PlanFactFilter,
-  now: number,
-) {
+export function buildPlanFact(data: PlanFactData, filter: PlanFactFilter) {
   const period = planFactPeriod(filter.from, filter.to)
   const inPeriod = (value?: string | null) => {
     const at = instant(value)
@@ -193,13 +221,15 @@ export function buildPlanFact(
   // Сопоставление визита не зависит от фильтра фактического исполнителя:
   // другой сотрудник вправе выполнить текущее назначение. История не переписывается.
   const runs = unique([...data.active, ...data.completed])
-  const plans = unique(data.schedules)
+  // Просроченные — первыми; план из обеих выборок показывается один раз.
+  const plans = unique([...data.overdueSchedules, ...data.schedules])
     .filter(
       (plan) =>
         plan.isActive &&
         locationMatches(plan) &&
         (!filter.employeeId || plan.assignedTo?.id === filter.employeeId) &&
-        inPeriod(plan.nextDueAt),
+        // Просроченный визит виден при любом периоде: он не закрыт, пока срок не сдвинут.
+        (plan.isOverdue === true || inPeriod(plan.nextDueAt)),
     )
     .map((plan) => {
       const due = instant(plan.nextDueAt)
@@ -216,28 +246,24 @@ export function buildPlanFact(
           due !== null &&
           instant(candidate.dueAt) === due,
       )
-      const deadline = instant(plan.overdueAt)
-      const deadlinePassed =
-        deadline === null ? plan.isOverdue === true : now > deadline
-      // Фильтр фактического исполнителя и лимит могут скрыть выполнение другим
-      // человеком. Истёкший срок без совпавшего факта — не доказанная просрочка.
-      const overdue = deadlinePassed && run?.status === 'IN_PROGRESS'
-      const unconfirmed = deadlinePassed && !run
+      // Серверный признак: льготный срок прошёл, а визит не закрыт. Он не зависит
+      // от лимита и фильтра исполнителя, в отличие от поиска запуска в выборке.
+      const overdue = plan.isOverdue === true
+      const started = run?.status === 'IN_PROGRESS'
       return {
         plan,
         run,
         overdue,
-        unconfirmed,
         label:
           run?.status === 'COMPLETED'
             ? 'Есть завершённый обход'
             : overdue
-              ? 'В процессе · просрочен'
-              : unconfirmed
-                ? 'Срок прошёл · факт не подтверждён'
-                : run
-                  ? 'В процессе'
-                  : 'План · факт не подтверждён',
+              ? started
+                ? 'В процессе · просрочен'
+                : 'Просрочен'
+              : started
+                ? 'В процессе'
+                : 'План · факт не подтверждён',
       }
     })
   return {
@@ -245,7 +271,9 @@ export function buildPlanFact(
     completed,
     active,
     overdueCount: plans.filter((row) => row.overdue).length,
-    unconfirmedCount: plans.filter((row) => row.unconfirmed).length,
+    overdueStartedCount: plans.filter(
+      (row) => row.overdue && row.run?.status === 'IN_PROGRESS',
+    ).length,
     lateCount: completed.filter((run) => completedTiming(run) === 'late')
       .length,
     possiblyTruncated: Object.values(data).some(
