@@ -8,6 +8,8 @@ import { WorkforceController } from './workforce.controller'
 import {
   WorkforceTechnicianMapService,
   formatTechnicianMapSyncLabel,
+  parseTechnicianMapIncludeClosed,
+  pickTechnicianMapShifts,
 } from './workforce-technician-map.service'
 
 const AT = new Date('2026-10-30T01:05:00.000Z')
@@ -42,6 +44,9 @@ describe('formatTechnicianMapSyncLabel', () => {
 describe('WorkforceTechnicianMapService', () => {
   const openTech = {
     userId: 'tech-open',
+    status: WorkShiftStatus.OPEN,
+    openedAt: AT,
+    closedAt: null,
     lastLatitude: 55.75,
     lastLongitude: 37.61,
     lastGeoAt: AT,
@@ -49,10 +54,23 @@ describe('WorkforceTechnicianMapService', () => {
   }
   const openWithoutPoint = {
     userId: 'tech-bare',
+    status: WorkShiftStatus.OPEN,
+    openedAt: AT,
+    closedAt: null,
     lastLatitude: null,
     lastLongitude: null,
     lastGeoAt: null,
     user: { id: 'tech-bare', firstName: 'Олег', lastName: 'Безточки', role: UserRole.TECHNICIAN },
+  }
+  const closedTech = {
+    userId: 'tech-closed',
+    status: WorkShiftStatus.CLOSED,
+    openedAt: new Date('2026-10-29T08:00:00.000Z'),
+    closedAt: new Date('2026-10-29T18:00:00.000Z'),
+    lastLatitude: 56.0,
+    lastLongitude: 38.0,
+    lastGeoAt: new Date('2026-10-29T17:50:00.000Z'),
+    user: { id: 'tech-closed', firstName: 'Сергей', lastName: 'Волков', role: UserRole.TECHNICIAN },
   }
 
   it('пускает мастера, диспетчера и админа провайдера', async () => {
@@ -108,6 +126,7 @@ describe('WorkforceTechnicianMapService', () => {
         latitude: null,
         longitude: null,
         syncedAtLabel: '',
+        shiftOpen: true,
       },
       {
         id: 'tech-open',
@@ -116,6 +135,7 @@ describe('WorkforceTechnicianMapService', () => {
         latitude: 55.75,
         longitude: 37.61,
         syncedAtLabel: '10.30 01:05',
+        shiftOpen: true,
       },
     ])
     expect(result.tickets).toEqual([])
@@ -146,6 +166,99 @@ describe('WorkforceTechnicianMapService', () => {
       title: 'Течёт кран',
       technicianId: 'tech-open',
     }])
+  })
+
+  it('без флага не просит закрытые смены', async () => {
+    const prisma = prismaFor({ companyType: CompanyType.PROVIDER, shifts: [openTech] })
+    const service = new WorkforceTechnicianMapService(prisma as never)
+    await service.list({ id: 'master', companyId: 'provider-1', role: UserRole.MASTER })
+    expect(prisma.workShift.findMany.mock.calls[0][0].where.status).toBe(WorkShiftStatus.OPEN)
+  })
+
+  it('с флагом отдаёт закрытую смену последней точкой до закрытия и не подменяет открытую', async () => {
+    const olderClosed = {
+      ...closedTech,
+      lastLatitude: 1,
+      lastLongitude: 1,
+      lastGeoAt: new Date('2026-10-28T10:00:00.000Z'),
+      closedAt: new Date('2026-10-28T12:00:00.000Z'),
+    }
+    const openAndClosedSamePerson = {
+      ...openTech,
+      lastLatitude: 55.1,
+      lastLongitude: 37.1,
+    }
+    const prisma = prismaFor({
+      companyType: CompanyType.PROVIDER,
+      shifts: [olderClosed, closedTech, openAndClosedSamePerson, {
+        ...openAndClosedSamePerson,
+        status: WorkShiftStatus.CLOSED,
+        closedAt: new Date('2026-10-29T12:00:00.000Z'),
+        lastLatitude: 99,
+        lastLongitude: 99,
+        lastGeoAt: new Date('2026-10-29T11:00:00.000Z'),
+      }],
+    })
+    const service = new WorkforceTechnicianMapService(prisma as never)
+    const result = await service.list(
+      { id: 'master', companyId: 'provider-1', role: UserRole.MASTER },
+      true,
+    )
+    expect(prisma.workShift.findMany.mock.calls[0][0].where.status).toEqual({
+      in: [WorkShiftStatus.OPEN, WorkShiftStatus.CLOSED, WorkShiftStatus.AUTO_CLOSED],
+    })
+    expect(result.people).toEqual([
+      {
+        id: 'tech-closed',
+        firstName: 'Сергей',
+        lastName: 'Волков',
+        latitude: 56.0,
+        longitude: 38.0,
+        syncedAtLabel: '10.29 17:50',
+        shiftOpen: false,
+      },
+      {
+        id: 'tech-open',
+        firstName: 'Иван',
+        lastName: 'Петров',
+        latitude: 55.1,
+        longitude: 37.1,
+        syncedAtLabel: '10.30 01:05',
+        shiftOpen: true,
+      },
+    ])
+  })
+})
+
+describe('parseTechnicianMapIncludeClosed', () => {
+  it('принимает 1 и true', () => {
+    expect(parseTechnicianMapIncludeClosed(undefined)).toBe(false)
+    expect(parseTechnicianMapIncludeClosed('1')).toBe(true)
+    expect(parseTechnicianMapIncludeClosed('true')).toBe(true)
+    expect(parseTechnicianMapIncludeClosed('yes')).toBe(false)
+  })
+})
+
+describe('pickTechnicianMapShifts', () => {
+  it('у одного человека открытая смена побеждает закрытую', () => {
+    const open = {
+      userId: 'tech-1',
+      status: WorkShiftStatus.OPEN,
+      openedAt: AT,
+      closedAt: null,
+      lastLatitude: 2,
+      lastLongitude: 2,
+      lastGeoAt: AT,
+      user: { id: 'tech-1', firstName: 'А', lastName: 'Б' },
+    }
+    const closed = {
+      ...open,
+      status: WorkShiftStatus.AUTO_CLOSED,
+      closedAt: new Date('2026-10-29T18:00:00.000Z'),
+      lastLatitude: 9,
+      lastLongitude: 9,
+    }
+    expect(pickTechnicianMapShifts([closed, open])).toEqual([open])
   })
 })
 

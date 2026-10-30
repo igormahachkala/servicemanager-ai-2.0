@@ -17,7 +17,10 @@ import { UpdateWorkforceSettingsDto } from './dto/update-workforce-settings.dto'
 import { WorkforceGeoService } from './workforce-geo.service'
 import { WorkforceOnSiteCorrectionService } from './workforce-on-site-correction.service'
 import { WorkforceOnSiteReadService } from './workforce-on-site-read.service'
-import { WorkforceTechnicianMapService } from './workforce-technician-map.service'
+import {
+  parseTechnicianMapIncludeClosed,
+  WorkforceTechnicianMapService,
+} from './workforce-technician-map.service'
 import { WorkforceService } from './workforce.service'
 
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsContextGuard, PermissionsGuard)
@@ -81,8 +84,8 @@ export class WorkforceController {
 
   @Get('technician-map')
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
-  technicianMapList(@Req() req: any) {
-    return this.technicianMap.list(this.actor(req))
+  technicianMapList(@Req() req: any, @Query('includeClosed') includeClosed?: string) {
+    return this.technicianMap.list(this.actor(req), parseTechnicianMapIncludeClosed(includeClosed))
   }
 
   @Post('shifts/open')

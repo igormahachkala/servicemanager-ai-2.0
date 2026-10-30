@@ -25,9 +25,10 @@ function errorText(error: unknown): string {
 export function TechnicianMapBoard({ surface }: Props) {
   const [selection, setSelection] = useState(initialTechnicianMapSelection)
   const [query, setQuery] = useState('')
+  const [includeClosed, setIncludeClosed] = useState(false)
   const listQ = useQuery({
-    queryKey: ['technician-map'],
-    queryFn: getTechnicianMap,
+    queryKey: ['technician-map', includeClosed],
+    queryFn: () => getTechnicianMap(includeClosed),
     refetchInterval: SHIFT_GEO_INTERVAL_MS,
   })
   const people = listQ.data?.people ?? []
@@ -45,12 +46,14 @@ export function TechnicianMapBoard({ surface }: Props) {
         surface={surface}
         mode={selection.mode}
         query={query}
+        includeClosed={includeClosed}
         technicianIds={selection.technicianIds}
         ticketIds={selection.ticketIds}
         people={people}
         tickets={tickets}
         onMode={onMode}
         onQuery={setQuery}
+        onIncludeClosed={setIncludeClosed}
         onTechnicianIds={(technicianIds: IdSelection) => setSelection((current) => ({ ...current, technicianIds }))}
         onTicketIds={(ticketIds: IdSelection) => setSelection((current) => ({ ...current, ticketIds }))}
       />

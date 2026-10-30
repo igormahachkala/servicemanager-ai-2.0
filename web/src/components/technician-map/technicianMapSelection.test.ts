@@ -16,10 +16,10 @@ import {
 } from './technicianMapSelection'
 
 const people: TechnicianMapPersonRow[] = [
-  { id: 'a', firstName: 'Иван', lastName: 'Петров', latitude: 1, longitude: 2, syncedAtLabel: '10.30 01:05' },
-  { id: 'b', firstName: 'Олег', lastName: 'Сидоров', latitude: 3, longitude: 4, syncedAtLabel: '10.30 01:06' },
-  { id: 'c', firstName: 'Мария', lastName: 'Беззаявки', latitude: 5, longitude: 6, syncedAtLabel: '10.30 01:07' },
-  { id: 'd', firstName: 'Нина', lastName: 'Безточки', latitude: null, longitude: null, syncedAtLabel: '' },
+  { id: 'a', firstName: 'Иван', lastName: 'Петров', latitude: 1, longitude: 2, syncedAtLabel: '10.30 01:05', shiftOpen: true },
+  { id: 'b', firstName: 'Олег', lastName: 'Сидоров', latitude: 3, longitude: 4, syncedAtLabel: '10.30 01:06', shiftOpen: true },
+  { id: 'c', firstName: 'Мария', lastName: 'Беззаявки', latitude: 5, longitude: 6, syncedAtLabel: '10.30 01:07', shiftOpen: true },
+  { id: 'd', firstName: 'Нина', lastName: 'Безточки', latitude: null, longitude: null, syncedAtLabel: '', shiftOpen: true },
 ]
 
 const tickets: TechnicianMapTicketRow[] = [
