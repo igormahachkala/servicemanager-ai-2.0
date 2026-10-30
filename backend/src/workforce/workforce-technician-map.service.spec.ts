@@ -172,7 +172,9 @@ describe('WorkforceTechnicianMapService', () => {
     const prisma = prismaFor({ companyType: CompanyType.PROVIDER, shifts: [openTech] })
     const service = new WorkforceTechnicianMapService(prisma as never)
     await service.list({ id: 'master', companyId: 'provider-1', role: UserRole.MASTER })
-    expect(prisma.workShift.findMany.mock.calls[0][0].where.status).toBe(WorkShiftStatus.OPEN)
+    expect(prisma.workShift.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status: WorkShiftStatus.OPEN }),
+    }))
   })
 
   it('с флагом отдаёт закрытую смену последней точкой до закрытия и не подменяет открытую', async () => {
@@ -204,9 +206,11 @@ describe('WorkforceTechnicianMapService', () => {
       { id: 'master', companyId: 'provider-1', role: UserRole.MASTER },
       true,
     )
-    expect(prisma.workShift.findMany.mock.calls[0][0].where.status).toEqual({
-      in: [WorkShiftStatus.OPEN, WorkShiftStatus.CLOSED, WorkShiftStatus.AUTO_CLOSED],
-    })
+    expect(prisma.workShift.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        status: { in: [WorkShiftStatus.OPEN, WorkShiftStatus.CLOSED, WorkShiftStatus.AUTO_CLOSED] },
+      }),
+    }))
     expect(result.people).toEqual([
       {
         id: 'tech-closed',
@@ -273,7 +277,7 @@ describe('GET /workforce/technician-map roles', () => {
       UserRole.MASTER,
       UserRole.DISPATCHER,
     ])
-    const allow = new Set([UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER])
+    const allow = new Set<UserRole>([UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER])
     for (const role of Object.values(UserRole)) {
       const context = {
         getHandler: () => handler,
