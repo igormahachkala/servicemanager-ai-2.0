@@ -24,6 +24,43 @@ export function todayWindow(now: Date = new Date()): TodayWindow {
   return { from: from.toISOString(), to: to.toISOString() }
 }
 
+/** Верхняя включающая граница прошлых суток для существующего list API. */
+export function previousVisitsUntil(window: TodayWindow): string {
+  return new Date(Date.parse(window.from) - 1).toISOString()
+}
+
+/** API ограничивает выборку до проверки доступа к площадкам, а не после неё. */
+export const TODAY_SCHEDULE_LIMIT = 200
+export const TODAY_SCHEDULE_LIMIT_NOTE =
+  'Для каждого периода сервер проверяет не более 200 планов. Список может быть неполным, даже если показано меньше.'
+
+/**
+ * Два независимых периода не позволяют старому backlog вытеснить сегодняшние
+ * визиты из серверного лимита. Это группировка ответа, не проверка доступа.
+ * При гонке обновлений сегодняшний ответ приоритетен: старый снимок того же
+ * плана не должен снова показывать уже перенесённый или закрытый визит.
+ */
+export function groupTodaySchedules(
+  current: InspectionSchedule[] | null | undefined,
+  previous: InspectionSchedule[] | null | undefined,
+  window: TodayWindow,
+): { today: InspectionSchedule[]; previous: InspectionSchedule[] } {
+  const result: { today: InspectionSchedule[]; previous: InspectionSchedule[] } = { today: [], previous: [] }
+  const seen = new Set<string>()
+  const from = Date.parse(window.from)
+  const to = Date.parse(window.to)
+  for (const schedule of [...(current || []), ...(previous || [])]) {
+    if (seen.has(schedule.id)) continue
+    seen.add(schedule.id)
+    if (!schedule.isActive) continue
+    const due = Date.parse(schedule.nextDueAt)
+    if (!Number.isFinite(due) || due > to) continue
+    if (due >= from) result.today.push(schedule)
+    else if (deriveVisitState(schedule) !== 'COMPLETED') result.previous.push(schedule)
+  }
+  return result
+}
+
 // ── счётчики заявок ─────────────────────────────────────────────────────────
 
 /**
@@ -156,6 +193,21 @@ export function plannedTimeLabel(nextDueAt?: string | null): string {
   return `${hours}:${minutes}`
 }
 
+/** Для прошлых визитов нужны дата и год: одних часов недостаточно. */
+export function plannedDateLabel(nextDueAt?: string | null): string {
+  if (!nextDueAt) return ''
+  const date = new Date(nextDueAt)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+/** Льготные дни считает сервер. Прошлый срок сам по себе ещё не просрочка. */
+export function previousVisitStatusLabel(schedule: Pick<InspectionSchedule, 'isOverdue'>): string {
+  if (schedule.isOverdue === true) return 'Просрочен'
+  if (schedule.isOverdue === false) return 'В пределах льготного срока'
+  return 'Ожидает выполнения'
+}
+
 /**
  * Порядок — по запланированному времени. Бэкенд уже сортирует по nextDueAt,
  * но экран не должен зависеть от того, что его не переставят: визит без срока
@@ -186,6 +238,9 @@ export type TodayVisitCard = {
   locationId: string
   equipmentId?: string
   plannedTime: string
+  plannedDate: string
+  previousStatusLabel: string
+  isOverdue: boolean
   locationName: string
   addressLine: string
   templateName: string
@@ -206,6 +261,9 @@ export function toTodayVisitCard(
     locationId: schedule.location?.id,
     equipmentId: schedule.equipment?.id,
     plannedTime: plannedTimeLabel(schedule.nextDueAt),
+    plannedDate: plannedDateLabel(schedule.nextDueAt),
+    previousStatusLabel: previousVisitStatusLabel(schedule),
+    isOverdue: schedule.isOverdue === true,
     locationName: schedule.location?.name || '',
     addressLine: locationAddressLine(schedule.location),
     templateName: schedule.template?.name || '',
