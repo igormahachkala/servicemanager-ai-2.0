@@ -2,6 +2,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { ServiceHistorySection } from '../components/history/ServiceHistorySection'
 import { equipmentCardPath, equipmentListPath, equipmentStatusLabel, locationsListPath } from '../lib/equipmentCard'
 import { appendBoardNavigationContextToPath } from '../lib/boardNavigationContext'
 import { isManagementNavItemVisible } from '../lib/navigation'
@@ -375,6 +376,8 @@ export function LocationPage() {
           )}
         </div>
       )}
+
+      <ServiceHistorySection key={`${locationId}:${companyId}`} target={{ locationId }} scope={outboundScope} />
 
       {showCoordinates ? (
         <div className="panel" style={{ marginTop: 12 }}>

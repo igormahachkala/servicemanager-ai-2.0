@@ -11,7 +11,7 @@ import { Type } from 'class-transformer'
  *
  * Все они ложатся на существующие индексы InspectionRun: locationId+createdAt,
  * performedByUserId+createdAt, templateId+createdAt, reportStatus+createdAt,
- * companyId+status.
+ * companyId+status, equipmentId+createdAt.
  */
 export class ListRunsDto {
   /** Нижняя граница по времени начала обхода (createdAt), включительно. */
@@ -27,6 +27,10 @@ export class ListRunsDto {
   @IsOptional()
   @IsUUID()
   locationId?: string
+
+  @IsOptional()
+  @IsUUID()
+  equipmentId?: string;
 
   @IsOptional()
   @IsUUID()
