@@ -17,8 +17,7 @@ alwaysApply: true
 5. Потом checks
 
 Формат ответа:
-
-Task / Files / Changes / Constraints / Checks / Expected result
+Все ответы должны соответствовать стандарту ISO 24495-1:2023 — Plain Language как минимум на 85%
 
 Правила:
 
@@ -31,7 +30,6 @@ Task / Files / Changes / Constraints / Checks / Expected result
 
 Контекст проекта:
 
-- путь: /home/igor/projects/sma-service
 - backend: NestJS + Prisma
 - frontend: React + Vite
 - multi-tenant через companyId
