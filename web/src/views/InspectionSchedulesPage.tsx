@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { Link, useLocation, useSearchParams } from 'react-router-dom'
 
+import { InspectionScheduleEditAction } from '../components/InspectionScheduleEditor'
+import { InspectionScheduleRescheduleAction } from '../components/InspectionScheduleRescheduler'
 import * as api from '../lib/api'
 import {
   clearLocationFilterPath,
@@ -331,7 +333,7 @@ export function InspectionSchedulesPage() {
 
         <div style={{ display: 'grid', gap: 12 }}>
           {schedules.map((s) => (
-            <div key={s.id} className="card" style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 14 }}>
+            <div key={s.id} id={`schedule-${s.id}`} className="card" style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 14 }}>
               <div className="row" style={{ marginBottom: 8 }}>
                 <div>
                   <div style={{ fontWeight: 700 }}>{s.name}</div>
@@ -375,6 +377,12 @@ export function InspectionSchedulesPage() {
                   <div>{s.frequency === 'CUSTOM' && s.intervalDays ? `${s.intervalDays} дн.` : '—'}</div>
                 </div>
               </div>
+              {canManage ? (
+                <>
+                  <InspectionScheduleEditAction key={`${routerLocation.key}-${s.id}`} schedule={s} />
+                  <InspectionScheduleRescheduleAction key={`${routerLocation.key}-next-${s.id}`} schedule={s} />
+                </>
+              ) : null}
             </div>
           ))}
         </div>

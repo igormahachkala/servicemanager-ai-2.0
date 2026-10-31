@@ -84,6 +84,7 @@ function makeSchedule(overrides: any = {}) {
     lastGeneratedAt: null,
     lastRunId: null,
     createdAt: new Date('2026-10-01T00:00:00.000Z'),
+    updatedAt: new Date('2026-10-01T00:00:00.000Z'),
     ...overrides,
   };
 }
@@ -294,7 +295,7 @@ describe('завершение обхода по плану', () => {
     expect(schedules[0].isActive).toBe(true);
     // Обход закрыт и план сдвинут одной транзакцией.
     const updateManyCall =
-      prisma.inspectionSchedule.updateMany.mock.calls[0][0];
+      prisma.inspectionSchedule.updateMany.mock.calls.find(([call]) => call.where.nextDueAt)?.[0];
     expect(updateManyCall.where).toEqual({
       id: 'sch-1',
       companyId: PROVIDER_ID,

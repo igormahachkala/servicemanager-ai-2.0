@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
 import { InspectionFrequency, Prisma } from '@prisma/client'
 
 import { AssignmentEligibilityResolver } from '../assignment/assignment-eligibility.resolver'
@@ -11,6 +11,9 @@ import { ServiceContractsService } from '../service-contracts/service-contracts.
 import { CreateScheduleDto } from './dto/create-schedule.dto'
 import { ListSchedulesDto } from './dto/list-schedules.dto'
 import { UpdateScheduleDto } from './dto/update-schedule.dto'
+import { EditNotStartedScheduleDto } from './dto/edit-not-started-schedule.dto'
+import { RescheduleNextOccurrenceDto } from './dto/reschedule-next-occurrence.dto'
+import { moveNextOccurrence, nextOccurrenceConflict } from './inspection-schedule-reschedule'
 import {
   assertInspectionLocationAccess,
   resolveInspectionLocationAccess,
@@ -301,7 +304,10 @@ export class InspectionScheduleService {
        * generated from this schedule yet. Once a generator has produced runs, `nextDueAt` is
        * its cursor, and 098 has no business rewinding it.
        */
-      if (!current.lastGeneratedAt) data.nextDueAt = startDate
+      if (!current.lastGeneratedAt) {
+        data.nextDueAt = startDate
+        data.replacedDueAt = null
+      }
     }
 
     if (dto.leadTimeDays !== undefined) data.leadTimeDays = dto.leadTimeDays
@@ -315,6 +321,94 @@ export class InspectionScheduleService {
     })
 
     return withLastRun(updated)
+  }
+
+  /**
+   * Edit only a plan that has never produced a run. This is deliberately NOT a
+   * reschedule of a later occurrence: started runs and history stay untouched.
+   * The legacy PATCH above retains its existing semantics for other callers.
+   */
+  async editNotStarted(user: InspectionUserCtx, scheduleId: string, dto: EditNotStartedScheduleDto) {
+    assertAllowed(this.policy.canManageSchedule(user))
+
+    const current = await this.requireManagedSchedule(user, scheduleId)
+    const expectedUpdatedAt = new Date(dto.expectedUpdatedAt)
+    if (Number.isNaN(expectedUpdatedAt.getTime())) {
+      throw new BadRequestException('Invalid expectedUpdatedAt')
+    }
+    if (!current.isActive || current.lastGeneratedAt || current.lastRunId || current._count.runs > 0) {
+      throw this.notStartedEditConflict()
+    }
+    if (current.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
+      throw this.notStartedEditConflict()
+    }
+
+    const template = await this.requireOwnedTemplate(user, dto.templateId)
+    const location = await this.requireAccessibleLocation(user, dto.locationId)
+    const equipmentId = await this.resolveEquipmentId(dto.equipmentId ?? undefined, location)
+    const assignedToUserId = await this.resolveAssigneeId(user, dto.assignedToUserId ?? undefined, location)
+    const startDate = this.parseStartDate(dto.startDate)
+    const intervalDays = this.resolveIntervalDays(dto.frequency, dto.intervalDays ?? undefined)
+    const name = dto.name.trim()
+    if (!name) throw new BadRequestException('Schedule name is required')
+
+    return this.prisma.$transaction(async (tx) => {
+      // Same row as createScheduledRun's revision reservation. Whichever writer
+      // wins makes the other's predicate fail after the row lock is released.
+      const { count } = await tx.inspectionSchedule.updateMany({
+        where: {
+          id: current.id,
+          companyId: user.companyId,
+          isActive: true,
+          updatedAt: expectedUpdatedAt,
+          lastGeneratedAt: null,
+          lastRunId: null,
+          runs: { none: {} },
+        },
+        data: {
+          name,
+          templateId: template.id,
+          locationId: location.id,
+          equipmentId,
+          assignedToUserId,
+          frequency: dto.frequency,
+          intervalDays,
+          startDate,
+          nextDueAt: startDate,
+          replacedDueAt: null,
+          // Ensure even edits in the same millisecond invalidate an older draft.
+          updatedAt: new Date(Math.max(Date.now(), expectedUpdatedAt.getTime() + 1)),
+        },
+      })
+      if (count !== 1) throw this.notStartedEditConflict()
+
+      const updated = await tx.inspectionSchedule.findFirst({
+        where: { id: current.id, companyId: user.companyId },
+        select: scheduleSelect(),
+      })
+      if (!updated) throw this.notStartedEditConflict()
+      return withLastRun(updated)
+    })
+  }
+
+  /** A used recurring plan keeps its anchor and all execution facts. */
+  async rescheduleNextOccurrence(user: InspectionUserCtx, scheduleId: string, dto: RescheduleNextOccurrenceDto) {
+    assertAllowed(this.policy.canManageSchedule(user))
+    const current = await this.requireManagedSchedule(user, scheduleId)
+    return moveNextOccurrence(this.prisma, user.companyId, user.id, current, dto, async (tx) => {
+      const updated = await tx.inspectionSchedule.findFirst({
+        where: { id: current.id, companyId: user.companyId }, select: scheduleSelect(),
+      })
+      if (!updated) throw nextOccurrenceConflict()
+      return withLastRun(updated)
+    })
+  }
+
+  private notStartedEditConflict() {
+    return new ConflictException({
+      code: 'INSPECTION_SCHEDULE_NOT_EDITABLE',
+      message: 'План изменён, снят с плана или уже запускался. Обновите план перед редактированием.',
+    })
   }
 
   /**
@@ -453,8 +547,15 @@ export class InspectionScheduleService {
         id: true,
         frequency: true,
         intervalDays: true,
+        startDate: true,
+        nextDueAt: true,
+        replacedDueAt: true,
         lastGeneratedAt: true,
+        lastRunId: true,
+        isActive: true,
+        updatedAt: true,
         assignedToUserId: true,
+        company: { select: { timezone: true } },
         location: { select: { id: true, clientCompanyId: true } },
         _count: { select: { runs: true } },
       },

@@ -66,6 +66,7 @@ function makeSchedule(overrides: any = {}) {
     equipmentId: null,
     assignedToUserId: technician.id,
     nextDueAt: DUE_AT,
+    updatedAt: new Date('2026-09-01T00:00:00.000Z'),
     ...overrides,
   }
 }
@@ -201,7 +202,7 @@ function makeSuite(
         schedule && where.id === schedule.id && where.companyId === PROVIDER_ID ? { ...schedule } : null,
       ),
       update: jest.fn(async ({ data }: any) => ({ id: schedule?.id, ...data })),
-      updateMany: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     inspectionRun: {
       create: jest.fn(async ({ data }: any) => {
@@ -757,5 +758,57 @@ describe('119T идемпотентность запуска по плану', (
 
     // Отказ не съедает ключ: законный повтор после отказа должен быть возможен.
     expect(store.idempotencyRecord.delete).toHaveBeenCalled()
+  })
+})
+
+describe('safe schedule edit/start revision reservation', () => {
+  it('reserves the resolved revision inside the transaction before any run is inserted', async () => {
+    const { svc, prisma, schedule } = makeSuite()
+    await svc.startRun(technician, { ...base, scheduleId: 'sch-1' } as any)
+    const reservation = prisma.inspectionSchedule.updateMany.mock.calls[0][0]
+    expect(reservation.where).toEqual({
+      id: schedule.id, companyId: PROVIDER_ID, isActive: true, updatedAt: schedule.updatedAt,
+    })
+    expect(reservation.data.updatedAt.getTime()).toBeGreaterThan(schedule.updatedAt.getTime())
+    const reserved = prisma.inspectionSchedule.updateMany.mock.invocationCallOrder[0]
+    expect(reserved).toBeGreaterThan(prisma.$transaction.mock.invocationCallOrder[0])
+    expect(reserved).toBeLessThan(prisma.inspectionRun.findFirst.mock.invocationCallOrder[0])
+    expect(reserved).toBeLessThan(prisma.inspectionRun.create.mock.invocationCallOrder[0])
+  })
+
+  it('rejects a start resolved before an editor committed instead of inserting an old snapshot', async () => {
+    const { svc, prisma, timeline } = makeSuite({ withIdempotency: true })
+    prisma.inspectionSchedule.updateMany.mockResolvedValueOnce({ count: 0 })
+    await expect(svc.startRun(technician, { ...base, scheduleId: 'sch-1' } as any))
+      .rejects.toMatchObject({ response: { code: 'INSPECTION_SCHEDULE_CHANGED' } })
+    expect(prisma.inspectionRun.create).not.toHaveBeenCalled()
+    expect(prisma.inspectionSchedule.update).not.toHaveBeenCalled()
+    expect(timeline.recordLegacy).not.toHaveBeenCalled()
+  })
+
+  it('returns the already-started run when another starter won the revision', async () => {
+    const { svc, prisma } = makeSuite({ activeRun: { id: 'winner-run' } })
+    prisma.inspectionSchedule.updateMany.mockResolvedValueOnce({ count: 0 })
+    await expect(svc.startRun(technician, { ...base, scheduleId: 'sch-1' } as any))
+      .rejects.toMatchObject({
+        response: { code: 'INSPECTION_SCHEDULE_RUN_IN_PROGRESS', runId: 'winner-run' },
+      })
+    expect(prisma.inspectionRun.create).not.toHaveBeenCalled()
+  })
+
+  it('a stale-start conflict releases its idempotency key so a refreshed retry can proceed', async () => {
+    const { svc, prisma, store } = makeSuite({ withIdempotency: true })
+    prisma.inspectionSchedule.updateMany.mockResolvedValueOnce({ count: 0 })
+    await expect(svc.startRun(technician, { ...base, scheduleId: 'sch-1' } as any)).rejects.toThrow(ConflictException)
+    expect(store.rows.size).toBe(0)
+    await svc.startRun(technician, { ...base, scheduleId: 'sch-1' } as any)
+    expect(prisma.inspectionRun.create).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not reserve a schedule for a manual run', async () => {
+    const { svc, prisma } = makeSuite()
+    await svc.startRun(technician, base as any)
+    expect(prisma.inspectionSchedule.updateMany).not.toHaveBeenCalled()
+    expect(prisma.$transaction).not.toHaveBeenCalled()
   })
 })
